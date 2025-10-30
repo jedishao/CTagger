@@ -1,0 +1,70 @@
+java.lang.OutOfMemoryError after upgrading to 3.16.5 (LocalCachedMap)
+**Expected behavior**
+no OutOfMemoryError on applications using the same Redis server but the previous version of redisson 3.16.3
+
+**Actual behavior**
+applications starting to OOM running version 3.16.3 while an application running with 3.16.5 was fine
+
+```
+crm@thread-pool-redisson-general-netty@thread-4
+  at io.netty.buffer.AbstractByteBuf.checkReadableBytes0(I)V (AbstractByteBuf.java:1442)
+  at io.netty.buffer.AbstractByteBuf.checkReadableBytes(I)V (AbstractByteBuf.java:1428)
+  at io.netty.buffer.AbstractByteBuf.readBytes([BII)Lio/netty/buffer/ByteBuf; (AbstractByteBuf.java:895)
+  at io.netty.buffer.AbstractByteBuf.readBytes([B)Lio/netty/buffer/ByteBuf; (AbstractByteBuf.java:903)
+  at org.redisson.cache.LocalCachedMessageCodec.lambda$new$0(Lio/netty/buffer/ByteBuf;Lorg/redisson/client/handler/State;)Ljava/lang/Object; (LocalCachedMessageCodec.java:68)
+  at org.redisson.cache.LocalCachedMessageCodec$$Lambda$1805+0x0000000801d6ab08.decode(Lio/netty/buffer/ByteBuf;Lorg/redisson/client/handler/State;)Ljava/lang/Object; (Unknown Source)
+  at org.redisson.client.handler.CommandDecoder.decode(Lio/netty/buffer/ByteBuf;Lorg/redisson/client/protocol/CommandData;Ljava/util/List;Lio/netty/channel/Channel;ZLjava/util/List;)V (CommandDecoder.java:383)
+  at org.redisson.client.handler.CommandDecoder.decodeList(Lio/netty/buffer/ByteBuf;Lorg/redisson/client/protocol/CommandData;Ljava/util/List;Lio/netty/channel/Channel;JLjava/util/List;ZLjava/util/List;)V (CommandDecoder.java:427)
+  at org.redisson.client.handler.CommandDecoder.decode(Lio/netty/buffer/ByteBuf;Lorg/redisson/client/protocol/CommandData;Ljava/util/List;Lio/netty/channel/Channel;ZLjava/util/List;)V (CommandDecoder.java:392)
+  at org.redisson.client.handler.CommandPubSubDecoder.decodeCommand(Lio/netty/channel/Channel;Lio/netty/buffer/ByteBuf;Lorg/redisson/client/protocol/QueueCommand;I)V (CommandPubSubDecoder.java:84)
+  at org.redisson.client.handler.CommandDecoder.decode(Lio/netty/channel/ChannelHandlerContext;Lio/netty/buffer/ByteBuf;Lorg/redisson/client/protocol/QueueCommand;I)V (CommandDecoder.java:137)
+  at org.redisson.client.handler.CommandDecoder.decode(Lio/netty/channel/ChannelHandlerContext;Lio/netty/buffer/ByteBuf;Ljava/util/List;)V (CommandDecoder.java:94)
+  at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(Lio/netty/channel/ChannelHandlerContext;Lio/netty/buffer/ByteBuf;Ljava/util/List;)V (ByteToMessageDecoder.java:507)
+  at io.netty.handler.codec.ReplayingDecoder.callDecode(Lio/netty/channel/ChannelHandlerContext;Lio/netty/buffer/ByteBuf;Ljava/util/List;)V (ReplayingDecoder.java:366)
+  at io.netty.handler.codec.ByteToMessageDecoder.channelRead(Lio/netty/channel/ChannelHandlerContext;Ljava/lang/Object;)V (ByteToMessageDecoder.java:276)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(Ljava/lang/Object;)V (AbstractChannelHandlerContext.java:379)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(Lio/netty/channel/AbstractChannelHandlerContext;Ljava/lang/Object;)V (AbstractChannelHandlerContext.java:365)
+  at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(Ljava/lang/Object;)Lio/netty/channel/ChannelHandlerContext; (AbstractChannelHandlerContext.java:357)
+  at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(Lio/netty/channel/ChannelHandlerContext;Ljava/lang/Object;)V (DefaultChannelPipeline.java:1410)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(Ljava/lang/Object;)V (AbstractChannelHandlerContext.java:379)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(Lio/netty/channel/AbstractChannelHandlerContext;Ljava/lang/Object;)V (AbstractChannelHandlerContext.java:365)
+  at io.netty.channel.DefaultChannelPipeline.fireChannelRead(Ljava/lang/Object;)Lio/netty/channel/ChannelPipeline; (DefaultChannelPipeline.java:919)
+  at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read()V (AbstractNioByteChannel.java:166)
+  at io.netty.channel.nio.NioEventLoop.processSelectedKey(Ljava/nio/channels/SelectionKey;Lio/netty/channel/nio/AbstractNioChannel;)V (NioEventLoop.java:719)
+  at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized()V (NioEventLoop.java:655)
+  at io.netty.channel.nio.NioEventLoop.processSelectedKeys()V (NioEventLoop.java:581)
+  at io.netty.channel.nio.NioEventLoop.run()V (NioEventLoop.java:493)
+  at io.netty.util.concurrent.SingleThreadEventExecutor$4.run()V (SingleThreadEventExecutor.java:986)
+  at io.netty.util.internal.ThreadExecutorMap$2.run()V (ThreadExecutorMap.java:74)
+  at java.lang.Thread.run()V (Thread.java:832)
+```
+
+**Steps to reproduce or test case**
+access the same Redis server with different versions of the library (3.16.3 vs. 3.16.5)
+
+**Redis version**
+5.0.3
+
+**Redisson version**
+3.16.3 and 3.16.5
+
+**Redisson configuration**
+local cache map config
+```java
+    @Nonnull
+    @Override
+    public <T extends RedisCacheable> RedisWithLocalCache<String, T> getLocallyCachedMap(@Nonnull final CacheKey cacheName,
+            final int cacheSize,
+            @Nonnull final Duration timeToLive,
+            @Nonnull final Duration localCacheTimeToLive) {
+        final var options = LocalCachedMapOptions.<String, T> defaults() //
+                .cacheSize(cacheSize) //
+                .timeToLive(timeToLive.toMillis()) //
+                .maxIdle(localCacheTimeToLive.toMillis()) //
+                .evictionPolicy(LocalCachedMapOptions.EvictionPolicy.LRU) //
+                .reconnectionStrategy(LocalCachedMapOptions.ReconnectionStrategy.LOAD) //
+                .syncStrategy(LocalCachedMapOptions.SyncStrategy.UPDATE) //
+                .writeMode(MapOptions.WriteMode.WRITE_BEHIND);
+        return new RedisWithLocalCacheWrapper<>(redisson.getLocalCachedMap(cacheName.keyName(), options));
+    }
+```

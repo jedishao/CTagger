@@ -1,0 +1,44 @@
+Consumer: Failed to load config into existing configuration data
+**Describe the bug**
+Pulsar v2.8.1
+
+Build consumer by loadConf(), An exception occurred when starting the consumer.
+
+consumer code:
+
+```
+        Map<String, Object> config = new HashMap<>();
+        config.put("topicNames", "persistent://public/default/test-string1");
+        config.put("ackTimeoutMillis", 1000);
+        config.put("receiverQueueSize", 2000);
+        Consumer<String> builder = pulsarClient.newConsumer(Schema.STRING)
+                .loadConf(config)
+                .subscribe();
+```
+
+```
+Exception in thread "main" java.lang.RuntimeException: Failed to load config into existing configuration data
+	at org.apache.pulsar.client.impl.conf.ConfigurationDataUtils.loadData(ConfigurationDataUtils.java:69)
+	at org.apache.pulsar.client.impl.ConsumerBuilderImpl.loadConf(ConsumerBuilderImpl.java:83)
+	at newland.DeadLetterTest1.main(DeadLetterTest1.java:41)
+Caused by: org.apache.pulsar.shade.com.fasterxml.jackson.databind.exc.MismatchedInputException: Cannot construct instance of `java.util.HashSet` (although at least one Creator exists): no String-argument constructor/factory method to deserialize from String value ('persistent://public/default/test-string1')
+ at [Source: (String)"{"autoUpdatePartitionsIntervalSeconds":60,"tickDurationMillis":1000,"replicateSubscriptionState":false,"negativeAckRedeliveryDelayMicros":60000000,"expireTimeOfIncompleteChunkedMessageMillis":60000,"maxPendingChuckedMessage":10,"topicNames":"persistent://public/default/test-string1","priorityLevel":0,"ackReceiptEnabled":false,"acknowledgementsGroupTimeMicros":100000,"receiverQueueSize":2000,"autoUpdatePartitions":true,"subscriptionMode":"Durable","poolMessages":false,"patternAutoDiscoveryPeriod""[truncated 407 chars]; line: 1, column: 242] (through reference chain: org.apache.pulsar.client.impl.conf.ConsumerConfigurationData["topicNames"])
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.exc.MismatchedInputException.from(MismatchedInputException.java:63)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.DeserializationContext.reportInputMismatch(DeserializationContext.java:1588)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.DeserializationContext.handleMissingInstantiator(DeserializationContext.java:1213)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.std.StdDeserializer._deserializeFromString(StdDeserializer.java:311)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.std.StringCollectionDeserializer.handleNonArray(StringCollectionDeserializer.java:284)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.std.StringCollectionDeserializer.deserialize(StringCollectionDeserializer.java:192)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.std.StringCollectionDeserializer.deserialize(StringCollectionDeserializer.java:182)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.std.StringCollectionDeserializer.deserialize(StringCollectionDeserializer.java:25)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.impl.MethodProperty.deserializeAndSet(MethodProperty.java:129)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.BeanDeserializer.vanillaDeserialize(BeanDeserializer.java:324)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.BeanDeserializer.deserialize(BeanDeserializer.java:187)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.deser.DefaultDeserializationContext.readRootValue(DefaultDeserializationContext.java:322)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper._readMapAndClose(ObjectMapper.java:4593)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:3548)
+	at org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:3516)
+	at org.apache.pulsar.client.impl.conf.ConfigurationDataUtils.loadData(ConfigurationDataUtils.java:67)
+	... 2 more
+
+```

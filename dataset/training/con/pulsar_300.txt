@@ -1,0 +1,3 @@
+throttling for concurrent topic loading on broker cold-restart
+In regards of #196, we performed one the quick [load test](https://gist.github.com/rdhabalia/475167af627aba7ce24dc3488c10242a) which loads 30K topics under 5K bundles and it continuously try to unload all the bundles from each broker concurrently which makes all topics to be loaded to different brokers again and again. As each topic loading executes around ~8 zk operations, it increases zk-latency and zk-outstanding request numbers also. So, it seems on cold-restart: broker should have a way to throttle concurrent topic-loading to avoid creating back pressure on zk which can help to control zk latency and help broker to not lose zk-session and avoid recursive restart.
+@merlimat any thought?

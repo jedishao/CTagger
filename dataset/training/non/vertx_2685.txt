@@ -1,0 +1,6 @@
+Feature: Support for stream dependency and weight
+### Problem:
+The project I am working on requires prioritization of HTTP/2 streams. For that I need to be able to set stream dependency and weight in HEADER frames in request made from client, as well as responses sent from the server. Currently stream dependency and stream weight is not exposed through the API. When writing HTTP/2 requests/responses stream dependency and weight are not passed to Netty, therefore default values are used (0 and 16 respectively). 
+
+### Solution:
+It seems it would be enough to to add  extend HttpClientRequest and HttpServerResponse interfaces with setStreamDependecy and setWeight to override the default values and pass them through Http2ClientStream.writeHead -> VertxHttp2ConnectionHandler.writeHeaders to io.netty.handler.codec.http2.Http2ConnectionEncoder.writeHeaders

@@ -1,0 +1,10 @@
+Use EventLoopGroup for internal consumers on PartitionedConsumerImpl
+With the changes from #963 `PartitionedConsumerImpl` uses Consumers in a non-blocking way, we could make `PartitionedConsumerImpl` instantiate `ConsumerImpl` with an `EventLoop` from `EventLoopGroup`.
+
+I had a go at this, but a few questions raised.
+
+- I realised we only use a single thread executor per Consumer instance, is there a reason for this?
+- I think it would be nice to be able to disable `externalExecutorProvider` in `PulsarClientImpl`, maybe by setting `conf.getListenerThreads() == 0`, I imagine this would either use EventLoopGroup for getting Executors. Another option would be to allow to customize ExecutorProvider. This could be useful for apps that have fast, nonblocking listeners.
+- If implementing the previous, it would probably make more sense to use `MoreExecutors.newDirectExecutorService()` though we probably shouldn't use a single instance but a few, but it could be hard to track them and shut them down.
+
+What are your opinions?

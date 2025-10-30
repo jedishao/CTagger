@@ -1,0 +1,41 @@
+FairLock released if `lockWatchdogTimeout` is set to 100 millis
+I encountered a strange behavior when `lockWatchdogTimeout` is set to 100 millis (**I didn't test to see what exact value it starts behaving _abnormally_**). Lock is released even if the locking thread still alive.
+ 
+Any value higher than this, lock is kept as long as thread is alive.
+
+Redisson version：3.15.0
+
+I create lock in the standard way, nothing special.
+```Java
+  long lockWatchdogTimeout = 100;
+  Config config = new Config();
+  String configString = "redis://" + hostname + ":" + port;
+  config.setLockWatchdogTimeout(lockWatchdogTimeout);
+
+  RedissonClient redissonClient = Redisson.create(redissonConfig);
+  RLock rLock = redissonClient.getFairLock(lockKey)
+  rLock.tryLock(200, -1, TimeUnit.MILLISECONDS)
+```
+
+I have a test where I acquire `fairLock` instance, and perform locking. 
+I have something like this:
+```Java
+  RLock rLock = fairLocker.lock(redisKey);
+  assertNotNull(rLock);
+  assertEquals(redisKey, rLock.getName());
+  assertTrue(rLock.isLocked());
+  assertTrue(rLock.isHeldByCurrentThread());
+
+  // Long processing task
+  Thread.sleep(500);
+  assertTrue(rLock.isLocked()); //<-- When lockWatchdogTimeout <= 100 test fails here
+  assertTrue(rLock.isHeldByCurrentThread());
+  rLock.unlock();
+```
+
+If `lockWatchdogTimeout=100` then this test fail constantly. But if the value is set to `lockWatchdogTimeout=150` then the test passes successfully. 
+Even if I set `Thread.sleep(5000);` (5 seconds keeping the lock) the test still passes.
+
+Why when this configuration value set to 100, Redisson releases the lock?
+
+I'm not sure if it is a bug, but I couldn't find any documentation regarding minimum value of this config param. The default is 30 seconds and maximum is 60. But no mention of maybe it has minimum allowed in means of _amount_  and `TimeUnit` value.

@@ -1,0 +1,13 @@
+Prevent sharing Context object between server and client thread
+### What version of gRPC are you using?
+1.9.0
+
+The issue with sharing Context object between server and client calls.
+
+I have a GRPC server that while handling bidirectional stream request (stream A) creates a client bidirectional stream to another GRPC server (stream B). The idea is that lifecycle of the streams A and B are different and it's not required to close stream B when stream A is cancelled.
+
+But it doesn't work atm. As far as I understand the reason is that Context object attached to the thread handling Stream A is used by Stream B as well. Actually Stream B listens for cancellation event from the Context, that is undesirable.
+
+The question is how to break this dependency of the Stream B from the original Context.
+I have one option is to create the Stream B in a separate thread from a thread pool.
+But would like to know whether this is correct or probably there are another options.

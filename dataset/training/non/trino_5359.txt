@@ -1,0 +1,50 @@
+Insufficient column name quoting in Phoenix connector
+```
+presto:tpch> USE phoenix.tpch;
+USE
+
+presto:tpch> CREATE TABLE t1(a integer);
+CREATE TABLE
+
+presto:tpch> CREATE TABLE t2(key integer);
+Query 20200930_092050_00017_rejpy failed: ERROR 604 (42P00): Syntax error. Mismatched input. Expecting "CONSTRAINT", got "KEY" at line 1, column 52.
+io.prestosql.spi.PrestoException: ERROR 604 (42P00): Syntax error. Mismatched input. Expecting "CONSTRAINT", got "KEY" at line 1, column 52.
+	at io.prestosql.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:875)
+	at io.prestosql.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:861)
+	at io.prestosql.plugin.phoenix.PhoenixClient.execute(PhoenixClient.java:182)
+	at io.prestosql.plugin.phoenix.PhoenixClient.beginCreateTable(PhoenixClient.java:415)
+	at io.prestosql.plugin.phoenix.PhoenixMetadata.createTable(PhoenixMetadata.java:138)
+	at io.prestosql.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.createTable(ClassLoaderSafeConnectorMetadata.java:324)
+	at io.prestosql.metadata.MetadataManager.createTable(MetadataManager.java:665)
+	at io.prestosql.execution.CreateTableTask.internalExecute(CreateTableTask.java:227)
+	at io.prestosql.execution.CreateTableTask.execute(CreateTableTask.java:91)
+	at io.prestosql.execution.CreateTableTask.execute(CreateTableTask.java:73)
+	at io.prestosql.execution.DataDefinitionExecution.start(DataDefinitionExecution.java:167)
+	at io.prestosql.execution.SqlQueryManager.createQuery(SqlQueryManager.java:245)
+	at io.prestosql.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:132)
+	at io.prestosql.$gen.Presto_testversion____20200930_091916_3.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+	Suppressed: java.lang.RuntimeException: Query: CREATE  TABLE "TPCH"."T2" (ROWKEY bigint not null, KEY integer , CONSTRAINT PK PRIMARY KEY (ROWKEY))
+		at io.prestosql.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:876)
+		... 16 more
+Caused by: org.apache.phoenix.exception.PhoenixParserException: ERROR 604 (42P00): Syntax error. Mismatched input. Expecting "CONSTRAINT", got "KEY" at line 1, column 52.
+	at org.apache.phoenix.exception.PhoenixParserException.newException(PhoenixParserException.java:33)
+	at org.apache.phoenix.parse.SQLParser.parseStatement(SQLParser.java:111)
+	at org.apache.phoenix.jdbc.PhoenixStatement$PhoenixStatementParser.parseStatement(PhoenixStatement.java:1644)
+	at org.apache.phoenix.jdbc.PhoenixStatement.parseStatement(PhoenixStatement.java:1727)
+	at org.apache.phoenix.jdbc.PhoenixStatement.execute(PhoenixStatement.java:1819)
+	at io.prestosql.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:872)
+	... 16 more
+Caused by: org.apache.phoenix.shaded.org.antlr.runtime.MismatchedTokenException
+	at org.apache.phoenix.parse.PhoenixSQLParser.recoverFromMismatchedToken(PhoenixSQLParser.java:376)
+	at org.apache.phoenix.shaded.org.antlr.runtime.BaseRecognizer.match(BaseRecognizer.java:115)
+	at org.apache.phoenix.parse.PhoenixSQLParser.pk_constraint(PhoenixSQLParser.java:2363)
+	at org.apache.phoenix.parse.PhoenixSQLParser.create_table_node(PhoenixSQLParser.java:1250)
+	at org.apache.phoenix.parse.PhoenixSQLParser.oneStatement(PhoenixSQLParser.java:868)
+	at org.apache.phoenix.parse.PhoenixSQLParser.statement(PhoenixSQLParser.java:524)
+	at org.apache.phoenix.parse.SQLParser.parseStatement(SQLParser.java:108)
+	... 20 more
+```
+

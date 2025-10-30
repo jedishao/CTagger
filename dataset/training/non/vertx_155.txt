@@ -1,0 +1,136 @@
+Vert.x not loading all dependent jars in the lib folder for a mod
+This is a an issue generated from this thread: https://groups.google.com/forum/?fromgroups#!topic/vertx/qmRS_Ua4aSQ
+
+I have a small simple project (source code below) that uses two dependancies.  I created a Vert.x mod and tossed all the required jars into the lib folder of the mod.  I noticed that basically one jar is loaded but the rest are not as I continue to get a ClassNotFoundException error even though I'm 100% sure the required jars are in the lib folder.
+
+From the Abdera (one of the dependencies) source code:
+
+  private static ClassLoader getLoader() {
+        return Thread.currentThread().getContextClassLoader();
+    }
+( From File: Discover.java )
+
+Digging a little more, it seems like it should be able to see the dependency.  This is the full stack trace that I see:
+
+$ vertx run mymod
+Listening for transport dt_socket at address: 8000
+May 18, 2012 11:36:25 AM org.vertx.java.core.logging.impl.JULLogDelegate error
+SEVERE: Exception in Java verticle script
+java.lang.RuntimeException: java.lang.RuntimeException: java.lang.ClassNotFoundException: org.apache.abdera.parser.stax.FOMFactory
+    at org.apache.abdera.util.Discover.locate(Discover.java:37)
+    at org.apache.abdera.util.Discover.locate(Discover.java:21)
+    at org.apache.abdera.util.AbderaConfiguration.newFactoryInstance(AbderaConfiguration.java:288)
+    at org.apache.abdera.Abdera.newFactory(Abdera.java:206)
+    at org.apache.abdera.Abdera.getFactory(Abdera.java:139)
+    at com.giantflyingsaucer.vertxatom.Server$1.handle(Server.java:23)
+    at com.giantflyingsaucer.vertxatom.Server$1.handle(Server.java:15)
+    at org.vertx.java.core.http.impl.ServerConnection.handleRequest(ServerConnection.java:123)
+    at org.vertx.java.core.http.impl.ServerConnection.processMessage(ServerConnection.java:258)
+    at org.vertx.java.core.http.impl.ServerConnection.handleMessage(ServerConnection.java:95)
+    at org.vertx.java.core.http.impl.DefaultHttpServer$ServerHandler.messageReceived(DefaultHttpServer.java:529)
+    at org.jboss.netty.channel.SimpleChannelUpstreamHandler.handleUpstream(SimpleChannelUpstreamHandler.java:75)
+    at org.jboss.netty.channel.DefaultChannelPipeline.sendUpstream(DefaultChannelPipeline.java:564)
+    at org.jboss.netty.channel.DefaultChannelPipeline$DefaultChannelHandlerContext.sendUpstream(DefaultChannelPipeline.java:792)
+    at org.jboss.netty.handler.stream.ChunkedWriteHandler.handleUpstream(ChunkedWriteHandler.java:145)
+    at org.jboss.netty.channel.DefaultChannelPipeline.sendUpstream(DefaultChannelPipeline.java:564)
+    at org.jboss.netty.channel.DefaultChannelPipeline$DefaultChannelHandlerContext.sendUpstream(DefaultChannelPipeline.java:792)
+    at org.jboss.netty.channel.Channels.fireMessageReceived(Channels.java:296)
+    at org.jboss.netty.handler.codec.replay.ReplayingDecoder.unfoldAndFireMessageReceived(ReplayingDecoder.java:600)
+    at org.jboss.netty.handler.codec.replay.ReplayingDecoder.callDecode(ReplayingDecoder.java:584)
+    at org.jboss.netty.handler.codec.replay.ReplayingDecoder.messageReceived(ReplayingDecoder.java:445)
+    at org.jboss.netty.channel.SimpleChannelUpstreamHandler.handleUpstream(SimpleChannelUpstreamHandler.java:75)
+    at org.jboss.netty.channel.DefaultChannelPipeline.sendUpstream(DefaultChannelPipeline.java:564)
+    at org.jboss.netty.channel.DefaultChannelPipeline.sendUpstream(DefaultChannelPipeline.java:559)
+    at org.jboss.netty.channel.Channels.fireMessageReceived(Channels.java:268)
+    at org.jboss.netty.channel.Channels.fireMessageReceived(Channels.java:255)
+    at org.jboss.netty.channel.socket.nio.NioWorker.read(NioWorker.java:94)
+    at org.jboss.netty.channel.socket.nio.AbstractNioWorker.processSelectedKeys(AbstractNioWorker.java:372)
+    at org.jboss.netty.channel.socket.nio.AbstractNioWorker.run(AbstractNioWorker.java:246)
+    at org.jboss.netty.channel.socket.nio.NioWorker.run(NioWorker.java:38)
+    at org.jboss.netty.util.ThreadRenamingRunnable.run(ThreadRenamingRunnable.java:102)
+    at org.jboss.netty.util.internal.DeadLockProofWorker$1.run(DeadLockProofWorker.java:42)
+    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1110)
+    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:603)
+    at java.lang.Thread.run(Thread.java:722)
+Caused by: java.lang.RuntimeException: java.lang.ClassNotFoundException: org.apache.abdera.parser.stax.FOMFactory
+    at org.apache.abdera.util.Discover.getClass(Discover.java:162)
+    at org.apache.abdera.util.Discover.load(Discover.java:143)
+    at org.apache.abdera.util.Discover.locate(Discover.java:33)
+    ... 34 more
+Caused by: java.lang.ClassNotFoundException: org.apache.abdera.parser.stax.FOMFactory
+    at java.net.URLClassLoader$1.run(URLClassLoader.java:366)
+    at java.net.URLClassLoader$1.run(URLClassLoader.java:355)
+    at java.security.AccessController.doPrivileged(Native Method)
+    at java.net.URLClassLoader.findClass(URLClassLoader.java:354)
+    at java.lang.ClassLoader.loadClass(ClassLoader.java:423)
+    at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:308)
+    at java.lang.ClassLoader.loadClass(ClassLoader.java:356)
+    at org.apache.abdera.util.Discover.getClass(Discover.java:159)
+
+Here is the minimal test code to produce the above error:
+
+import org.apache.abdera.Abdera;
+import org.apache.abdera.factory.Factory;
+import org.apache.abdera.model.Entry;
+import org.apache.abdera.model.Feed;
+import org.apache.commons.httpclient.HttpStatus;
+import org.vertx.java.core.Handler;
+import org.vertx.java.core.http.HttpServerRequest;
+import org.vertx.java.deploy.Verticle;
+
+public class Server extends Verticle {
+
+```
+public void start() {
+    vertx.createHttpServer().requestHandler(new Handler<HttpServerRequest>() {
+
+        public void handle(HttpServerRequest req) {
+
+                // Code from http://www.ibm.com/developerworks/library/x-atompp3/
+                Abdera abdera = new Abdera();
+                // This next line will throw the exception
+                Factory factory = abdera.getFactory();
+
+                Feed feed = factory.newFeed();
+                feed.setTitle("This is a feed");
+                feed.addLink("http://www.example.org");
+                feed.addLink("http://www.example.org/foo", "self");
+
+                Entry entry = factory.newEntry();
+                entry.setId("http://example.org/foo/entry");
+                entry.setUpdated(new java.util.Date());
+                entry.setTitle("This is an entry");
+                entry.setContentAsXhtml("This <b>is</b> <i>markup</i>");
+                entry.addAuthor("James");
+                entry.addLink("http://www.example.org");
+
+                feed.addEntry(entry);
+
+                req.response.statusCode = HttpStatus.SC_OK;
+                req.response.headers().put("Content-Type", "application/atom+xml");
+
+                req.response.end("TODO: Return the feed here");
+
+        }
+    }).listen(8080);
+}
+```
+
+}
+
+Dependencies (Excluding the Vert.x ones):
+
+```
+    <dependency>
+        <groupId>commons-httpclient</groupId>
+        <artifactId>commons-httpclient</artifactId>
+        <version>3.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.abdera</groupId>
+        <artifactId>abdera-client</artifactId>
+        <version>1.1.2</version>
+    </dependency>
+```
+
+The libraries are put into the lib folder of the module.

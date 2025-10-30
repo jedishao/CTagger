@@ -1,0 +1,6 @@
+Callback race on start in cachingCost balancer
+CachingCostBalancerStrategyFactory registers callbacks in its `start()` method, which is problematic since any callbacks that happen between start of ServerInventoryView and BalancerStrategyFactory will be missed. Inventory view callbacks should generally be registered in constructors, not in start methods.
+
+I discovered this when trying to test the cachingCost balancer on a cluster that has a small number of segments, and found that it missed the initialization callback (happened too fast) so it refused to create itself.
+
+cc: @dgolitsyn @leventov

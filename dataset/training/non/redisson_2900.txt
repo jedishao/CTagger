@@ -1,0 +1,27 @@
+Indexes of an RLO in Redis
+I do the Persistence of a RLO with some indexes, and I have a time for it to expire, however the indices, never disappear from the memory of the redis, can anyone help?
+
+```
+
+@REntity
+public class MyObject {
+
+    @RId(generator = LongGenerator.class)
+    private Long id;
+
+    @RIndex
+    private String name;
+}
+
+public MyObject save(MyObject obj) {
+        RLiveObjectService service = redissonClient.getLiveObjectService();
+        var objPersist = service.persist(obj);
+        var expireTime = 1L;
+
+        RLiveObject liveObject = service.asLiveObject(objPersist);
+        liveObject.expire(expireTime, TimeUnit.MINUTES);
+        return objPersist;
+}
+```
+
+After 1 minute, the object is removed from the redis, OK ... but the indeces are not

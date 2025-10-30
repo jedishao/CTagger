@@ -1,0 +1,18 @@
+`tryLock` in redis cluster working not properly
+<!--
+Сonsider Redisson PRO https://redisson.pro version for advanced features and support by SLA.
+-->
+
+**Expected behavior**
+`tryLock` of RLock can not return `true` when the lock key still exist in cluster redis.
+
+**Actual behavior**
+Sometimes `tryLock` can acquire the lock key although it still exists. Moreover, the TTL of the lock key also is reset. 
+
+**Steps to reproduce or test case**
+Invoke `boolean res = lock.tryLock(100, 3600, TimeUnit.SECONDS)` => res = true. Then after 10s, TTL of the key is 3590, in another thread, invoke `boolean res = lock.tryLock(100, 3600, TimeUnit.SECONDS)` => res = true. TTL of the key is 3600
+
+**Redis version**
+5.0.7
+**Redisson version**
+3.12.5

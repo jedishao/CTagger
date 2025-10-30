@@ -1,0 +1,32 @@
+Maven surfire-plugin marks build fail for module: pulsar-client-tools
+In our internal build we see frequent build failure with module : `pulsar-client-tools` even though there is no test-failure 
+Error: [Full output](https://gist.github.com/rdhabalia/79a5e8ea0d3855241d0a506574800479)
+
+```
+23:04:06 [INFO] Running TestSuite
+23:04:13 [INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.158 s - in TestSuite
+23:04:26 [INFO] 
+:
+23:04:27 Please refer to /var/builds/workspace/64708-v3-component/BUILD_CONTAINER/oracle-jdk8-current/label/DOCKER-LOW/app_root/pulsar-client-tools/target/surefire-reports for the individual test results.
+23:04:27 Please refer to dump files (if any exist) [date]-jvmRun[N].dump, [date].dumpstream and [date]-jvmRun[N].dumpstream.
+23:04:27 Error occurred in starting fork, check output in log
+23:04:27 org.apache.maven.surefire.booter.SurefireBooterForkException: Error occurred in starting fork, check output in log
+23:04:27  at org.apache.maven.plugin.surefire.booterclient.ForkStarter.fork(ForkStarter.java:634)
+23:04:27  at org.apache.maven.plugin.surefire.booterclient.ForkStarter.fork(ForkStarter.java:533)
+23:04:27  at org.apache.maven.plugin.surefire.booterclient.ForkStarter.run(ForkStarter.java:279)
+23:04:27  at org.apache.maven.plugin.surefire.booterclient.ForkStarter.run(ForkStarter.java:243)
+23:04:27  at org.apache.maven.plugin.surefire.AbstractSurefireMojo.executeProvider(AbstractSurefireMojo.java:1077)
+23:04:27  at 
+```
+
+[Test-output](https://gist.github.com/rdhabalia/d65cb3765fcc214c729b09b25120fe77): shows that [IOUtilsTest.test5()](https://github.com/apache/incubator-pulsar/blob/master/pulsar-client-tools/src/test/java/org/apache/pulsar/admin/cli/utils/IOUtilsTest.java#L101) doesn't run as we don't see that test's output in the log.
+
+So, we can see below behavior : 
+1. Test case with I/O operation if it takes some more time then maven process thinks that forked thread is dead and doesn't fork the new thread and it marks build failed after all test-cases ran in that module.
+2. After disabling this test-case, build has been passed.
+
+This issue exist in maven-surfire pluging: 2.20
+1. Issue1: https://issues.apache.org/jira/browse/SUREFIRE-1374
+2. Issue2: https://issues.apache.org/jira/browse/SUREFIRE-1386
+
+Therefore, we should upgrade [maven-surfire plugin](https://github.com/apache/incubator-pulsar/blob/master/pom.xml#L751) once, fix is available.

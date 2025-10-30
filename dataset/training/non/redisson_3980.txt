@@ -1,0 +1,38 @@
+ org.redisson.client.RedisConnectionException: SlaveConnectionPool no available Redis entries
+Specification we are using:
+
+AWS Elasticache- Redis 5.0.6 (Cluster Mode with master and slave)
+Redisson library; 3.16.4
+connectTimeout: 3000
+timeout: 1000
+retryAttempts: 1
+slaveConnectionMinimulIdleSize: 24
+slaveConnectionPoolSize: 64
+masterConnectionMinimulIdleSize: 24
+masterConnectionPoolSize: 64
+nodeAddres: clusterendpoint:6379
+readmode: SLAVE
+using: ClusterServers and RBucket to set and get
+
+We are intermittently facing the below error. I think this is because the Master instance is loosing connection to the slave instance. 
+org.redisson.client.**RedisConnectionException**: **SlaveConnectionPool no available Redis entries**. **Master entry host**: XX.XXX.XXX/XX.XXX.XXX:6379 **Disconnected hosts**: [XX.XXX.XXX/1XX.XXX.XXX:6379]
+	at org.redisson.connection.pool.ConnectionPool.get(ConnectionPool.java:216)
+	at org.redisson.connection.pool.SlaveConnectionPool.get(SlaveConnectionPool.java:30)
+	at org.redisson.connection.balancer.LoadBalancerManager.nextConnection(LoadBalancerManager.java:273)
+	at org.redisson.connection.MasterSlaveEntry.connectionReadOp(MasterSlaveEntry.java:499)
+	at org.redisson.connection.MasterSlaveConnectionManager.connectionReadOp(MasterSlaveConnectionManager.java:549)
+	at org.redisson.command.RedisExecutor.getConnection(RedisExecutor.java:555)
+	at org.redisson.command.RedisExecutor.execute(RedisExecutor.java:121)
+	at org.redisson.command.RedisExecutor$2.run(RedisExecutor.java:251)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:669)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:744)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:469)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+
+If we check the elasticache, all instance in the cluster are in available status.
+
+Only way to resolve is to redeploy the application.
+Any idea on configuration that should be tweaked? Or does redisson provides any time interval to refresh the connection to avoid this?
+
+I checked the other post but looks it is closed but doesn't have an answer to the question. 

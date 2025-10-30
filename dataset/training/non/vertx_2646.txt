@@ -1,0 +1,13 @@
+Vert.x fails to start on Linux if SM prevents reading resolv.conf
+Under Linux a SecurityControlException is thrown by AddressResolver line 50 due to the JVM not having security permissions to access /etc/resolv.conf. Due to the platform I am developing for I cannot grant security permission for this file. Below is the stack trace. Vertx version 3.5.3 is used. 
+
+Caused by: java.security.AccessControlException: access denied ("java.io.FilePermission" "/etc/resolv.conf" "read")
+ at java.security.AccessControlContext.checkPermission(AccessControlContext.java:472)
+ at java.security.AccessController.checkPermission(AccessController.java:884)
+ at java.lang.SecurityManager.checkPermission(SecurityManager.java:549)
+ at java.lang.SecurityManager.checkRead(SecurityManager.java:888)
+ at java.io.File.exists(File.java:814)
+ at io.vertx.core.impl.AddressResolver.<clinit>(AddressResolver.java:50)
+ 
+The if checks should be moved inside the try catch block to prevent the crash. 
+Alternatively it would be nice to be able to ignore this check via a system property.  

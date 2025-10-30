@@ -1,0 +1,31 @@
+happens-before in StreamObserver
+It's not clear to me what concurrency guarantees are provided in `StreamObserver`. For example given below where the observer is converted to a future:
+
+```java
+private static class Observer<R> implements StreamObserver<R> {
+    private final CompletableFuture<R> future;
+
+    private volatile R value ;
+
+    Observer() {
+        this.future = new CompletableFuture<>();
+    }
+
+    @Override
+    public void onNext(R value) {
+        this.value = value;
+    }
+
+    @Override
+    public void onError(Throwable t) {
+        future.completeExceptionally(GrpcUtil.translateGrpcException(t));
+    }
+
+    @Override
+    public void onCompleted() {
+        future.complete(value);
+    }
+}
+```
+
+Given that `onError`/`onNext`/`onCompleted` may be called from different threads, is there a _happens-before_ relationship (according to the Java Memory Model) between subsequent calls to the observer or not, assuming the observer is not shared between multiple calls? This is not documented anywhere. If there is a happens-before, then the `volatile` on `value` is redundant, if not, then it would be required.

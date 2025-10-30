@@ -1,0 +1,37 @@
+A lot of threads waiting on “org.redisson.spring.data.connection.RedissonConnection.sync”
+When I was doing the stress test, there were more than 180 threads （like:org.redisson.spring.data.connection.RedissonConnection.write() ,OR org.redisson.spring.data.connection.RedissonConnection.read(),and org.redisson.spring.data.connection.RedissonConnection.del()）waiting for "org.redisson.spring.data.connection.RedissonConnection.sync()". What is the reason for this? And how to solve it?Thank you very much!
+
+/*************************************************************************************************/
+Code example-1
+"http-nio-5201-exec-350" #677 daemon prio=5 os_prio=0 tid=0x00007f62540e1000 nid=0xbbe7 waiting on condition [0x00007f6097efa000]
+   java.lang.Thread.State: WAITING (parking)
+	at sun.misc.Unsafe.park(Native Method)
+	- parking to wait for  <0x00000006e8a418d0> (a java.util.concurrent.CountDownLatch$Sync)
+	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:997)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1304)
+	at java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)
+	at org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:187)
+	at org.redisson.spring.data.connection.RedissonConnection.syncFuture(RedissonConnection.java:227)
+	at org.redisson.spring.data.connection.RedissonConnection.sync(RedissonConnection.java:459)
+	at org.redisson.spring.data.connection.RedissonConnection.write(RedissonConnection.java:825)
+	at org.redisson.spring.data.connection.RedissonConnection.pExpire(RedissonConnection.java:418)
+/*******************************************************************************************************/
+Code example-2
+"http-nio-5201-exec-346" #673 daemon prio=5 os_prio=0 tid=0x00007f6254030800 nid=0xbbe3 waiting on condition [0x00007f609c3ce000]
+   java.lang.Thread.State: WAITING (parking)
+	at sun.misc.Unsafe.park(Native Method)
+	- parking to wait for  <0x00000006e69593d0> (a java.util.concurrent.CountDownLatch$Sync)
+	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:997)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1304)
+	at java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)
+	at org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:187)
+	at org.redisson.spring.data.connection.RedissonConnection.syncFuture(RedissonConnection.java:227)
+	at org.redisson.spring.data.connection.RedissonConnection.sync(RedissonConnection.java:459)
+	at org.redisson.spring.data.connection.RedissonConnection.read(RedissonConnection.java:840)
+	at org.redisson.spring.data.connection.RedissonConnection.hGetAll(RedissonConnection.java:1537)
+	at org.springframework.data.redis.core.DefaultHashOperations.lambda$entries$13(DefaultHashOperations.java:245)
+	at org.springframework.data.redis.core.DefaultHashOperations$$Lambda$1491/504979702.doInRedis(Unknown Source)

@@ -1,0 +1,139 @@
+outofDirectMemory Netty exception with redisson pipelining
+i'm trying to learn Redis through Redisson. Here is my code to insert into redis using multiple threads.
+
+```
+package redisson
+
+import java.io.File;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.redisson.Redisson;
+import org.redisson.api.RBatch;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
+
+
+public class RedisTest extends Thread {
+
+    static RMap<String, String> dMap = null;
+    static RMap<String, String> wMap = null;
+    static RMap<String, String> mMap = null;
+    static RedissonClient redisson = null;
+
+    public static void main(String[] args) throws Exception {
+
+        Config config = Config.fromJSON(new File("C:\\Users\\neon-workspace\\RedisProject\\src\\main\\resources\\SingleNodeConfig.json"));
+            RedissonClient redisson = Redisson.create(config);
+            dMap = redisson.getMap("Daily");
+            wMap = redisson.getMap("Weekly");
+            mMap = redisson.getMap("Monthly");
+
+            connectHbse(dMap,wMap,mMap,redisson);
+            redisson.shutdown();
+
+    }
+
+    public static void connectHbse(RMap<String, String> dMap,RMap<String, String> wMap,RMap<String, String> mMap,RedissonClient redisson) {
+        int totalSize=500000;
+        int totalThread=2;
+        int chunkSize = totalSize/totalThread;
+        AtomicInteger total = new AtomicInteger(chunkSize);
+        RedisTest test1[] = new RedisTest[totalThread];
+        for (int i = 0; i < test1.length; i++) {
+            test1[i] = new RedisTest(total,dMap,wMap,mMap,redisson);
+            total.set(total.intValue()+chunkSize);
+        }
+        long t1 = System.currentTimeMillis();
+        for (int i = 0; i < test1.length; i++) {
+            test1[i].start();
+        }
+        try {
+            for (int i = 0; i < test1.length; i++) {
+                test1[i].join();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("Final Total Time Taken ::>>>>>>>>>>>>>>>>> " + ((System.currentTimeMillis() - t1))+"ms");
+    }
+
+    private AtomicInteger total = null;
+    public RedisTest(AtomicInteger total,RMap<String, String> dMap,RMap<String, String> wMap,RMap<String, String> mMap,RedissonClient redisson) {
+        this.total = new AtomicInteger(total.intValue());
+        this.dMap = dMap;
+        this.wMap = wMap;
+        this.mMap = mMap;
+        this.redisson = redisson;
+    }
+
+    public static int getRandomInteger(int maximum, int minimum) {
+        return ((int) (Math.random() * (maximum - minimum))) + minimum;
+    }
+
+    public void run() {
+
+        try {
+
+            long t1 = System.currentTimeMillis();
+            dMap.clear();
+            wMap.clear();
+            mMap.clear();
+            RBatch batch = redisson.createBatch();
+
+            for (;total.decrementAndGet()>=0;) {    
+                String dvalue = ""+getRandomInteger(100,200);
+                String wvalue = "" +getRandomInteger(200, 300);
+                String mvalue = "" +getRandomInteger(300, 400);
+
+                batch.getMap("Daily").fastPutAsync(""+total.get(), dvalue);
+                batch.getMap("Weekly").fastPutAsync(""+total.get(), wvalue);
+                batch.getMap("Monthly").fastPutAsync(""+total.get(), mvalue);
+
+                    synchronized (total) {
+                        if(total.get()%100==0)
+                            System.out.println(total.get()+" Records in Seconds:::::" + ((System.currentTimeMillis() - t1))/1000);
+                    }
+            }
+            batch.execute();
+
+            System.out.println("Time Taken for completion::::: " + ((System.currentTimeMillis() - t1))+" by thread:::::"+Thread.currentThread().getName());
+            System.out.println("Done !!!");
+        } catch (Exception e) {
+            System.out.println("Done !!!" + e.getMessage());
+            e.printStackTrace();
+        } finally {
+
+        }
+    }
+}
+```
+This code works fine until totalSize=400000. When i put the totalSize=500000, its throwing the following exception:
+
+```
+io.netty.handler.codec.EncoderException: io.netty.util.internal.OutOfDirectMemoryError: failed to allocate 16777216 byte(s) of direct memory (used: 939524096, max: 954466304)
+    at io.netty.handler.codec.MessageToByteEncoder.write(MessageToByteEncoder.java:125)
+    at org.redisson.client.handler.CommandBatchEncoder.write(CommandBatchEncoder.java:45)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeWrite0(AbstractChannelHandlerContext.java:738)
+    ... 25 more
+Caused by: io.netty.util.internal.OutOfDirectMemoryError: failed to allocate 16777216 byte(s) of direct memory (used: 939524096, max: 954466304)
+    at io.netty.util.internal.PlatformDependent.incrementMemoryCounter(PlatformDependent.java:627)
+    at io.netty.util.internal.PlatformDependent.allocateDirectNoCleaner(PlatformDependent.java:581)
+    at io.netty.buffer.PoolArena$DirectArena.allocateDirect(PoolArena.java:764)
+    at io.netty.buffer.PoolArena$DirectArena.newChunk(PoolArena.java:740)
+    at io.netty.buffer.PoolArena.allocateNormal(PoolArena.java:244)
+    at io.netty.buffer.PoolArena.allocate(PoolArena.java:226)
+    at io.netty.buffer.PoolArena.reallocate(PoolArena.java:397)
+    at io.netty.buffer.PooledByteBuf.capacity(PooledByteBuf.java:118)
+    at io.netty.buffer.AbstractByteBuf.ensureWritable0(AbstractByteBuf.java:285)
+    at io.netty.buffer.AbstractByteBuf.ensureWritable(AbstractByteBuf.java:265)
+    at io.netty.buffer.AbstractByteBuf.writeBytes(AbstractByteBuf.java:1046)
+    at io.netty.buffer.AbstractByteBuf.writeBytes(AbstractByteBuf.java:1054)
+    at org.redisson.client.handler.CommandEncoder.writeArgument(CommandEncoder.java:169)
+    at org.redisson.client.handler.CommandEncoder.encode(CommandEncoder.java:110)
+    at org.redisson.client.handler.CommandBatchEncoder.encode(CommandBatchEncoder.java:52)
+    at org.redisson.client.handler.CommandBatchEncoder.encode(CommandBatchEncoder.java:32)
+    at io.netty.handler.codec.MessageToByteEncoder.write(MessageToByteEncoder.java:107)
+    ... 27 more
+```
+
+Can someone explain to me the reason why this is happening?

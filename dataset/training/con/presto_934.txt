@@ -1,0 +1,23 @@
+Stuck threads in HiveSplitIterable
+When running the verifier I noticed two queries stuck in `HiveSplitIterable`:
+
+```
+at sun.misc.Unsafe.park(Native Method)
+- parking to wait for  <0x000000065a9249a8> (a java.util.concurrent.Semaphore$NonfairSync)
+at java.util.concurrent.locks.LockSupport.park(LockSupport.java:186)
+at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:834)
+at java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:994)
+at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1303)
+at java.util.concurrent.Semaphore.acquire(Semaphore.java:317)
+at com.facebook.presto.hive.HiveSplitIterable.loadPartitionSplits(HiveSplitIterable.java:178)
+at com.facebook.presto.hive.HiveSplitIterable.access$100(HiveSplitIterable.java:77)
+at com.facebook.presto.hive.HiveSplitIterable$2.run(HiveSplitIterable.java:158)
+at com.facebook.presto.hive.util.BoundedExecutor.executeOrMerge(BoundedExecutor.java:82)
+at com.facebook.presto.hive.util.BoundedExecutor.access$000(BoundedExecutor.java:41)
+at com.facebook.presto.hive.util.BoundedExecutor$1.run(BoundedExecutor.java:53)
+at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1110)
+at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:603)
+at java.lang.Thread.run(Thread.java:722)
+```
+
+The only reason I can see for this would be `markerQueue.finish()` throwing, but I don't understand how this can happen.

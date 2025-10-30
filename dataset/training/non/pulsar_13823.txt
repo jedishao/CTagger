@@ -1,0 +1,35 @@
+[bug](Replicated subscription): slow rate consumer makes replicated subscription works unexpected. 
+**Describe the bug**
+
+Created a more clear issue about https://github.com/apache/pulsar/issues/12759.
+
+In my current test found, if i create a producer to produce to with no dispatch limit while create a consumer to consumer with slow rate (set a 1 second sleep in message receive): 
+
+* If i use a Latest position to consume, the consumer will miss some messages after the consumer transter the cluster.
+* If i use a Earliest postition to consume, the consumer will consume from beginning after the consumer transfer the cluster.
+
+And the weird thing is if i remove the 1 second sleep in consumer or i move the 1 second sleep from consumer to producer, there is no indeviduallyDeleteMessage in the topics. It looks like when the consumer is much slower than the producer, this issue will come.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Start the producer without dispatch limit to Cluster A
+2. Start the consumer with 1 second limit to consume to Cluster A
+3. Stop the consumer after several consumes and acks are sent.
+4. Transfer the consumer to Cluster B, and check the messageID the consumer got.
+5. You can test the Latest position and Earliest position.
+
+**Expected behavior**
+No matter set the Latest position or Earliest position, the consume position should be continuous after transfer to the Cluster B. 
+
+**Screenshots**
+This is a screenshot of consume with latest potision after the cluster transfer, you can see that some messages were missed. 
+![WechatIMG107](https://user-images.githubusercontent.com/10498732/150050722-1f62640a-6e7c-4ee1-b7d9-959a920b1024.jpeg)
+
+
+**Additional context**
+Pulsar 2.8.1
+
+These are test codes i used. 
+[pulsar-client-go-demo.zip](https://github.com/apache/pulsar/files/7893596/pulsar-client-go-demo.zip)
+[consumer.java.zip](https://github.com/apache/pulsar/files/7893597/consumer.java.zip)
+

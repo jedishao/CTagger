@@ -1,0 +1,43 @@
+reboot server cause hive-hadoop2 plugin aws*.jar missing, NoClassDefFoundError
+when reboot server, this class not found problem will appear, seems that the hive-hadoop2 plugin aws*.jar don't know somehow missing or deleted by others, reboot or shutdown will cause the problem, and it happens very often. To solve this, currently need to manually copy from original backups.
+
+> my cluster is 5 node, based on the standard deploy method and using hive, no extra para
+
+below is the log:
+```
+2020-05-26T19:43:37.135+0800	INFO	main	io.prestosql.metadata.StaticCatalogStore	-- Loading catalog etc/catalog/hive.properties --
+2020-05-26T19:43:37.840+0800	ERROR	main	io.prestosql.server.PrestoServer	com/amazonaws/AmazonClientException
+java.lang.NoClassDefFoundError: com/amazonaws/AmazonClientException
+	at io.prestosql.plugin.hive.s3.HiveS3Module.setup(HiveS3Module.java:48)
+	at io.airlift.configuration.AbstractConfigurationAwareModule.configure(AbstractConfigurationAwareModule.java:47)
+	at com.google.inject.spi.Elements$RecordingBinder.install(Elements.java:347)
+	at com.google.inject.spi.Elements.getElements(Elements.java:104)
+	at com.google.inject.spi.Elements.getElements(Elements.java:97)
+	at io.airlift.configuration.ConfigurationFactory.registerConfigurationClasses(ConfigurationFactory.java:164)
+	at io.airlift.bootstrap.Bootstrap.initialize(Bootstrap.java:224)
+	at io.prestosql.plugin.hive.InternalHiveConnectorFactory.createConnector(InternalHiveConnectorFactory.java:118)
+	at io.prestosql.plugin.hive.InternalHiveConnectorFactory.createConnector(InternalHiveConnectorFactory.java:78)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at io.prestosql.plugin.hive.HiveConnectorFactory.create(HiveConnectorFactory.java:63)
+	at io.prestosql.connector.ConnectorManager.createConnector(ConnectorManager.java:349)
+	at io.prestosql.connector.ConnectorManager.createCatalog(ConnectorManager.java:208)
+	at io.prestosql.connector.ConnectorManager.createCatalog(ConnectorManager.java:200)
+	at io.prestosql.connector.ConnectorManager.createCatalog(ConnectorManager.java:186)
+	at io.prestosql.metadata.StaticCatalogStore.loadCatalog(StaticCatalogStore.java:88)
+	at io.prestosql.metadata.StaticCatalogStore.loadCatalogs(StaticCatalogStore.java:68)
+	at io.prestosql.server.PrestoServer.run(PrestoServer.java:118)
+	at io.prestosql.$gen.Presto_333____20200526_114317_1.run(Unknown Source)
+	at io.prestosql.server.PrestoServer.main(PrestoServer.java:72)
+Caused by: java.lang.ClassNotFoundException: com.amazonaws.AmazonClientException
+	at java.base/java.net.URLClassLoader.findClass(URLClassLoader.java:471)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:588)
+	at io.prestosql.server.PluginClassLoader.loadClass(PluginClassLoader.java:89)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:521)
+	... 23 more
+
+```
+
+I dont know its a bug or something else.

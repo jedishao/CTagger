@@ -1,0 +1,52 @@
+[msql only] jdbi ResultIterator not closed , cause streaming resources not closed and Failed to commit transaction
+when i use druid 0.9.1.2 and open kill segment  task , i found some exception, I debug the DruidCoordinatorSegmentKiller task and find the internal exception is 
+
+"java.sql.SQLException: Streaming result set com.mysql.jdbc.RowDataDynamic@5d751bf0 is still active. No statements may be issued when any streaming result sets are open and in use on a given connection. Ensure that you have called .close() on any active streaming result sets before attempting more queries."
+
+i check the method "SQLMetadataSegmentManager.getUnusedSegmentIntervals"  and  find that ResultIterator is not closed , this cause transaction rollback error. the jdbi method Query.iterator  comments is " you must explicitely close
+     * the iterator to close the underlying resources."
+
+i  call  ResultIterator.close and can fix it. 
+
+i also find the same problem in the latest version 
+
+the full exception log in coordinator:  
+org.skife.jdbi.v2.exceptions.CallbackFailedException: org.skife.jdbi.v2.exceptions.TransactionException: Failed to rollback transaction
+        at org.skife.jdbi.v2.DBI.withHandle(DBI.java:284) ~[jdbi-2.63.1.jar:2.63.1]
+        at io.druid.metadata.SQLMetadataSegmentManager.inReadOnlyTransaction(SQLMetadataSegmentManager.java:166) ~[druid-server-0.9.1.1.jar:0.9.1.1]
+        at io.druid.metadata.SQLMetadataSegmentManager.getUnusedSegmentIntervals(SQLMetadataSegmentManager.java:570) ~[druid-server-0.9.1.1.jar:0.9.1.1]
+        at io.druid.server.coordinator.helper.DruidCoordinatorSegmentKiller.findIntervalForKillTask(DruidCoordinatorSegmentKiller.java:111) ~[druid-server-0.9.1.1.jar:0.9.1.1]
+        at io.druid.server.coordinator.helper.DruidCoordinatorSegmentKiller.run(DruidCoordinatorSegmentKiller.java:90) ~[druid-server-0.9.1.1.jar:0.9.1.1]
+        at io.druid.server.coordinator.DruidCoordinator$CoordinatorRunnable.run(DruidCoordinator.java:703) [druid-server-0.9.1.1.jar:0.9.1.1]
+        at io.druid.server.coordinator.DruidCoordinator$5.call(DruidCoordinator.java:585) [druid-server-0.9.1.1.jar:0.9.1.1]
+        at io.druid.server.coordinator.DruidCoordinator$5.call(DruidCoordinator.java:578) [druid-server-0.9.1.1.jar:0.9.1.1]
+        at com.metamx.common.concurrent.ScheduledExecutors$2.run(ScheduledExecutors.java:99) [java-util-0.27.9.jar:?]
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:473) [?:1.7.0_151]
+        at java.util.concurrent.FutureTask.run(FutureTask.java:262) [?:1.7.0_151]
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:178) [?:1.7.0_151]
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:292) [?:1.7.0_151]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1152) [?:1.7.0_151]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:622) [?:1.7.0_151]
+        at java.lang.Thread.run(Thread.java:748) [?:1.7.0_151]
+        Caused by: org.skife.jdbi.v2.exceptions.TransactionException: Failed to rollback transaction
+        at org.skife.jdbi.v2.tweak.transactions.LocalTransactionHandler.rollback(LocalTransactionHandler.java:89) ~[jdbi-2.63.1.jar:2.63.1]
+        at org.skife.jdbi.v2.BasicHandle.rollback(BasicHandle.java:172) ~[jdbi-2.63.1.jar:2.63.1]
+        at org.skife.jdbi.v2.tweak.transactions.LocalTransactionHandler.inTransaction(LocalTransactionHandler.java:190) ~[jdbi-2.63.1.jar:2.63.1]
+        at org.skife.jdbi.v2.BasicHandle.inTransaction(BasicHandle.java:327) ~[jdbi-2.63.1.jar:2.63.1]
+        at io.druid.metadata.SQLMetadataSegmentManager$2.withHandle(SQLMetadataSegmentManager.java:176) ~[druid-server-0.9.1.1.jar:0.9.1.1]
+        at org.skife.jdbi.v2.DBI.withHandle(DBI.java:281) ~[jdbi-2.63.1.jar:2.63.1]
+        ... 15 more
+Caused by: com.mysql.jdbc.exceptions.jdbc4.MySQLNonTransientConnectionException: Can't call rollback when autocommit=true
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method) ~[?:1.7.0_151]
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:57) ~[?:1.7.0_151]
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45) ~[?:1.7.0_151]
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:526) ~[?:1.7.0_151]
+        at com.mysql.jdbc.Util.handleNewInstance(Util.java:404) ~[?:?]
+        at com.mysql.jdbc.Util.getInstance(Util.java:387) ~[?:?]
+        at com.mysql.jdbc.SQLError.createSQLException(SQLError.java:917) ~[?:?]
+        at com.mysql.jdbc.SQLError.createSQLException(SQLError.java:896) ~[?:?]
+        at com.mysql.jdbc.SQLError.createSQLException(SQLError.java:885) ~[?:?]
+        at com.mysql.jdbc.SQLError.createSQLException(SQLError.java:860) ~[?:?]
+        at com.mysql.jdbc.ConnectionImpl.rollback(ConnectionImpl.java:4618) ~[?:?]
+        at org.apache.commons.dbcp2.DelegatingConnection.rollback(DelegatingConnection.java:488) ~[commons-dbcp2-2.0.1.jar:2.0.1]
+

@@ -1,0 +1,20 @@
+[double/long/float][sum/min/max] aggregator behavior on multi-value string columns
+Note: I mean "column" as "column or virtualcolumn" in the discussion here.
+
+We have a whole bunch of single/multi value string columns, some of them happen to have numbers disguised as strings. For various reasons, it is not possible to index them as double/long/float.
+
+`[double/long/float][sum/min/max/first]` aggregators on such columns always produce 0.
+
+For single value string columns, we could use an expression with function that parses/casts the string to double/long/float value .
+
+For multi value string columns, we could use an expression with an array function(array function support is introduced in latest druid code) that aggregates its input using same algo as the one used by aggregator in use e.g. a sum_array(..) function to be used with `doubleSum` aggregator etc. 
+
+These workarounds might require additional expression functions in the code if they are not there already, they would potentially be less efficient but will work.
+
+workaround for multi value string column is somewhat unintuitive and cumbersome for the user. 
+
+Alternatively, we could say that `[double/long/float][sum/min/max/first]` aggregators should just handle single/multi value string columns as they are native columns in druid. For that, we could do following...
+
+For single valued columns, problem happens because DimensionSelector has default impls for `getXXX()` methods which return 0. These default impls could be changed and/or they could be overridden in the implementations to return non-zero value for single value string columns and that would fix the problem.
+
+For multi-value string columns, Adjust `[Double/Long/Float][Sum/Min/Max]AggregatorFactory` do a capability check on `ColumnSelectorFactory.getColumnCapatilities(column)` inside `AggregatorFactory.factorizeXXX(..)` methods. then use different `[Buffer]Aggregator` impls for the cases of multi value string columns if capability said so.

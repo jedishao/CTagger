@@ -1,0 +1,44 @@
+Stop Methods Not Being Called on Exit
+I've made a simple test to figure out why none of my stop methods are getting called on exit (Ctrl-C from command line).
+
+`public class SimpleServer extends AbstractVerticle {
+    private HttpServer httpServer = null;
+
+```
+@Override
+public void stop()
+{
+    System.out.println("tallyho!!");
+}
+
+@Override
+public void start() throws Exception
+{
+    Router mainRouter = Router.router(vertx);
+    mainRouter.delete("/something").handler(routingCtx -> {});
+    httpServer = vertx.createHttpServer().requestHandler(mainRouter::accept);
+    httpServer.listen(9999);
+    System.out.println("started!!");
+}
+
+public static void main(String[] args) throws InterruptedException
+{
+    Vertx vertx = Vertx.vertx();
+    vertx.deployVerticle("com.mykpg.SimpleServer", stringAsyncResult ->
+    {
+        if (stringAsyncResult.succeeded())
+        {
+            //vertx.close() works on my simple example but not my 3 verticle (1 worker) actual app
+            System.out.println(stringAsyncResult.result());
+        }
+        else
+        {
+            System.out.println(stringAsyncResult.cause().getMessage());
+        }
+    });
+}
+```
+
+}`
+
+I don't get any error messages even though I've Log4J2 set to debug. I've disabled Log4J2 and same behavior. vertx.close() only works in this very simple example. On my 3 verticle (1 worker) actual app vertx.close() does nothing. Any ideas?

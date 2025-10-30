@@ -1,0 +1,7 @@
+[Go Functions] NewOutputMessage API should probably be changed to Publish()
+The multi-dispatch functionality in Go Functions (as implemented with `NewOuputMessage()` in #8327) is a bit of an awkward API to use. For one, it returns a new Producer, not a new `OutputMessage` (in fact, the Go SDK does not have the concept of the message builder that is present in Java). For another, no customization of the producer is possible, so it seems unnecessary to have it returned at all.  I propose something like the Python SDK, allowing payload to be sent on an arbitrary topic, in conjunction with the caching of producers described in #9511. I think two methods would be most useful:
+
+```go
+func (c *FunctionContext) Publish(topicName string, payload []byte) (pulsar.MessageID, error)
+func (c *FunctionContext) PublishMessage(topicName string, message *pulsar.ProducerMessage) (pulsar.MessageID, error)
+```

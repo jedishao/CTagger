@@ -1,0 +1,19 @@
+Throwing StatusRuntimeException from within a ServerInterceptor
+### What version of gRPC are you using?
+1.9.0
+
+### What did you expect to see?
+I'm using a gRPC interceptor which sometimes throws a `StatusRuntimeException` with status code `PERMISSION_DENIED` - there is also a `io.grpc.util.TransmitStatusRuntimeExceptionInterceptor` in my list of interceptors (#2189). The `PERMISSION_DENIED` code successfully gets sent to the gRPC caller, but there is always this exception stack trace logged out by the gRPC server.
+```
+[pool-2-thread-4] ERROR io.grpc.internal.SerializingExecutor [run:126]                                                                              
+Exception while executing runnable io.grpc.internal.ServerImpl$JumpToApplicationThreadServerStreamListener$1HalfClosed@3708f3fd                                             
+                                                                                                                                                                            
+java.lang.IllegalStateException: call already closed                                                                                                                        
+       at com.google.common.base.Preconditions.checkState(Preconditions.java:508)                                                                                           
+       at io.grpc.internal.ServerCallImpl.close(ServerCallImpl.java:167)
+       ...
+```
+I haven't been able to find a way to get rid of this ERROR log, and would rather not disable or tune down the logger itself. It looks like the `TransmitStatusRuntimeExceptionInterceptor` closes the call early on a `StatusRuntimeException` being thrown which then means when another interceptor calls e.g. `onHalfClose()` this error appears.
+
+Is there a better way to go about using `StatusRuntimeException` or closing calls early in gRPC interceptors in general, in order to avoid ERROR logs like this?
+

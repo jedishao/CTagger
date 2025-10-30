@@ -1,0 +1,43 @@
+RedisNodeNotFoundException thrown on Redis Cluster restart
+Hello, I am currently experiencing an issue with a Redis cluster on Redisson 3.11.2 while testing how our application will handle major outages.
+
+I am providing the cluster config with the address of one of the master nodes. On app startup, it successfully finds all of the other nodes on the cluster. However, if I take down the entire cluster and restart it, Redisson will fail to reconnect to the cluster when it comes back online, throwing a `RedisNodeNotFoundException` whenever it tries to contact Redis. (see Actual behavior for stack trace).
+
+The application reconnects successfully when using a single server setup.
+
+I found this similar issue, https://github.com/redisson/redisson/issues/2234 but upgrading to 3.11.2 has not fixed this for me. 
+
+### Expected behavior
+Redisson successfully reconnects to the cluster after the cluster restarts.
+
+### Actual behavior
+Throws the following error every time the application attempts to communicate with Redis:
+```
+org.redisson.client.RedisNodeNotFoundException: Node: NodeSource [slot=8973, addr=null, redisClient=null, redirect=null, entry=null] hasn't been discovered yet
+	at org.redisson.connection.MasterSlaveConnectionManager.connectionReadOp(MasterSlaveConnectionManager.java:590) ~[redisson-3.11.2.jar:3.11.2]
+	at org.redisson.command.CommandAsyncService.getConnection(CommandAsyncService.java:861) ~[redisson-3.11.2.jar:3.11.2]
+	at org.redisson.command.CommandAsyncService.async(CommandAsyncService.java:671) ~[redisson-3.11.2.jar:3.11.2]
+	at org.redisson.command.CommandAsyncService$6.run(CommandAsyncService.java:766) ~[redisson-3.11.2.jar:3.11.2]
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:682) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:757) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:485) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_181]
+```
+### Steps to reproduce or test case
+Create a RedissonClient with the config specified below. Stop the cluster and restart it.
+
+### Redis version
+5.0.5
+
+### Redisson version
+3.11.2
+
+### Redisson configuration
+```java
+config.useClusterServers()
+    .addNodeAddress("redis://master_node_IP:7002")
+    .setPassword("xxxxxxxxx")
+    .setConnectTimeout(15000);
+```
+
+If I've missed something or you'd like more information let me know.

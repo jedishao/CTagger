@@ -1,0 +1,43 @@
+severe performance issue due to lock in StringDimensionIndexer.DimensionDictionary
+Update: the master branch code uses ReentrantReadWriteLock instead of synchronized, the r/w competitive issue should have been gone, but after another test run, I got extremely high CPU occupy and no noticeable query time reduction.
+
+=====================>
+In my case, it has 20k/s inserts to each realtime node, and 200/s small groupby queries(only query the latest 2 minutes data), then I noticed severe performance issue:300~400ms per query on realtime node.
+
+the jstack log shows it is waiting for lock 
+
+    public String getValue(int id)
+    {
+      synchronized (lock) {
+        return Strings.emptyToNull(idToValue.get(id));
+      }
+    }
+
+
+>    java.lang.Thread.State: BLOCKED (on object monitor)
+        at io.druid.segment.StringDimensionIndexer$DimensionDictionary.getValue(StringDimensionIndexer.java:88)
+        - waiting to lock <0x0000000736400000> (a java.lang.Object)
+        at io.druid.segment.StringDimensionIndexer.getActualValue(StringDimensionIndexer.java:669)
+        at io.druid.segment.StringDimensionIndexer.access$000(StringDimensionIndexer.java:59)
+        at io.druid.segment.StringDimensionIndexer$1IndexerDimensionSelector.lookupName(StringDimensionIndexer.java:506)
+        at io.druid.segment.DimensionSelectorUtils.makePredicateMatchingSet(DimensionSelectorUtils.java:243)
+        at io.druid.segment.StringDimensionIndexer$1IndexerDimensionSelector.makeValueMatcher(StringDimensionIndexer.java:461)
+        at io.druid.query.filter.StringValueMatcherColumnSelectorStrategy.makeValueMatcher(StringValueMatcherColumnSelectorStrategy.java:61)
+        at io.druid.query.filter.StringValueMatcherColumnSelectorStrategy.makeValueMatcher(StringValueMatcherColumnSelectorStrategy.java:28)
+        at io.druid.segment.filter.Filters.makeValueMatcher(Filters.java:176)
+        at io.druid.segment.filter.LikeFilter.makeMatcher(LikeFilter.java:73)
+        at io.druid.segment.incremental.IncrementalIndexStorageAdapter.makeFilterMatcher(IncrementalIndexStorageAdapter.java:642)
+        at io.druid.segment.incremental.IncrementalIndexStorageAdapter.access$000(IncrementalIndexStorageAdapter.java:68)
+        at io.druid.segment.incremental.IncrementalIndexStorageAdapter$1$1.<init>(IncrementalIndexStorageAdapter.java:244)
+        at io.druid.segment.incremental.IncrementalIndexStorageAdapter$1.apply(IncrementalIndexStorageAdapter.java:242)
+        at io.druid.segment.incremental.IncrementalIndexStorageAdapter$1.apply(IncrementalIndexStorageAdapter.java:234)
+
+DimensionDictionary.getValue() is called in many places(compareUnsortedEncodedKeyComponents in IncrementalIndex, makeValueMatcher in StorageAdapter, etc), every call has to be queued due to this lock.
+
+To my knowledge, I think this lock is not needed any more.  
+1. the add() method in Dictionary is only called in single thread in IncrementalIndex
+2. read consistency is promised by #4049 
+3. sortedLookup() should only be called when persist when the IncrementalIndex is stopped to accept new row which mean the Dictionary is readonly at that moment
+
+if we can remove this lock in Dictionary, performance should be greatly improved.
+@gianm @leventov do you have any idea why we should keep this lock? Do you have any idea how we can improve this lock to avoid unnecessary queue up?

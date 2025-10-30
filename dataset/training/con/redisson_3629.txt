@@ -1,0 +1,62 @@
+Trylock causes a deadlock，System restart can be unlocked
+<!--
+Сonsider Redisson PRO https://redisson.pro version for advanced features and support by SLA.
+-->
+
+**Expected behavior**
+
+**Actual behavior**
+
+**Steps to reproduce or test case**
+
+**Redis version**
+  3.2.9
+
+**Redisson version**
+3.5.0
+
+**Redisson configuration**
+ redissonConfig.useClusterServers().addNodeAddress(address)
+.setTimeout(1000)
+                    .setMasterConnectionPoolSize(64)
+                    .setSlaveConnectionPoolSize(64)
+                    .setIdleConnectionTimeout(10000)
+                    .setConnectTimeout(30000)
+                    .setIdleConnectionTimeout(3000);
+
+
+**Use code**
+      RLock lock = redissonClient.getLock(String.join("_", "taskExtSyncLock", taskId, classId));
+   if (lock.tryLock()) {
+try{
+      //  ignore code 
+  }catch（Exception e）{
+   throw e;
+}finally{
+  if (lock != null && lock.isLocked())
+                {
+                    lock.unlock();
+                }
+}
+     
+}else {
+    //  ignore code 
+}
+
+
+** Thread blocking , System restart can be unlocked   **
+
+**The following figure shows the thread stack information **
+
+![image](https://user-images.githubusercontent.com/29850270/120289986-783cee80-c2f4-11eb-92f7-303e41092a61.png)
+
+
+
+
+
+
+
+
+
+
+

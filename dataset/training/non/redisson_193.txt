@@ -1,0 +1,24 @@
+Compability with Guava (com.google.common.collect.ImmutableSet).
+I tried to do this:
+
+```
+    @Test
+    public void test6() {
+        String id = UUID.randomUUID().toString();
+        RSet<Set<Integer>> testSet = redisson.getSet(id);
+
+        List<Integer> collection = Arrays.asList(1, 2, 3, 23, 6, 22, 25, 8, 27, 10, 26, 11);
+        Set<Integer> set1 = ImmutableSet.copyOf(collection);
+        testSet.add(set1);
+
+        Collections.shuffle(collection);
+        Set<Integer> newSet = ImmutableSet.copyOf(collection);
+
+        assertEquals(set1.hashCode(), newSet.hashCode());
+        assertEquals(set1, newSet);
+        assertTrue(testSet.contains(newSet));
+    }
+```
+
+The test fails on the line "assertTrue(testSet.contains(newSet));", that is, testSet.contains(newSet) return false, but set1 equals newSet and set1.hashCode() equals newSet.hashCode().
+Redisson version is 1.2.1.

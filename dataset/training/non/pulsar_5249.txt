@@ -1,0 +1,46 @@
+Where's the messages gone ? / pulsar SQL (Presto) can only query data less than 100000 ?
+**Architect：**
+1、Pulsar cluster : zookeeper (3nodes) + Bookkeeper (3nodes)+ Broker&funcation worker (3nodes)+ proxy (1nodes)+ sql worker (3nodes)
+all these nodes running in docker
+2、Nifi：1 node running in docker
+
+**Senario：**
+I create a persistent topic named "persistent://public/default/tusr1", use a nifi workflow to read user data from https://randomuser.me/ and push the userdata in to "persistent://public/default/tusr1", then I use pulsar sql to get the message count.
+the sql is simply: [  SELECT COUNT(ssn) FROM pulsar."public/default"."tusr1"; ]
+I Expected the return value is the message count saved in the bookkeeper ;
+**but when the messages count up to 100000+, the sql will return 50000+**
+
+I use "pulsar-admin persistent stats-internal persistent://public/default/tusr1" to get the internal stats , got below :
+{
+  **"entriesAddedCounter" : 149000,**
+  "numberOfEntries" : 11999,
+  "totalSize" : 1670626,
+  "currentLedgerEntries" : 2999,
+  "currentLedgerSize" : 417685,
+  "lastLedgerCreatedTimestamp" : "2019-09-23T00:16:38.965Z",
+  "waitingCursorsCount" : 0,
+  "pendingAddEntriesCount" : 0,
+  "lastConfirmedEntry" : "8088:2998",
+  "state" : "LedgerOpened",
+  "ledgers" : [ {
+    "ledgerId" : 5638,
+    "entries" : 9000,
+    "size" : 1252941,
+    "offloaded" : false
+  }, {
+    "ledgerId" : 8088,
+    "entries" : 0,
+    "size" : 0,
+    "offloaded" : false
+  } ],
+  "cursors" : { }
+}
+
+then I guess the **messages all stored in bookkeeper, but presto only can query 2 segment? is that right ?**
+
+anyone can help me to explain this ? and **how chan I query all of the messages?**
+
+thank you very much
+
+#### System configuration
+**Pulsar version**:2.4.1

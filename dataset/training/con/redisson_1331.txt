@@ -1,0 +1,60 @@
+[2.11.1] Unable to re-establish MasterConnectionPool after restarting redis
+We are Trying to add a mechanism to re-subscribe to topics after restarting redis.
+
+**Setting UP:**
+1. Redis version:  2.8.17
+2. Redis Mode: Sentinel   1 Master, 2 Slave
+2. Redisson Version:  2.11.1  (Comparison With Redisson 2.9.1 see later section)
+3. Read.Mode: Slave, Subscribe: Slave
+
+**Steps to recreate:**
+1. shut down sentinel
+   --- --- wait 10 seconds------
+2. shut down server
+3. Redisson send multiple "GET" "SET" commands attempting more than maxFailAttemp, make sure redisson regards all the redis server box down
+3. restart redis server
+4. restart redis sentinel
+
+5. remove listener to the topic
+6. resubscribe to the topics
+
+> See Following Error, Redis MasterConnectionPool is not re-established.
+
+
+org.redisson.client.RedisTimeoutException: Subscribe timeout: (5000ms)
+	at org.redisson.command.CommandAsyncService.syncSubscription(CommandAsyncService.java:130) ~[redisson-2.11.1.jar!/:?]
+	at org.redisson.RedissonTopic.addListener(RedissonTopic.java:107) ~[redisson-2.11.1.jar!/:?]
+	at org.redisson.RedissonTopic.addListener(RedissonTopic.java:102) ~[redisson-2.11.1.jar!/:?]
+	at jibe.common.pubsub.monitor.RedisSubMonitor.reSubscribetoTopic(RedisSubMonitor.java:47) ~[jibe-common-base-4.1-SNAPSHOT.jar!/:?]
+	at jibe.common.pubsub.monitor.RedisSubMonitor.checkSubscriptionStatus(RedisSubMonitor.java:76) ~[jibe-common-base-4.1-SNAPSHOT.jar!/:?]
+	at sun.reflect.GeneratedMethodAccessor22.invoke(Unknown Source) ~[?:?]
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_73]
+	at java.lang.reflect.Method.invoke(Method.java:497) ~[?:1.8.0_73]
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.run(ScheduledMethodRunnable.java:65) ~[spring-context-5.0.0.RC3.jar!/:5.0.0.RC3]
+	at org.springframework.scheduling.support.DelegatingErrorHandlingRunnable.run(DelegatingErrorHandlingRunnable.java:54) [spring-context-5.0.0.RC3.jar!/:5.0.0.RC3]
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) [?:1.8.0_73]
+	at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:308) [?:1.8.0_73]
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$301(ScheduledThreadPoolExecutor.java:180) [?:1.8.0_73]
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:294) [?:1.8.0_73]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142) [?:1.8.0_73]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617) [?:1.8.0_73]
+	at java.lang.Thread.run(Thread.java:745) [?:1.8.0_73]
+[2018-03-08 22:42:48.305] [ERROR] [hydrogen-app-pool-1] TaskUtils$LoggingErrorHandler - Unexpected error occurred in scheduled task.
+org.redisson.client.RedisConnectionException: MasterConnectionPool no available Redis entries.  Disconnected hosts: [/10.240.24.19:6379]
+	at org.redisson.connection.pool.ConnectionPool.get(ConnectionPool.java:199) ~[redisson-2.11.1.jar!/:?]
+	at org.redisson.connection.pool.MasterConnectionPool.get(MasterConnectionPool.java:31) ~[redisson-2.11.1.jar!/:?]
+	at org.redisson.connection.MasterSlaveEntry.connectionWriteOp(MasterSlaveEntry.java:534) ~[redisson-2.11.1.jar!/:?]
+	at org.redisson.connection.MasterSlaveConnectionManager.connectionWriteOp(MasterSlaveConnectionManager.java:845) ~[redisson-2.11.1.jar!/:?]
+	at org.redisson.command.CommandAsyncService.async(CommandAsyncService.java:498) ~[redisson-2.11.1.jar!/:?]
+	at org.redisson.command.CommandAsyncService$8.run(CommandAsyncService.java:577) ~[redisson-2.11.1.jar!/:?]
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:663) ~[netty-all-4.1.16.Final.jar!/:4.1.16.Final]
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:738) ~[netty-all-4.1.16.Final.jar!/:4.1.16.Final]
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:466) ~[netty-all-4.1.16.Final.jar!/:4.1.16.Final]
+	at java.lang.Thread.run(Thread.java:745) [?:1.8.0_73]
+
+
+=====================================================================
+We were initially at Redisson version 2.9.1, but when we following the previous steps, in step 5, we encountered the same issue as in https://github.com/redisson/redisson/issues/1268, which is removeListener thread blocks forever, so make the switch to 2.11.1
+
+We also simulate the scenario with 2.9.1 version,  without doing removeListener (we found out there is pubsub Listener leak issue with 2.9.1, that is why we remove the old listener first), the MasterConnectionPool was able to re-establish.
+

@@ -1,0 +1,83 @@
+redisson-tomcat-9 session manager does not work with Async servlets
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+My software is using JAXRS with AsyncResponse.
+I tried to use Redisson to store sessions of Tomcat 9.x in Redis, but I always get an exception.
+
+I checked this exception and the reason seems to be that the UpdateValve class seems to call the default constructor of the Tomcat ValveBase class without a boolean flag indicating that it should support Async servlets.
+
+This is a big showstopper since all servlets in our software are async and we don't want to convert them to synchronous ones since that will have a big impact on thread use and overal performance!
+
+### Expected behavior
+Session object properly deserialise
+
+### Actual behavior
+22-Feb-2019 13:44:51.083 WARNING [http-nio-8080-exec-2] org.apache.catalina.connector.Request.startAsync Unable to start async because the following classes in the processing chain do not support async [org.apache.catalina.servlets.DefaultServlet,org.redisson.tomcat.UpdateValve]
+java.lang.IllegalStateException: A filter or servlet of the current chain does not support asynchronous operations.
+        at org.apache.catalina.connector.Request.startAsync(Request.java:1665)
+        at org.apache.catalina.connector.RequestFacade.startAsync(RequestFacade.java:1050)
+        at javax.servlet.ServletRequestWrapper.startAsync(ServletRequestWrapper.java:397)
+        at javax.servlet.ServletRequestWrapper.startAsync(ServletRequestWrapper.java:397)
+        at org.glassfish.jersey.servlet.async.AsyncContextDelegateProviderImpl$ExtensionImpl.getAsyncContext(AsyncContextDelegateProviderImpl.java:112)
+        at org.glassfish.jersey.servlet.async.AsyncContextDelegateProviderImpl$ExtensionImpl.suspend(AsyncContextDelegateProviderImpl.java:96)
+        at org.glassfish.jersey.servlet.internal.ResponseWriter.suspend(ResponseWriter.java:125)
+        at org.glassfish.jersey.server.ServerRuntime$AsyncResponder.suspend(ServerRuntime.java:910)
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:327)
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:102)
+        at org.glassfish.jersey.server.ServerRuntime$2.run(ServerRuntime.java:326)
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:271)
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:267)
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:315)
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:297)
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:267)
+        at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:317)
+        at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:305)
+        at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:1154)
+        at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:473)
+        at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:427)
+        at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:388)
+        at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:341)
+        at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:228)
+        at com.google.inject.servlet.ServletDefinition.doServiceImpl(ServletDefinition.java:290)
+        at com.google.inject.servlet.ServletDefinition.doService(ServletDefinition.java:280)
+        at com.google.inject.servlet.ServletDefinition.service(ServletDefinition.java:184)
+        at com.google.inject.servlet.ManagedServletPipeline.service(ManagedServletPipeline.java:89)
+        at com.google.inject.servlet.FilterChainInvocation.doFilter(FilterChainInvocation.java:85)
+        at com.swift.cloud.platform.ui.framework.server.filter.NeverCacheFilter.doFilter(NeverCacheFilter.java:51)
+        at com.google.inject.servlet.FilterChainInvocation.doFilter(FilterChainInvocation.java:82)
+        at com.google.inject.servlet.ManagedFilterPipeline.dispatch(ManagedFilterPipeline.java:121)
+        at com.google.inject.servlet.GuiceFilter.doFilter(GuiceFilter.java:133)
+        at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:193)
+        at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:166)
+        at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:199)
+        at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:96)
+        at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:490)
+        at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:139)
+        at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:92)
+        at org.apache.catalina.valves.AbstractAccessLogValve.invoke(AbstractAccessLogValve.java:668)
+        at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74)
+        at org.redisson.tomcat.UpdateValve.invoke(UpdateValve.java:58)
+        at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:343)
+        at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:408)
+        at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:66)
+        at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:791)
+        at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1417)
+        at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:49)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1135)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+        at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
+        at java.base/java.lang.Thread.run(Thread.java:844)
+
+### Steps to reproduce or test case
+Try to use redisson to access session objects from an async servlet
+
+### Redis version
+5.0.3
+
+### Redisson version
+3.10.2
+
+### Redisson configuration
+singleServerconfig:
+  address: redis://redis:6379

@@ -1,0 +1,53 @@
+RedissonFairLock deadlock
+Seems related to the change on https://github.com/redisson/redisson/issues/2099.
+We have tried to upgrade to 3.11.2 from 3.10.7 and this behavior started occurring.
+
+### Expected behavior
+The FairLock acquired on high load system without lease time defined. 
+
+### Actual behavior
+Redisson does not handle the case of Fair lock without lease time (on high load).
+when many different threads are asking for the same lock key the client is stuck and no thread acquires the lock.
+
+### Steps to reproduce or test case
+`        
+
+        ExecutorService executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                1000L, TimeUnit.MILLISECONDS,
+                new SynchronousQueue<Runnable>());
+        RedissonClient client = Redisson.create();
+        IntStream.rangeClosed(0, 300).boxed().forEach(new Consumer<Integer>() {
+            @Override
+            public void accept(Integer integer) {
+                executorService.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        ConnectionManager connectionManager = Redisson.class.cast(client).getConnectionManager();
+                        try {
+                            Field field = MasterSlaveConnectionManager.class.getDeclaredField("id");
+                            field.setAccessible(true);
+                            field.set(connectionManager, UUID.randomUUID());
+                        } catch (NoSuchFieldException | IllegalAccessException e) {
+                            e.printStackTrace();
+                        }
+                        RLock lock1 = client.getFairLock("fair:lock");
+                        try {
+                            lock1.lock();
+                            Thread.sleep(50);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        } finally {
+                            lock1.unlock();
+                            System.out.println("done = " + integer);
+                        }
+                    }
+                });
+            }
+        });
+        Thread.sleep(150000);`
+### Redis version
+3.27 and 2.8
+### Redisson version
+3.11.2
+### Redisson configuration
+defaults

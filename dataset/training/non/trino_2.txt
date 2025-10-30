@@ -1,0 +1,10 @@
+Improve encoding of grouping sets in plan
+Currently, the list of concrete grouping sets is expanded during analysis. This results in inefficiencies during analysis and planning due to redundant re-analysis and storage of the atoms of each grouping element (it allocates 2^#columns sets of expressions when analyzing the query. It then analyzes each of those expressions and creates a GroupID node with that many entries).
+
+Instead, the engine should only analyze the atomic units (columns of each grouping element) and should encode the expected grouping sets in the plan using an abstract description of the components instead of enumerating every combination of grouping columns. The enumeration should happen when the operator is instantiated.
+
+I.e., the GroupId node should contain a list of grouping elements:
+
+```
+Elements = (CUBE set<symbol> | ROLLUP list<symbol> | SETS list<set<symbol>>)+
+```

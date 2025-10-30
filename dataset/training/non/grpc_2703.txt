@@ -1,0 +1,33 @@
+AssertionError in OkHttpClientTransport from older Android devices
+When using gRPC on HTC M7 (2013), a crash occurs (`AssertionError`) that seems to be from the protocol negotiation in OkHttp transport.
+
+### What version of gRPC are you using?
+1.0.3
+
+### What JVM are you using (`java -version`)?
+HTC M7 (2013) - Android 4.3 (HTC Sense 5.0)
+
+```
+FATAL EXCEPTION: grpc-okhttp-0
+                                                          java.lang.AssertionError: Method getAlpnSelectedProtocol not supported for object SSL socket over Socket[address=suggestions-api.invi.im/104.197.200.100,port=80,localPort=37661]
+                                                              at io.grpc.okhttp.internal.OptionalMethod.invoke(OptionalMethod.java:114)
+                                                              at io.grpc.okhttp.internal.OptionalMethod.invokeWithoutCheckedException(OptionalMethod.java:135)
+                                                              at io.grpc.okhttp.OkHttpProtocolNegotiator$AndroidNegotiator.getSelectedProtocol(OkHttpProtocolNegotiator.java:208)
+                                                              at io.grpc.okhttp.OkHttpProtocolNegotiator$AndroidNegotiator.negotiate(OkHttpProtocolNegotiator.java:170)
+                                                              at io.grpc.okhttp.OkHttpTlsUpgrader.upgrade(OkHttpTlsUpgrader.java:74)
+                                                              at io.grpc.okhttp.OkHttpClientTransport$1.run(OkHttpClientTransport.java:425)
+                                                              at io.grpc.internal.SerializingExecutor$TaskRunner.run(SerializingExecutor.java:154)
+                                                              at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1080)
+                                                              at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:573)
+                                                              at java.lang.Thread.run(Thread.java:849)
+```
+
+Seems like if the `catch` clause here was catching `Throwable` (rather than `Exception`) it would not crash and return `null`: https://github.com/grpc/grpc-java/blob/master/okhttp/src/main/java/io/grpc/okhttp/OkHttpProtocolNegotiator.java#L205
+
+Not sure how gRPC behaves in this case but comments in the method seem to suggest that's a scenario that can be expected
+
+Stock Web browser
+![image](https://cloud.githubusercontent.com/assets/1900608/22667191/9ed73b9a-ec70-11e6-80f3-2d16fd904577.png)
+
+Chrome browser
+![image](https://cloud.githubusercontent.com/assets/1900608/22667203/aacde2fa-ec70-11e6-9c25-acb5417e1e5f.png)

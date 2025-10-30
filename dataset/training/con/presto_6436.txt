@@ -1,0 +1,12 @@
+Incorrect memory accounting for Hash Aggregation operator
+The following query reports peak memory that varies wildly from cluster to cluster and run to run. I've seen numbers ranging from 0 GB to 20 GB. It seems to be sensitive to how much concurrent work is being performed, how fast work completes, etc.
+
+For instance, in one cluster, setting task_concurrency to 1 causes it to report ~2 GB. With a task_concurrency of 2 or higher, it reports 0 GB.
+
+In another cluster, it reports 4.4 GB with task_concurrency=1 and 3 GB/3.3 GB/3.8 GB with task_concurrency > 1
+
+``` sql
+SELECT custkey, count(*) c
+FROM tpch.sf1000.orders
+GROUP BY custkey
+```

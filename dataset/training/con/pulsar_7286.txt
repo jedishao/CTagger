@@ -1,0 +1,101 @@
+[c++] call sendAsync produce segmentation fault
+
+```
+void callback(Result code, const MessageId& msgId) {
+    std::cout << "call back" << std::endl;
+    //LOG_INFO("Received code: " << code << " -- MsgID: " << msgId);
+}
+
+int main() {
+    Client client("pulsar://localhost:6650");
+
+    Producer producer;
+    Result result = client.createProducer("persistent://prop/r1/ns1/my-topic", producer);
+    if (result != ResultOk) {
+        //LOG_ERROR("Error creating producer: " << result);
+        return -1;
+    }
+
+    // Send asynchronously
+    while (true) {
+        Message msg = MessageBuilder().setContent("content").setProperty("x", "1").build();
+        producer.sendAsync(msg, callback);
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+    }
+
+    client.close();
+}
+
+
+
+➜  examples git:(master) ✗ gdb ./async_producer
+GNU gdb (GDB) Red Hat Enterprise Linux 7.6.1-110.el7
+Copyright (C) 2013 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-redhat-linux-gnu".
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>...
+Reading symbols from /home/user/pulsar/pulsar-client-cpp/examples/async_producer...done.
+(gdb) run
+Starting program: /home/user/pulsar/pulsar-client-cpp/examples/./async_producer
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib64/libthread_db.so.1".
+[New Thread 0x7ffff6310700 (LWP 14722)]
+2020-06-17 16:31:06.760 INFO  ConnectionPool:85 | Created connection for pulsar://localhost:6650
+[New Thread 0x7ffff5b0f700 (LWP 14723)]
+2020-06-17 16:31:06.767 INFO  ClientConnection:330 | [127.0.0.1:52252 -> 127.0.0.1:6650] Connected to broker
+2020-06-17 16:31:06.770 INFO  BatchMessageContainer:43 | { BatchContainer [size = 0] [batchSizeInBytes_ = 0] [maxAllowedMessageBatchSizeInBytes_ =
+ 131072] [maxAllowedNumMessagesInBatch_ = 1000] [topicName = persistent://prop/r1/ns1/my-topic] [producerName_ = ] [batchSizeInBytes_ = 0] [number
+OfBatchesSent = 0] [averageBatchSize = 0]} BatchMessageContainer constructed
+2020-06-17 16:31:06.770 INFO  HandlerBase:53 | [persistent://prop/r1/ns1/my-topic, ] Getting connection from pool
+2020-06-17 16:31:06.773 INFO  ProducerImpl:153 | [persistent://prop/r1/ns1/my-topic, ] Created producer on broker [127.0.0.1:52252 -> 127.0.0.1:66
+50]
+
+Program received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7ffff6310700 (LWP 14722)]
+std::_Function_handler<void (pulsar::Result, pulsar::MessageId const&), void (*)(pulsar::Result, pulsar::MessageId const&)>::_M_invoke(std::_Any_$ata const&, pulsar::Result&&, pulsar::MessageId const&) (__functor=...,
+    __args#0=<unknown type in /home/user/pulsar/pulsar-client-cpp/examples/async_producer, CU 0x0, DIE 0x1c534>, __args#1=...)
+    at /opt/rh/devtoolset-7/root/usr/include/c++/7/bits/std_function.h:316
+316             (*_Base::_M_get_pointer(__functor))(
+Missing separate debuginfos, use: debuginfo-install glibc-2.17-222.el7.x86_64 libgcc-4.8.5-28.el7_5.1.x86_64 libstdc++-4.8.5-28.el7_5.1.x86_64
+(gdb) where
+#0  std::_Function_handler<void (pulsar::Result, pulsar::MessageId const&), void (*)(pulsar::Result, pulsar::MessageId const&)>::_M_invoke(std::_A
+ny_data const&, pulsar::Result&&, pulsar::MessageId const&) (__functor=...,
+    __args#0=<unknown type in /home/user/pulsar/pulsar-client-cpp/examples/async_producer, CU 0x0, DIE 0x1c534>, __args#1=...)
+    at /opt/rh/devtoolset-7/root/usr/include/c++/7/bits/std_function.h:316
+#1  0x00007ffff7739f9f in pulsar::ProducerImpl::statsCallBackHandler(pulsar::Result, pulsar::MessageId const&, std::function<void (pulsar::Result,
+ pulsar::MessageId const&)>, boost::posix_time::ptime) (this=<optimized out>, res=pulsar::ResultOk, msgId=..., callback=..., publishTime=...)
+    at /usr/src/debug/apache-pulsar-2.5.2/pulsar-client-cpp/lib/ProducerImpl.cc:301
+#2  0x00007ffff7742a98 in _M_call<std::shared_ptr<pulsar::ProducerImpl>&, pulsar::Result, const pulsar::MessageId&, std::function<void(pulsar::Res
+ult, const pulsar::MessageId&)>&, boost::posix_time::ptime&> (__ptr=warning: RTTI symbol not found for class 'std::_Sp_counted_ptr_inplace<pulsar:
+:ProducerImpl, std::allocator<pulsar::ProducerImpl>, (__gnu_cxx::_Lock_policy)2>'
+warning: RTTI symbol not found for class 'std::_Sp_counted_ptr_inplace<pulsar::ProducerImpl, std::allocator<pulsar::ProducerImpl>, (__gnu_cxx::_Lo
+ck_policy)2>'
+std::shared_ptr (count 4, weak 4) 0x7fffe80018d8, this=0x61e510)
+    at /usr/include/c++/4.8.2/functional:558
+#3  operator()<std::shared_ptr<pulsar::ProducerImpl>&, pulsar::Result, const pulsar::MessageId&, std::function<void(pulsar::Result, const pulsar::
+MessageId&)>&, boost::posix_time::ptime&, void> (__object=warning: RTTI symbol not found for class 'std::_Sp_counted_ptr_inplace<pulsar::ProducerI
+mpl, std::allocator<pulsar::ProducerImpl>, (__gnu_cxx::_Lock_policy)2>'
+warning: RTTI symbol not found for class 'std::_Sp_counted_ptr_inplace<pulsar::ProducerImpl, std::allocator<pulsar::ProducerImpl>, (__gnu_cxx::_Lo
+ck_policy)2>'
+std::shared_ptr (count 4, weak 4) 0x7fffe80018d8, this=0x61e510)
+    at /usr/include/c++/4.8.2/functional:610
+#4  __call<void, pulsar::Result&&, const pulsar::MessageId&, 0ul, 1ul, 2ul, 3ul, 4ul> (__args=<optimized out>, this=0x61e510)
+    at /usr/include/c++/4.8.2/functional:1296
+#5  operator()<pulsar::Result, const pulsar::MessageId&, void> (this=0x61e510) at /usr/include/c++/4.8.2/functional:1355
+#6  std::_Function_handler<void (pulsar::Result, pulsar::MessageId const&), std::_Bind<std::_Mem_fn<void (pulsar::ProducerImpl::*)(pulsar::Result, pulsar::MessageId const&, std::function<void (pulsar::Result, pulsar::MessageId const&)>, boost::posix_time::ptime)> (std::shared_ptr<pulsar::ProducerImpl>, std::_Placeholder<1>, std::_Placeholder<2>, std::function<void (pulsar::Result, pulsar::MessageId const&)>, boost::posix_time::ptime)> >::_M_invoke(std::_Any_data const&, pulsar::Result, pulsar::MessageId const&) (__functor=..., __args#0=pulsar::ResultOk, __args#1=...)
+    at /usr/include/c++/4.8.2/functional:2071
+#7  0x00007ffff7681fb4 in operator() (__args#1=..., __args#0=pulsar::ResultOk, this=<optimized out>) at /usr/include/c++/4.8.2/functional:2471
+#8  callBack (messageId=..., r=pulsar::ResultOk, this=<optimized out>)
+    at /usr/src/debug/apache-pulsar-2.5.2/pulsar-client-cpp/lib/BatchMessageContainer.h:52
+#9  pulsar::BatchMessageContainer::batchMessageCallBack(pulsar::Result, pulsar::MessageId const&, std::shared_ptr<std::vector<pulsar::BatchMessageContainer::MessageContainer, std::allocator<pulsar::BatchMessageContainer::MessageContainer> > >, std::function<void (pulsar::Result)>) (
+    r=pulsar::ResultOk, messageId=..., messagesContainerListPtr=std::shared_ptr (count 2, weak 0) 0x7fffe8001308, flushCallback=...)
+    at /usr/src/debug/apache-pulsar-2.5.2/pulsar-client-cpp/lib/BatchMessageContainer.cc:161
+#10 0x00007ffff7685b80 in __call<void, pulsar::Result&&, const pulsar::MessageId&, 0ul, 1ul, 2ul, 3ul> (__args=<optimized out>,
+    this=<optimized out>) at /usr/include/c++/4.8.2/functional:1296
+---Type <return> to continue, or q <return> to quit---
+```
+

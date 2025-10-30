@@ -1,0 +1,31 @@
+Redisson reconnection issue in Kubernetes
+### Expected behavior
+When Redis in single server mode stops, its pod takes some time to restart. Redisson client should eventually reconnect
+
+### Actual behavior
+Redisson connectionWatchdog detects that redis is down and tries to reconnect but quickly stops trying, before redis is newly available.
+IP address does not change as redis is exposed via a kubernetes clusterIp service.
+Redisson never reconnects to redis.
+
+### Steps to reproduce or test case
+Deploy redis helm in single server mode. Connect a client from a pod inside the cluster. Stop redis pod manually.
+
+### Redis version
+4.0.10
+
+### Redisson version
+3.7.1
+
+### Redisson configuration
+I tried several with the same behavior more or less
+        config.useSingleServer()
+                .setAddress("redis://" + p_ipRedis + ":" + p_portRedis)
+                .setPassword(p_password)
+                .setConnectTimeout(30000)
+                .setPingConnectionInterval(30000)
+                .setTimeout(30000)
+                .setReconnectionTimeout(30000)
+                .setRetryInterval(1000);
+
+Thanks you 
+

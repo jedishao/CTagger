@@ -1,0 +1,65 @@
+ExecutorOptions.taskRetryInterval not working as expected
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+When submitting task with taskRetryInterval option set, the task should run on the next available Redisson executor node when the original executor node was killed. 
+### Actual behavior
+The task is not retried on the next available worker. Also when the worker node is started again it will run duplicate task on all the available worker nodes.
+### Steps to reproduce or test case
+Submit JobA and then start 2 instance of the Worker lets say Worker1 and Worker2. When Worker1 is running JobA kill that worker, now the Worker2 should try to run the JobA after the taskRetryInterval, but it does not. Now start Worker1 again, Redisson will duplicate the task run on both Worker1 and Worker2.
+```
+public class Schedule {
+
+	public static void main(String[] args) {
+		RedissonClient client = Redisson.create();
+                ExecutorOptions option = ExecutorOptions.defaults();
+                option.taskRetryInterval(3000, TimeUnit.MILLISECONDS);
+		RScheduledExecutorService executorService = client.getExecutorService("JobA",option);
+                // submit JobA
+		RExecutorFuture<?> future = executorService
+                .submit(new JobA());
+	}
+
+}
+
+```
+JobA:
+```
+public class JobA implements Runnable {
+
+	@Override
+	public void run() {
+                System.out.println("JOB A started!!!!!!!!!!");
+		try {
+			Thread.sleep(10000);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		System.out.println("JOB A finished!!!!!!!!!!");
+	}
+
+}
+```
+
+Worker:
+```
+public class Worker{
+	public static void main(String[] args) {
+		Config config = new Config();
+		config.useSingleServer().setAddress("redis://127.0.0.1:6379");
+		RedissonNodeConfig nodeConfig = new RedissonNodeConfig(config);
+		nodeConfig.getExecutorServiceWorkers().put("JobA", 1);
+		RedissonNode node = RedissonNode.create(nodeConfig);
+		node.start();
+	}
+
+}
+```
+
+
+### Redis version
+Redis 3.0.503
+### Redisson version
+3.9.1

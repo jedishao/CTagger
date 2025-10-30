@@ -1,0 +1,34 @@
+FairLock deadlock again
+**Expected behavior**
+`redisson_lock_queue` and `redisson_lock_timeout` keys disappear once the lock that was taken by the first thread is timed out automatically after lock lease time, and then the second thread successfully takes the lock.
+
+**Actual behavior**
+Sometimes, even though the lock from the first thread is timed out and released automatically, the `redisson_lock_queue` and `redisson_lock_timeout` keys are stuck and the second thread can't acquire the lock, even though nobody is holding it. The second thread is stuck for full acquisition timeout. Then, it fails to get the lock eventually, and keys `redisson_lock_queue` and `redisson_lock_timeout` disappear, making the lock available again. Feels like lock expiry notification gets lost and Redisson waits for nothing. P.S. In this regard, would be great to have FairSpinLock not to rely on pubsub.
+
+Related? https://github.com/redisson/redisson/issues/2883
+
+**Steps to reproduce or test case**
+1 redis, 1 sentinel
+
+Create Redisson client with the following config:
+```
+    config.useSingleServer()
+      .setClientName("my-lock")
+      .setAddress("redis://redis:6379");
+```
+
+Start 2 threads, each taking **Fair** lock with:
+```
+lock.tryLock(20, 5, TimeUnit.SECONDS);
+// Same reproduced with lock.lock(5, TimeUnit.SECONDS);
+
+```
+and then exit **WITHOUT** unlock.
+
+Same reproduced with multiple Redisson instances.
+
+**Redis version**
+6.2.4
+
+**Redisson version**
+3.16.0

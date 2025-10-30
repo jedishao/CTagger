@@ -1,0 +1,25 @@
+Race condition reports error in updating URI namespaced lookup during shutdown
+The following can occur during shutdown of a namespaced lookup:
+
+```
+Failed update namespace [URIExtractionNamespace = { namespace = REDACTED, uri = REDACTED, namespaceParseSpec = JSONFlatDataParser = { keyFieldName = id, valueFieldName = label }, pollPeriod = PT5M, versionRegex = null }]
+java.lang.IllegalAccessError: already closed
+        at org.mapdb.EngineWrapper$1.get(EngineWrapper.java:472)
+        at org.mapdb.EngineWrapper.get(EngineWrapper.java:58)
+        at org.mapdb.BTreeMap.get(BTreeMap.java:595)
+        at org.mapdb.BTreeMap.get(BTreeMap.java:589)
+        at org.mapdb.DB.catGet(DB.java:100)
+        at org.mapdb.DB$HTreeMapMaker.makeOrGet(DB.java:222)
+        at io.druid.server.namespace.cache.OffHeapNamespaceExtractionCacheManager.getCacheMap(OffHeapNamespaceExtractionCacheManager.java:174)
+        at io.druid.server.namespace.cache.NamespaceExtractionCacheManager$5.run(NamespaceExtractionCacheManager.java:359)
+        at com.google.common.util.concurrent.MoreExecutors$ScheduledListeningDecorator$NeverSuccessfulListenableFutureTask.run(MoreExecutors.java:582)
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+        at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:308)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$301(ScheduledThreadPoolExecutor.java:180)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:294)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+```
+
+Since this is during shutdown it is not terribly important, but it would be nice to eliminate error logs that don't harm operation.

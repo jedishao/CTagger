@@ -1,0 +1,36 @@
+Two threads can acquire the same lock with redis cluster
+I have a very simple try-finally block something like this:
+
+```
+  RLock lock = redisson.getLock(lockName);
+  try {
+    lock.lock(60, TimeUnit.SECONDS);
+    // do something, most likely takes 100-200 milliseconds
+  } finally {
+    lock.unlock();
+  }
+
+```
+
+I have a redis cluster 4.x with 3 masters and 3 slaves, redisson is initialized like this: 
+
+```
+        Config config = new Config();
+        ClusterServersConfig clusterConfig = config.useClusterServers();
+        clusterConfig.setScanInterval(5000); // check cluster status every 5 seconds
+        for (String node : nodes.split(",")) {
+            clusterConfig.addNodeAddress("redis://" + node);
+        }
+        redisson = Redisson.create(config);
+```
+
+In most cases it work, but sometimes I can see it from the log that the lock cannot block two threads T1 and T2 can acquire the lock simultaneously, then one of them can release the lock successfully, the other one will throw an exception:
+
+```
+java.lang.IllegalMonitorStateException: attempt to unlock lock, not locked by current thread by node id: de3482bf-7322-4ff1-af9c-9c5406b9c825 thread-id: 362
+    at org.redisson.RedissonLock.unlock(RedissonLock.java:367)
+    .........
+```
+
+So, my questions is that, why two threads can acquire the same lock? (They have the same lock name, I observed this from log)
+

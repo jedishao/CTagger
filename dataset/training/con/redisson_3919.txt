@@ -1,0 +1,84 @@
+RLock lease expiry not being extended in spite of RLock being acquired
+Our Microservice is running in Azure. It is deployed with 2 pods. Each pod attempts to lock the same RLock, the idea being that only one pod at a time holds the lock.
+
+RLock is obtained using org.redisson.api.RLockAsync.lockAsync() and onComplete() lambda is used to get notified about lock acquisition.
+
+We observed following: pod1 had the lock but then pod2 got notified of lock acquisition.
+
+We logged: `22/10/2021 09:54:19.178 heldByCurrentThread=true, ttl=29982` based on this code 
+`"heldByCurrentThread=" + leaderLock.isHeldByCurrentThread() + ", ttl="+ leaderLock.remainTimeToLive()`
+
+On `22/10/2021 09:54:24.363`, `22/10/2021 09:54:34.364` and `22/10/2021 09:54:44.364` `leaderLock.isHeldByCurrentThread()` returns `true` however at `22/10/2021 09:54:54.365` it returned `false`.
+
+So we lock again and within 1 msec get notified about success: `heldByCurrentThread=true, ttl=29998`
+
+This cycle continues from then on:
+1) we get the lock without issues, very quickly
+2) within 30 seconds we lose the lock and so go back to 1)
+
+I think 30 seconds matches lockWatchdogTimeout setting. I see no warn/error log related to Redis connectivity
+
+I have logs for around 3 hours when this issue has persisted but it might have well lasted for much longer.
+
+**Expected behavior**
+If a client acquires RLock then it should also be able to extend its (lease) time
+
+**Actual behavior**
+A client acquires RLock but then seems unable to extend its (lease) time
+
+**Steps to reproduce or test case**
+Issue intermittent
+
+**Redis version**
+
+**Redisson version**
+3.15.6
+
+**Redisson configuration**
+config: ---
+clusterServersConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 15000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 1500
+  password: "..."
+  subscriptionsPerConnection: 5
+  sslEnableEndpointIdentification: true
+  sslProvider: "JDK"
+  pingConnectionInterval: 5000
+  keepAlive: true
+  tcpNoDelay: true
+  nameMapper: !<org.redisson.api.DefaultNameMapper> {}
+  loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+  slaveConnectionMinimumIdleSize: 24
+  slaveConnectionPoolSize: 64
+  failedSlaveReconnectionInterval: 3000
+  failedSlaveCheckInterval: 60000
+  masterConnectionMinimumIdleSize: 24
+  masterConnectionPoolSize: 64
+  readMode: "MASTER"
+  subscriptionMode: "SLAVE"
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  dnsMonitoringInterval: 5000
+  natMapper: !<org.redisson.api.DefaultNatMapper> {}
+  nodeAddresses:
+  - "rediss://ixcc-qa-redis.redis.cache.windows.net:6380"
+  scanInterval: 5000
+  checkSlotsCoverage: true
+threads: 16
+nettyThreads: 16
+codec: !<org.redisson.client.codec.StringCodec> {}
+referenceEnabled: true
+transportMode: "NIO"
+lockWatchdogTimeout: 30000
+reliableTopicWatchdogTimeout: 600000
+keepPubSubOrder: true
+useScriptCache: false
+minCleanUpDelay: 5
+maxCleanUpDelay: 1800
+cleanUpKeysAmount: 100
+nettyHook: !<org.redisson.client.DefaultNettyHook> {}
+useThreadClassLoader: true
+addressResolverGroupFactory: !<org.redisson.connection.DnsAddressResolverGroupFactory> {}

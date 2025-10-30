@@ -1,0 +1,23 @@
+Datasource availability mis-represented due to 0 row segments not cleaned up after compaction
+
+
+### Affected Version
+
+0.14.0, 0.14.2
+
+### Description
+
+After tracking the 'druid/coordinator/v1/loadstatus' API over weeks of execution, I started to notice long periods of time when our datasources would not be 100% available even though I could query all data from them successfully. Here is an example response:
+
+{
+    "npav-ts-metrics-15m": 100,
+    "npav-ts-metrics": 97.31543624161074
+}
+
+When I look at the "missing" segments, I see the following in the unified-console:
+
+![image](https://user-images.githubusercontent.com/33030320/60396911-483bae00-9b15-11e9-859b-c311b79fec48.png)
+
+This shows that the data is there, and has been compacted, but there are also some '0-row' segments for the same time period that have not been cleaned up. These are being used to reduce the datasource availability even though the data is queryable.
+
+Eventually these rows get cleaned up, but then new ones take their place, so the datasource is very rarely 100% available from the POV of the 'druid/coordinator/v1/loadstatus' API. Maybe these segments could be filtered out when handling the API to more accurately represent the status of the datasource?

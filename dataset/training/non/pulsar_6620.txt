@@ -1,0 +1,123 @@
+Java Topic URL Parser is Incorrect
+**Describe the bug**
+I do not believe that the code that parses the topic name does so correctly. I will limit my example to the [consumer code](https://github.com/apache/pulsar/blob/639fbf1801b227bb191cfc548f26906902481b8f/pulsar-common/src/main/java/org/apache/pulsar/common/naming/TopicName.java#L126) but I assume similar issues will apply to readers and producers.
+
+From the code (line numbers are for reference, they do not match the actual code):
+
+```java
+   1  // The fully qualified topic name can be in two different forms:
+   2  // new:    persistent://tenant/namespace/topic
+   3  // legacy: persistent://tenant/cluster/namespace/topic
+   4  
+   5  List<String> parts = Splitter.on("://").limit(2).splitToList(completeTopicName);
+   6  this.domain = TopicDomain.getEnum(parts.get(0));
+   7  
+   8  String rest = parts.get(1);
+   9  
+  10  // The rest of the name can be in different forms:
+  11  // new:    tenant/namespace/<localName>
+  12  // legacy: tenant/cluster/namespace/<localName>
+  13  // Examples of localName:
+  14  // 1. some/name/xyz//
+  15  // 2. /xyz-123/feeder-2
+  16  
+  17  
+  18  parts = Splitter.on("/").limit(4).splitToList(rest);
+  19  if (parts.size() == 3) {
+  20      // New topic name without cluster name
+  21      this.tenant = parts.get(0);
+  22      this.cluster = null;
+  23      this.namespacePortion = parts.get(1);
+  24      this.localName = parts.get(2);
+  25      this.partitionIndex = getPartitionIndex(completeTopicName);
+  26      this.namespaceName = NamespaceName.get(tenant, namespacePortion);
+  27  } else if (parts.size() == 4) {
+  28      // Legacy topic name that includes cluster name
+  29      this.tenant = parts.get(0);
+  30      this.cluster = parts.get(1);
+  31      this.namespacePortion = parts.get(2);
+  32      this.localName = parts.get(3);
+  33      this.partitionIndex = getPartitionIndex(completeTopicName);
+  34      this.namespaceName = NamespaceName.get(tenant, cluster, namespacePortion);
+  35  } else {
+  36      throw new IllegalArgumentException("Invalid topic name: " + completeTopicName);
+  37  }
+  38  
+```
+
+
+**To Reproduce**
+As an breaking example, take the non-legacy web socket topic URL:
+
+```
+persistent://my-tenant/my-ns/topic/with/slashes
+```
+I'll post the original line and then what that translates to with this example:
+```java
+   8  String rest = parts.get(1);
+   // String rest = "my-tenant/my-ns/topic/with/slashes";
+      ...
+  18  parts = Splitter.on("/").limit(4).splitToList(rest);
+   // parts = ["my-tenant", "my-ns", "topic", "with/slashes"];
+```
+(Here is the [documentation](https://guava.dev/releases/23.0/api/docs/com/google/common/base/Splitter.html#limit-int-) for `Splitter.limit`)
+
+Good so far. But then the if condition:
+
+```java
+  19  if (parts.size() == 3) {
+  20      // New topic name without cluster name
+  21      this.tenant = parts.get(0);
+  22      this.cluster = null;
+  23      this.namespacePortion = parts.get(1);
+  24      this.localName = parts.get(2);
+  25      this.partitionIndex = getPartitionIndex(completeTopicName);
+  26      this.namespaceName = NamespaceName.get(tenant, namespacePortion);
+  27  } else if (parts.size() == 4) {
+  28      // Legacy topic name that includes cluster name
+  29      this.tenant = parts.get(0);
+  30      this.cluster = parts.get(1);
+  31      this.namespacePortion = parts.get(2);
+  32      this.localName = parts.get(3);
+  33      this.partitionIndex = getPartitionIndex(completeTopicName);
+  34      this.namespaceName = NamespaceName.get(tenant, cluster, namespacePortion);
+  35  } else {
+  36      throw new IllegalArgumentException("Invalid topic name: " + completeTopicName);
+  37  }
+```
+
+In this example, `parts.size()` is equal to `4`, which means it will enter the `else if` block. This is the block for parsing the legacy topic names, as `line 28` mentions
+
+Then lines `29-32` get run (translations included):
+```java
+   // parts = ["my-tenant", "my-ns", "topic", "with/slashes"];
+
+      ...
+  29  this.tenant = parts.get(0);
+   // this.tenant = "my-tenant";        // Good
+  30  this.cluster = parts.get(1);
+   // this.cluster = "my-ns";           // **BAD**
+  31  this.namespacePortion = parts.get(2);
+   // this.namespacePortion = "topic";  // **BAD**
+  32  this.localName = parts.get(3);
+   // this.localName = "with/slashes";  // **BAD**
+
+```
+
+**Expected behavior**
+The expected behavior is that it should parse the tenant, cluster, namespace and topic-name correctly.
+
+The code should not enter the `else if` condition. It should enter the `if` condition. 
+This line assumes that the topic will not have any slashes in it. But this assumption is incorrect. The [documentation](http://pulsar.apache.org/docs/en/concepts-messaging/#topics) explicitly states that "topic names are freeform". It's also mentioned on line 14-15 in the comments.The Java [code](https://github.com/apache/pulsar/blob/639fbf1801b227bb191cfc548f26906902481b8f/pulsar-common/src/test/java/org/apache/pulsar/common/naming/TopicNameTest.java#L180) tests for this case (which makes me think perhaps the tests are broken as well? I'm not sure what's going on)
+
+This seems like it would be better suited to using a regex to parse the completeTopicString. 
+
+
+**Screenshots**
+N/a
+
+**Desktop (please complete the following information):**
+N/a
+
+**Additional context**
+N/a

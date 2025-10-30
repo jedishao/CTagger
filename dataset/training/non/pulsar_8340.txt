@@ -1,0 +1,26 @@
+[pulsar-testclient]Provide options to specify existing topics when allowAutoTopicCreation is disable and using multiple topics
+**Is your enhancement request related to a problem? Please describe.**
+Some users may encounter the following issues when using multiple topics with option `--num-topics` but `allowAutoTopicCreation` is disable:
+```
+$ bin/pulsar-perf consume persistent://public/default/test -s sub -st Exclusive -t 2
+Exception in thread "main" java.util.concurrent.ExecutionException: org.apache.pulsar.client.api.PulsarClientException$TopicDoesNotExistException: Topic does not exist
+        at java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:357)
+        at java.util.concurrent.CompletableFuture.get(CompletableFuture.java:1895)
+        at org.apache.pulsar.testclient.PerformanceConsumer.main(PerformanceConsumer.java:343)
+Caused by: org.apache.pulsar.client.api.PulsarClientException$TopicDoesNotExistException: Topic does not exist
+        at org.apache.pulsar.client.impl.ClientCnx.getPulsarClientException(ClientCnx.java:1003)
+        at org.apache.pulsar.client.impl.ClientCnx.handleError(ClientCnx.java:610)
+        at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:170)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+```
+or using multiple subscriptions with option `--num-consumers` but `allowAutoSubscriptionCreation` is disable:
+```
+$ bin/pulsar-perf consume persistent://public/default/test -s sub -st Exclusive -n 2
+[pulsar-client-io-1-8] WARN  org.apache.pulsar.client.impl.ConnectionHandler - [persistent://public/default/test-partition-3] [sub-1] Could not get connection to broker: Subscription does not exist -- Will try again in 0.1 s
+[pulsar-client-io-1-7] WARN  org.apache.pulsar.client.impl.ConnectionHandler - [persistent://public/default/test-partition-4] [sub-1] Could not get connection to broker: Subscription does not exist -- Will try again in 0.1 s
+[pulsar-client-io-1-3] WARN  org.apache.pulsar.client.impl.ConnectionHandler - [persistent://public/default/test-partition-2] [sub-0] Could not get connection to broker: Subscription does not exist -- Will try again in 0.1 s
+[pulsar-client-io-1-4] WARN  org.apache.pulsar.client.impl.ConnectionHandler - [persistent://public/default/test-partition-1] [sub-0] Could not get connection to broker: Subscription does not exist -- Will try again in 0.1 s
+```
+
+**Describe the solution you'd like**
+Add some options to specify existing topics or subscriptions to meet the above scenario.

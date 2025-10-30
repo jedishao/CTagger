@@ -1,0 +1,49 @@
+Extending math expression
+This is umbrella issue for covering extended use of math expression in various positions in druid. Some issues are already PRed.
+- Replacing metric name with math expression in aggregators (~~#2783~~)
+  This is for making arbitrary parameter instead of single column for aggregator user want to apply. The key of implementation is replacing simple numeric binding(`Map<String, Number>`) to lazy one (`Map<String, Supplier<Number>>`). We need to traverse the math expression and extract needed bindings before evaluation. 
+- Replacing ArithmeticPostAggregator with math expression (~~#2820~~)
+  Current ArithmeticPostAggregator is hard to use and very restrictive in expressiveness. With this, we can simple write expression intuitively. For example,
+
+```
+"postAggregations": [
+  { "type": "arithmetic",
+    "name": "avg_usage",
+    "fn": "/",
+    "fields": [
+      { "type": "fieldAccess", "fieldName": "data_transfer" },
+      { "type": "fieldAccess", "fieldName": "total_usage" }
+    ]
+  }
+]
+```
+
+can be replaced with
+
+```
+"postAggregations": [
+  { "type": "expression",
+    "name": "avg_usage",
+    "expression": "data_transfer / total_usage"
+  }
+]
+```
+- Extending math expression to cover String type (~~#2836~~)
+  Firstly introduced to handle various time-related arguments more easily something like `__time > timestamp("2010-03-12T11:27:00")` but with this we can now use dimensions also in expression, not just metrics. In a word, it's no longer math expression but generic expression. 
+  To make less `instanceOf`, evaluation results are tagged with type information (basically, it's `Pair<Object, ExprType>`). I also considered considered to using "init and eval" style like other typed processing engines but It can make some restriction on expression and I've skipped the idea.  
+
+- Dimension filter on metric (#3755, which was #3005)
+  Filter rows by expression referencing metrics. If there is a metric index in a datasource and user want to query data of which index value is between 100 and 200, following filter will make it done.
+```
+"filter" : {"expression": "index > 100 && index < 200"}
+```
+
+
+Some works are in my local branch (Not PRed)
+- Math expressional extraction function (depends on #2783, #2836)
+  Extraction function also can be expressed with math expression if it supports string type. Instead of wondering what to choose from 14 kind of extraction functions, we can simply use expression to cover all of them. 
+- Math expressional virtual column (depends on #2511)
+  Expression type virtual column. I believe this will make arbitrary projections to be used more easily. We can even do filter, extract and group-by on it. 
+- Bunch of functions
+  Java/R script functions, window functions, case/when, in, format, like, regex, etc.
+- Minor refactorings / bug fixes (#3016, #3090)

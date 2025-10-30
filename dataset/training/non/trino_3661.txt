@@ -1,0 +1,37 @@
+Unable to retrieve cluster stats via API non-interactively
+Previously could do a curl to v1/cluster and get a response like:
+
+```
+{"runningQueries":0,"blockedQueries":0,"queuedQueries":0,"activeCoordinators":1,"activeWorkers":1,"runningDrivers":0,"totalAvailableProcessors":2,"reservedMemory":0.0,"totalInputRows":9563,"totalInputBytes":6249754,"totalCpuTimeSecs":0}
+```
+
+Now the endpoint has changed to ui/api/stats, it works fine for interactive user in the browser (after going via form login page), but non-interactive commands by generic user (with valid credentials) are blocked :(
+
+```
+curl -s -k -L -u "user:pass" https://domain:4039/ui/api/stats -vvv
+
+
+> GET /ui/api/stats HTTP/1.1
+> Host: domain:4039
+> Authorization: Basic redact
+> User-Agent: curl/7.61.1
+> Accept: */*
+>
+< HTTP/1.1 401 Unauthorized
+< Date: Thu, 07 May 2020 10:34:55 GMT
+< WWW-Authenticate: Presto-Form-Login
+< Content-Length: 0
+```
+
+Can below code be removed?
+https://github.com/prestosql/presto/blob/master/presto-main/src/main/java/io/prestosql/server/ui/FormWebUiAuthenticationManager.java#L141-L146
+```
+        // send 401 to REST api calls and redirect to others
+        if (request.getPathInfo().startsWith("/ui/api/")) {
+            response.setHeader(WWW_AUTHENTICATE, "Presto-Form-Login");
+            response.setStatus(SC_UNAUTHORIZED);
+            return;
+        }
+```
+
+Update: even commenting out that block did not solve it :(

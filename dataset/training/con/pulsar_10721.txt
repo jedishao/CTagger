@@ -1,0 +1,29 @@
+(2.7.2) Python client blocks forever in "create_producer" during a broker failure, even if "operation_timeout_seconds" is set
+**Describe the bug**
+
+During some chaos testing of a Pulsar cluster I observed a case in which the Python client does not honor the "operation_timeout_secs" timeout field and blocks forever while talking to a failed broker.
+
+Specifically, the "create_producer" RPC hangs indefinitely. 
+
+**To Reproduce**
+
+I have a pulsar cluster (2.7.1) configured via the stock Helm chart on EKS (5 brokers x 5 bookies x 1 zookeeper).
+
+I turned off the LivenessProbe on the brokers once they all started, and run the broker as a subprocess of PID 1 rather than PID 1 itself.
+
+I have a python client producing (synchronously) in a loop. Whenever it gets an error it re-creates its producer and its client object. The client has operation_timeout_seconds=10 set, and the producer has send_timeout_millis=1000 set.
+
+For my chaos test, I start 100 clients producing, verify that everything is working normally,  and then, one by one, send SIGSTOP to the JVM process on all of my brokers except one.
+
+
+**Expected behavior**
+What I'd expect to happen is for, after some hiccups, my producers to all connect to the one remaining broker and produce to it.
+
+What actually happens is that *many* (but not all) of my producers get stuck talking to the SIGSTOP'd brokers. If I replace the brokers after minutes/hours the producers wake up and start producing again.
+
+By starting a watcher thread and checking what call my main thread is in the middle of, I can observe that "create_producer" is the call that blocks. 
+
+The blocking situation stops when the failed brokers are restored to service. However, as long as the brokers remain failed, I have not observed a blocked client unblocked, and some of them have stayed stuck for hours. 
+
+**Desktop (please complete the following information):**
+ - Amazon Linux/EKS, current version.

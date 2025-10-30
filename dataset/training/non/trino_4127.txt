@@ -1,0 +1,38 @@
+Query failure when subqueries appear in window function argument
+```sql
+SELECT count(orderkey > ALL (VALUES 10)) OVER () FROM orders;
+```
+
+fails with
+
+```
+Query 20200621_234221_00002_kuvpm failed: Unexpected subquery expression in logical plan: ( VALUES
+  10
+)
+java.lang.IllegalStateException: Unexpected subquery expression in logical plan: ( VALUES
+  10
+)
+	at io.prestosql.sql.planner.sanity.NoSubqueryExpressionLeftChecker$1.visitSubqueryExpression(NoSubqueryExpressionLeftChecker.java:41)
+	at io.prestosql.sql.planner.sanity.NoSubqueryExpressionLeftChecker$1.visitSubqueryExpression(NoSubqueryExpressionLeftChecker.java:37)
+	at io.prestosql.sql.tree.SubqueryExpression.accept(SubqueryExpression.java:51)
+	at io.prestosql.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.prestosql.sql.tree.DefaultTraversalVisitor.visitCast(DefaultTraversalVisitor.java:29)
+	at io.prestosql.sql.tree.DefaultTraversalVisitor.visitCast(DefaultTraversalVisitor.java:16)
+	at io.prestosql.sql.tree.Cast.accept(Cast.java:91)
+	at io.prestosql.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.prestosql.sql.tree.DefaultTraversalVisitor.visitQuantifiedComparisonExpression(DefaultTraversalVisitor.java:648)
+	at io.prestosql.sql.tree.DefaultTraversalVisitor.visitQuantifiedComparisonExpression(DefaultTraversalVisitor.java:16)
+	at io.prestosql.sql.tree.QuantifiedComparisonExpression.accept(QuantifiedComparisonExpression.java:81)
+	at io.prestosql.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.prestosql.sql.planner.sanity.NoSubqueryExpressionLeftChecker.validate(NoSubqueryExpressionLeftChecker.java:43)
+	at io.prestosql.sql.planner.sanity.PlanSanityChecker.lambda$validateIntermediatePlan$1(PlanSanityChecker.java:71)
+	at com.google.common.collect.ImmutableList.forEach(ImmutableList.java:405)
+	at io.prestosql.sql.planner.sanity.PlanSanityChecker.validateIntermediatePlan(PlanSanityChecker.java:71)
+	at io.prestosql.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:194)
+	at io.prestosql.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:187)
+	at io.prestosql.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:182)
+	at io.prestosql.execution.SqlQueryExecution.doPlanQuery(SqlQueryExecution.java:410)
+	at io.prestosql.execution.SqlQueryExecution.planQuery(SqlQueryExecution.java:398)
+	at io.prestosql.execution.SqlQueryExecution.start(SqlQueryExecution.java:353)
+	at io.prestosql.execution.SqlQueryManager.createQuery(SqlQueryManager.java:237)
+```

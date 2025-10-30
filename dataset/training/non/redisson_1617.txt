@@ -1,0 +1,59 @@
+I found two problems about Scheduled Jobs in redisson3.7.5
+I am using `scheduleWithFixedDelay` to create a scheduled job, `initialDelay` is 0 and delay is 10m. When the job was running, I found the job's interval is 5min.
+I found the problem was created by `ff..requestId`, because the `ExecutorOptions.default()` is 5m.
+
+Read the script in `ScheduledTasksService.java`:
+```java
+commandExecutor.evalWriteAsync(name, LongCodec.INSTANCE, RedisCommands.EVAL_BOOLEAN,
+// check if executor service not in shutdown state
+"if redis.call('exists', KEYS[2]) == 0 then "
+	+ "local retryInterval = redis.call('get', KEYS[6]); "
+	+ "if retryInterval ~= false then "
+		+ "local time = tonumber(ARGV[4]) + tonumber(retryInterval);"
+		+ "redis.call('zadd', KEYS[3], time, 'ff' .. ARGV[2]);"
+	+ "elseif tonumber(ARGV[5]) > 0 then "
+		+ "redis.call('set', KEYS[6], ARGV[5]);"
+		+ "local time = tonumber(ARGV[4]) + tonumber(ARGV[5]);"
+		+ "redis.call('zadd', KEYS[3], time, 'ff' .. ARGV[2]);"
+	+ "end; "
+
+	+ "redis.call('zadd', KEYS[3], ARGV[1], ARGV[2]);"
+	+ "redis.call('hset', KEYS[5], ARGV[2], ARGV[3]);"
+	+ "redis.call('incr', KEYS[1]);"
+	+ "local v = redis.call('zrange', KEYS[3], 0, 0); "
+	// if new task added to queue head then publish its startTime 
+	// to all scheduler workers 
+	+ "if v[1] == ARGV[2] then "
+	   + "redis.call('publish', KEYS[4], ARGV[1]); "
+	+ "end "
+	+ "return 1;"
++ "end;"
++ "return 0;", 
+Arrays.<Object>asList(tasksCounterName, statusName, schedulerQueueName, schedulerChannelName, tasksName, tasksRetryIntervalName),
+startTime, request.getId(), encode(request), System.currentTimeMillis(), tasksRetryInterval);
+```
+Debug the code, I know startTime is `System.currentTimeMillis() + delay`, but `'ff'..ARGV[2]` is `System.currentTimeMillis() + retryInterval`. In my program, delay is 10m, retryInterval is 5m, so `'ff'..requestId` is before requestId in zset named `{jobName:org.redisson.executor.RemoteExecutorService}:scheduler`. So, the job's interval is changed to 5 minutes.
+
+
+Another problem is that `{jobName:org.redisson.executor.RemoteExecutorService}:retry-interval` was deleted when only one Job was running and first `run()` was finish.  
+Read the script in `TasksRunnerService.java`:
+```java
+private void finish(String requestId) {
+	commandExecutor.evalWriteAsync(name, StringCodec.INSTANCE, RedisCommands.EVAL_VOID,
+		   "local scheduled = redis.call('zscore', KEYS[5], ARGV[3]);"
+		 + "if scheduled == false then "
+			 + "redis.call('hdel', KEYS[4], ARGV[3]); "
+		 + "end;" +
+		   "redis.call('zrem', KEYS[5], 'ff' .. ARGV[3]);" +
+		   "if redis.call('decr', KEYS[1]) == 0 then "
+			+ "redis.call('del', KEYS[1], KEYS[6]);"
+			+ "if redis.call('get', KEYS[2]) == ARGV[1] then "
+				+ "redis.call('set', KEYS[2], ARGV[2]);"
+				+ "redis.call('publish', KEYS[3], ARGV[2]);"
+			+ "end;"
+		 + "end;",  
+			Arrays.<Object>asList(tasksCounterName, statusName, terminationTopicName, tasksName, schedulerQueueName, tasksRetryIntervalName),
+			RedissonExecutorService.SHUTDOWN_STATE, RedissonExecutorService.TERMINATED_STATE, requestId);
+}
+```
+When `tasksCounterName`'s value is 0, `tasksRetryIntervalName` is deleted. But `tasksRetryIntervalName` can't be reset.

@@ -1,0 +1,33 @@
+Daemon Threads in grpc
+We have to decide how to deal with daemon threads. Grpc uses non-daemon threads by default and so the pattern
+
+``` java
+ServerImpl server = NettyServerBuilder. ...
+// non blocking
+server.start()
+```
+
+works fine.
+
+However, if one was to provide a custom executor that uses daemon threads the above would terminate immediately. It's quite likely that people will unknowingly provide daemon threads to grpc by passing in custom Netty `EventLoopGroup`.
+
+e.g.
+
+``` java
+EventLoopGroup boss = new NioEventLoopGroup(1);
+EventLoopGroup worker = new NioEventLoopGroup(serverThreads);
+
+ServerImpl server = NettyServerBuilder
+            .userBossEventLoopGroup(boss)
+            .workerEventLoopGroup(worker)
+            .build();
+```
+
+Netty's `EventLoops` use a `ForkJoinPool` executor by default, which uses daemon threads.
+
+The same issue exists on the client. 
+OkHttp uses non-daemon threads by default as @ejona86 pointed out to me.
+
+One solution would be to add an infinite `awaitTermination()` method that does what the name suggests. Another solution would be to create a dummy non-daemon thread on startup and thus ensure that the JVM doesn't exit prematurely.
+
+@nmittler @louiscryan 

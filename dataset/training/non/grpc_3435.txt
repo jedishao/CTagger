@@ -1,0 +1,45 @@
+grpc multiple instances of same service different ports within same jvm ubuntu
+### What version of gRPC are you using? 1.3.0
+
+
+### What JVM are you using (`java -version`)? openjdk version "1.8.0_131"
+
+### What did you do?
+I have a service **EventServer** with one method **sendEvent**.  I have created a unit test client for **EventServerImpl1**
+
+My use case is there are 2 instances of **EventServer** running on different ports for this test case where one propagates the event to other and response vice versa
+
+Example: **EventTestClient** invokes **sendEvent** to **EventServerImpl1** and in **sendEvent** method of **EventServerImpl1** it propagates to **sendEvent** method of **EventServerImpl2**. 
+
+Here 2 grpc servers **EventServerImpl1**(port **17123**) and **EventServerImpl2**(port **17124**) implements **EventServer** within **same JVM** for this. 
+
+Now in 
+
+**EventTestClient**: I have code as 
+
+eventChannel = InProcessChannelBuilder.forAddress("localhost", 17123).directExecutor()
+                .usePlaintext(true).build();
+stub = EventsServerGrpc.newBlockingStub(eventChannel );
+stub.sendEvent(request); **//This is fine**
+
+**EventServerImpl1**:
+
+eventChannel2 = ManagedChannelBuilder.forAddress("localhost", 17124).usePlaintext(true).build();
+stub2 = EventsServerGrpc.newBlockingStub(eventChannel2 );
+stub2.sendEvent(request); **//This is hung**
+
+Both are blocking stubs only
+
+### What did you expect to see?
+I expect to see the request propagates to **EventServerImpl2** as **EventServerImpl1** being the **client** to it
+
+
+### What did you see instead?
+When **EventServerImpl1.sendEvent** is triggered( **stub2.sendEvent(request)** ) the process **hangs forever**. 
+
+When I **directly query EventServerImpl2(port 17124)** from other java process during this hang over period it works fine. But within that same process its hung forever.
+
+Again on Windows this is fine and test case runs well. But only on Ubuntu I see this issue
+
+Please suggest if there is something I am missing here
+

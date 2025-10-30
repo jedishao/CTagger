@@ -1,0 +1,9 @@
+Inadequate documentation for `SharedData.getLock()`
+The docs for `SharedData.getLock()` do not specify the behaviour when there is competition in acquiring a lock. While non-determinism is expected when this is happening from multiple threads, it is also silent about what happens if I try to acquire the same lock sequentially in the same method:
+
+```
+vertx.sharedData().getLock()
+vertx.sharedData().getLock()
+```
+
+From the code I can see that a local lock uses an ordered list of waiters, so I would expect that the first call would acquire the lock before before the 2nd (in the absence of timeout, and obviously with the possibility of there being interleaving acquisitions from other threads). But I've no idea whether these same semantics would also apply with a clustered lock. If the API doesn't guarantee any such semantics the Javadoc should probably explain that to avoid people accidentally relying on such behaviour.

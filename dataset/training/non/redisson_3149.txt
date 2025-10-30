@@ -1,0 +1,17 @@
+利用Redisson按天做限流，历史生成的限流key不会自动清除
+利用Redisson按天做限流，历史生成的限流key不会自动清除，这个如何处理，可以设置缓存过期时间吗？
+
+```java
+// rate limit 100 times per day
+String date = DateFormatUtils.format(new Date(), BaseConstants.DATE_FORMAT_LEAN);
+RRateLimiter timesPerDayRateLimiter = redissonClient.getRateLimiter(String.format(RedisConstants.TOKEN_REFRESH_TIMES_PER_DAY_RATE_LIMIT, date, userId));
+timesPerDayRateLimiter.trySetRate(RateType.OVERALL, tokenProperties.getTokenRefreshTimesPerDayRateLimit(), 1, RateIntervalUnit.DAYS);
+```
+
+![image](https://user-images.githubusercontent.com/6032545/96854696-5f32ac00-148e-11eb-96b2-4d9c363f122f.png)
+
+该历史缓存会清除
+{token:refresh:20201021:68155c4000eb4d79a3f9516bfc51f9c5}:value
+
+该历史缓存未清除
+token:refresh:20201021:68155c4000eb4d79a3f9516bfc51f9c5

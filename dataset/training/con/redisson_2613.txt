@@ -1,0 +1,28 @@
+In a frequent job , sometime lock.tryLock() can not get lock
+		<dependency>
+			<groupId>org.redisson</groupId>
+			<artifactId>redisson-spring-boot-starter</artifactId>
+			<version>2.15.2</version>
+		</dependency>
+In a spring boot 1.5.6 application , We have a new job which is running every 30 seconds and try to acquire lock to do something . In recent days the job has tried to acquire one specific lock cause of business , We found from 00:13 on Feb 24  the job can not get the lock but after 15:03 the job can get the lock again . The operation on this lock only in this job . 
+the code on the lock as below :
+
+        boolean res = lock.tryLock();
+        if (res) {
+            try {
+                ...
+            } finally {
+                if (lock.isHeldByCurrentThread())
+                    lock.unlock();
+            }
+        } else {
+            LockUtils.logLockError(lockName, amount, null, "consume balance");
+            msg = String.format("acquire merchant account lock (%s)failed", lockName);
+        }
+
+Thanks
+
+
+
+
+ 

@@ -1,0 +1,23 @@
+RLock trylock blocks forever
+Found this in 2.2.16, seems like this was not around in 2.2.10. But still verifying.
+
+When tryLock is called with 0 wait time, the thread blocks forever. I took a thread dump and it looks like the stack pasted below. 
+
+A note on the environment: We are running this against an Elasticache cluster in AWS and accessing from 4 EC2 instances. We have seen a lot of command timeouts. I am not sure if that is some way leading to this.
+
+"pool-4-thread-5" #86 prio=5 os_prio=0 tid=0x00007f15ca23f800 nid=0xcd4 waiting for monitor entry [0x00007f15b90e5000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+    at org.redisson.pubsub.PublishSubscribe.subscribe(PublishSubscribe.java:53)
+    - waiting to lock <0x00000000dd405ea0> (a org.redisson.pubsub.LockPubSub)
+    at org.redisson.pubsub.LockPubSub.subscribe(LockPubSub.java:22)
+    at org.redisson.RedissonLock.subscribe(RedissonLock.java:311)
+    at org.redisson.RedissonLock.tryLock(RedissonLock.java:264)
+    at c.v.w.utils.caching.redis.RedisLock.tryLock(RedisLock.java:36)
+    at c.v.w.utils.caching.LeasedLock.tryLock(LeasedLock.java:19)
+    at c.v.w.eventprocessor.core.service.impl.JobProcessor.getProcessingLock(JobProcessor.java:130)
+    at c.v.w.eventprocessor.core.service.impl.JobProcessor.access$000(JobProcessor.java:47)
+    at c.v.w.webscan.eventprocessor.core.service.impl.JobProcessor$Processor.execute(JobProcessor.java:193)
+    at c.v.w.service.integration.core.DataContextAwareTask.run(DataContextAwareTask.java:59)
+    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+    at java.lang.Thread.run(Thread.java:745)

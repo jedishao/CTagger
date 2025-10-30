@@ -1,0 +1,37 @@
+Unable to build kubernetes objects from release manifest: error validating "" error validating data: [ValidationError(Certificate.spec): unknown field "keyAlgorithm" in io.cert-manager.v1.Certificate.spec
+I want to deploy a Pulsar Cluster on Kubernetes with TLS enabled.
+I have followed Pulsar documentation to do this: https://pulsar.apache.org/docs/en/helm-deploy/
+
+I have in advance install cert-manager. It is running well:
+```
+kubectl get pods --namespace cert-manager
+NAME                                     READY   STATUS    RESTARTS   AGE
+cert-manager-76d44b459c-vd8kl            1/1     Running   0          25m
+cert-manager-cainjector-9b679cc6-jxm4b   1/1     Running   0          25m
+cert-manager-webhook-57c994b6b9-trbtw    1/1     Running   0          25m
+```
+
+I have also prepared the helm release
+```
+git clone https://github.com/apache/pulsar-helm-chart
+cd pulsar-helm-chart
+./scripts/pulsar/prepare_helm_release.sh -n pulsar -k pulsar-mini  -c
+```
+
+But when I want to deploy Pulsar cluster using Helm with tls enabled:
+```
+helm repo add apache https://pulsar.apache.org/charts
+helm repo update
+
+helm install --set initialize=true --set namespace=pulsar --set certs.internal_issuer.enabled=true \
+--set tls.enabled=true --set tls.proxy.enabled=true  --set tls.broker.enabled=true  --set tls.bookie.enabled=true \
+--set tls.zookeeper.enabled=true  --set tls.autorecovery.enabled=true  --set tls.toolset.enabled=true pulsar-mini charts/pulsar
+```
+I have that error:
+```
+Error: INSTALLATION FAILED: unable to build kubernetes objects from release manifest: error validating "": error validating data: [ValidationError(Certificate.spec): unknown field "keyAlgorithm" in io.cert-manager.v1.Certificate.spec, ValidationError(Certificate.spec): unknown field "keyEncoding" in io.cert-manager.v1.Certificate.spec, ValidationError(Certificate.spec): unknown field "keySize" in io.cert-manager.v1.Certificate.spec, ValidationError(Certificate.spec): unknown field "organization" in io.cert-manager.v1.Certificate.spec]
+```
+
+Does anyone have a solution for this? 
+
+In the case I enabled TLS on all the cluster and not additionally on all components, the Pulsar Cluster is deployed but the proxy pod is not present anymore. 

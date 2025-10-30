@@ -1,0 +1,77 @@
+two thread get the same lock by trylock?
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+
+### Actual behavior
+
+
+![default](https://user-images.githubusercontent.com/18570574/49440185-f2f92180-f7fd-11e8-8c41-270be3d18e9e.png)
+
+ 
+### Steps to reproduce or test case
+`public class TestThread {
+
+    public static void main(String args[]) {
+
+
+        for(int i=0;i<3;i++){
+            ThreadDemo T1 = new ThreadDemo( "Thread-"+i);
+            T1.start();
+        }
+
+    }
+
+    public static class ThreadDemo extends Thread {
+
+        private Thread t;
+        private String threadName;
+
+        ThreadDemo( String name) {
+            threadName = name;
+        }
+
+        public void run() {
+            try {
+                log.info(Thread.currentThread().getName() + " start  "); 
+                
+                Config config = new Config(); 
+                config.setCodec(new org.redisson.client.codec.StringCodec()); 
+                config.useSingleServer().setAddress("redis://10.24.51.167:6380"); 
+                RedissonClient redisson = Redisson.create(config);
+
+                RLock lock = redisson.getFairLock("lock");
+                
+                boolean res =  lock.tryLock(1, 10, TimeUnit.SECONDS);
+                if(res){
+                    log.info("thread {} get lock success, sleep 5s",Thread.currentThread().getName());
+                    Thread.sleep(5000); 
+                    if(lock.isHeldByCurrentThread()){
+                        lock.unlock();
+                    }
+                    log.info("thread {} unlock  ",Thread.currentThread().getName());
+                }else{
+                    log.info("thread {} get lock faild",Thread.currentThread().getName());
+                }
+                log.info(Thread.currentThread().getName() + " end ");
+            }catch (Exception e){
+                e.printStackTrace();
+                log.info(e.getMessage());
+            }
+        }
+
+        public void start () {
+            if (t == null) {
+                t = new Thread (this, threadName);
+                t.start ();
+            }
+        }
+    }
+}`
+### Redis version
+3.2.4
+### Redisson version
+3.9.1
+### Redisson configuration

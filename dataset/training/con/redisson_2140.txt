@@ -1,0 +1,66 @@
+`redissonClient.getRedLock` does not work well with Read-Write block in a multi-JVM environment.
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+
+JVM1:
+```
+lock = redissonClient.getRedLock(
+                  redissonClient.getReadWriteLock("name").readLock(), 
+                  some_other_lock_1)
+```
+Then call `lock.tryLock()` first, return true.
+
+JVM2:
+```
+lock = redissonClient.getRedLock(
+                  redissonClient.getReadWriteLock("name").writeLock(), 
+                  some_other_lock_2)
+```
+Then call `lock.tryLock()` after the previous call has been made, now it should return `false` because there is a readLock under the same name.
+
+### Actual behavior
+
+JVM1:
+```
+lock = redissonClient.getRedLock(
+                  redissonClient.getReadWriteLock("name").readLock(), 
+                  some_other_lock_1)
+```
+Then call `lock.tryLock()` first return true as expected.
+
+JVM2:
+```
+lock = redissonClient.getRedLock(
+                  redissonClient.getReadWriteLock("name").writeLock(), 
+                  some_other_lock_2)
+```
+Then call `lock.tryLock()` after the previous one, now it return `true` i.e. have both write lock and read lock on the same ReadWriteLock.
+
+
+### Steps to reproduce or test case
+As described above.
+
+In case if this is useful information, if replace `getRedLock` with `getMultiLock` it actually works. Also if having only one JVM it also works.
+
+### Redis version
+`Redis server v=3.2.0 sha=00000000:0 malloc=jemalloc-4.0.3 bits=64 build=8d88dc6cfd069418`
+
+### Redisson version
+```
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.11.0</version>
+        </dependency>
+```
+```
+java version "1.8.0_191"
+Java(TM) SE Runtime Environment (build 1.8.0_191-b12)
+Java HotSpot(TM) 64-Bit Server VM (build 25.191-b12, mixed mode)
+```
+
+### Redisson configuration
+One redis standalone instance.

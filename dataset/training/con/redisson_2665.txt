@@ -1,0 +1,107 @@
+RLock throws java.lang.IllegalMonitorStateException in the thread where got the lock twice 
+	<dependency>
+		<groupId>org.redisson</groupId>
+		<artifactId>redisson-spring-boot-starter</artifactId>
+		<version>2.15.2</version>
+	</dependency>
+In a spring boot 1.5.6 application, We have below operations on merchant account ,
+PayServiceImpl.java
+	private R balanceFreeze() {    
+		org.redisson.api.RLock lock = redisson.getLock(lockName);
+                // try the merchant account lock (A) 
+		boolean res = lock.tryLock();
+		if (res) {
+			try {
+                             return payHandlerService.balanceFreeze();
+   			} finally {
+                                // It seems here throw the exception (B)
+				lock.unlock();
+			}
+		} else {
+			LockUtils.logLockError(lockName, order.getOrderNo(), null, "freeze balance");
+			msg = String.format("获取商户账户锁(%s)失败", lockName);
+		}
+        }
+
+PayHandlerServiceImpl.java
+public balanceFreeze() {
+                ...
+                return balanceAndEntryBooking();
+                ...
+        }
+
+public R balanceAndEntryBooking() {
+		org.redisson.api.RLock lock = redisson.getLock(lockName);
+                // try the same merchant account lock with (A)
+		boolean res = lock.tryLock();
+       		if (res) {
+			try {
+                              ...
+			} finally {
+				if (lock.isHeldByCurrentThread())
+					lock.unlock();
+			}
+		} else {
+			LockUtils.logLockError(lockName, entries, null, "book entry");
+			msg = String.format("获取商户账户锁(%s)失败", lockName);
+		}
+
+       }
+In PayServiceImpl class , using spring proxy (IOC) to call payHandlerService.balanceFreeze.
+
+It seems (B) throws the exception as below 
+java.lang.IllegalMonitorStateException: attempt to unlock lock, not locked by current thread by node id: 6c80d703-714c-4f01-b8c6-0ae59686d2e2 thread-id: 8605
+	at org.redisson.RedissonLock$5.operationComplete(RedissonLock.java:526)
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:511)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:504)
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:483)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:424)
+	at io.netty.util.concurrent.DefaultPromise.trySuccess(DefaultPromise.java:103)
+	at org.redisson.misc.RedissonPromise.trySuccess(RedissonPromise.java:73)
+	at org.redisson.command.CommandAsyncService.handleReference(CommandAsyncService.java:1131)
+	at org.redisson.command.CommandAsyncService.handleSuccess(CommandAsyncService.java:1124)
+	at org.redisson.command.CommandAsyncService.checkAttemptFuture(CommandAsyncService.java:1106)
+	at org.redisson.command.CommandAsyncService$12.operationComplete(CommandAsyncService.java:825)
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:511)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:504)
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:483)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:424)
+	at io.netty.util.concurrent.DefaultPromise.trySuccess(DefaultPromise.java:103)
+	at org.redisson.misc.RedissonPromise.trySuccess(RedissonPromise.java:73)
+	at org.redisson.client.handler.CommandDecoder.completeResponse(CommandDecoder.java:448)
+	at org.redisson.client.handler.CommandDecoder.handleResult(CommandDecoder.java:439)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:366)
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:188)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:143)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:502)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:278)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1408)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:930)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:163)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:677)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:612)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:529)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:491)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:905)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:745)
+
+Thanks

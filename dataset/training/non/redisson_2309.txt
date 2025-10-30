@@ -1,0 +1,65 @@
+cluster模式运行一段时间会出现OutOfMemory
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+长时间运行，不会导致内存泄露
+
+### Actual behavior
+长时间运行，导致内存泄露
+
+### Steps to reproduce or test case
+1.从spring官网上生成spring boot的demo项目。
+2.在pom.xml中增加对redisson的依赖。
+```xml
+<dependency>
+	<groupId>org.redisson</groupId>
+	<artifactId>redisson</artifactId>
+	<version>3.11.3</version>
+</dependency>
+```
+3.debug方式启动spring boot。
+4.通过断点观察
+![redisson-oom](https://user-images.githubusercontent.com/7113099/64514185-baeab600-d31c-11e9-94d4-47afc7818d4a.jpg)
+
+可以看到redisson所依赖的netty里，这个数组的的大小会不断增大，最终导致oom。
+
+### Redis version
+```shell
+redis_version:5.0.4
+redis_git_sha1:00000000
+redis_git_dirty:0
+redis_build_id:913214bd6b0ee4ea
+redis_mode:cluster
+os:Linux 3.10.0-957.1.3.el7.x86_64 x86_64
+arch_bits:64
+multiplexing_api:epoll
+atomicvar_api:atomic-builtin
+```
+
+### Redisson version
+3.11.3
+
+### Redisson configuration
+我是在spring boot里通过代码的方式配置的。
+```java
+@SpringBootApplication
+public class Test3Application {
+
+    public static void main(String[] args) {
+        SpringApplication.run(Test3Application.class, args);
+    }
+
+    @Bean
+    public RedissonClient getRedisson() {
+        Config config = new Config();
+        config.useClusterServers()
+                .setScanInterval(2000) // cluster state scan interval in milliseconds
+                .addNodeAddress("redis://10.193.xxx.xxx:8303");
+        RedissonClient redisson = Redisson.create(config);
+        return redisson;
+    }
+
+}
+```

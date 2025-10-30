@@ -1,0 +1,4 @@
+ClientCalls.ThreadlessExecutor should reject Runnables after end of RPC
+As seen in #3537, the executor was being used for multiple RPCs which caused some Runnables to be queued but never run. We are in a position to know they will never execute though, so it'd be nice to have a (possibly unreliable) detection of rejected Runnables to notice issues like this earlier.
+
+This could be accomplished with just a volatile `shutdown` boolean that is checked before `execute()` and a `shutdown()` method. That's racy, but we're just wanting it to detect bugs, not provide correctness.

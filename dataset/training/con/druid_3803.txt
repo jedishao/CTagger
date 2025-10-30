@@ -1,0 +1,10 @@
+Concurrent modification of responseContext in QueryRunners
+responseContext is a plain `HashMap`. It is accessed/modified concurrently without any synchronization in `AsyncQueryRunner`, `IntervalChunkingQueryRunner`, `ChainedExecutionQueryFactory`, etc.
+
+We didn't notice this problem before, because `responseContext` had very limited use, but as part of #3798 I started to use responseContexts more extensively and got `ConcurrentModificationException`.
+
+I quickly fixed this in this commit: https://github.com/metamx/druid/commit/54c2af24966e73d6f8c5951ec53e5c0407c653d2 but I don't like this solution, especially how it works in `AsyncQueryRunner` and `DirectDruidClient`, because it is super fragile and relies on what particular types of `QueryRunner`s call `AsyncQueryRunner` and called from `DirectDruidClient`. There are two main problems:
+ - it is not specified how responseContext could and could not be used and when it is "finalized": after return from `QueryRunner.run()`, or after iteration over the returned `Sequence` is completed.
+ - No difference between "sync" and "async" (lazy) QueryRunners/Sequences
+
+I don't have an idea yet what a better solution would be.

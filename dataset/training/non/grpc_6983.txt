@@ -1,0 +1,29 @@
+bidi-stream flow control
+## Problem:
+
+We use grpc bidi-stream in product.
+
+Server -> client data rate about 800MiB/s
+
+It will be OOM , if client consume lower(whatever reason).
+
+## How to control stream memory size ?
+
+I test manual flow control , It is too slow . 
+
+I use ServerCallImpl#isReady() judge stream if can execute onNext().
+
+But  in file grpc-java/core/src/main/java/io/grpc/internal/AbstractStream.java 
+```java
+   @VisibleForTesting
+    public static final int DEFAULT_ONREADY_THRESHOLD = 32 * 1024;
+    private boolean isReady() {
+      synchronized (onReadyLock) {
+        return allocated && numSentBytesQueued < DEFAULT_ONREADY_THRESHOLD && !deallocated;
+      }
+    }
+```
+
+The `DEFAULT_ONREADY_THRESHOLD` is not enough, my single msg about 80KiB, how can i configure this.
+
+## Can any other idea to resolve this problem?

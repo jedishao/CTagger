@@ -1,0 +1,24 @@
+Kudu metadata listing may fail with "table [table_name] was deleted: Table deleted at [time] UTC" in case of concurrent table creation/deletion
+Example error message:
+
+```
+java.util.concurrent.ExecutionException: java.lang.RuntimeException: java.lang.RuntimeException: org.apache.kudu.client.NonRecoverableException: table presto::tpch.concur_table_54frruwm4s was deleted: Table deleted at 2022-06-24 01:49:33 UTC
+
+	at java.base/java.util.concurrent.FutureTask.report(FutureTask.java:122)
+	at java.base/java.util.concurrent.FutureTask.get(FutureTask.java:191)
+	at io.trino.testing.BaseConnectorTest.testReadMetadataWithRelationsConcurrentModifications(BaseConnectorTest.java:1442)
+	at io.trino.testing.BaseConnectorTest.testReadMetadataWithRelationsConcurrentModifications(BaseConnectorTest.java:1381)
+	...
+Caused by: java.lang.RuntimeException: java.lang.RuntimeException: org.apache.kudu.client.NonRecoverableException: table presto::tpch.concur_table_54frruwm4s was deleted: Table deleted at 2022-06-24 01:49:33 UTC
+	at io.trino.testing.AbstractTestingTrinoClient.execute(AbstractTestingTrinoClient.java:122)
+	at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:526)
+	at io.trino.testing.AbstractTestQueryFramework.computeActual(AbstractTestQueryFramework.java:217)
+	at io.trino.testing.AbstractTestQueryFramework.computeActual(
+	...
+	Suppressed: java.lang.Exception: SQL: SELECT * FROM system.jdbc.columns WHERE table_cat = CURRENT_CATALOG AND table_schem = CURRENT_SCHEMA
+		at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:529)
+		... 11 more
+	Suppressed: java.lang.Exception: Task: Query(SELECT * FROM system.jdbc.columns WHERE table_cat = CURRENT_CATALOG AND table_schem = CURRENT_SCHEMA)
+		at io.trino.testing.BaseConnectorTest$3.call(BaseConnectorTest.java:1539)
+		... 6 more
+```

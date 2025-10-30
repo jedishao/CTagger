@@ -1,0 +1,51 @@
+`Connection[xxxx] already open` exception when concurrent queries
+`Connection[xxxx] already open` exception when concurrent queries
+
+### Affected Version
+
+0.16.0-incubating-SNAPSHOT
+
+### Description
+Here is my option:
+1. `max statements per connection` must be greater than 1.
+2. I added a test case in `DruidAvaticaHandlerTest`  
+```java
+@Test(timeout = 90_000L)
+  public void testConnectionAlreadyOpened() throws Exception
+  {
+    final List<ListenableFuture<Integer>> futures = new ArrayList<>();
+    final ListeningExecutorService exec = MoreExecutors.listeningDecorator(
+        Executors.newFixedThreadPool(AVATICA_CONFIG.getMaxStatementsPerConnection())
+    );
+    for (int i = 0; i < 100; i++) {
+      final String query = StringUtils.format("SELECT COUNT(*) + %s AS ci FROM foo", i);
+      futures.add(
+          exec.submit(() -> {
+            try (
+                // if connection is not opened, try reopen it
+                final Statement statement = client.createStatement();
+                final ResultSet resultSet = statement.executeQuery(query)
+            ) {
+              final List<Map<String, Object>> rows = getRows(resultSet);
+              //close all connections
+              druidMeta.closeAllConnections();
+              return ((Number) Iterables.getOnlyElement(rows).get("ci")).intValue();
+            }
+            catch (SQLException e) {
+              throw new RuntimeException(e);
+            }
+          })
+      );
+    }
+
+    final List<Integer> integers = Futures.allAsList(futures).get();
+    for (int i = 0; i < 100; i++) {
+      Assert.assertEquals(i + 6, (int) integers.get(i));
+    }
+  }
+```
+if the connection is recycled via `druidMeta.closeAllConnections();`(simulate the connection recycling), and at this time in the case of concurrent query, an exception will occur:
+```log
+java.util.concurrent.ExecutionException: AvaticaClientRuntimeException: Remote driver error: ISE: Connection[23a28504-e520-40bf-a867-16a1b65eff0e] already open
+```
+

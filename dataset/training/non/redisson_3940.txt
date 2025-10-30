@@ -1,0 +1,85 @@
+Intermittently, after Azure Redis maintenance, Redis pubsub channel is removed and Redisson listeners subscribe successfully but don't deliver any messages
+We observed and intermittent issue after Azure Redis scheduled maintenance. 
+The issue occurred on one of service pods; other pods didn't experience the same issue.
+Our application creates a pub/sub listener, publishes messages every second but doesn't get these events back; as a result it thinks Redisson-Redis connection is broken and so resubscribes, but the same issue occurs even with new listeners. The issue has persisted for many hours, even though Redis maintenance was fairly short.
+
+In attached logs (both from our service and from Redisson) following can be seen:
+
+// we subscribe to vrckc-redis-hb-7bbb8f6c4b-hb67l topic
+08/11/2021 11:08:24.825 [RMS] INFO com.avaya.vrc.kc.ixil.RedissonMessageSubscriber subscribe() vrckc-redis-hb-7bbb8f6c4b-hb67l => sl=1964278001, l=1880120247
+
+// we publish messages on this topic every second and Redisson APIs return without errors
+08/11/2021 11:08:24.827 [RMS] TRACE com.avaya.vrc.kc.ixil.RedissonMessageSubscriber publishHeartbeat() 1636369704825 in 1 ms
+08/11/2021 11:08:25.827 [RMS] TRACE com.avaya.vrc.kc.ixil.RedissonMessageSubscriber publishHeartbeat() 1636369705825 in 2 ms
+08/11/2021 11:08:26.828 [RMS] TRACE com.avaya.vrc.kc.ixil.RedissonMessageSubscriber publishHeartbeat() 1636369706826 in 2 ms
+08/11/2021 11:08:27.828 [RMS] TRACE com.avaya.vrc.kc.ixil.RedissonMessageSubscriber publishHeartbeat() 1636369707826 in 2 ms
+08/11/2021 11:08:28.828 [RMS] TRACE com.avaya.vrc.kc.ixil.RedissonMessageSubscriber publishHeartbeat() 1636369708826 in 2 ms
+08/11/2021 11:08:29.828 [RMS] TRACE com.avaya.vrc.kc.ixil.RedissonMessageSubscriber publishHeartbeat() 1636369709826 in 2 ms
+// we didn't get notified about any of 6 messages sent before so we think Redisson-Redis connection is down
+08/11/2021 11:08:30.827 [RMS] WARN com.avaya.vrc.kc.ixil.RedissonMessageSubscriber publishHeartbeat() heartbeats not received in a timely manner. c=1636369710827, lr=1636369704825, lp=1636369709826
+
+
+**Expected behavior**
+Published messages are received back
+
+**Actual behavior**
+Published messages are not received back
+
+**Steps to reproduce or test case**
+Issue intermittent, observed after Azure Redis scheduled maintenance on one of service pods; other pods didn't experience the same issue
+
+**Redis version**
+
+**Redisson version**
+3.15.6
+
+**Redisson configuration**
+config: ---
+clusterServersConfig:
+idleConnectionTimeout: 10000
+connectTimeout: 15000
+timeout: 3000
+retryAttempts: 3
+retryInterval: 1500
+password: "..."
+subscriptionsPerConnection: 5
+sslEnableEndpointIdentification: true
+sslProvider: "JDK"
+pingConnectionInterval: 5000
+keepAlive: true
+tcpNoDelay: true
+nameMapper: !<org.redisson.api.DefaultNameMapper> {}
+loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+slaveConnectionMinimumIdleSize: 24
+slaveConnectionPoolSize: 64
+failedSlaveReconnectionInterval: 3000
+failedSlaveCheckInterval: 60000
+masterConnectionMinimumIdleSize: 24
+masterConnectionPoolSize: 64
+readMode: "MASTER"
+subscriptionMode: "SLAVE"
+subscriptionConnectionMinimumIdleSize: 1
+subscriptionConnectionPoolSize: 50
+dnsMonitoringInterval: 5000
+natMapper: !<org.redisson.api.DefaultNatMapper> {}
+nodeAddresses:
+
+    "rediss://ixcc-qa-redis.redis.cache.windows.net:6380"
+    scanInterval: 5000
+    checkSlotsCoverage: true
+    threads: 16
+    nettyThreads: 16
+    codec: !<org.redisson.client.codec.StringCodec> {}
+    referenceEnabled: true
+    transportMode: "NIO"
+    lockWatchdogTimeout: 30000
+    reliableTopicWatchdogTimeout: 600000
+    keepPubSubOrder: true
+    useScriptCache: false
+    minCleanUpDelay: 5
+    maxCleanUpDelay: 1800
+    cleanUpKeysAmount: 100
+    nettyHook: !<org.redisson.client.DefaultNettyHook> {}
+    useThreadClassLoader: true
+    addressResolverGroupFactory: !<org.redisson.connection.DnsAddressResolverGroupFactory> {}
+[fragment.log](https://github.com/redisson/redisson/files/7496726/fragment.log)

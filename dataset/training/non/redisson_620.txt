@@ -1,0 +1,99 @@
+org.redisson.client.RedisException: ERR unknown command 'EVAL'
+I have installed redis-2.4.6-setup-64-bit on windows
+
+```
+   `@Test
+public void testDistrutedExecutorService() {
+
+    RedissonClient redissonClient = Redisson.create();
+
+    RExecutorService executorService = redissonClient.getExecutorService("executor");
+    executorService.submit(new MyCallable());
+
+
+}
+   public class MyCallable  implements Callable<Long> {
+
+@Override
+public Long call() throws Exception {
+    System.out.println("Executing");
+
+    return 2L;
+}
+}
+```
+
+`
+I am getting the following exception
+
+org.redisson.client.RedisException: ERR unknown command 'EVAL'. channel: [id: 0x894f190e, L:/127.0.0.1:53420 - R:/127.0.0.1:6379] command: CommandData [promise=org.redisson.misc.RedissonPromise@62120c6b, command=(EVAL), params=[if redis.call('exists', KEYS[2]) == 0 then redis.call('rpush', KEYS[3], ARGV[1]); redis.call('incr', KEYS[1]);return 1;end;return 0;, 3, {executor:org.redisson.executor.RemoteExecutorService}:counter, {executor:org.redisson.executor.RemoteExecutorService}:status, {executor:org.redisson.executor.RemoteExecutorService}, [B@6a05ccfb], codec=org.redisson.client.codec.LongCodec@eed771a]
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:254)
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:117)
+    at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:367)
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:248)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:345)
+    at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:345)
+    at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1294)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:911)
+    at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:131)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:572)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:513)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:427)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:399)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:140)
+    at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:144)
+    at java.lang.Thread.run(Unknown Source)
+
+Log file
+
+09:10:57.520 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 71 - Using SLF4J as the default logging framework
+09:10:57.527 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - java.nio.Buffer.address: available
+09:10:57.529 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - sun.misc.Unsafe.theUnsafe: available
+09:10:57.530 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 71 - sun.misc.Unsafe.copyMemory: available
+09:10:57.530 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - java.nio.Bits.unaligned: true
+09:10:57.531 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - java.nio.DirectByteBuffer.<init>(long, int): available
+09:10:57.532 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - java.nio.ByteBuffer.cleaner(): available
+09:10:57.533 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 71 - Platform: Windows
+09:10:57.533 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - Java version: 7
+09:10:57.533 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.noUnsafe: false
+09:10:57.533 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - sun.misc.Unsafe: available
+09:10:57.534 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.noJavassist: false
+09:10:57.535 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 71 - Javassist: unavailable
+09:10:57.535 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 71 - You don't have Javassist in your class path or you don't have enough permission to load dynamically generated classes.  Please check the configuration for better performance.
+09:10:57.535 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.tmpdir: C:\Windows\TEMP (java.io.tmpdir)
+09:10:57.535 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.bitMode: 64 (sun.arch.data.model)
+09:10:57.536 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.noPreferDirect: false
+09:10:57.536 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - io.netty.maxDirectMemory: 1882718208 bytes
+09:10:58.067 [main] INFO  org.redisson.Version.logVersion 41 - Redisson 2.3.0
+09:10:58.071 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.eventLoopThreads: 8
+09:10:58.089 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.noKeySetOptimization: false
+09:10:58.089 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.selectorAutoRebuildThreshold: 512
+09:10:58.167 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 81 - -Dio.netty.leakDetection.level: simple
+09:10:58.167 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 81 - -Dio.netty.leakDetection.maxRecords: 4
+09:10:58.169 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - Loaded default ResourceLeakDetector: io.netty.util.ResourceLeakDetector@50d8a1bb
+09:10:58.222 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 71 - -Dio.netty.initialSeedUniquifier: 0xa4ac9b474609153b (took 0 ms)
+09:10:58.253 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.allocator.type: unpooled
+09:10:58.253 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.threadLocalDirectBufferSize: 65536
+09:10:58.253 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.maxThreadLocalCharBufferSize: 16384
+09:10:58.289 [nioEventLoopGroup-2-6] DEBUG o.r.c.ClientConnectionsEntry$1.operationComplete 153 - new connection created: RedisConnection@1863807972 [redisClient=[addr=/127.0.0.1:6379], channel=[id: 0x894f190e, L:/127.0.0.1:53420 - R:/127.0.0.1:6379]]
+09:10:58.288 [nioEventLoopGroup-2-4] DEBUG o.r.c.ClientConnectionsEntry$1.operationComplete 153 - new connection created: RedisConnection@966461370 [redisClient=[addr=/127.0.0.1:6379], channel=[id: 0x2c66377e, L:/127.0.0.1:53422 - R:/127.0.0.1:6379]]
+09:10:58.288 [nioEventLoopGroup-2-2] DEBUG o.r.c.ClientConnectionsEntry$1.operationComplete 153 - new connection created: RedisConnection@1824110262 [redisClient=[addr=/127.0.0.1:6379], channel=[id: 0x1623ae99, L:/127.0.0.1:53425 - R:/127.0.0.1:6379]]
+09:10:58.288 [nioEventLoopGroup-2-3] DEBUG o.r.c.ClientConnectionsEntry$1.operationComplete 153 - new connection created: RedisConnection@344628862 [redisClient=[addr=/127.0.0.1:6379], channel=[id: 0xd1121854, L:/127.0.0.1:53421 - R:/127.0.0.1:6379]]
+09:10:58.288 [nioEventLoopGroup-2-5] DEBUG o.r.c.ClientConnectionsEntry$1.operationComplete 153 - new connection created: RedisConnection@2009216200 [redisClient=[addr=/127.0.0.1:6379], channel=[id: 0x73c5620c, L:/127.0.0.1:53423 - R:/127.0.0.1:6379]]
+09:10:58.288 [nioEventLoopGroup-2-7] DEBUG o.r.c.ClientConnectionsEntry$4.operationComplete 207 - new pubsub connection created: RedisPubSubConnection@1897423329 [redisClient=[addr=/127.0.0.1:6379], channel=[id: 0xbccd2cb2, L:/127.0.0.1:53426 - R:/127.0.0.1:6379]]
+09:10:58.290 [nioEventLoopGroup-2-5] INFO  o.r.connection.pool.ConnectionPool$2.operationComplete 122 - 5 connections initialized for /127.0.0.1:6379
+09:10:58.291 [nioEventLoopGroup-2-7] INFO  o.r.connection.pool.ConnectionPool$2.operationComplete 122 - 1 connections initialized for /127.0.0.1:6379
+09:10:58.399 [main] DEBUG o.r.command.CommandAsyncService$8.operationComplete 521 - aquired connection for command (EVAL) and params [if redis.call('exists', KEYS[2]) == 0 then redis.call('rpush', KEYS[3], ARGV[1]); redis.call('incr', KEYS[1]);return 1;end;return 0;, 3, {executor:org.redisson.executor.RemoteExecutorService}:counter, {executor:org.redisson.executor.RemoteExecutorService}:status, {executor:org.redisson.executor.RemoteExecutorService}, [B@6a05ccfb] from slot NodeSource [slot=null, addr=null, redirect=null] using node /127.0.0.1:6379
+09:10:58.403 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.recycler.maxCapacity.default: 32768
+09:10:58.403 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.recycler.maxSharedCapacityFactor: 2
+09:10:58.403 [main] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - -Dio.netty.recycler.linkCapacity: 16
+09:10:58.410 [nioEventLoopGroup-2-6] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 81 - -Dio.netty.buffer.bytebuf.checkAccessible: true
+09:10:58.410 [nioEventLoopGroup-2-6] DEBUG i.n.u.internal.logging.Slf4JLogger.debug 76 - Loaded default ResourceLeakDetector: io.netty.util.ResourceLeakDetector@22b6b6e1
+09:10:58.417 [nioEventLoopGroup-2-6] DEBUG o.r.command.CommandAsyncService$14.operationComplete 667 - connection released for command (EVAL) and params [if redis.call('exists', KEYS[2]) == 0 then redis.call('rpush', KEYS[3], ARGV[1]); redis.call('incr', KEYS[1]);return 1;end;return 0;, 3, {executor:org.redisson.executor.RemoteExecutorService}:counter, {executor:org.redisson.executor.RemoteExecutorService}:status, {executor:org.redisson.executor.RemoteExecutorService}, [B@6a05ccfb] from slot NodeSource [slot=null, addr=null, redirect=null] using connection RedisConnection@1863807972 [redisClient=[addr=/127.0.0.1:6379], channel=[id: 0x894f190e, L:/127.0.0.1:53420 - R:/127.0.0.1:6379]]

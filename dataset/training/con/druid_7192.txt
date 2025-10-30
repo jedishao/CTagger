@@ -1,0 +1,22 @@
+Segments are not cleaned up properly after unannouncing them in HTTP-based segment loading if numLoadingThreads > 1
+# Affected Version
+
+0.12, 0.13, 0.14
+
+# Description
+
+When `numLoadingThread > 1`, the same segment can be loaded by the same historical more than once. This can cause a race between threads. Multiple threads can load the same segment and announce it in different ZooKeeper paths, but the historical removes only one of the ZooKeeper paths.
+
+Here is a historical log which shows the issue.
+
+```
+@400000005c76725b1f639b3c.s:2019-02-27T09:01:30,979 INFO [SimpleDataSegmentChangeHandler-5] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Announcing segment[ads_events_2019
+-02-01T07:00:00.000Z_2019-02-01T08:00:00.000Z_2019-02-01T08:52:15.391Z] at existing path[/druid/segments/ip-172-16-27-17.ec2.internal:8283/ip-172-16-27-17.ec2.internal:8283_historical_tier2_2
+019-01-19T22:15:15.984Z_3383e66491e14925a778e438000fa25c4]
+@400000005c76725b1f639b3c.s:2019-02-27T09:01:30,980 INFO [SimpleDataSegmentChangeHandler-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Announcing segment[ads_events_2019
+-02-01T07:00:00.000Z_2019-02-01T08:00:00.000Z_2019-02-01T08:52:15.391Z] at existing path[/druid/segments/ip-172-16-27-17.ec2.internal:8283/ip-172-16-27-17.ec2.internal:8283_historical_tier2_2
+019-01-19T22:16:21.423Z_cb3afea2cf0a4c04bc4f47220510d6385]
+@400000005c76725b1f639b3c.s:2019-02-27T09:02:17,134 INFO [qtp353841915-200] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[ads_events_2019-02-01T07:00:00.000Z_2019-02-01T08:00:00.000Z_2019-02-01T08:52:15.391Z] at path[/druid/segments/ip-172-16-27-17.ec2.internal:8283/ip-172-16-27-17.ec2.internal:8283_historical_tier2_2019-01-19T22:16:21.423Z_cb3afea2cf0a4c04bc4f47220510d6385]
+```
+
+I think the root problem is that different threads can load the same segment at the same time which we should fix. But, it would also be good if the historical cleans up properly even if this kind of error happens because it's not easy to even notice the problem exists until we check query results carefully.

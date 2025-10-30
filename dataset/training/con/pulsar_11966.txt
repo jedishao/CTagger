@@ -1,0 +1,96 @@
+[Proxy] Proxied /admin endpoint connections might remain blocked forever
+**Describe the bug**
+
+Proxied /admin endpoint connections might remain blocked forever.
+
+Example stacktrace
+
+```
+"pulsar-external-web-6-7" #43 prio=5 os_prio=0 cpu=134724.23ms elapsed=519507.47s tid=0x00007fd7b586a800 nid=0x5a in Object.wait()  [0x00007fd71adef000]
+java.lang.Thread.State: WAITING (on object monitor)
+at java.lang.Object.wait(java.base@11.0.11/Native Method)
+- waiting on <no object reference available>
+at java.lang.Object.wait(java.base@11.0.11/Object.java:328)
+at org.eclipse.jetty.server.HttpInput.blockForContent(HttpInput.java:584)
+at org.eclipse.jetty.server.HttpInput$1.blockForContent(HttpInput.java:1164)
+at org.eclipse.jetty.server.HttpInput.read(HttpInput.java:330)
+- waiting to re-lock in wait() <0x00000000d3269c28> (a java.util.ArrayDeque)
+at java.io.InputStream.read(java.base@11.0.11/InputStream.java:205)
+at org.eclipse.jetty.client.util.InputStreamContentProvider$InputStreamContentProviderIterator.hasNext(InputStreamContentProvider.java:176)
+at org.eclipse.jetty.client.HttpContent.advance(HttpContent.java:157)
+at org.eclipse.jetty.client.HttpContent.advance(HttpContent.java:149)
+at org.eclipse.jetty.client.http.HttpSenderOverHTTP$HeadersCallback.<init>(HttpSenderOverHTTP.java:206)
+at org.eclipse.jetty.client.http.HttpSenderOverHTTP.sendHeaders(HttpSenderOverHTTP.java:65)
+at org.eclipse.jetty.client.HttpSender.send(HttpSender.java:212)
+at org.eclipse.jetty.client.http.HttpChannelOverHTTP.send(HttpChannelOverHTTP.java:84)
+at org.eclipse.jetty.client.HttpChannel.send(HttpChannel.java:125)
+at org.eclipse.jetty.client.HttpConnection.send(HttpConnection.java:241)
+at org.eclipse.jetty.client.http.HttpConnectionOverHTTP$Delegate.send(HttpConnectionOverHTTP.java:269)
+at org.eclipse.jetty.client.http.HttpConnectionOverHTTP.send(HttpConnectionOverHTTP.java:125)
+at org.eclipse.jetty.client.http.HttpDestinationOverHTTP.send(HttpDestinationOverHTTP.java:38)
+at org.eclipse.jetty.client.HttpDestination.process(HttpDestination.java:377)
+at org.eclipse.jetty.client.HttpDestination.process(HttpDestination.java:332)
+at org.eclipse.jetty.client.HttpDestination.send(HttpDestination.java:311)
+at org.eclipse.jetty.client.HttpDestination.send(HttpDestination.java:305)
+at org.eclipse.jetty.client.HttpDestination.send(HttpDestination.java:282)
+at org.eclipse.jetty.client.HttpDestination.send(HttpDestination.java:262)
+at org.eclipse.jetty.client.HttpClient.send(HttpClient.java:600)
+at org.eclipse.jetty.client.HttpRequest$$Lambda$373/0x0000000840538c40.accept(Unknown Source)
+at org.eclipse.jetty.client.HttpRequest.sendAsync(HttpRequest.java:778)
+at org.eclipse.jetty.client.HttpRequest.send(HttpRequest.java:765)
+at org.eclipse.jetty.proxy.AbstractProxyServlet.sendProxyRequest(AbstractProxyServlet.java:618)
+at org.eclipse.jetty.proxy.ProxyServlet.service(ProxyServlet.java:114)
+at javax.servlet.http.HttpServlet.service(HttpServlet.java:790)
+at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:799)
+at org.eclipse.jetty.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1626)
+at org.apache.pulsar.broker.web.AuthenticationFilter.doFilter(AuthenticationFilter.java:82)
+at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)
+at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)
+at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548)
+at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233)
+at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624)
+at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233)
+at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1435)
+at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188)
+at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501)
+at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594)
+at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186)
+at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1350)
+at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141)
+at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:234)
+at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:146)
+at org.eclipse.jetty.server.handler.StatisticsHandler.handle(StatisticsHandler.java:179)
+at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127)
+at org.eclipse.jetty.server.Server.handle(Server.java:516)
+at org.eclipse.jetty.server.HttpChannel.lambda$handle$1(HttpChannel.java:388)
+at org.eclipse.jetty.server.HttpChannel$$Lambda$337/0x0000000840465840.dispatch(Unknown Source)
+at org.eclipse.jetty.server.HttpChannel.dispatch(HttpChannel.java:633)
+at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:380)
+at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:277)
+at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:311)
+at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)
+at org.eclipse.jetty.io.ssl.SslConnection$DecryptedEndPoint.onFillable(SslConnection.java:555)
+at org.eclipse.jetty.io.ssl.SslConnection.onFillable(SslConnection.java:410)
+at org.eclipse.jetty.io.ssl.SslConnection$2.succeeded(SslConnection.java:164)
+at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)
+at org.eclipse.jetty.io.ChannelEndPoint$1.run(ChannelEndPoint.java:104)
+at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.runTask(EatWhatYouKill.java:338)
+at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.doProduce(EatWhatYouKill.java:315)
+at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.tryProduce(EatWhatYouKill.java:173)
+at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.run(EatWhatYouKill.java:131)
+at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:383)
+at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.11/ThreadPoolExecutor.java:1128)
+at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.11/ThreadPoolExecutor.java:628)
+at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+at java.lang.Thread.run(java.base@11.0.11/Thread.java:829)
+```
+
+**Expected behavior**
+
+There should be a timeout in place which prevents threads to hang forever in this state.
+When investigating the issue and code, it can be seen that the timeout isn't set for proxied requests.
+
+The call to `super.setTimeout` method is missing in AdminProxyHandler. The base method is overridden and that's why it doesn't get set to any value. this is the code in the base class method which sets the timeout:
+https://github.com/eclipse/jetty.project/blob/526006ecfa3af7f1a27ef3a288e2bef7ea9dd7e8/jetty-proxy/src/main/java/org/eclipse/jetty/proxy/AbstractProxyServlet.java#L321-L324
+
+Another observation from that code is that it has been copy-pasted from the Jetty code. There's no use of using the ServletConfig for getting the configuration values. This code need some cleanup too.

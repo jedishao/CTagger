@@ -1,0 +1,40 @@
+Error in adding entries to Bookie
+#### Expected behavior
+
+The bookie could be started correctly and pass the bookiesanity test.
+
+#### Actual behavior
+When I start the bookie in my cluster, everything seems Okay. However, when I call `bookkeeper shell bookiesanity` to add some entries to my bookie for testing whether the bookie run correctly, I came across the following error in my log file:
+````
+2017-03-06 14:58:40,857 - INFO  [bookie-io-15-3:AuthHandler$ServerSideHandler@59] - Channel open [id: 0x08e77371, L:/172.18.11.160:3183 - R:/172.18.11.160:54690]
+2017-03-06 14:58:40,862 - ERROR [bookie-io-15-3:BookieRequestHandler@69] - Unhandled exception occurred in I/O thread or handler
+java.lang.NoSuchMethodError: io.netty.util.internal.MathUtil.safeFindNextPositivePowerOfTwo(I)I
+        at io.netty.buffer.PoolThreadCache$MemoryRegionCache.<init>(PoolThreadCache.java:372)
+        at io.netty.buffer.PoolThreadCache$SubPageMemoryRegionCache.<init>(PoolThreadCache.java:340)
+        at io.netty.buffer.PoolThreadCache.createSubPageCaches(PoolThreadCache.java:135)
+        at io.netty.buffer.PoolThreadCache.<init>(PoolThreadCache.java:86)
+        at io.netty.buffer.PooledByteBufAllocator$PoolThreadLocalCache.initialValue(PooledByteBufAllocator.java:361)
+        at io.netty.buffer.PooledByteBufAllocator$PoolThreadLocalCache.initialValue(PooledByteBufAllocator.java:354)
+        at io.netty.util.concurrent.FastThreadLocal.initialize(FastThreadLocal.java:155)
+        at io.netty.util.concurrent.FastThreadLocal.get(FastThreadLocal.java:149)
+        at io.netty.util.concurrent.FastThreadLocal.get(FastThreadLocal.java:135)
+        at io.netty.buffer.PooledByteBufAllocator.newDirectBuffer(PooledByteBufAllocator.java:266)
+        at io.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:177)
+        at io.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:168)
+        at io.netty.buffer.AbstractByteBufAllocator.ioBuffer(AbstractByteBufAllocator.java:129)
+        at io.netty.channel.AdaptiveRecvByteBufAllocator$HandleImpl.allocate(AdaptiveRecvByteBufAllocator.java:104)
+        at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:873)
+        at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:389)
+        at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:305)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:140)
+        at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:144)
+        at java.lang.Thread.run(Thread.java:745)
+
+````
+
+#### Steps to reproduce
+
+Setup a cluster according to the instructions in [Pulsar Cluster Setup](https://github.com/yahoo/pulsar/blob/master/docs/ClusterSetup.md). Start a bookie on a machine with command `bin/pulsar-daemon start bookie` and use command `bin/bookkeeper shell bookiesanity` to test the bookie.
+
+#### System configuration
+**Pulsar version**: 1.16.1

@@ -1,0 +1,28 @@
+RLockReactive tryLock waits longer than waitTime
+**Expected behavior**
+
+long id = Thread.currentThread().getId();
+... lock.tryLock(0, 10, TimeUnit.SECONDS, id) ...
+
+Expect this to exit immediately - reporting "true" if it can get the lock now ; and reporting "false" if it can not.
+
+**Actual behavior**
+
+It seems to block and wait until the lock becomes available.
+The waitTime (set as 0 above) does not seem to influence the behaviour.
+
+**Steps to reproduce or test case**
+
+Invoke "lock.tryLock(0, 10, TimeUnit.SECONDS, id)", when the lock is already taken.
+Expect it to instantly return with "false". It does not.
+
+((Note: I am working inside Quarkus, and using "reactor.core.publisher.Mono" to convert the Redisson Reactive Core (Mono) into Mutiny (Uni) - this does not seem related ; but it makes it harder for me to frame a pure-Redission test case))
+
+**Redis version**
+Latest (hosted by Redis).
+
+**Redisson version**
+3.16.3
+
+
+**Redisson configuration**

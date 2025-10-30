@@ -1,0 +1,43 @@
+Unexpected ZooKeeper disconnection and finally Brokers shutdown
+**Describe the bug**
+A Bookie (1 of 10 in one cluster) suddenly went down:
+```
+21:07:04.804 [BookieJournal-3181] INFO  o.a.bookkeeper.bookie.JournalChannel - Opening journal /journal/current/16227802a46.txn
+21:08:05.761 [bookie-io-1-20] INFO  o.a.bookkeeper.proto.AuthHandler     - Authentication success on server side
+21:08:05.761 [bookie-io-1-20] INFO  o.a.b.proto.BookieRequestHandler     - Channel connected  [id: 0x68f20463, L:/<bookie ip>:3181 - R:/<bookie ip>:50480]
+21:08:07.668 [bookie-io-1-21] INFO  o.a.bookkeeper.proto.AuthHandler     - Authentication success on server side
+21:08:07.668 [bookie-io-1-21] INFO  o.a.b.proto.BookieRequestHandler     - Channel connected  [id: 0x2d93aca1, L:/<bookie ip>:3181 - R:/<bookie ip>:50488]
+21:08:07.798 [BookieHighPriorityThread-3181-OrderedExecutor-1-0] INFO  o.a.b.proto.ReadEntryProcessorV3     - Ledger fence request received for ledger: 9358129 from address: /<bookie ip>:50488
+21:08:08.061 [bookie-io-1-21] INFO  o.a.b.proto.BookieRequestHandler     - Channels disconnected: [id: 0x2d93aca1, L:/<bookie ip>:3181 ! R:/<bookie ip>:50488]
+21:08:10.133 [bookie-io-1-20] INFO  o.a.b.proto.BookieRequestHandler     - Channels disconnected: [id: 0x68f20463, L:/<bookie ip>:3181 ! R:/<bookie ip>:50480]
+21:09:24.324 [GarbageCollectorThread-11-1] INFO  o.a.b.bookie.GarbageCollectorThread  - Extracting entry log meta from entryLogId: 4417
+# manually restarted
+22:18:37.445 [main] INFO  org.apache.bookkeeper.server.Main    - Using configuration file /path/to/pulsar-bookie.conf
+22:18:37.453 [main] INFO  org.apache.bookkeeper.server.Main    - Hello, I'm your bookie, listening on port 3181. Metadata service uri is zk+hierarchical://zk100.xx.xx;zk101.xx.xx;zk102.xx.xx;zk103.xx.xx;zk104.xx.xx/ledgers. Journals are in [/journal]. Ledgers are stored in /ledgers.
+```
+
+After that, we have seen unexpected Broker shutdown with ZooKeeper disconnection:
+```
+21:33:32.903 [pulsar-zk-session-watcher-5-1] WARN  o.a.p.z.ZooKeeperSessionWatcher      - zoo keeper disconnected, waiting to reconnect, time remaining = 25 seconds
+21:33:34.903 [pulsar-zk-session-watcher-5-1] WARN  o.a.p.z.ZooKeeperSessionWatcher      - zoo keeper disconnected, waiting to reconnect, time remaining = 23 seconds
+.
+.
+.
+21:33:56.905 [pulsar-zk-session-watcher-5-1] WARN  o.a.p.z.ZooKeeperSessionWatcher      - zoo keeper disconnected, waiting to reconnect, time remaining = 0 seconds
+21:33:58.905 [pulsar-zk-session-watcher-5-1] ERROR o.a.p.z.ZooKeeperSessionWatcher      - timeout expired for reconnecting, invoking shutdown service
+21:33:58.906 [pulsar-zk-session-watcher-5-1] INFO  org.apache.zookeeper.ZooKeeper       - Session: 0x204f225a3fbaf49 closed
+21:33:58.906 [pulsar-zk-session-watcher-5-1] INFO  o.a.p.b.MessagingServiceShutdownHook - Invoking Runtime.halt(-1)
+```
+* This was happen on all Brokers (actually 14) in one cluster at the almost same time (21:32-35). 
+* All ZooKeepers seemed to be running normally at that time
+* Any network error was not detected
+
+I know when ZooKeeper is truly down, the befavior of Broker(shutdown) is natural.
+However, we found no ZooKeeper down and network error etc., so we suspect some bugs or lack of tunings of Broker.
+
+**Additional context**
+Broker OS: CentOS Linux release 7.6.1810
+Broker version: 2.1.1
+Broker spec: Real server / 2.10GHz / 2CPU / 256GBMEM / SATA SSD 240GB x1 / 10G Base-T*2port
+
+It looks similar to https://github.com/apache/pulsar/issues/3535 , however for now deduplication is disabled and we have seen no Full GCs.

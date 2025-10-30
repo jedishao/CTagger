@@ -1,0 +1,31 @@
+Race condition in RedissonLock subscribing to pubsub channel
+We are currently using redisson for, among other things, distributed locking. In our use case, we can have hundreds of unique fair locks being acquired many times, usually for short periods of time (~1-2 seconds).
+During testing, we noticed that sustained load eventually, but consistently, results in threads failing to acquire the lock. To try to pinpoint the problem, we added extra logging in various places in code path used by `RedissonLock`. What we found was that it sometimes took a long time for the lock to subscribe to its pubsub channel, by which point the unlock message was already published. This results in the thread waiting on `entry.getLatch().tryAcquire(ttl, TimeUnit.MILLISECONDS);` until failure.
+
+In other words, the sequence of events seems to be:
+1. thread 1 acquires a lock
+2. thread 2 tries and fails to acquire the lock, initiating pubsub subscription
+3. thread 1 releases lock (semaphore is not released since nothing is waiting on it yet!)
+4. thread 2 completes subscription connection and waits on semaphore, eventually timing out
+
+There seem to be two places where this delay happens:
+1. Acquiring an `AsyncSemaphore` in  the `PublishSubscribe::subscribe` method
+2. The 'await' call in `RedissonLock::tryLock`
+
+#### Configuration
+- Redisson 3.9.1
+- Redis 4.0 cluster with 6 nodes
+- masterConnectionPoolSize=200
+- masterIdleConnectionPoolSize=100
+- subscriptionConnectionPoolSize=100
+- subscriptionIdleConnectionPoolSize=50
+- subscriptionsPerConnection=5
+- retryInterval=3000
+- connectionTimeout=10000
+- numRetries=10
+
+Are we missing something here? It seems strange that it can take upwards of several seconds for the lock to subscribe to its pubsub channel.
+
+
+
+

@@ -1,0 +1,33 @@
+Redisson renewExpiration not working after redis lock expires
+<!--
+Сonsider Redisson PRO https://redisson.pro version for advanced features and support by SLA.
+-->
+
+**Expected behavior**
+After a lock is expired or removed on Redis-Server a new lock should be created with renewalExpiration renewing TTL of a lock.
+
+**Actual behavior**
+A new lock is created , but for some reason this new lock do not call renewExpiration but add this ThreadId to a map and  I dom't figure it out how it uses this map to renewal.
+
+![image](https://user-images.githubusercontent.com/3428451/124503936-6dc3b800-ddbe-11eb-9292-e3fa02d78612.png)
+
+On this specific case I was trying to use the same thread to reaquire this log,  I tried with a new thread but the result was the same.
+![image](https://user-images.githubusercontent.com/3428451/124504069-a368a100-ddbe-11eb-8682-07940f858453.png)
+
+If I restart the applications, as this map is empty  the ttl renewal works as spected.
+
+**Steps to reproduce or test case**
+Set a HIgh watchdog (30s) aquire a lock expire it manually on server. Aquire it on the same application 
+![image](https://user-images.githubusercontent.com/3428451/124504275-09edbf00-ddbf-11eb-874a-9485a6ef0254.png)
+
+
+**Redis version**
+6.0.5
+**Redisson version**
+3.12.5
+**Redisson configuration**
+Nothing more than watchDog
+SingleServerConfig sConfig = config.useSingleServer();
+sConfig.setAddress(rInfo.getAddress()).setPassword(rInfo.getPassword()).setDatabase(rInfo.getDatabase());
+// release lock after 5 secs of inactivite.
+config.setLockWatchdogTimeout(30000);

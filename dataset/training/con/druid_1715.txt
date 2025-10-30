@@ -1,0 +1,21 @@
+Zombie tasks able to acquire locks after failure
+We had an issue where disconnect somewhere occurred long enough for the overlord to log a task as failed, but the task was still running. After 45 mins or so the task submitted a lock acquire request and it was granted, but since the task had already been failed, it never was properly cleaned up.
+
+These are from the overlord
+
+```
+2015-09-09T07:33:58,102 INFO [RemoteTaskRunner-Scheduled-Cleanup--0] io.druid.indexing.overlord.RemoteTaskRunner - Running scheduled cleanup for Worker[REDACTED:8080]
+2015-09-09T07:33:58,106 INFO [RemoteTaskRunner-Scheduled-Cleanup--0] io.druid.indexing.overlord.RemoteTaskRunner - Failing task[index_realtime_REDACTED]
+2015-09-09T07:33:58,106 INFO [RemoteTaskRunner-Scheduled-Cleanup--0] io.druid.indexing.overlord.TaskQueue - Received FAILED status for task: index_realtime_REDACTED
+2015-09-09T07:33:58,109 INFO [RemoteTaskRunner-Scheduled-Cleanup--0] io.druid.indexing.overlord.RemoteTaskRunner - Can't shutdown! No worker running task index_realtime_REDACTED
+2015-09-09T07:33:58,110 INFO [RemoteTaskRunner-Scheduled-Cleanup--0] io.druid.indexing.overlord.MetadataTaskStorage - Updating task index_realtime_REDACTED to status: TaskStatus{id=index_realtime_REDACTED, status=FAILED, duration=-1}
+2015-09-09T07:33:58,132 INFO [RemoteTaskRunner-Scheduled-Cleanup--0] io.druid.indexing.overlord.TaskLockbox - Removing task[index_realtime_REDACTED] from TaskLock[index_realtime_REDACTED]
+```
+
+```
+2015-09-09T08:15:15,428 INFO [qtpREDACTED] io.druid.indexing.common.actions.LocalTaskActionClient - Performing action for task[index_realtime_REDACTED]: LockAcquireAction{interval=2015-09-09T08:00:00.000Z/2015-09-09T09:00:00.000Z}
+2015-09-09T08:15:15,428 INFO [qtpREDACTED] io.druid.indexing.overlord.TaskLockbox - Created new TaskLockPosse: TaskLockPosse{taskLock=TaskLock{groupId=index_realtime_REDACTED, dataSource=REDACTED, interval=2015-09-09T08:00:00.000Z/2015-09-09T09:00:00.000Z, version=2015-09-09T08:15:15.428Z}, taskIds=[]}
+2015-09-09T08:15:15,428 INFO [qtpREDACTED] io.druid.indexing.overlord.TaskLockbox - Added task[index_realtime_REDACTED] to TaskLock[index_realtime_REDACTED]
+```
+
+Suffice to say, this is a long-running task that acquires multiple 1-hr locks during the course of its execution.

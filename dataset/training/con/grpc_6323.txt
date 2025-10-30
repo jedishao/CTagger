@@ -1,0 +1,26 @@
+Request got cancelled by RST_STREAM - race condition
+Revised version of #6166. We actually thought that the elapsed time was a factor but it seems it is a race condition and can be observed instantly.
+
+grpc-java 1.24.0 
+Ubuntu 19.04
+
+We implemented a service that receives a request from a gRPC client and then waits for a condition to trigger. When this condition is finally met, the gRPC server sends a message to the client and completes the connection.
+In our service it can happen that a trigger is fired by a few threads concurrently since we receive updates via several input sources. This is where we sometimes run into the described problem.
+
+When creating the reproducer it could be observed that the request is always answered and the `RST_STREAM` comes in later. However, `onComplete()` is not called.
+NB: In our full-blown service (Spring Boot based) we only saw the reply in the tcp dump but not in our application. But this is probably due to the nature of a race condition.
+We also see this message in the logs:
+
+```
+io.grpc.internal.ServerCallImpl internalClose WARNING: Cancelling the stream with status Status{code=INTERNAL, description=Too many responses, cause=null}
+```
+
+This is probably where the `RST_STREAM` originates from that causes our service to not get the response or have `onCompleted()` not called.
+I read that `StreamObservers` are not thread-safe but I don't know how `StreamObserver` and `ServerCallImpl` are connected.
+I was wondering if `ServerCallImpl` could be made thread safe in this regard. Looking at the `ServerCallImpl` source code I can see that there are several fields representing the state but only one is `volatile`.
+
+So after all it seems we are simply using gRPC wrong. Do you think there is a chance that gRPC can behave better in such cases because we wasted quite some time finding the root cause of this issue.
+
+We now prevented this problem by guarding the triggering by an `AtomicBoolean` that only lets the first thread pass. Another approach was to create a synchronized method in our `StreamObserver` that calls `onNext()` and subsequently `onCompleted()`.
+
+See reproducer at https://github.com/chrjohn/grpc-reset-reproducer

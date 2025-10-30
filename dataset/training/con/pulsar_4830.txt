@@ -1,0 +1,31 @@
+Pulsar-CPP-client-TLS : publish gets stuck when multiple producers publish on same ssl connection
+### Bug
+Pulsar-CPP client:
+when multiple producers try to publish messages using same tls connection then publish gets stuck as boost::asio is not [thread-safe](https://stackoverflow.com/questions/15352472/using-boosts-ssl-asio-code-async-write-some-hangs)
+thread stack-trace when process gets stuck on publish
+```
+Thread 7 (Thread 0x7fe51a1ff700 (LWP 8684)):
+#0  0x0000003b984e4e5b in ?? () from /usr/lib64/libcrypto.so.10
+#1  0x0000003b984dd047 in BIO_write () from /usr/lib64/libcrypto.so.10
+
+#2  0x0000003b9c02b7a4 in ssl3_write_pending () from /usr/lib64/libssl.so.10
+
+#3  0x0000003b9c02c015 in ssl3_write_bytes () from /usr/lib64/libssl.so.10
+
+#4  0x00007fe556772612 in boost::asio::ssl::detail::engine::perform (this=0x7fe516537e08, op=<optimized out>, data=0x7fe516ad384d, length=862, ec=..., 
+    bytes_transferred=0x7fe51a1fca20) at /home/y/include/boost/asio/ssl/detail/impl/engine.ipp:238
+
+#5  0x00007fe556784c75 in boost::asio::ssl::detail::engine::write (bytes_transferred=@0x7fe51a1fca20: 0, ec=..., data=<synthetic pointer>..., this=<optimized out>)
+    at /home/y/include/boost/asio/ssl/detail/impl/engine.ipp:157
+
+#6  boost::asio::ssl::detail::write_op<boost::asio::detail::consuming_buffers<boost::asio::const_buffer, pulsar::CompositeSharedBuffer<2> > >::operator() (
+    bytes_transferred=@0x7fe51a1fca20: 0, ec=..., eng=..., this=0x7fe51a1fc970) at /home/y/include/boost/asio/ssl/detail/write_op.hpp:51
+
+#7  boost::asio::ssl::detail::io_op<boost::asio::basic_stream_socket<boost::asio::ip::tcp, boost::asio::stream_socket_service<boost::asio::ip::tcp> >, boost::asio::ssl::detail::write_op<boost::asio::detail::consuming_buffers<boost::asio::const_buffer, pulsar::CompositeSharedBuffer<2> > >, boost::asio::detail::write_op<boost::asio::ssl::stream<boost::asio::basic_stream_socket<boost::asio::ip::tcp, boost::asio::stream_socket_service<boost::asio::ip::tcp> >&>, pulsar::CompositeSharedBuffer<2>, boost::asio::detail::transfer_all_t, AllocHandler<boost::_bi::bind_t<void, boost::_mfi::mf1<void, pulsar::ClientConnection, boost::system::error_code const&>, boost::_bi::list2<boost::_bi::value<std::shared_ptr<pulsar::ClientConnection> >, boost::arg<1> > > > > >::operator() (this=0x7fe51a1fc960, ec=..., bytes_transferred=<optimized out>, start=1)
+    at /home/y/include/boost/asio/ssl/detail/io.hpp:140
+```
+
+**Fix:**
+Avoid concurrent threads writing using ssl and it can work with boost 1.60 and 1.66 both version: https://stackoverflow.com/questions/12794107/why-do-i-need-strand-per-connection-when-using-boostasio/12801042#12801042
+
+

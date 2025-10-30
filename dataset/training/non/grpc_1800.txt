@@ -1,0 +1,31 @@
+ClientInterceptor per call parameters
+Our generated clients come pre-configured with a set of approximately 10 interceptors covering functionality from response caching to metrics reporting.  We'd like our users to be able to customize these interceptors per call.  What is the recommended mechanism to pass per call parameters to a client already configured with ClientInterceptors?  
+
+Here's an example for setting up a client
+
+``` java
+HelloStub client = HelloGrpc.newBlockingStub(
+    ClientInterceptors.intercept(NettyChannelBuilder.forAddress("localhost:9000").build(),
+        new ResponseCacheInterceptor()),
+        new MetricsInterceptor()
+    );
+```
+
+When using the client we'd like our users to do something like,
+
+``` java
+client.withOption(ResponseCacheInterceptor.CACHE_KEY, "foo")
+    .sayHello(request);
+```
+
+But CallOptions currently does not support custom options.  Is something like this in the works?
+
+Alternatively, we could use the Context but it seems overkill to go through a thread local for this.
+
+``` java
+Context.current().withValue(ResponseCacheInterceptor.CACHE_KEY, "foo").call(()-> {
+    client.sayHello(request);
+});
+```
+
+Any other recommendations on how this could be accomplished?

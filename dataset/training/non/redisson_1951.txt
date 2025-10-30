@@ -1,0 +1,90 @@
+简单测试了一下,未能正常上锁,是我使用的有问题吗?求助
+### Expected behavior
+两个线程只有一个上锁成功,另一个等待超时后上锁失败
+
+### Actual behavior
+两个线程都尝试加锁,但是都没成功,等待时间超时后都失败了
+![image](https://user-images.githubusercontent.com/22695744/53722677-0e2d0900-3ea1-11e9-945f-5cc3bb72baf8.png)
+
+### Steps to reproduce or test case
+```
+public static void main(String[] args) {
+        new Thread() {
+            @Override
+            public void run() {
+                runInFairLock("test", 5000, new LockCallBack() {
+                    @Override
+                    public void locked() {
+                        System.err.println("1:locked");
+                        try {
+                            Thread.sleep(1000 * 60 * 60);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @Override
+                    public void lockFail() {
+                        System.err.println("1:lockFail");
+                    }
+                });
+            }
+        }.start();
+
+        new Thread() {
+            @Override
+            public void run() {
+                runInFairLock("test", 5000, new LockCallBack() {
+                    @Override
+                    public void locked() {
+                        System.err.println("2:locked");
+                    }
+
+                    @Override
+                    public void lockFail() {
+                        System.err.println("2:lockFail");
+                    }
+                });
+            }
+        }.start();
+    }
+
+public static void runInFairLock(String name, long waitTime, LockCallBack lockCallBack) {
+        RLock lock = redissonClient.getFairLock(name);
+        _tryRunInLock(lock, waitTime, 1000L * 60 * 60 * 24, TimeUnit.MILLISECONDS,lockCallBack);
+    }
+
+private static void _tryRunInLock(RLock lock, long waitTime, long leaseTime, TimeUnit unit, LockCallBack lockCallBack) {
+        boolean res = false;
+        try {
+            logger.error(Thread.currentThread().getName() + ", " + lock.getName() + ", " + "tryLock");
+            res = lock.tryLock(waitTime, leaseTime, TimeUnit.MILLISECONDS);
+            if (res) {
+                logger.error(Thread.currentThread().getName() + ", " + lock.getName() + ", " + "locked");
+                lockCallBack.locked();
+            } else {
+                logger.error(Thread.currentThread().getName() + ", " + lock.getName() + ", " + "lockFail");
+                lockCallBack.lockFail();
+            }
+        } catch (InterruptedException e) {
+            // 只有拥有锁的进程才能解锁，其他进程解锁则会抛出IllegalMonitorStateException错误
+            // TODO: 2019-01-18 测试该场景
+            logger.error(Thread.currentThread().getName() + ", " + lock.getName() + ", 只有拥有锁的进程才能解锁");
+        } finally {
+            logger.error(Thread.currentThread().getName() + ", " + lock.getName() + ", lockResult = " + res + ", isLocked=" + lock.isLocked() + ", isHeldByCurrentThread=" + lock.isHeldByCurrentThread());
+            if (res) {
+                logger.error(Thread.currentThread().getName() + ", " + lock.getName() + ", do unlock");
+                lock.unlock();
+            } else {
+                logger.error(Thread.currentThread().getName() + ", " + lock.getName() + ", undo unlock");
+            }
+        }
+    }
+```
+
+### Redis version
+redis-3.0.2
+### Redisson version
+3.10.0
+### Redisson configuration
+单机

@@ -1,0 +1,127 @@
+Exceptions when get optional field of protobuf Message
+**Describe the bug**
+When I run pulsar cluter on the master branch with latest commit `fa41d02bebfd841767846240f3ae574047f118f0`,  meet some exceptions like  
+```java
+19:25:50.253 [pulsar-io-25-8] WARN  org.apache.pulsar.broker.service.ServerCnx - [/127.0.0.1:58543] Got exception java.lang.IllegalStateException: Field 'original_principal' is not set
+        at org.apache.pulsar.common.api.proto.CommandConnect.getOriginalPrincipal(CommandConnect.java:230)
+        at org.apache.pulsar.broker.service.ServerCnx.handleConnect(ServerCnx.java:693)
+        at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:166)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.handler.flow.FlowControlHandler.dequeue(FlowControlHandler.java:205)
+        at io.netty.handler.flow.FlowControlHandler.channelRead(FlowControlHandler.java:167)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:324)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:296)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+        at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:792)
+        at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:475)
+        at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(Thread.java:748)
+
+
+
+
+21:00:38.440 [pulsar-io-25-4] WARN  org.apache.pulsar.broker.service.ServerCnx - [/100.76.40.78:47621] Got exception java.lang.IllegalStateException: Field 'partition_key' is not set
+        at org.apache.pulsar.common.api.proto.MessageMetadata.getPartitionKey(MessageMetadata.java:188)
+        at org.apache.pulsar.broker.service.ServerCnx.printSendCommandDebug(ServerCnx.java:1329)
+        at org.apache.pulsar.broker.service.ServerCnx.handleSend(ServerCnx.java:1283)
+        at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:206)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.handler.flow.FlowControlHandler.dequeue(FlowControlHandler.java:205)
+        at io.netty.handler.flow.FlowControlHandler.channelRead(FlowControlHandler.java:167)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:324)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:296)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+        at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:792)
+        at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:475)
+        at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(Thread.java:748)
+
+
+
+
+ 09:39:51.791 [pulsar-io-25-18] WARN  org.apache.pulsar.broker.service.ServerCnx - [/100.76.40.78:47768] Got exception java.lang.IllegalStateException: Field 'ordering_key' is not set
+        at org.apache.pulsar.common.api.proto.MessageMetadata.getOrderingKeySlice(MessageMetadata.java:620)
+        at org.apache.pulsar.common.api.proto.MessageMetadata.getOrderingKey(MessageMetadata.java:613)
+        at org.apache.pulsar.broker.service.ServerCnx.printSendCommandDebug(ServerCnx.java:1331)
+        at org.apache.pulsar.broker.service.ServerCnx.handleSend(ServerCnx.java:1283)
+        at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:206)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.handler.flow.FlowControlHandler.dequeue(FlowControlHandler.java:205)
+        at io.netty.handler.flow.FlowControlHandler.channelRead(FlowControlHandler.java:167)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:324)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:296)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+        at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:792)
+        at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:475)
+        at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(Thread.java:748)       
+```
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Build pulsar dependencies on master branch
+2. deploy a pulsar cluster and start 
+3. Start a client producer `bin/pulsar-client  produce  -n 10 -m "test" test/test/test`
+4. Will see exception in broker.log
+
+**Expected behavior**
+Pulsar broker should works well on master broker
+
+**Desktop (please complete the following information):**
+ - OS: Linux
+ - On master branch `fa41d02bebfd841767846240f3ae574047f118f0`
+
+**Additional context**
+Since Pulsar has removed the generated protobuf related  `.java` file, so we generated the `.java` file in target directory. And the code for  getting a optional field like 
+
+```java
+public int getOrderingKeySize() {
+		if (!hasOrderingKey()) {
+			throw new IllegalStateException("Field 'ordering_key' is not set");
+		}
+		return _orderingKeyLen;
+	}
+```
+This is why this Exception happends.  
+

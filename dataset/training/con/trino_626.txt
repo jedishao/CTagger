@@ -1,0 +1,30 @@
+Hive requests for ORC data contain a race condition on file size
+I'm querying ORC data from a file in S3 that is overwritten throughout the day.  S3 guarantees atomic replace, so a request for a file's data will always return either the old copy or the new copy.  However, no guarantee is made that a range request for one block of data at the start of a file, and another block at the end of the file, will both return data from the same copy.
+
+With these guarantees in mind, Presto should be able to work with files that are changing in S3, as long as the entire file can be read in a single request.  `orc_tiny_stripe_threshold` determines the file size for which this should hold.
+
+However, a race condition is encountered where a file listing is requested, and the file size returned in the listing is used as the assumed length of the files when they're requested.
+
+```
+GET /?prefix=my/s3/prefix/&delimiter=/&encoding-type=url HTTP/1.1
+<?xml>
+<Contents>
+  <Key>my/s3/prefix/data</Key>
+  <Size>52279</Size>
+</Contents>
+```
+
+```
+GET /my/s3/prefix/data HTTP/1.1
+RANGE: bytes=0-52278
+
+HTTP/1.1 206 Partial Content
+Content-Range: bytes 0-52278/52299
+```
+
+#### I can see three approaches to avoiding this race condition:
+- If a file's size from a listing is returned as less than `orc_tiny_stripe_threshold`, don't perform a range request on the file's data at all. Request the entire file.
+- If a range request comes back with a longer length available than anticipated, send a new request for the new complete length.
+- Provide a configuration variable that disables range requests completely for a session.
+
+Files that change like the one I'm describing are useful for state-keeping or other data-grooming tasks.  While these files could be stored in JSON rather than ORC, ORC provides self-documentation benefits beyond just query efficiency.

@@ -1,0 +1,139 @@
+attempt to unlock lock, not locked by current thread by node id
+redisson version:2.2.21
+implement code:
+public class DistributedLock {
+    private static Logger logger = LoggerFactory.getLogger(DistributedLock.class);
+
+```
+private static Config config = new Config();
+private static RedissonClient redisson = null;
+
+private static void init() {
+    if (redisson == null) {
+        config.useSingleServer().setAddress("ip:port");
+        redisson = Redisson.create(config);
+    }
+}
+
+public static void lock(String key){
+    init();
+
+    logger.info("try to lock : " + key);
+    try {
+        RLock mylock = redisson.getLock(key);
+
+        while (mylock.isLocked()) {
+            Thread.sleep(10);
+        }
+
+        mylock.lock();
+        logger.info("to lock : " + key + " success...");
+    } catch (Exception e) {
+        logger.warn("DistributedLock lock :" + key + "error:" + e.getMessage());
+    }
+}
+
+public static boolean tryLock(String key) {
+    init();
+
+    logger.info("try to lock : " + key);
+    try {
+        RLock mylock = redisson.getLock(key);
+
+        while (mylock.isLocked()) {
+            Thread.sleep(10);
+        }
+
+        mylock.lock(10, TimeUnit.SECONDS);// 10s超时
+        logger.info("try to lock : " + key + " success...");
+        return true;
+    } catch (Exception e) {
+        logger.warn("DistributedLock try lock :" + key + "error:" + e.getMessage());
+        return false;
+    }
+}
+
+public static boolean tryLock(String key, long timeout) {
+    init();
+
+    logger.info("try to lock : " + key);
+    try {
+        RLock mylock = redisson.getLock(key);
+
+        while (mylock.isLocked()) {
+            Thread.sleep(10);
+        }
+
+        mylock.lock(timeout, TimeUnit.SECONDS);
+        logger.info("try to lock : " + key + " success...");
+        return true;
+    } catch (Exception e) {
+        logger.warn("DistributedLock try lock :" + key + "error:" + e.getMessage());
+        return false;
+    }
+}
+
+public static void releaseLock(String key) {
+    logger.info("try to release lock : " + key);
+    RLock mylock = redisson.getLock(key);
+    mylock.unlock();
+}
+```
+
+}
+
+test unit code:
+public class RedissonLockTest {
+    public static void main(String[] args) {
+        final String key = "test_lock";
+        for(int i=1; i<=5; i++){
+            new Thread(new Runnable() {
+                public void run() {
+                    DistributedLock.lock(key);
+                    System.out.println("当前线程已获取锁:" + Thread.currentThread().getName());
+                    try {
+                        Thread.sleep(2000L);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    DistributedLock.releaseLock(key);
+                    System.out.println("当前线程已释放锁:" + Thread.currentThread().getName());
+                }
+            }).start();
+        }
+    }
+}
+
+redis lock key ttl info(**loop range:20-30 why?)**:
+127.0.0.1:6379> ttl test_lock
+(integer) 23
+127.0.0.1:6379> ttl test_lock
+(integer) 21
+127.0.0.1:6379> ttl test_lock
+(integer) 20
+127.0.0.1:6379> ttl test_lock
+(integer) 30
+127.0.0.1:6379> ttl test_lock
+(integer) 29
+127.0.0.1:6379> ttl test_lock
+(integer) 28
+127.0.0.1:6379> ttl test_lock
+(integer) 28
+127.0.0.1:6379> ttl test_lock
+(integer) 27
+127.0.0.1:6379> ttl test_lock
+(integer) 26
+127.0.0.1:6379> ttl test_lock
+(integer) 26
+127.0.0.1:6379> ttl test_lock
+(integer) 25
+127.0.0.1:6379> ttl test_lock
+(integer) 24
+127.0.0.1:6379> ttl test_lock
+(integer) 24
+127.0.0.1:6379> ttl test_lock
+(integer) 23
+127.0.0.1:6379> ttl test_lock
+(integer) 22
+127.0.0.1:6379> ttl test_lock
+(integer) 21

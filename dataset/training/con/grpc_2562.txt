@@ -1,0 +1,10 @@
+Race between pick and transport shutdown
+Right now they are done in two steps:
+1. A transport that is in READY state is selected
+2. `newStream()` is called on the selected transport.
+
+If transport is shutdown (by LoadBalancer or channel idle mode) between the two steps, Step 2 will fail spuriously. Currently we work around this by adding a delay between stopping selecting a subchannel (which owns the transport) and shutting it down. As long as the delay is longer than the time between Step 1 and Step 2, the race won't happen.
+
+This is not ideal because it relies on timing to work correctly, and will still fail in extreme cases where the time between the two steps are longer than the pre-set delay.
+
+It would be a better solution to differentiate the racy shutdown and the intended shutdown (Channel is shutdown for good). In response to racy shutdown, transport selection will be retried. The `clientTransportProvider` in `ManagedChannelImpl` is in the best position to do this, because it knows whether the Channel has shutdown. `clientTransportProvider` would have to call `newStream()` and start the stream, and return the started stream to `ClientCallImpl` instead of a transport.

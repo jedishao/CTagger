@@ -1,0 +1,45 @@
+Correctly handle the asynchronous programming suggestions of api and base in the admin api of pulsar-broker.
+**Is your feature request related to a problem? Please describe.**
+I recently did topic level configuration. In the admin web module `org.apache.pulsar.broker.admin`, the asynchronous call between the api and the base made me feel very frustrated. The `asyncResponse` of the api layer was passed to the base layer, which made the handling of exceptions very complicated. . And this operation couples the api layer and the base layer together.
+
+I understand that base is equivalent to the service layer, and api is the interface layer, and their responsibilities should be separated.
+
+**Describe the solution you'd like**
+For base layer methods that support asynchronous, it is recommended to use `CompletableFuture` return instead of passing in `asyncResponse`
+
+For exceptions, normal throw is fine, no other operations are required.
+
+**Describe alternatives you've considered**
+no
+
+**Additional context**
+
+[`org.apache.pulsar.broker.admin.v2.Namespaces#deleteNamespace`](https://github.com/apache/pulsar/blob/master/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/Namespaces.java#L1154)
+```java
+@DELETE
+    @Path("/{tenant}/{namespace}")
+    @ApiOperation(value = "Delete a namespace and all the topics under it.")
+    @ApiResponses(value = {
+            @ApiResponse(code = 307, message = "Current broker doesn't serve the namespace"),
+            @ApiResponse(code = 403, message = "Don't have admin permission"),
+            @ApiResponse(code = 404, message = "Tenant or cluster or namespace doesn't exist"),
+            @ApiResponse(code = 409, message = "Namespace is not empty") })
+    public void deleteNamespace(@Suspended final AsyncResponse asyncResponse, @PathParam("tenant") String tenant,
+            @PathParam("namespace") String namespace,
+            @QueryParam("authoritative") @DefaultValue("false") boolean authoritative) {
+        try {
+            validateNamespaceName(tenant, namespace);
+            internalDeleteNamespace(asyncResponse, authoritative); 
+        } catch (WebApplicationException wae) {
+            asyncResponse.resume(wae);
+        } catch (Exception e) {
+            asyncResponse.resume(new RestException(e));
+        }
+    }
+```
+
+[`org.apache.pulsar.broker.admin.impl.NamespacesBase#internalDeleteNamespace`](https://github.com/apache/pulsar/blob/master/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/NamespacesBase.java#L149)
+In `NamespacesBase#internalDeleteNamespace`, you can see that the exception handling becomes cumbersome
+
+![image](https://user-images.githubusercontent.com/18240360/90979862-615db480-e58a-11ea-8204-62cbf24d5021.png)
+

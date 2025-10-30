@@ -1,0 +1,17 @@
+deleteByPatternAsync lua script error
+I am currently using AWS Redis Elasticache cluster with a simple setup 
+Redis Version 5.X
+1 shard, 2 replica
+
+```
+final RBatch batch = redissonClient.createBatch();
+batch.getKeys().deleteByPatternAsync(keyPattern.toString());
+return batch.executeAsync()
+                     .exceptionally(t -> LOG.warn("error when deleting"));
+```
+
+I sometimes get an error like below where keyPattern is "test-key*" which is confusing considering that I only have 1 shard.
+
+`org.redisson.client.RedisException: ERR Error running script (call to f_101594a3a4c130bec4a4a379cda6d00cb1c5ff1a): @user_script:1: @user_script: 1: Lua script attempted to access a non local key in a cluster node . channel: [id: 0xf885399a, L:/172.25.76.177:60542 - R:/172.18.11.62:6379] command: (EVAL), params: [local keys = redis.call('keys', ARGV[1]) local n = 0 for i=1, #keys,5000 do n = n + redis.call('del'..., 0, test-key*] (Most recent call first)`
+
+Any idea what could be going here?

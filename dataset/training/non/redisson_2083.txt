@@ -1,0 +1,49 @@
+Redis Cluster issue while using Redisson 
+Hi, 
+
+We have 3 master and 3 slave node redis cluster architecture and
+we're trying to put around 16000 keys in redis cluster cache.
+Out of this 16K keys all the keys are distributed on all the 3 master node(based on hash slots).
+each of the master nodes gets ~5k approx successfully But below error is printed near about 15744 key(sum of all the keys on 3 master nodes collectively).
+
+: java.lang.IllegalArgumentException: 16 > -1
+java.lang.IllegalArgumentException: 16 > -1
+        at java.util.Arrays.copyOfRange(Arrays.java:3519)
+        at org.redisson.cluster.ClusterConnectionManager.calcSlot(ClusterConnectionManager.java:671)
+        at org.redisson.spring.data.connection.RedissonConnection.executeAsync(RedissonConnection.java:269)
+        at org.redisson.spring.data.connection.RedissonConnection.del(RedissonConnection.java:316)
+
+
+We are completely stuck on this as out of 16k keys 15743  keys gets successfully but on 15744th key its thows the above exception every time. 
+Can anybody please let me know when we get this error & what should I fix to eliminate this error.
+
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+All the key put will be successful
+
+### Actual behavior
+Getting exception" java.lang.IllegalArgumentException: 16 > -1" 
+
+### Steps to reproduce or test case
+
+### Redis version
+5.0.3
+### Redisson version
+3.10.6
+### Redisson configuration
+Cluster configuration:
+Config config = new Config();
+config.useClusterServers()
+				.setTimeout(60000)
+				.setScanInterval(2000)
+				.setRetryAttempts(3)
+				.setConnectTimeout(60000)
+				.addNodeAddress("redis://<host>:7001",
+						"redis:<host>:7003")
+				.addNodeAddress("redis<host>:7005",
+						"redis:<host>:7009")
+				.addNodeAddress("redis://<host>:7002",
+						"redis://<host>:7006");

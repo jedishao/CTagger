@@ -1,0 +1,39 @@
+redission 可能重试机制跟 检查机制有点不符合我们国人的需求
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+`Redis server response timeout (3000 ms) occured after 3 retry attempts. Command: (DEL), params: [quick_pay_api_agent_password_count_16600000001], channel: [id: 0xea739d38, L:/192.168.0.137:61678 - R:192.168.1.38/192.168.1.38:6379]
+org.redisson.client.RedisResponseTimeoutException: Redis server response timeout (3000 ms) occured after 3 retry attempts. Command: (DEL), params: [quick_pay_api_agent_password_count_16600000001], channel: [id: 0xea739d38, L:/192.168.0.137:61678 - R:192.168.1.38/192.168.1.38:6379]
+	at org.redisson.command.CommandAsyncService$8.run(CommandAsyncService.java:935)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:682)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:757)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:485)
+	at java.lang.Thread.run(Thread.java:745)`
+### Actual behavior
+
+### Steps to reproduce or test case
+
+### Redis version
+4.0.3
+
+### Redisson version
+3.10.7
+### Redisson configuration
+`<bean id="stringCodec" class="org.redisson.client.codec.StringCodec"/>
+    <redisson:client id="sentinelRedisClient" codec-ref="stringCodec" >
+        <redisson:sentinel-servers master-name="${redisson.master_name}"  database="0" retry-attempts="3" retry-interval="1500" password="${redisson.pwd}" connect-timeout="60000" master-connection-pool-size="100" master-connection-minimum-idle-size="10">
+            <redisson:sentinel-address value="${redisson.node1}" />
+            <redisson:sentinel-address value="${redisson.node2}" />
+            <redisson:sentinel-address value="${redisson.node3}" />
+        </redisson:sentinel-servers>
+    </redisson:client>`
+
+我的需求
+1、数据连接池里面，会拥有最小链接数量
+2、如果所有链接都断了，链接池数量为0
+3、如果连接池数量为0，在用户再次用到RedissonClient，会去重新获取链接，retry-attempts 就应该生效。
+
+现在是 error
+redisson 会开启一个线程，维持redis心跳， redis 如果掉线 1500 ms 重试 3次，再获取不到链接的话。RedissonClient就不能用了。

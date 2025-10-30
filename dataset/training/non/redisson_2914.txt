@@ -1,0 +1,49 @@
+redisson-netty thread lock
+Hi,
+
+We have setup Redis cluster and populated key/values. Some Keys contain more than 2M fields. When we call getAll of RMap using redission client, it takes more than 30 mins and goes to idle state. We analyzed the thread dump and noticed the below errors. We are using redission client (3.13.1). Is this known issue with Redisson client?
+
+Error
+
+"redisson-netty-2-150" #361 prio=5 os_prio=0 tid=0x44001e000000 nid=0x329 [ JVM locked by VM (w/poll advisory bit) running, polling bits: safep rstak gpgc_clean_new]
+java.lang.Thread.State.RUNNABLE
+at sun.nio.ch.EPollArrayWrapper.epollWait(Native Method)
+at sun.nio.ch.EPollArrayWrapper.poll(EPollArrayWrapper.java:269)
+at sun.nio.ch.EPollSelectorImpl.doSelect(EPollSelectorImpl.java:93)
+at sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:86)
+- locked <0x000004049490fd10> (a io.netty.channel.nio.SelectedSelectionKeySet)
+- locked <0x00000404948ffaa8> (a java.util.Collections$UnmodifiableSet)
+- locked <0x00000404948ff998> (a sun.nio.ch.EPollSelectorImpl)
+at sun.nio.ch.SelectorImpl.select(SelectorImpl.java:97)
+at sun.nio.ch.SelectorImpl.select(SelectorImpl.java:101)
+at io.netty.channel.nio.SelectedSelectionKeySetSelector.select(SelectedSelectionKeySetSelector.java:68)
+at io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:803)
+at io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:457)
+at io.netty.util.concurrrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+at java.lang.Thread.run(Thread.java:748)
+
+Code snippet/configuration
+
+String nodeAdd="redis://host:port";
+String pwd = "***";
+String clientName = "Test";
+Integer timeout = 1500;
+Integer connectTimeout = 1500;
+Integer subscriptionsPerConnection = 5;
+Integer subscriptionConnectionPoolSize= 50;
+Integer subscriptionsPerConnection = 5;
+Integer subscriptionsConnectionMinimumIdleSize = 1;
+
+Integer masterConnectionMimimumIdleSize = 32;
+Integer masterConnectionPoolSize= 64;
+
+Integer retryAttempts = 5;
+Integer retryInterval = 1500;
+Integer threads = 100;
+Integer nettyThreads = 500;
+
+Config config = new Config();
+// set the above parms to config
+client = Redisson.create(config);

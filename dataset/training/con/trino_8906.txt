@@ -1,0 +1,52 @@
+gc lock when use prometheus agent
+it see some wrong whern use prometheus agent to collect metrics ; the case occur often
+[arthas@310243]$ thread 281
+"prometheus-http-1-1" Id=281 BLOCKED on java.util.HashMap@7924b3b4 owned by "RMI RenewClean-[192.168.84.5:44182]" Id=523187
+    at java.rmi@11.0.10/sun.rmi.transport.DGCClient$EndpointEntry.lookup(DGCClient.java:233)
+    -  blocked on java.util.HashMap@7924b3b4
+    at java.rmi@11.0.10/sun.rmi.transport.DGCClient.registerRefs(DGCClient.java:154)
+    at java.rmi@11.0.10/sun.rmi.transport.ConnectionInputStream.registerRefs(ConnectionInputStream.java:102)
+    at java.rmi@11.0.10/sun.rmi.transport.StreamRemoteCall.releaseInputStream(StreamRemoteCall.java:175)
+    at java.rmi@11.0.10/sun.rmi.transport.StreamRemoteCall.done(StreamRemoteCall.java:340)
+    at java.rmi@11.0.10/sun.rmi.server.UnicastRef.done(UnicastRef.java:452)
+    at java.rmi@11.0.10/sun.rmi.registry.RegistryImpl_Stub.lookup(RegistryImpl_Stub.java:132)
+    at jdk.naming.rmi@11.0.10/com.sun.jndi.rmi.registry.RegistryContext.lookup(RegistryContext.java:133)
+    at java.naming@11.0.10/com.sun.jndi.toolkit.url.GenericURLContext.lookup(GenericURLContext.java:207)
+    at java.naming@11.0.10/javax.naming.InitialContext.lookup(InitialContext.java:409)
+    at java.management.rmi@11.0.10/javax.management.remote.rmi.RMIConnector.findRMIServerJNDI(RMIConnector.java:1839)
+    at java.management.rmi@11.0.10/javax.management.remote.rmi.RMIConnector.findRMIServer(RMIConnector.java:1813)
+    at java.management.rmi@11.0.10/javax.management.remote.rmi.RMIConnector.connect(RMIConnector.java:302)
+    at java.management@11.0.10/javax.management.remote.JMXConnectorFactory.connect(JMXConnectorFactory.java:270)
+    at app//io.prometheus.jmx.shaded.io.prometheus.jmx.JmxScraper.doScrape(JmxScraper.java:94)
+    at app//io.prometheus.jmx.shaded.io.prometheus.jmx.JmxCollector.collect(JmxCollector.java:473)
+    at app//io.prometheus.jmx.shaded.io.prometheus.client.CollectorRegistry$MetricFamilySamplesEnumeration.findNextElement(CollectorRegistry.java:190)
+    at app//io.prometheus.jmx.shaded.io.prometheus.client.CollectorRegistry$MetricFamilySamplesEnumeration.nextElement(CollectorRegistry.java:223)
+    at app//io.prometheus.jmx.shaded.io.prometheus.client.CollectorRegistry$MetricFamilySamplesEnumeration.nextElement(CollectorRegistry.java:144)
+    at app//io.prometheus.jmx.shaded.io.prometheus.client.exporter.common.TextFormat.write004(TextFormat.java:22)
+    at app//io.prometheus.jmx.shaded.io.prometheus.client.exporter.HTTPServer$HTTPMetricHandler.handle(HTTPServer.java:68)
+    at platform/jdk.httpserver@11.0.10/com.sun.net.httpserver.Filter$Chain.doFilter(Filter.java:77)
+    at platform/jdk.httpserver@11.0.10/sun.net.httpserver.AuthFilter.doFilter(AuthFilter.java:82)
+    at platform/jdk.httpserver@11.0.10/com.sun.net.httpserver.Filter$Chain.doFilter(Filter.java:80)
+    at platform/jdk.httpserver@11.0.10/sun.net.httpserver.ServerImpl$Exchange$LinkHandler.handle(ServerImpl.java:692)
+    at platform/jdk.httpserver@11.0.10/com.sun.net.httpserver.Filter$Chain.doFilter(Filter.java:77)
+    at platform/jdk.httpserver@11.0.10/sun.net.httpserver.ServerImpl$Exchange.run(ServerImpl.java:664)
+    at java.base@11.0.10/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+    at java.base@11.0.10/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+    at java.base@11.0.10/java.lang.Thread.run(Thread.java:834)
+
+[arthas@310243]$ thread 523187
+"RMI RenewClean-[192.168.84.5:44182]" Id=523187 BLOCKED on sun.rmi.transport.GC$LatencyLock@6080134b owned by "RMI GC Daemon" Id=523188
+    at java.rmi@11.0.10/sun.rmi.transport.GC$LatencyRequest.cancel(GC.java:232)
+    -  blocked on sun.rmi.transport.GC$LatencyLock@6080134b
+    at java.rmi@11.0.10/sun.rmi.transport.DGCClient$EndpointEntry.removeRefEntry(DGCClient.java:349)
+    at java.rmi@11.0.10/sun.rmi.transport.DGCClient$EndpointEntry.processPhantomRefs(DGCClient.java:643)
+    at java.rmi@11.0.10/sun.rmi.transport.DGCClient$EndpointEntry$RenewCleanThread.run(DGCClient.java:578)
+    at java.base@11.0.10/java.lang.Thread.run(Thread.java:834)
+
+[arthas@310243]$ thread 523188
+"RMI GC Daemon" Id=523188 RUNNABLE (in native)
+    at java.base@11.0.10/java.lang.Runtime.gc(Native Method)
+    at java.base@11.0.10/java.lang.System.gc(System.java:1774)
+    at java.rmi@11.0.10/sun.rmi.transport.GC$Daemon.run(GC.java:118)
+    at java.base@11.0.10/java.lang.Thread.run(Thread.java:834)
+    at java.base@11.0.10/jdk.internal.misc.InnocuousThread.run(InnocuousThread.java:134)

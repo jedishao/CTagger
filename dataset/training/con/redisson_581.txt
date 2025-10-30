@@ -1,0 +1,37 @@
+tryLock method throw Exception:attempt to unlock lock, not locked by current thread by node id: 157ddcf5-0cc2-445d-bdea-98160a459bd5 thread-id: 42
+@mrniko 
+hi, I stress test tryLock(long waitTime, long leaseTime, TimeUnit unit) method, throw Exception:attempt to unlock lock, not locked by current thread by node id: 157ddcf5-0cc2-445d-bdea-98160a459bd5 thread-id: 42
+unnormal code:
+
+```
+    RedissonClient redisson = redissonDistributedLock.getRedisson();
+    RLock lock = redisson.getLock(sb.toString());
+    try {
+        lock.tryLock(10L, 5L, TimeUnit.SECONDS);
+        resultVo = activityTakeRecordService.recevieActivityLottery(paramsMap);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }finally{
+        lock.unlock();
+    }
+```
+
+normal code:
+`RedissonClient redisson = redissonDistributedLock.getRedisson();`
+`RLock lock = redisson.getLock(sb.toString());`
+    `try {`
+        `while(true){`
+           `if(lock.tryLock(10L, 5L, TimeUnit.SECONDS)){`
+              `resultVo = activityTakeRecordService.recevieActivityLottery(paramsMap);`
+              `break;`
+             `}`
+         `}`
+     `} catch (InterruptedException e) {`
+            `e.printStackTrace();`
+        `}finally{`
+            `lock.unlock();`
+        `}`
+
+1:but use lock() or lock(long leaseTime, TimeUnit unit) method is normal, why?
+2:tryLock() can not be block? lock() is blocked?
+3:tryLock(long waitTime, long leaseTime, TimeUnit unit) method, waitTime must be more than leaseTime value, otherwise occasionally have "attempt to unlock lock, not locked by current thread by node id" ecxeption, in stress test condition, why?

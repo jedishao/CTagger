@@ -1,0 +1,6 @@
+Deadlock on lock() and not only.
+Hi,
+I want to raise the issue with deadlocks again.
+This bug is still exist and making big headache. As before, It present itself only on very heavy loaded tasks, but in this case I is happens only when client talks to the claster which is located remotely.
+With a single-local or claster-local servers I was unable to reproduce it, but with remote server it happens with rate 1 / 20 (means from 20 runs of "heavy-load" JUnit test it happens only once)
+I can see where thread is locked down, it always stuck in CommandAsyncService.get(Future), on l.await() line and never exits from it. As I understand something wrong with mainPromise object, it is staying in incomplete state... and nobody change it. I tried to understand the logics in CommandAsyncService.async(...) function, which is actually deals with connection, retry, redirections and at end should release (or fail) the mainPromise object, but it is nightmare. All these spagetty with promises and futures made the code difficult to read and impossible to analyse. For sure BUG is there, but I am near to give-up. Any thoughts?

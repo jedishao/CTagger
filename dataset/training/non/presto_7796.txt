@@ -1,0 +1,22 @@
+Selective aggregates don't work for count(1)
+Actual:
+
+```
+presto> select count(1) filter (where orderstatus = 'O') from orders;
+ _col0
+-------
+ 15000
+(1 row)
+```
+
+Expected:
+
+```
+presto> select count(*) filter (where orderstatus = 'O') from orders;
+ _col0
+-------
+  7333
+(1 row)
+```
+
+The issue is probably due to SimplifyCountOverConstant not preserving the filter for the aggregation.

@@ -1,0 +1,19 @@
+Worker thread pool name doesn't work well with Graphite
+### Version
+
+3.9.2
+
+### Context
+Graphite uses a dot `.` to separate metric paths into folders. So a metric such as `vertx.http.servers.<host>:<port>` will be separated into `vertx` / `http` / `servers` / `<host>:<port>`.
+The problem is with the worker thread pool name that is being set in `io.vertx.core.impl.VertxImpl`:
+```java
+PoolMetrics workerPoolMetrics = metrics != null ? metrics.createPoolMetrics("worker", "vert.x-worker-thread", options.getWorkerPoolSize()) : null;
+```
+Because it uses "vert.x" instead of "vertx" like in other places, it will create the wrong folder structure - 
+`vertx`/ `pools` / `worker` /`vert` / `x-worker-thread`
+
+It would be much better if the dot can be removed from names that are used in metrics.
+
+### Extra
+
+I am using [vertx-dropwizard-metrics](https://vertx.io/docs/vertx-dropwizard-metrics/java/).

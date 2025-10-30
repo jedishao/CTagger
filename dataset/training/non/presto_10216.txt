@@ -1,0 +1,62 @@
+Improve rewrite of EXISTS subquery with single equality conjunct
+Currently queries with `EXISTS` with single equality conjunct like:
+``` 
+SELECT o_orderkey FROM orders WHERE EXISTS (SELECT 1 FROM nation WHERE o_orderkey = n_nationkey);
+```
+are rewritten to plan containing `count()` aggregation and `LEFT JOIN`.
+
+E.g.
+```
+presto:sf1> explain select o_orderkey from orders where exists (select 1 from nation where o_orderkey = n_nationkey);
+                                                                                     Query Plan
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ - Output[o_orderkey] => [o_orderkey:bigint]
+     - RemoteExchange[GATHER] => o_orderkey:bigint
+         - FilterProject[filterPredicate = (COALESCE("count", "count_11") > BIGINT '0')] => [o_orderkey:bigint]
+             - CrossJoin => [o_orderkey:bigint, count:bigint, count_11:bigint]
+                     Distribution: REPLICATED
+                 - LeftJoin[("o_orderkey" = "n_nationkey")][$hashvalue, $hashvalue_13] => [o_orderkey:bigint, count:bigint]
+                         Distribution: PARTITIONED
+                     - ScanProject[table = tpch:tpch:orders:sf1.0, originalConstraint = true] => [o_orderkey:bigint, $hashvalue:bigint]
+                             Cost: {rows: 1500000 (14.31MB), cpu: 15000000.00, memory: 0.00, network: 0.00}/{rows: 1500000 (28.61MB), cpu: 45000000.00, memory: 0.00, network: 0.00}
+                             $hashvalue := "combine_hash"(BIGINT '0', COALESCE("$operator$hash_code"("o_orderkey"), 0))
+                             o_orderkey := tpch:o_orderkey
+                             tpch:o_orderstatus
+                                 :: [[F], [O], [P]]
+                     - LocalExchange[HASH][$hashvalue_13] ("n_nationkey") => n_nationkey:bigint, count:bigint, $hashvalue_13:bigint
+                         - RemoteExchange[REPARTITION] => n_nationkey:bigint, count:bigint, $hashvalue_14:bigint
+                             - Project[] => [n_nationkey:bigint, count:bigint, $hashvalue_18:bigint]
+                                     $hashvalue_18 := "combine_hash"(BIGINT '0', COALESCE("$operator$hash_code"("n_nationkey"), 0))
+                                 - Aggregate(FINAL)[n_nationkey] => [n_nationkey:bigint, count:bigint]
+                                         count := "count"("count_12")
+                                     - LocalExchange[HASH][$hashvalue_15] ("n_nationkey") => n_nationkey:bigint, count_12:bigint, $hashvalue_15:bigint
+                                         - RemoteExchange[REPARTITION][$hashvalue_16] => n_nationkey:bigint, count_12:bigint, $hashvalue_16:bigint
+                                             - Project[] => [n_nationkey:bigint, count_12:bigint, $hashvalue_17:bigint]
+                                                     Cost: {rows: ? (?), cpu: ?, memory: ?, network: 0.00}
+                                                     $hashvalue_17 := "combine_hash"(BIGINT '0', COALESCE("$operator$hash_code"("n_nationkey"), 0))
+                                                 - Aggregate(PARTIAL)[n_nationkey] => [n_nationkey:bigint, count_12:bigint]
+                                                         Cost: {rows: ? (?), cpu: 500.00, memory: ?, network: 0.00}
+                                                         count_12 := "count"(*)
+                                                     - TableScan[tpch:tpch:nation:sf1.0, originalConstraint = true] => [n_nationkey:bigint]
+                                                             Cost: {rows: 25 (250B), cpu: 250.00, memory: 0.00, network: 0.00}
+                                                             n_nationkey := tpch:n_nationkey
+                 - LocalExchange[SINGLE] () => count_11:bigint
+                         Cost: {rows: ? (?), cpu: 10.00, memory: ?, network: ?}
+                     - RemoteExchange[REPLICATE] => count_11:bigint
+                             Cost: {rows: ? (?), cpu: 10.00, memory: ?, network: ?}
+                         - Aggregate => [count_11:bigint]
+                                 Cost: {rows: ? (?), cpu: 10.00, memory: ?, network: 0.00}
+                                 count_11 := "count"("expr_10")
+                             - Values => [expr_10:boolean]
+                                     Cost: {rows: 1 (10B), cpu: 0.00, memory: 0.00, network: 0.00}
+                                     (null)
+```
+
+
+Simpler (and probably more performant) rewrite would facilitate `SEMI JOIN`. So rewritten plan is equivalent to plan for query
+
+```
+SELECT o_orderkey FROM orders WHERE o_orderkey IN (SELECT n_nationkey FROM nation);
+```
+
+cc: @findepi @sopel39 @kokosing 

@@ -1,0 +1,34 @@
+Zero-copy* write combining
+**TL;DR;**
+I propose to defer the serialization of protobuf, thrift, ... from the `MessageFramer` to the `WriteCombiningHandler`.
+
+PR #1996 shows that combining small buffers into one large buffer can substantially improve throughput. However, it's very hard to come up with a one-size-fits all algorithm that decides on when to combine buffers. It's probably safe to assume that all buffers (HTTP/2 frames) except for DATA frames are small enough to be combined (copied) without much overhead. HEADERS could be large, but probably aren't. Say we would expect headers to be in the 100 - 300 byte range.
+
+For example, a RPC response will typically write 3 HTTP/2 frames 
+
+```
+HEADERS + DATA + HEADERS (trailers)
+```
+
+In Netty's HTTP/2 codec that would typically translate to the following buffers being written 
+
+```
+HEADERS(FrameHeader) + HEADERS(HeaderBlock) + DATA(FrameHeader) + 
+DATA(Payload) + HEADERS(FrameHeader) + HEADERS(Payload)
+```
+
+When using write combining as proposed in #1996, then depending on the size of the `DATA(Payload)` buffer, we would either pass one buffer or 3 buffers to `write/writev`. As mentioned before, coming up with a "magic" number `N bytes` that for all machines and workloads tells us when to combine buffers is hard. It would be much easier if we would simply always combine all writes until flush, and I believe we can.
+
+If we change the `MessageFramer` internals and the `WritableBuffer` API, so that instead of always copying the `InputStream` into a buffer, it's up to the `WritableBuffer` implementation of when that copy happens. We could then create a simple, internal `ByteBuf` implementation that effectively just wraps an `InputStream`. The copying into a "real" `ByteBuf` could then be done in the `WriteCombiningHandler`. So we would still only do one copy, but instead of copying in the `MessageFramer` we do it in the `WriteCombiningHandler`.
+
+The logic of the `WriteCombiningHandler` would become very streamlined. It simply stores a list of `ByteBufs` and `Promises`, and on flush it allocates a large buffer with exactly the number of bytes it needs, copies all buffers from the list into the large buffer, and does a `ctx.writeAndFlush(largeBuffer, combinedPromise)`.
+
+A nice sideeffect of this change would be that buffering / piggy-backing messages would no longer be a concern of the `MessageFramer`, but be a responsibility of the transport only.
+
+Some questions:
+- This moves the protobuf serialization from the application thread to the Netty thread, is this a problem?
+- Right now the `InputStream` is immediately consumed when passed to the `MessageFramer`. With this change it would be consumed at some later point in time on the Netty thread. Could that be a problem in terms of leaks or so?
+
+Thoughts @louiscryan @ejona86 @nmittler @carl-mastrangelo ?
+
+\* Zero-copy for DATA frames only, but assuming most of the time DATA frames make up the majority of the bytes on the wire. Certainly true for streaming :-).

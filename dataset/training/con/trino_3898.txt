@@ -1,0 +1,73 @@
+Some DELETE queries throw an exception
+Some DELETE queries are failing with a `The transaction didn't commit cleanly` error.
+
+Queries to reproduce the issue:
+```SQL
+CREATE TABLE u_xinlin.table0601 (id INT, price DOUBLE, datepartition VARCHAR, customer VARCHAR) WITH (partitioned_by = array['datepartition', 'customer']);
+INSERT INTO u_xinlin.table0601 VALUES (0, 1.0, '2020-06-01', 'xinlin'), (0, 1.0, '2020-06-01', 'xinlin0'),(0, 1.0, '2020-06-01', 'xinlin1'),(0, 1.0, '2020-06-01', 'xinlin2'),(0, 1.0, '2020-06-01', 'xinlin3'),(0, 1.0, '2020-06-01', 'xinlin4'),(0, 1.0, '2020-06-01', 'xinlin5'),(0, 1.0, '2020-06-01', 'xinlin6'),(0, 1.0, '2020-06-01', 'xinlin7'),(0, 1.0, '2020-06-01', 'xinlin8'),(0, 1.0, '2020-06-01', 'xinlin9');
+DELETE FROM u_xinlin.table0601 WHERE datepartition = '2020-06-01';
+```
+Stacktrace in Presto:
+```
+io.prestosql.spi.PrestoException: The transaction didn't commit cleanly. All operations other than the following delete operations were completed: drop partition u_xinlin.table0601 [2019-04-25, xinlin9]; drop partition u_xinlin.table0601 [2019-04-25, xinlin]; drop partition u_xinlin.table0601 [2019-04-25, xinlin4]; drop partition u_xinlin.table0601 [2019-04-25, xinlin2]; drop partition u_xinlin.table0601 [2019-04-25, xinlin8]
+	at io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore$Committer.executeIrreversibleMetastoreOperations(SemiTransactionalHiveMetastore.java:1710)
+	at io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore.commitShared(SemiTransactionalHiveMetastore.java:1170)
+	at io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore.commit(SemiTransactionalHiveMetastore.java:959)
+	at io.prestosql.plugin.hive.HiveMetadata.commit(HiveMetadata.java:2596)
+	at io.prestosql.plugin.hive.HiveConnector.commit(HiveConnector.java:212)
+	at io.prestosql.transaction.InMemoryTransactionManager$TransactionMetadata$ConnectorTransactionMetadata.commit(InMemoryTransactionManager.java:594)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:125)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:69)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:78)
+	at io.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:78)
+	at io.prestosql.$gen.Presto_unknown____20200601_164801_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+	Suppressed: io.prestosql.spi.PrestoException: Got exception: java.io.IOException Failed to move to trash: hdfs://ltx1-faronn01.grid.linkedin.com:9000/user/xinlin/u_xinlin.db/table0601/datepartition=2019-04-25
+		at io.prestosql.plugin.hive.metastore.thrift.ThriftHiveMetastore.dropPartition(ThriftHiveMetastore.java:1213)
+		at io.prestosql.plugin.hive.metastore.thrift.BridgingHiveMetastore.dropPartition(BridgingHiveMetastore.java:348)
+		at io.prestosql.plugin.hive.metastore.cache.CachingHiveMetastore.dropPartition(CachingHiveMetastore.java:732)
+		at io.prestosql.plugin.hive.HiveMetastoreClosure.dropPartition(HiveMetastoreClosure.java:220)
+		at io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore$Committer.lambda$prepareDropPartition$7(SemiTransactionalHiveMetastore.java:1362)
+		at io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore$IrreversibleMetastoreOperation.run(SemiTransactionalHiveMetastore.java:2569)
+		at io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore$Committer.lambda$executeIrreversibleMetastoreOperations$14(SemiTransactionalHiveMetastore.java:1681)
+		at java.base/java.util.concurrent.CompletableFuture$AsyncRun.run$$$capture(CompletableFuture.java:1736)
+		at java.base/java.util.concurrent.CompletableFuture$AsyncRun.run(CompletableFuture.java)
+		at io.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:78)
+		... 3 more
+	Caused by: org.apache.hadoop.hive.metastore.api.MetaException: Got exception: java.io.IOException Failed to move to trash: hdfs://ltx1-faronn01.grid.linkedin.com:9000/user/xinlin/u_xinlin.db/table0601/datepartition=2019-04-25
+		at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$drop_partition_result$drop_partition_resultStandardScheme.read(ThriftHiveMetastore.java)
+		at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$drop_partition_result$drop_partition_resultStandardScheme.read(ThriftHiveMetastore.java)
+		at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$drop_partition_result.read(ThriftHiveMetastore.java)
+		at org.apache.thrift.TServiceClient.receiveBase(TServiceClient.java:86)
+```
+Error logs in `hcat.err`:
+```
+Caused by: java.io.FileNotFoundException: rename source /users/xinlin/u_xinlin.db/table0601/datepartition=2019-04-25 is not found.
+        at org.apache.hadoop.hdfs.server.namenode.FSDirRenameOp.validateRenameSource(FSDirRenameOp.java:570)
+        at org.apache.hadoop.hdfs.server.namenode.FSDirRenameOp.unprotectedRenameTo(FSDirRenameOp.java:367)
+        at org.apache.hadoop.hdfs.server.namenode.FSDirRenameOp.renameTo(FSDirRenameOp.java:301)
+        at org.apache.hadoop.hdfs.server.namenode.FSDirRenameOp.renameToInt(FSDirRenameOp.java:251)
+        at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.renameTo(FSNamesystem.java:2838)
+        at org.apache.hadoop.hdfs.server.namenode.NameNodeRpcServer.rename2(NameNodeRpcServer.java:1062)
+```
+
+I think the issue is because multiple `DROP PARTITION` requests are sent to HMS in parallel. Consider a table partitioned by column A and B. Its file structure may be like
+```
+table_name
+├── A=a0
+|   ├── B=b0
+|   |   ├── data_file0
+|   |   └── data_file1
+|   ├── B=b1
+|   |   └── ...
+|   └── B=b2
+|   |   └── ...
+└── A=a1
+    └── ...
+```
+When a `DELETE FROM table_name WHERE A = a0` is executed, multiple `DROP PARTITION` requests are sent to HMS in parallel. For each `DROP PARTITION` request, according to the observed behavior, HMS will try to delete sub-directory (`A=a0/B=b0`) firstly, and then delete directory `A=a0` if it's empty. However, there's a race condition when executing in parallel. Directory `A=a0` may be deleted in multiple `DROP PARTITION` requests in parallel, which leads to the `FileNotFoundException` shown in `hcat.err`.
+
+Although the query failure doesn't affect query correctness (the directory is deleted cleanly), its occurrence prevents one of our scheduled workflows from continuing.

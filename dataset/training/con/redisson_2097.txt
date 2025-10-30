@@ -1,0 +1,38 @@
+Exception when use RedissonRedLock + RedissonMultiLock
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+I'm trying to introduce RedLock algorithm in my project, I have 3 Redis nodes, and I need to lock several keys in each thread. Here is my implementation:
+
+// config1 for node #1, config2 for node #2, config3 for node #3, all of them are using single server.
+RedissonClient redission1 = Redisson.create(config1);
+RedissonClient redission2 = Redisson.create(config2);
+RedissonClient redission3 = Redisson.create(config3);
+
+RLock key11 = redission1.getLock("key1");
+RLock key12 = redission1.getLock("key2");
+RLock multiLock1 = new RedissonMultiLock(key11, key12);
+
+RLock key21 = redission2.getLock("key1");
+RLock key22 = redission2.getLock("key2");
+RLock multiLock2 = new RedissonMultiLock(key21, key22);
+
+RLock key31 = redission3.getLock("key1");
+RLock key32 = redission3.getLock("key2");
+RLock multiLock3 = new RedissonMultiLock(key31, key32);
+
+RLock redLock = new RedissonRedLock(multiLock1, multiLock2, multiLock3);
+redLock.tryLock(lockAcquireTimeoutMs, lockExpiryMs, TimeUnit.MILLISECONDS);
+### Expected behavior
+no exception
+### Actual behavior
+Got exception with message: ""org.redisson.RedissonMultiLock cannot be cast to org.redisson.RedissonLock""
+### Steps to reproduce or test case
+the root cause is this code in method tryLock(long waitTime, long leaseTime, TimeUnit unit) of class RedissonMultiLock.java:
+RFuture<Boolean> future = ((RedissonLock)rLock).expireAsync(unit.toMillis(leaseTime), TimeUnit.MILLISECONDS);
+It trys to cast rLock to RedissonLock, but in my case the rLock is RedissonMultiLock. By this implementation, RedissonMultiLock actually can not group any RLock types but RedissonLock.
+### Redis version
+
+### Redisson version
+3.10.7
+### Redisson configuration

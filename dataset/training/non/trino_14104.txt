@@ -1,0 +1,85 @@
+Missing iceberg manifest list file after HMS read times out 
+Hey folks, we are running Trino 385 on self-managed EKS cluster on AWS and have been seeing missing manifest list file issue frequently in the event of HMS read timeout, similar to this issue https://github.com/trinodb/trino/issues/12581
+
+`"message":"java.sql.SQLException: Query failed (#20220830_200538_00217_v3bfb): Failed to get status for file: s3://our_bucket/our_table/metadata/snap-5248356702593051690-1-4bab0c8e-543c-41bd-99a7-62dcb1864795.avro`
+
+We have enabled object versioning and CloudTrail and can confirm the manifest list file exists and is deleted by Trino. From our Trino log, it looks like that the iceberg library removes the manifest list file in the event of commit failure despite the fact the snapshot has been successfully committed. Here's our query log: 
+
+1. Execute a INSERT SELECT FROM statement (QueryId: 20220830_195613_00200)
+2. Iceberg performs a base table scans with snapshot ID 7266396334490458249
+```
+2022-08-30T19:56:15.027Z INFO Query-20220830_195613_00200_v3bfb-2519 
+org.apache.iceberg.BaseTableScan Scanning table "our_schema"."our_table" snapshot 7266396334490458249 created at 2022-08-30 16:37:05.638 with filter true
+```
+3. Trino successfully committed a snapshot 5248356702593051690
+```
+2022-08-30T19:56:17.780Z INFO 20220830_195613_00200_v3bfb.0.0.0-32-257 
+org.apache.iceberg.SnapshotProducer Committed snapshot 5248356702593051690 (MergeAppend)
+```
+4. Despite that the snapshot is successfully committed, Trino reports commit task failure org.apache.iceberg.exceptions.CommitFailedException (This stack trace is taken from Splunk so the execution order might not be accurate )
+```
+org.apache.iceberg.exceptions.CommitFailedException: Failed to commit to table our_schema.our_table
+at io.trino.plugin.iceberg.catalog.AbstractIcebergTableOperations.commit(AbstractIcebergTableOperations.java:150)
+at org.apache.iceberg.BaseTransaction.lambda$commitSimpleTransaction$5(BaseTransaction.java:386)
+at org.apache.iceberg.util.Tasks$Builder.runTaskWithRetry(Tasks.java:404)
+at org.apache.iceberg.util.Tasks$Builder.runSingleThreaded(Tasks.java:214)
+at org.apache.iceberg.util.Tasks$Builder.run(Tasks.java:198)
+at org.apache.iceberg.util.Tasks$Builder.run(Tasks.java:190)
+at org.apache.iceberg.BaseTransaction.commitSimpleTransaction(BaseTransaction.java:378)
+at org.apache.iceberg.BaseTransaction.commitTransaction(BaseTransaction.java:268)
+at io.trino.plugin.iceberg.IcebergMetadata.finishInsert(IcebergMetadata.java:752)
+at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.finishInsert(ClassLoaderSafeConnectorMetadata.java:504)
+at io.trino.metadata.MetadataManager.finishInsert(MetadataManager.java:892)
+at io.trino.sql.planner.LocalExecutionPlanner.lambda$createTableFinisher$3(LocalExecutionPlanner.java:3962)
+at io.trino.operator.TableFinishOperator.getOutput(TableFinishOperator.java:319)
+at io.trino.operator.Driver.processInternal(Driver.java:410)
+at io.trino.operator.Driver.lambda$process$10(Driver.java:313)
+at io.trino.operator.Driver.tryWithLock(Driver.java:698)
+at io.trino.operator.Driver.process(Driver.java:305)
+at io.trino.operator.Driver.processForDuration(Driver.java:276)
+at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:1092)
+ at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:163)
+at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:488)
+at io.trino.$gen.Trino_385_sfdc_2_4d4b287____20220830_184755_2.run(Unknown Source)
+at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: io.trino.spi.TrinoException: bdmpresto-hive-002.presto-hive-metastore.uip.aws-esvc1-useast2.aws.sfdc.is:80: java.net.SocketTimeoutException: Read timed out
+at io.trino.plugin.hive.metastore.thrift.ThriftHiveMetastore.alterTable(ThriftHiveMetastore.java:1161)
+at io.trino.plugin.hive.metastore.thrift.BridgingHiveMetastore.alterTable(BridgingHiveMetastore.java:340)
+at io.trino.plugin.hive.metastore.thrift.BridgingHiveMetastore.replaceTable(BridgingHiveMetastore.java:219)
+at io.trino.plugin.hive.metastore.cache.CachingHiveMetastore.replaceTable(CachingHiveMetastore.java:523)
+at io.trino.plugin.iceberg.catalog.hms.HiveMetastoreTableOperations.commitToExistingTable(HiveMetastoreTableOperations.java:93)
+... 25 more
+... more
+```
+5. As the result of CommitFailedException , Iceberg retries the commit 4 times and all of the retry attempts failed. The retry attempts were exhausted and eventually the query failed. 
+```
+2022-08-30T19:58:18.386Z WARN 20220830_195613_00200_v3bfb.0.0.0-32-257 org.apache.iceberg.util.Tasks Retrying task after failure: Failed to commit to table our_schema.our_table
+2022-08-30T20:00:18.894Z WARN 20220830_195613_00200_v3bfb.0.0.0-32-257 org.apache.iceberg.util.Tasks Retrying task after failure: Failed to commit to table  our_schema.our_table
+2022-08-30T20:02:19.543Z WARN 20220830_195613_00200_v3bfb.0.0.0-32-257 org.apache.iceberg.util.Tasks Retrying task after failure: Failed to commit to table  our_schema.our_table
+2022-08-30T20:04:20.385Z WARN 20220830_195613_00200_v3bfb.0.0.0-32-257 org.apache.iceberg.util.Tasks Retrying task after failure: Failed to commit to table  our_schema.our_table
+
+2022-08-30T20:05:32.872Z ERROR SplitRunner-151-257 io.trino.execution.executor.TaskExecutor Error processing Split 20220830_195613_00200_v3bfb.0.0.0-32 (start = 4349124.505863, wall = 557971 ms, cpu = 7 ms, wait = 7 ms, calls = 27)
+2022-08-30T20:05:32.876Z ERROR remote-task-callback-1373 io.trino.execution.scheduler.PipelinedStageExecution Pipelined stage execution for stage 20220830_195613_00200_v3bfb.0 failed
+2022-08-30T20:05:32.878Z ERROR stage-scheduler io.trino.execution.StageStateMachine Stage 20220830_195613_00200_v3bfb.0 failed
+```
+6. After this query failure, we start to see missing manifest list error. For example,  query 20220830_200538_00217_v3bfb-2732. When performing base table scan, the metadata file is now pointing at the new snapshot created from Step 3. Yet the manifest list file is missing, resulting in query failure: 
+
+```
+2022-08-30T20:05:39.366Z INFO Query-20220830_200538_00217_v3bfb-2732 
+org.apache.iceberg.BaseTableScan Scanning table "sdb_trace_non_prod_hourly"."statement_text" snapshot 5248356702593051690 created at 2022-08-30 19:56:17.773 with filter true
+
+"message":"java.sql.SQLException: Query failed (#20220830_200538_00217_v3bfb): Failed to get status for file: s3://our_bucket/our_table/metadata/snap-5248356702593051690-1-4bab0c8e-543c-41bd-99a7-62dcb1864795.avro
+```
+
+It looks like Iceberg successfully committed a snapshot change. However, because of the CommitFailedException,
+The manifest list file that was created along with the snapshot was deleted. We dived deeper into the iceberg library and suspected that this is where iceberg removes manifest list in the event of commit failure: [commitSimpleTransaction](https://github.com/apache/iceberg/blob/cc7e6d9fa259707a5c690b3534ea6b5c7da3fc05/core/src/main/java/org/apache/iceberg/BaseTransaction.java#L402) calls 
+[cleanUpOnCommitFailure](https://github.com/apache/iceberg/blob/cc7e6d9fa259707a5c690b3534ea6b5c7da3fc05/core/src/main/java/org/apache/iceberg/BaseTransaction.java#L443) in the event of commit failure. Then 
+[cleanAll](https://github.com/apache/iceberg/blob/cc7e6d9fa259707a5c690b3534ea6b5c7da3fc05/core/src/main/java/org/apache/iceberg/SnapshotProducer.java#L435) is called to remove manifest list file in the new snapshot update. 
+
+Can someone in the community help us understand:
+1. Why would a commitTaskFailure exception be thrown when the snapshot has been successfully committed?
+2. When a commitFailedException is thrown, is the commit state known or unknown? If the state is known, removing the manifest list after a successful snapshot creation and commitFailedException will corrupt the table. Should we avoid removing manifest file when the metadata file is updated?
+
+Thanks in advance! 

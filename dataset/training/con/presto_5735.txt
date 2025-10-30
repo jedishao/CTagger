@@ -1,0 +1,33 @@
+OperatorContext is not ThreadSafe
+Contrary to the misleading `@ThreadSafe` annotation and usage of `AtomicLong` everywhere in it `OperatorContext` is not ThreadSafe. I have stumbled on it while implementing some things related to spilling https://github.com/prestodb/presto/pull/5142 and revocable memory https://github.com/prestodb/presto/pull/5711
+
+There is at least problem with `setMemoryReservation`, `trySetMemoryReservation` methods and `transferMemoryToTaskContext`:
+
+```
+    private final AtomicLong memoryReservation = new AtomicLong();
+    (...)    
+    public void setMemoryReservation(long newMemoryReservation)
+    {
+        checkArgument(newMemoryReservation >= 0, "newMemoryReservation is negative");
+
+        long delta = newMemoryReservation - memoryReservation.get();
+
+        if (delta > 0) {
+            reserveMemory(delta);
+        }
+        else {
+            freeMemory(-delta);
+        }
+    }
+```
+
+Example scenario. `memoryReservation` equals to `10`. 
+1. caller A initiate `setMemoryReservation(3)`.
+2. A thread calculates `delta = -7` and hangs.
+3. caller B changes memory reservation by calling `setMemoryReservation(3)` which finishes before A thread resumes work. This give us `memoryReservation = 3`.
+4. A thread resumes work. `freeMemory(7)` is executed.
+5. we end up with `memoryReservation = -4` which crashes query.
+
+This bug(s) might haven't shown up so far, because this class is mostly (only ?) used by single driver's thread. I'm not familiar with this part of code and I don't feel whether synchronization here is costly but I would be inclined to drop all `AtomicLongs` here and switch to `synchronized` methods. It would be safer and since `OperatorContext` calls should be rare I don't expect it would have negative performance impact.
+
+CC: @cberner @sopel39 

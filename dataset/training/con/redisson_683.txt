@@ -1,0 +1,24 @@
+CommandAsyncService blocks indefinitely 
+Hi,
+I have a thread stuck in the CommandAsyncService#get() indefinitely waiting for the CountdownLatch. I don't have a particular repro case but this happens every once in a while on our servers (under load). Redis itself is still delivering events and the instance receives objects on other threads as well.
+Would it make sense instead of waiting indefinitely on the latch to only wait as long as the timeout is configured (as a safe belt) and abort the action if there hasn't been any success/failure by then? 
+Cheers,
+Philipp
+
+Redisson-Version: 3.0.0
+Redis-Server: ElasticCache w/ engine 3.2.4
+Redis-Config: SingleServerConfig w/ mostly the default values
+
+`
+java.lang.Thread.State: WAITING (parking)
+    at sun.misc.Unsafe.park(Native Method)
+    - parking to wait for  <0x000000031c2237d0> (a java.util.concurrent.CountDownLatch$Sync)
+    at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+    at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+    at java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:997)
+    at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1304)
+    at java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)
+    at org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:133)
+    at org.redisson.RedissonObject.get(RedissonObject.java:55)
+    at org.redisson.RedissonBucket.get(RedissonBucket.java:91)
+`

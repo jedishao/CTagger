@@ -1,0 +1,11 @@
+Aggregation with  structural type causes GC pressure and excessive cross region reference
+We have seen the following two issues in production when performing aggregations with structural type with huge number of groups. There are two separate cases:
+
+- We see a lot of `SingleMapBlock` when the aggregation function is like `MAX_BY(map, x)` or `ARBITRARY(map)`, since an `SingleMapBlock` will be used for each group state.
+  
+  This issue can also happen for `SingleRowBlock` (for row type) or `XArrayBlock` (for array type). We have also seen a massive number of `Slice` in heap for `MAX(varchar)`. 
+
+
+- We see a lot of `MapBlockBuilder` for `ARRAY_AGG(map)`. 
+
+  In general, this doesn't restricts to map type, since we could see a lot of `BlockBuilder` for `ARRAY_AGG(x)` on any type, as long as the aggregation produces many groups. 

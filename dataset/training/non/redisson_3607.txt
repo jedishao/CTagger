@@ -1,0 +1,87 @@
+ExecutorService use getBucket(*).get()  time consuming
+I had a problem in my production . When the request qps increase,it taked a long time for the function that getBucket(key).get() .
+I used the function in JAVA ExecutorService.When redis key is not exists , it has time consuming.But when redis key is exists, it is ok.
+
+**Expected behavior**
+
+ Taked a little time for getBucket(key).get()
+
+**Actual behavior**
+ Once in a while, it taked a long time for getBucket(key).get() .
+
+**Steps to reproduce or test case**
+1.code 
+
+```
+@Slf4j
+@RestController
+@RequestMapping("/sql")
+public class SqlController {
+    @Resource
+    private RedissonClient redissonClient;
+
+    private static ExecutorService es = Executors.newFixedThreadPool(10);
+
+    public String getToken2(){
+        String key = "token_value";
+        Long startTime = System.currentTimeMillis();
+        String value = (String) redissonClient.getBucket(key).get();
+        Long endTime = System.currentTimeMillis();
+
+        if(endTime - startTime >= 300){
+            log.info("[overtime][][][] use time：{}ms",endTime - startTime);
+        }
+        return "fail";
+    }
+
+    @PostMapping("/getToken")
+    public String getToken() {
+        for (int i = 0; i < 2; i++) {
+            es.submit(() -> {getToken2();});
+
+        }
+
+        return "success";
+    }
+    
+}
+```
+2.jmeter config 
+![image](https://user-images.githubusercontent.com/15084973/117925925-836eb100-b32a-11eb-86fc-0510d5cd71a7.png)
+
+
+3. result
+ **when redis key ：token_value  is not exist**
+![image](https://user-images.githubusercontent.com/15084973/117924866-042cad80-b329-11eb-9420-5b157256b7fd.png)
+
+**but when key is exist , it is ok .**
+
+
+**Redis version**
+    4.0.11  
+    cluster
+
+**Redisson version**
+   3.15.4
+
+**Redisson configuration**
+
+```
+
+   @Bean
+    public RedissonClient getClient() throws Exception {
+        // get redis ip
+        String text = ConfigCenterClient.get("TCBase.Cache.v2");
+        CacheInstance instance = JsonUtils.json(text, new TypeReference<List<CacheInstance>>() {
+        }).get(0);
+
+       //config
+        Config config = new Config();
+        config.setCodec(TypedJsonJacksonCodec.INSTANCE);
+        ClusterServersConfig clusterServersConfig = config.useClusterServers();
+        instance.getInstances().stream()
+                .map(CacheInstance.Node::getIp).map(ip -> "redis://" + ip)
+                .forEach(clusterServersConfig::addNodeAddress);
+        return Redisson.create(config);
+    }
+```

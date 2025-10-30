@@ -1,0 +1,54 @@
+sendForm(MultiMap) does not include Content-Length header leading to hung request
+### Version
+
+4.0.0
+
+### Context
+
+I have a vertx+rxjava webclient trying to POST to a PHP application
+
+Vertx WebClient > Docker (Caddy > PHP-FPM)
+
+Caddy config:
+```
+handle {
+	php_fastcgi phpfpm:9000
+}
+```
+
+### Do you have a reproducer?
+```
+MultiMap values = MultiMap.caseInsensitiveMultiMap();
+values.add("field1", "value1");
+values.add("field2", "value2");
+WebClient client = WebClient.create(vertx);
+HttpRequest<Buffer> request = client.post(80, "localhost", "/");
+HttpResponse<Buffer> response = request
+		.rxSendForm(values)
+		.blockingGet();
+log.info(response.bodyAsString());
+client.close();
+```
+
+Results in this HTTP request as seen from Wireshark:
+```
+POST / HTTP/1.1
+user-agent: Vert.x-WebClient/4.0.0
+content-type: application/x-www-form-urlencoded
+host: localhost:8080
+transfer-encoding: chunked
+
+field1=value1&field2=value2
+```
+I never get a response, wireshark never logs a response, the Single never completes, an XDEBUG breakpoint on the first line is never hit, and neither PHP nor Caddy log the request. 
+
+
+I believe the lack of content-length in the request is leaving the PHP server waiting. It appears to tie-up one of the FPM workers as running numerous requests like this concurrently results in an error:
+```
+[pool www] server reached pm.max_children setting (5), consider raising it
+```
+And all subsequent requests, no matter what the client, hang, at least until I quit the vertx app and wait for all the TCP timeouts to timeout.
+
+I've tried changing the content type to `multipart/form-data` or using `rxSendMultipartForm()` but no luck. I did try posting to `google.com` and I immediately get an error but I think it's because its seeing the `POST` and rejecting it early.
+
+Changing the request to be a simple `POST` via `rxSend()` works fine.

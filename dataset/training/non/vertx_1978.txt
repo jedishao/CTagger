@@ -1,0 +1,6 @@
+Support minimum idle connections for HttpClient
+Currently the keep-alive pool within HttpClient is only increased when there is an active request and there are no extras in the pool.  When using Vertx HttpClient in a SSL WAN deployment, keeping the TCP and TLS handshake out of the way of a customer request is preferable.
+
+In such the same way that HikariCP (https://github.com/brettwooldridge/HikariCP) supports a minimum number of idle connections.  I think ideally this is more of a percentage with a defined minimum and maximum that is dynamic in the middle.
+
+Even if you didn't support this full model in the beginning, just supporting an easy mechanism for someone on the outside to create additional connections (w/out having to do some kind of fake request to a real URL) would allow someone to implement this entirely on their own.  This would also allow for situations where you know you are going to start failing over a ton of requests to a remote location, you could start to warm up connections.  So that when you do the switch, the first few hundred customers aren't paying all the handshake penalties.

@@ -1,0 +1,53 @@
+RabbitMQ source connector can't connect
+**Describe the bug**
+Hello, I am trying to connect Pulsar with RabbitMQ. For that, I am trying to set up a source connector
+**To Reproduce**
+Steps to reproduce the behavior:
+1. First of all I set up Pulsar with docker,
+`docker run -it --name my-pulsar -p 6650:6650  -p 8080:8080 --mount source=pulsardata,target=/pulsar/data --mount source=pulsarconf,target=/pulsar/conf apachepulsar/pulsar-all:latest bin/pulsar standalone
+`
+2. Then I have created the YAML file for the connector,
+configs:
+    host: ""
+    port: 5672
+    virtualHost: "/"
+    username: "myname"
+    password: "mypass"
+    queueName: "test1"
+    connectionName: "test1-connection"
+    requestedChannelMax: 0
+    requestedFrameMax: 0
+    connectionTimeout: 60000
+    handshakeTimeout: 10000
+    requestedHeartbeat: 60
+    prefetchCount: 0
+    prefetchGlobal: "false"
+    passive: "false"
+    With name rabbitmq.yaml, which I placed in folder examples.
+3. Then I created the connector with pulsar-admin
+`./bin/pulsar-admin sources create --tenant public --namespace default --name rabbit-connector  --source-type rabbitmq --source-config-file examples/rabbitmq.yaml --destination-topic-name dst-topic`
+4. Then the connector keep restarted forever. 
+5. In logs a get this,
+` ERROR org.apache.pulsar.functions.instance.JavaInstanceRunnable - Source open produced uncaught exception: 
+java.net.ConnectException: Connection refused (Connection refused)
+        at java.net.PlainSocketImpl.socketConnect(Native Method) ~[?:?]
+        at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:399) ~[?:?]
+        at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:242) ~[?:?]
+        at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:224) ~[?:?]
+        at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:392) ~[?:?]
+        at java.net.Socket.connect(Socket.java:609) ~[?:?]
+        at com.rabbitmq.client.impl.SocketFrameHandlerFactory.create(SocketFrameHandlerFactory.java:60) ~[amqp-client-5.1.1.jar:5.1.1]
+        at com.rabbitmq.client.impl.recovery.RecoveryAwareAMQConnectionFactory.newConnection(RecoveryAwareAMQConnectionFactory.java:62) ~[amqp-client-5.1.1.jar:5.1.1]
+        at com.rabbitmq.client.impl.recovery.AutorecoveringConnection.init(AutorecoveringConnection.java:99) ~[amqp-client-5.1.1.jar:5.1.1]
+        at com.rabbitmq.client.ConnectionFactory.newConnection(ConnectionFactory.java:948) ~[amqp-client-5.1.1.jar:5.1.1]
+        at com.rabbitmq.client.ConnectionFactory.newConnection(ConnectionFactory.java:907) ~[amqp-client-5.1.1.jar:5.1.1]
+        at com.rabbitmq.client.ConnectionFactory.newConnection(ConnectionFactory.java:1034) ~[amqp-client-5.1.1.jar:5.1.1]
+        at org.apache.pulsar.io.rabbitmq.RabbitMQSource.open(RabbitMQSource.java:65) ~[qCOnir1sptZl9djvqq9k1g/:?]
+        at org.apache.pulsar.functions.instance.JavaInstanceRunnable.setupInput(JavaInstanceRunnable.java:735) [org.apache.pulsar-pulsar-functions-instance-2.8.1.jar:2.8.1]
+        at org.apache.pulsar.functions.instance.JavaInstanceRunnable.setup(JavaInstanceRunnable.java:219) [org.apache.pulsar-pulsar-functions-instance-2.8.1.jar:2.8.1]
+        at org.apache.pulsar.functions.instance.JavaInstanceRunnable.run(JavaInstanceRunnable.java:243) [org.apache.pulsar-pulsar-functions-instance-2.8.1.jar:2.8.1]
+        at java.lang.Thread.run(Thread.java:829) [?:?] 
+`
+
+The RabbitMQ is tested and runs smoothly with the given credentials.
+Any idea what happened here?

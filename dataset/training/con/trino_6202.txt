@@ -1,0 +1,22 @@
+Include full stacktraces from LogTestDurationListener test hang monitor
+See https://github.com/prestosql/presto/runs/1497472672
+
+- tests apparently hanged
+- one test thread is here:
+
+```
+2020-12-04T07:53:43.1535741Z "pool-2-thread-2" prio=5 Id=16 BLOCKED on org.testng.TestClass@2a78dd6a owned by "pool-2-thread-1" Id=15
+2020-12-04T07:53:43.1537790Z 	at app//org.testng.internal.TestMethodWorker.invokeBeforeClassMethods(TestMethodWorker.java:158)
+2020-12-04T07:53:43.1539747Z 	-  blocked on org.testng.TestClass@2a78dd6a
+2020-12-04T07:53:43.1540972Z 	at app//org.testng.internal.TestMethodWorker.run(TestMethodWorker.java:108)
+2020-12-04T07:53:43.1542880Z 	at java.base@11.0.9/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+2020-12-04T07:53:43.1545474Z 	at java.base@11.0.9/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+2020-12-04T07:53:43.1547540Z 	at java.base@11.0.9/java.lang.Thread.run(Thread.java:834)
+2020-12-04T07:53:43.1548037Z 
+2020-12-04T07:53:43.1548486Z 	Number of locked synchronizers = 1
+2020-12-04T07:53:43.1549747Z 	- java.util.concurrent.ThreadPoolExecutor$Worker@7cedfa63
+```
+
+- the information who owns `TestClass@2a78dd6a` is not present, probably because every stacktrace is limited to 8 frames.
+
+see full thread dump -- https://github.com/prestosql/presto/runs/1497472672  or  https://gist.github.com/findepi/2f87bad4047976bee6af9223f5d3ff6c

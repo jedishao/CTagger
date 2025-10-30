@@ -1,0 +1,53 @@
+RedissonConnection#del() doesn’t participate in pipeline 
+We’ve been experiencing intermittent `NullPointerException`s (stacktrace at end) that appeared to be race condition. The root seems to be that `del(byte[] keys...)` doesn’t properly participate when a connection is pipelined.
+
+I believe the simplest reproduction is:
+
+```java
+RedisConnection conn = new RedissonConnectionFactory(/* clustered config */).getConnection();
+byte[] key = "my_key".getBytes();
+conn.set(key, "my_value".getByte());
+
+conn.openPipeline();
+conn.get(key);
+conn.del(key);
+
+results = conn.closePipeline();
+byte[] value = (byte[])results.get(0);
+
+// value is sometimes `null`
+// additionally, results.size() == 1
+```
+
+[Here’s the full code in spring-security-oauth2](https://github.com/spring-projects/spring-security-oauth/blob/bff72a9bf8f12b73f945e4e77f4dd206b3636e83/spring-security-oauth2/src/main/java/org/springframework/security/oauth2/provider/token/store/redis/RedisTokenStore.java#L279) that is triggering this.
+
+**Redis version**
+
+4
+
+**Redisson version**
+
+Redisson 3.12.4
+
+**Redisson configuration**
+
+Cluster
+
+<details>
+<summary>Stacktrace</summary>
+<pre>
+Wrapped by: org.springframework.data.redis.connection.RedisPipelineException: Pipeline contained one or more invalid commands; nested exception is org.redisson.client.WriteRedisConnectionException: Unable to write command into connection! Node source: NodeSource [slot=null, addr=null, redisClient=null, redirect=null, entry=MasterSlaveEntry [masterEntry=[freeSubscribeConnectionsAmount=1, freeSubscribeConnectionsCounter=value:50:queue:0, freeConnectionsAmount=23, freeConnectionsCounter=value:63:queue:0, freezed=false, freezeReason=null, client=[addr=rediss://…:6379], nodeType=MASTER, firstFail=0]]], connection: RedisConnection@968537160 [redisClient=[addr=rediss://<redacted>:6379], channel=[id: 0x6a0eb23a, L:/<redacted>:49244 - R:<redacted>/<redacted>:6379], currentCommand=null], command: null, params: null after 3 retry attempts
+	at org.redisson.spring.data.connection.RedissonConnection.closePipeline(RedissonConnection.java:145)
+	at org.springframework.security.oauth2.provider.token.store.redis.RedisTokenStore.removeAccessToken(RedisTokenStore.java:295)
+	at org.springframework.security.oauth2.provider.token.store.redis.RedisTokenStore.removeAccessTokenUsingRefreshToken(RedisTokenStore.java:397)
+	at org.springframework.security.oauth2.provider.token.store.redis.RedisTokenStore.removeAccessTokenUsingRefreshToken(RedisTokenStore.java:376)
+	at org.springframework.security.oauth2.provider.token.DefaultTokenServices.refreshAccessToken(DefaultTokenServices.java:162)
+	at org.springframework.security.oauth2.provider.refresh.RefreshTokenGranter.getAccessToken(RefreshTokenGranter.java:47)
+	at org.springframework.security.oauth2.provider.token.AbstractTokenGranter.grant(AbstractTokenGranter.java:67)
+	at org.springframework.security.oauth2.provider.CompositeTokenGranter.grant(CompositeTokenGranter.java:38)
+	at org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer$4.grant(AuthorizationServerEndpointsConfigurer.java:583)
+	at org.springframework.security.oauth2.provider.CompositeTokenGranter.grant(CompositeTokenGranter.java:38)
+	at org.springframework.security.oauth2.provider.endpoint.TokenEndpoint.postAccessToken(TokenEndpoint.java:132)
+	…
+</pre>
+<details>

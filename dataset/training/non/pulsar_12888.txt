@@ -1,0 +1,56 @@
+CPP SDK did not respond to request 307 during lookup
+**Describe the bug**
+
+
+A normal broker cluster, suppose I now create a topic with 128 partitions to ensure that each broker node is distributed with a certain number of partitions. At this time, start the cpp client to send and consume data, everything is normal.
+
+At this point, we kill one of the brokers and restart the broker. We can see that the cpp sdk keeps reporting the following error
+
+```
+2021-11-19 13:39:08.838 ERROR [140028414940928] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-82. Error Code 22
+2021-11-19 13:39:13.220 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-16. Error Code 22
+2021-11-19 13:39:14.291 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-50. Error Code 22
+2021-11-19 13:39:15.372 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-54. Error Code 22
+2021-11-19 13:39:16.451 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-58. Error Code 22
+2021-11-19 13:39:18.497 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-33. Error Code 22
+2021-11-19 13:39:19.238 ERROR [140028414940928] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-88. Error Code 22
+2021-11-19 13:39:19.567 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-24. Error Code 22
+2021-11-19 13:39:20.343 ERROR [140028414940928] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-89. Error Code 22
+2021-11-19 13:39:21.653 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-13. Error Code 22
+2021-11-19 13:39:22.722 ERROR [140028406548224] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-12. Error Code 22
+2021-11-19 13:39:23.040 ERROR [140028414940928] HTTPLookupService:262 | Response failed for url http://pulsar-q4822m9k7ej8.tdmq.ap-ru.public.tencenttdmq.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-91. Error Code 22
+```
+
+Since it is using HTTP Lookup service, it uses the libcurl warehouse. At this time, we use the curl command locally to simulate the processing behavior of the cpp code:
+
+```
+curl -i http://pulsar-q4822m9k7ej8.ap-public.com:8080/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-33 -H 'Authorization: Bearer eyJrZXlJZCI6Ixxxxxx'
+```
+
+We got the following wrong output:
+
+![image](https://user-images.githubusercontent.com/20965307/142587885-535fd18f-f97e-43f3-bb36-da2fb91a8caa.png)
+
+At this point, we continue to use curl to execute the Location returned last time, as follows:
+
+```
+curl -i http://1.62.3.1:1001/lookup/v2/topic/persistent/pulsar-q4822m9k7ej8/test-ns/test-topic-1-partition-30 -H 'Authorization: Bearer eyJrZXlJZCI6InB1bHNhci1xcccccxxxxx'
+```
+
+Output as follows:
+
+```
+{"brokerUrl":"pulsar://1.14.81.60:6650","httpUrl":"http://1.14.81.60:8080","nativeUrl":"pulsar://1.14.81.60:6650","netAddressJson":"pulsar://1.14.81.60:6650:6650","brokerUrlSsl":""}
+```
+
+Through the return value, we can see that the broker returned the correct owner broker address to the cpp client, but the cpp sdk did not respond to the 307 request, causing the lookup to continue to fail.
+
+![image](https://user-images.githubusercontent.com/20965307/142588369-e602b497-0486-41f5-82dc-988656127fe4.png)
+
+
+
+**Desktop (please complete the following information):**
+ - CPP SDK version: 2.7.2
+ - Broker version: 2.7.2
+
+

@@ -1,0 +1,14 @@
+Coordinator primary replicant assignment over assigns segments until loaded
+Following up on investigation detailed in #5521 we noticed another issue, this time involving segment primary replicant assignment behavior. Changes introduced in #4757 appear to have inadvertently changed the behavior of replica assignment to now cause the coordinator to assign a primary replicant to _every_ eligible historical in the cluster until either one of the historicals have loaded the segment OR all of the historicals have this segment in their load queue, at least based on output observed in the logs.
+```
+2018-03-19T22:05:14,742 INFO [Coordinator-Exec--0] io.druid.server.coordinator.LoadQueuePeon - Asking server peon[/druid/loadQueue/some.historical.internal:8283] to load segment[some_segment]
+...
+2018-03-19T22:07:47,052 INFO [Coordinator-Exec--0] io.druid.server.coordinator.LoadQueuePeon - Asking server peon[/druid/loadQueue/other.historical.internal:8283] to load segment[some_segment]
+...
+2018-03-19T22:10:19,432 INFO [Coordinator-Exec--0] io.druid.server.coordinator.LoadQueuePeon - Asking server peon[/druid/loadQueue/another.historical.internal:8283] to load segment[some_segment]
+...
+2018-03-19T22:11:19,854 WARN [Coordinator-Exec--0] io.druid.server.coordinator.rules.LoadRule - No available [_default_tier] servers or node capacity to assign primary segment[some_segment]! Expected Replicants[1]
+```
+with the last message repeating until the segment has been loaded at least once. No `LoadQueuePeon` messages appear in the log output between the above log snippet.
+
+Rather than loading the segment on all historical servers, once the segment is in the load queue of an assigned primary, it should follow the logic path as if it were already loaded on it's primary assigned server, and run the [normal replica assignment path instead](https://github.com/druid-io/druid/blob/80419752b53b1fe27cc59e6e07a0e8e89cfe5869/server/src/main/java/io/druid/server/coordinator/rules/LoadRule.java#L100).

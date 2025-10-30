@@ -1,0 +1,24 @@
+Pulsar schema doesn't support null value
+**Describe the bug**
+
+If a Pulsar producer sends messages without payload, Pulsar consumer is not able to consume the messages without payload. Because the payload passed to schema is an empty array not `null`. Hence exceptions are thrown. An example exception is shown as below:
+
+```
+org.apache.pulsar.client.api.SchemaSerializationException: Size of data received by BooleanSchema is not 1
+
+	at org.apache.pulsar.client.impl.schema.BooleanSchema.validate(BooleanSchema.java:44)
+	at org.apache.pulsar.client.impl.schema.BooleanSchema.decode(BooleanSchema.java:62)
+	at org.apache.pulsar.client.impl.schema.BooleanSchema.decode(BooleanSchema.java:29)
+	at org.apache.pulsar.client.impl.MessageImpl.getValue(MessageImpl.java:273)
+	at org.apache.pulsar.client.impl.TopicMessageImpl.getValue(TopicMessageImpl.java:143)
+```
+
+**To Reproduce**
+
+1. Use a typed producer to send messages without setting value.
+2. Use a typed consumer to receive messages.
+
+**Expected behavior**
+
+The typed consumer should receive messages with a `null` value.
+

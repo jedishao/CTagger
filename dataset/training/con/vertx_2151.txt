@@ -1,0 +1,40 @@
+IllegalStateException in ClientConnection#beginRequest
+Vert.x 3.4.2
+
+I am using a verticle to send HTTP GET requests to an endpoint. It seems that the traffic is growing and the requests (when writing the header) are overlapping, causing an exception.
+
+```
+java.lang.IllegalStateException: Connection is already writing a request
+	at io.vertx.core.http.impl.ClientConnection.beginRequest(ClientConnection.java:543)
+	at io.vertx.core.http.impl.HttpClientRequestImpl.connected(HttpClientRequestImpl.java:756)
+	at io.vertx.core.http.impl.HttpClientRequestImpl.access$100(HttpClientRequestImpl.java:51)
+	at io.vertx.core.http.impl.HttpClientRequestImpl$2.handleStream(HttpClientRequestImpl.java:719)
+	at io.vertx.core.http.impl.ConnectionManager$ConnQueue.deliverStream(ConnectionManager.java:277)
+	at io.vertx.core.http.impl.ConnectionManager$ConnQueue.lambda$getConnection$0(ConnectionManager.java:237)
+	at io.vertx.core.impl.ContextImpl.lambda$wrapTask$2(ContextImpl.java:337)
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:403)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:445)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:858)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+```java
+public class MyVerticle extends AbstractVerticle {
+  private HttpClient client;
+
+  public void start() {
+    ...
+    client = vertx.createHttpClient(options);
+    ...
+  }
+}
+```
+
+I don't have too much control of this, the question is what to do?
+
+ * Increase the number of verticle instances? So in this case the `client` instance will be different, so the race condition will be vanish? Or at least have a lower probability.
+ * Set bigger connection pool that the default of the http client? How can I do that?
+ * Implement queueing of writing request in `ClientConnection`.
+
+One things is missing for me: if it is happening inside a verticle how it can happen that a request is being written, but another request is coming in? It is a standard verticle, not a worker.

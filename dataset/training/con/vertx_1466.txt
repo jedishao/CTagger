@@ -1,0 +1,104 @@
+Deadlock in ServerConnection / HttpClientRequestImpl
+We use an HttpClient per thread, and this just happened.
+
+```
+Found one Java-level deadlock:
+=============================
+"vert.x-eventloop-thread-0":
+  waiting to lock monitor 0x00007f553c037b48 (object 0x000000070d5fda10, a io.vertx.core.http.impl.ServerConnection),
+  which is held by "vert.x-eventloop-thread-3"
+"vert.x-eventloop-thread-3":
+  waiting to lock monitor 0x00007f55d9772a28 (object 0x0000000653c73ab0, a io.vertx.core.http.impl.HttpClientRequestImpl),
+  which is held by "vert.x-eventloop-thread-0"
+​
+Java stack information for the threads listed above:
+===================================================
+"vert.x-eventloop-thread-0":
+    at io.vertx.core.http.impl.HttpServerResponseImpl.ended(HttpServerResponseImpl.java:346)
+    - waiting to lock <0x000000070d5fda10> (a io.vertx.core.http.impl.ServerConnection)
+.....
+    at io.vertx.core.http.impl.HttpClientRequestImpl.lambda$exceptionHandler$80(HttpClientRequestImpl.java:262)
+    at io.vertx.core.http.impl.HttpClientRequestImpl$$Lambda$249/478457932.handle(Unknown Source)
+    at io.vertx.core.http.impl.HttpClientRequestImpl.handleException(HttpClientRequestImpl.java:384)
+    - locked <0x0000000653c73ab0> (a io.vertx.core.http.impl.HttpClientRequestImpl)
+    at io.vertx.core.http.impl.HttpClientRequestImpl.timeout(HttpClientRequestImpl.java:578)
+    at io.vertx.core.http.impl.HttpClientRequestImpl.handleTimeout(HttpClientRequestImpl.java:563)
+    at io.vertx.core.http.impl.HttpClientRequestImpl.lambda$setTimeout$81(HttpClientRequestImpl.java:337)
+    at io.vertx.core.http.impl.HttpClientRequestImpl$$Lambda$246/1883207809.handle(Unknown Source)
+    at io.vertx.core.impl.VertxImpl$InternalTimerHandler.handle(VertxImpl.java:738)
+    at io.vertx.core.impl.VertxImpl$InternalTimerHandler.handle(VertxImpl.java:709)
+    at io.vertx.core.impl.ContextImpl.lambda$wrapTask$18(ContextImpl.java:335)
+    at io.vertx.core.impl.ContextImpl$$Lambda$10/2081191879.run(Unknown Source)
+    at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:358)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:357)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:112)
+    at java.lang.Thread.run(Thread.java:745)
+"vert.x-eventloop-thread-3":
+    at io.vertx.core.http.impl.HttpClientRequestImpl.getLock(HttpClientRequestImpl.java:426)
+    - waiting to lock <0x0000000653c73ab0> (a io.vertx.core.http.impl.HttpClientRequestImpl)
+    at io.vertx.core.http.impl.HttpClientRequestImpl.end(HttpClientRequestImpl.java:299)
+.....
+    at io.vertx.core.http.impl.HttpServerRequestImpl.lambda$bodyHandler$54(HttpServerRequestImpl.java:288)
+    at io.vertx.core.http.impl.HttpServerRequestImpl$$Lambda$77/1019769903.handle(Unknown Source)
+    at io.vertx.core.http.impl.HttpServerRequestImpl.handleEnd(HttpServerRequestImpl.java:411)
+    - locked <0x000000070d5fda10> (a io.vertx.core.http.impl.ServerConnection)
+    at io.vertx.core.http.impl.ServerConnection.handleEnd(ServerConnection.java:286)
+    at io.vertx.core.http.impl.ServerConnection.processMessage(ServerConnection.java:404)
+    at io.vertx.core.http.impl.ServerConnection.handleMessage(ServerConnection.java:134)
+    - locked <0x000000070d5fda10> (a io.vertx.core.http.impl.ServerConnection)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler.doMessageReceived(HttpServerImpl.java:515)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler.doMessageReceived(HttpServerImpl.java:421)
+    at io.vertx.core.http.impl.VertxHttpHandler.lambda$channelRead$20(VertxHttpHandler.java:80)
+    at io.vertx.core.http.impl.VertxHttpHandler$$Lambda$81/108612809.run(Unknown Source)
+    at io.vertx.core.impl.ContextImpl.lambda$wrapTask$18(ContextImpl.java:333)
+    at io.vertx.core.impl.ContextImpl$$Lambda$10/2081191879.run(Unknown Source)
+    at io.vertx.core.impl.ContextImpl.executeFromIO(ContextImpl.java:225)
+    at io.vertx.core.http.impl.VertxHttpHandler.channelRead(VertxHttpHandler.java:80)
+    at io.vertx.core.net.impl.VertxHandler.channelRead(VertxHandler.java:124)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:318)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:304)
+    at io.netty.handler.timeout.IdleStateHandler.channelRead(IdleStateHandler.java:266)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:318)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:304)
+    at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:276)
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:263)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:318)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:304)
+    at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:846)
+    at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:131)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:511)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:468)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:382)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:354)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:112)
+    at java.lang.Thread.run(Thread.java:745)
+```
+
+There is a chance that it's just a glitch, we had some weird behaviour, two instances launched instead of one or something...
+Also, this code looks a bit dangerous (io.vertx.core.http.impl.HttpClientRequestImpl#getLock):
+
+```
+  // After connecting we should synchronize on the client connection instance to prevent deadlock conditions
+  // but there is a catch - the client connection is null before connecting so we synchronized on this before that
+  // point
+  private Object getLock() {
+    // We do the initial check outside the synchronized block to prevent the hit of synchronized once the conn has
+    // been set
+    if (conn != null) {
+      return conn;
+    } else {
+      synchronized (this) {
+        if (conn != null) {
+          return conn;
+        } else {
+          return this;
+        }
+      }
+    }
+  }
+```
+
+related:
+https://github.com/eclipse/vert.x/commit/df69aa303514f3a0c3ac7e277acab66adbfb8e47
+https://github.com/eclipse/vert.x/issues/1355
+https://github.com/eclipse/vert.x/issues/1247

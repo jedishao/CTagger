@@ -1,0 +1,23 @@
+HadoopIndexer job with input as the datasource and configured segments table doesn't work
+### Affected Version
+0.14, 0.13, 0.12
+The Druid version where the problem was encountered.
+0.12
+### Description
+
+I was trying out the hadoop based reingestion job http://druid.io/docs/latest/ingestion/update-existing-data.html  which uses the datasource itself as the input. 
+
+When I ran the job, it failed because it was trying to read segment metadata from druid_segments table and not from the table, customprefix_segments, I specified in the metadataUpdateSpec.
+
+"metadataUpdateSpec": {
+      "connectURI": "jdbc:mysql...",
+      "password": "XXXXXXX",
+      "segmentTable": "customprefix_segments",
+      "type": "mysql",
+      "user": "XXXXXXXX"
+},
+
+Looking at the code, I see that the segmentTable specified in the spec is actually passed in as pending_segments table (3rd param is for pending_segments and 4th param is for segments table)
+https://github.com/apache/incubator-druid/blob/master/indexing-hadoop/src/main/java/org/apache/druid/indexer/updater/MetadataStorageUpdaterJobSpec.java#L92
+
+This code has been around forever though, so would have to be careful before simply switching the order of param values.

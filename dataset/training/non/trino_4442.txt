@@ -1,0 +1,35 @@
+Support catalogs with Hive and Iceberg tables
+### Problem Statement
+Currently we're unable to migrate some existing Hive tables to Iceberg in a user-unaware way. One catalog is configured with one connector. Suppose we have catalog `hive` configured with Hive Connector and `iceberg` configured with Iceberg Connector. In order to query a table `u_xinlin.orders` with Iceberg Connector, we have to specify as `iceberg.u_xinlin.orders`.
+
+More specifically, in our production environment, the default catalog is configured as `hive` associated with a Hive Connector. Consider a user query `select * from u_xinlin.orders o join u_xinlin.customer c on o.custkey = c.custkey`. Suppose table `u_xinlin.orders` has been migrated to Iceberg but `u_xinlin.customer` has not. We hope that Presto can dynamically resolve `u_xinlin.orders` with Iceberg Connector and `u_xinlin.customer` with Hive Connector.
+
+### Proposed Solution: Catalog Redirection
+
+Add such a method to `ConnectorMetadata` SPI:
+
+```java
+default Optional<String> redirectToCatalog(ConnectorSession session,  SchemaTableName tableName)
+{
+    return Optional.empty();
+}
+```
+
+Add a config property in Hive Connector:
+
+```
+hive.redirect.iceberg.catalog=iceberg
+```
+
+Implement the redirection logic in `HiveMetadata`: redirect to the corresponding Iceberg catalog when `hive.redirect.iceberg.catalog` is set and the underlying table is an Iceberg table.
+
+For relevant methods in `MetadataManager`, call `redirectToCatalog` to redirect.
+
+### Alternative Solution: Connector Federation
+Change the current one-catalog-to-one-connector mapping to one-catalog-to-multiple-connectors mapping. One `hive` catalog can be associated with both a Hive Connector and an Iceberg Connector. A logic component will need to be introduced to dynamically resolve connectors given a catalog name and a table name.
+
+---
+@electrum Can you give pointers on what you think of this? cc: @rdsr
+
+
+Part of #1324 

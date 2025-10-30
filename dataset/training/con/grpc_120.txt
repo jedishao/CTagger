@@ -1,0 +1,8 @@
+Remove blocking parts from NettyClientTransport
+`NettyClientTransport#newStream` is currently a blocking operation. It blocks until the HEADERS frame has been written on the wire. This is behavior is not what people who use our asynchronous API would come to expect.
+
+The blocking also is the cause for severe performance issues in the QPS Client as it results in more or less in as many threads being created as there are concurrent calls going on (We have seen ~850 Threads for 1000 concurrent calls, resulting in OOM).
+
+The blocking may also lead to deadlocking the `EventLoop` in cases where a `DirectExecutor` is used. One scenario where a deadlock might happen is when the `EventLoop` is not able to completely flush the HEADERS frame on the wire because then Netty would internally create a task to flush the remaining bytes and put this task in its task queue. This task can never be completed though as the `EventLoop Thread` is blocked by our very own `newStream` method waiting for the task to be completed ...
+
+This issue depends on #116 and #118 to be resolved first.

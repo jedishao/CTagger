@@ -1,0 +1,17 @@
+groupBy: Better spilling to disk in v2
+Currently when groupBy v2 spills to disk, the spilling is done by a processing thread while it holds a lock on a slice of the query's merge buffer. This can take a while (potentially many seconds). This is all well and good, but it means that in very short order, all other processing tasks for the same will be blocked on the same lock.
+
+This jams things up in general:
+- Other tasks for the same query cannot make progress, since odds are that within a small number of rows, they'll all be blocked waiting to lock the currently-spilling slice.
+- It's easy for these tasks to fill up the processing pool, meaning that even other unrelated queries cannot make progress.
+
+By default, spilling to disk is disabled, so this won't happen (the query will just fail when it runs out of memory instead of spilling). But it would still be good to do something better here.
+
+Some possibilities for parallelizing spilling:
+- Have tasks avoid slices that are currently spilling. e.g. if there are 16 slices, and two are spilling, then instead of using `hash % 16` to choose a slice, use `hash % 14` and skip over the two spilling slices. Or `consistentHash(hash, 14)`. This will lead to imperfect merging, but that's fine; the rows will be sorted so we can combine them later while iterating, with a combining merging iterable.
+- When _any_ slice fills up, opportunistically use all other processing threads involved in the query to spill _all_ slices.
+- Split each buffer slice in half, such that one half can be spilling to disk in processing thread X while the other half is used for aggregation in all other processing threads. This should improve things a bit but may lead us to the same problem after a round of spilling, if spilling is slower than aggregating (which it probably is).
+
+Some possibilities for maintaining QoS for other queries:
+- Suspend processing tasks for a query when it's waiting for a spill to finish, so other queries can continue working. This would involve re-doing work for the suspended query (they'd have to lose their accumulated buffers and start over) but would improve latency for other queries.
+- Isolate thread pools / hardware that allows spilling vs does not allow spilling.

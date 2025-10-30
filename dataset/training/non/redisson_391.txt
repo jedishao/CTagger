@@ -1,0 +1,26 @@
+Sentinel error when no slaves
+```
+Config config = new Config();
+config.useSentinelServers()
+    .setMasterName("mymaster")
+    .addSentinelAddress("127.0.0.1:26389");
+Redisson redisson = Redisson.create(config);
+```
+
+if there are no slaves on SentinelConnectionManager:82 we have a List<Map<String, String>> sentinelSlaves = connection.sync(StringCodec.INSTANCE, RedisCommands.SENTINEL_SLAVES, cfg.getMasterName()); which returns just Map not List of Maps.
+So, the exception I get is:
+    at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1014)
+    at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:545)
+    ... 41 more
+Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.redisson.RedissonClient]: Factory method 'redissonClient' threw exception; nested exception is java.lang.ClassCastException: java.util.HashMap cannot be cast to java.util.List
+    at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:189)
+    at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:588)
+    ... 53 more
+Caused by: java.lang.ClassCastException: java.util.HashMap cannot be cast to java.util.List
+    at org.redisson.connection.SentinelConnectionManager.<init>(SentinelConnectionManager.java:82)
+    at org.redisson.Redisson.<init>(Redisson.java:96)
+    at org.redisson.Redisson.create(Redisson.java:131)
+    at com.atl.csc.conf.RedisConfig.redissonClient(RedisConfig.java:122)
+
+You may argue that it is not correct if there are no slaves, but, this cut config is used on test machines and not on production (which is fully configured with slaves). So, would be nice to handle this error.
+Thanks.

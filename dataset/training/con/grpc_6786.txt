@@ -1,0 +1,109 @@
+Race in StreamObservers.copyWithFlowControl
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.28
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+Linux Java 8
+
+### What did you expect to see?
+That StreamObservers.copyWithFlowControl would deterministically copy values
+
+### What did you see instead?
+That StreamObservers.copyWithFlowControl has a race that can lead to non-deterministic behavior
+
+### Steps to reproduce the bug
+The following test class reproduces the bug (generally after a hundred thousand attempts or so)
+
+```java
+public final class StreamObserversRace {
+  private static final ImmutableList<Integer> LIST =
+      ImmutableList.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+
+  static final class TestStreamObserver<T> extends CallStreamObserver<T> {
+    final ConcurrentLinkedQueue<T> values = new ConcurrentLinkedQueue<>();
+    final ConcurrentLinkedQueue<FutureTask<Void>> waits = new ConcurrentLinkedQueue<>();
+    final FutureTask<Void> completed = new FutureTask<>(() -> {}, null);
+    private final Executor executor;
+    private Runnable onReady;
+    private volatile boolean ready = true;
+
+    TestStreamObserver(Executor executor) {
+      this.executor = executor;
+    }
+    @Override public boolean isReady() {
+      return ready;
+    }
+    @Override public void setOnReadyHandler(Runnable onReady) {
+      this.onReady = onReady;
+      executor.execute(onReady);
+    }
+    @Override public void onNext(T value) {
+      this.ready = false;
+      FutureTask<Void> wait = new FutureTask<>(() -> {}, null);
+      waits.add(wait);
+      executor.execute(() -> {
+        values.add(value);
+        this.ready = true;
+        onReady.run();
+        wait.run();
+      });
+    }
+    @Override public void onCompleted() {
+      executor.execute(completed);
+    }
+    @Override public void onError(Throwable t) {}
+    @Override public void disableAutoInboundFlowControl() {}
+    @Override public void request(int count) {}
+    @Override public void setMessageCompression(boolean enable) {}
+  }
+
+  static void main(String[] args) throws Exception {
+    ExecutorService executor = Executors.newCachedThreadPool();
+    for (int i = 0;; ++i) {
+      TestStreamObserver<Integer> test = new TestStreamObserver<>(executor);
+      StreamObservers.copyWithFlowControl(LIST, test);
+      test.completed.get();
+      for (FutureTask<Void> wait : test.waits) {
+        wait.get();
+      }
+      if (!LIST.equals(ImmutableList.copyOf(test.values))) {
+        System.out.println(String.format("Failed after %d attempts (%s)", i, test.values));
+        break;
+      }
+    }
+    executor.shutdown();
+  }
+}
+```
+
+### Why this race happens
+If the `FlowControllingOnReadyHandler.run` method is interrupted between `target.onNext` and the next `target.isReady` call, it is possible for it to never see that the target was in a not ready state, meaning that both a new invocation of the ready handler will be started, and the current one will continue.  In this test this is exhibited by the list being out of order.
+
+### General issues with the ready mechanism
+This race is caused by a more general design flaw of the `isReady`/`onReady` mechanism used across `ClientCall`, `ServerCall`, and `CallStreamObserver`.  The typical pattern of 
+
+```java
+@Override public void onReady() {
+  while(observer.isReady()) {
+    observer.onNext(getMessage());  // or call.sendMessage
+    // Issue happens if the thread is interrupted here and the
+    // stream transitions from not-ready to ready.
+  }
+}
+```
+
+always has this race of the stream transitioning from not ready to ready between the call to `next` and the call to `isReady`.  Avoiding this race is very non-trivial, especially given the limited invariants of the onReady call (there doesn't appear to be any guarantee that this method isn't called spuriously when the stream was already ready).  I've been trying to find a good example of this for a while, but this is the first concrete example I've come up with.
+
+### Potential solution
+One potential fix would be to have `StreamObserver.onNext` (and `{Client|Server}Call.sendMessage`) return a boolean atomically indicating that the underlying stream is ready, and to add an invariant that `onReady` will be called if and only if the underlying stream transitions from a state where it is visibly not ready to one where it is, but this would be a breaking change on any implementations of these classes.  The above pattern would then become
+
+```java
+@Override public void onReady() {
+  while (observer.onNext(getMessage())) {}
+}
+```
+
+Note that this solution only works when the messages are being pulled.  When the messages are also being pushed asynchronously, rendezvousing the message and the ready event would still be tricky.  For this use case, a `whenReady(Runnable)` mechanism that invokes the handler exactly once (immediately if already ready) would be preferable.  This approach while more general would be more expensive than the one above as it requires creating a runnable for each message that is sent.

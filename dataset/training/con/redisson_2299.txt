@@ -1,0 +1,83 @@
+Redisson netty thread consumes ~100% CPU with RedisTimeoutException
+Hi, 
+
+**The issue being faced is that redisson netty thread consumes ~100% CPU and when a redis operation is performed we get RedisTimeoutException.**
+
+In the current set up, 
+3 redis sentinels and 3 redis servers
+2 pods with our application that uses redisson client.
+
+Out of the 2 pods only one pod seems to have this issue.
+The pattern of the issue is that it runs with .1% CPU utilisation for few days and,
+suddenly there is increase in CPU usage which hits 100%. Once it reached 100% all redis operation fail with RedisTimeoutException.
+The CPU utilisation drops down back to .1% if the pod is restarted and the issue doesnt appear for few days.
+If the pod is not restarted CPU utilisation continues to be at 100% throughout.
+
+**This is happening irrespective of the load even for as low as 1 request per minute.**
+
+The exception being faced post high CPU usage is 
+**org.redisson.client.RedisTimeoutException:** Unable to send command! Try to increase 'nettyThreads' and/or connection pool size settings Node source: NodeSource [slot=null, addr=null, redisClient=null, redirect=null, entry=MasterSlaveEntry [masterEntry=[freeSubscribeConnectionsAmount=1, freeSubscribeConnectionsCounter=value:50:queue:0, freeConnectionsAmount=31, freeConnectionsCounter=value:63:queue:0, freezed=false, freezeReason=null, client=[addr=redis://X.X.X.X:6379], nodeType=MASTER, firstFail=0]]], connection: RedisConnection@391497724 [redisClient=[addr=redis://X.X.X.X:6379], channel=[id: 0x9a7e9a0c, L:/X.X.X.X:52226 - R:X.X.X.X/X.X.X.X:6379], command=null], current command in queue: null, command: (GET), params: [YYYYYY] after 3 retry attempts
+	at org.redisson.command.CommandAsyncService$6.run(CommandAsyncService.java:715)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:682)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:757)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:485)
+	at java.lang.Thread.run(Thread.java:745) 
+
+On analysing the top threads for CPU utilisation for pid 
+
+> **top -H -p <pid>** 
+
+PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND
+**78 root 20 0 26.439g 1.730g 28888 R 99.3 2.8 11392:52 java**
+102 root 20 0 26.439g 1.730g 28888 S 0.7 2.8 74:22.42 java
+509 root 20 0 26.439g 1.730g 28888 S 0.7 2.8 116:44.13 java
+7 root 20 0 26.439g 1.730g 28888 S 0.0 2.8 0:00.00 java
+8 root 20 0 26.439g 1.730g 28888 S 0.0 2.8 0:07.37 java
+
+pid 78 corresponds to hex 4E
+Analysing thread dump for the process we have : 
+
+The thread 78 with high CPU usage corresponds to one of redisson-netty threads.
+**"redisson-netty-2-26" #59 prio=5 os_prio=0 tid=0x00007fe515245000 nid=0x4e runnable [0x00007fe4c19f6000]
+java.lang.Thread.State: RUNNABLE**
+at io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueue.peek(BaseMpscLinkedArrayQueue.java:381)
+at org.redisson.client.handler.CommandsQueue.write(CommandsQueue.java:104)
+at io.netty.channel.AbstractChannelHandlerContext.invokeWrite0(AbstractChannelHandlerContext.java:738)
+at io.netty.channel.AbstractChannelHandlerContext.invokeWrite(AbstractChannelHandlerContext.java:730)
+at io.netty.channel.AbstractChannelHandlerContext.access$1700(AbstractChannelHandlerContext.java:38)
+at io.netty.channel.AbstractChannelHandlerContext$AbstractWriteTask.write(AbstractChannelHandlerContext.java:1127)
+at io.netty.channel.AbstractChannelHandlerContext$WriteAndFlushTask.write(AbstractChannelHandlerContext.java:1174)
+at io.netty.channel.AbstractChannelHandlerContext$AbstractWriteTask.run(AbstractChannelHandlerContext.java:1098)
+at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163)
+
+### Expected behavior
+Redisson netty threads should not consumer 100% CPU, even if it does should release it eventually.
+And we should not be having RedisTimeoutException.
+
+### Actual behavior
+100% CPU utilisation followed by  RedisTimeoutException
+
+### Steps to reproduce or test case
+Random
+
+### Redis version
+4.0.8
+
+### Redisson version
+3.10.7
+
+### Redisson configuration
+
+config.setNettyThreads(0) //16 core machine so 32 netty threads
+        .setDecodeInExecutor(true)
+        .useSentinelServers()
+        .setMasterName("master")
+        .addSentinelAddress(<Address>)
+        .setReadMode("MASTER")
+        .setMasterConnectionMinimumIdleSize(32)
+        .setMasterConnectionPoolSize(128)
+        .setIdleConnectionTimeout(10000)
+        .setConnectTimeout(20000)
+        .setTimeout(10000)
+        .setRetryAttempts(3)
+        .setRetryInterval(1500)

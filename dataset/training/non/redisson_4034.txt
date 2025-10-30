@@ -1,0 +1,30 @@
+RLocalCachedMap sometime does not sync data from Redis
+Hi,
+I have 2 servers that use the same RLocalCachedMap. Server A I use to put data and Server B just use to query data.
+I'm facing with issue that sometime Server A updates data but Server B data is still old (cached value is not updated). I checked log but no Redisson exception there.
+
+If I invoke `localCachedMap.preloadCache()` on server B (via SOS REST call), data of server B will be updated.
+
+I'm using Redisson 3.16.5
+This is my LocalCacheOptions
+`LocalCachedMapOptions.defaults()
+            .evictionPolicy(LocalCachedMapOptions.EvictionPolicy.NONE)
+            .cacheSize(0)
+            .syncStrategy(LocalCachedMapOptions.SyncStrategy.UPDATE)
+            .reconnectionStrategy(LocalCachedMapOptions.ReconnectionStrategy.NONE)
+            .writeMode(MapOptions.WriteMode.WRITE_BEHIND);`
+This is my RedissonConfig
+`config.useSentinelServers()
+                .setMasterName(****)
+                .setPassword(****)
+                .setReadMode(ReadMode.SLAVE)
+                .setSubscriptionMode(SubscriptionMode.SLAVE)
+                .setKeepAlive(true)
+                .setTcpNoDelay(true)
+                .addSentinelAddress(redisUri)
+                .setSubscriptionsPerConnection(100)
+                .setSlaveConnectionPoolSize(1000)
+                .setMasterConnectionPoolSize(1000);`
+
+Please help me to point out some ways to investigate and resolve this issue.
+Thanks

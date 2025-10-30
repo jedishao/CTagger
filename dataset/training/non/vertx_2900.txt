@@ -1,0 +1,4 @@
+Move event bus metrics unregistration to HandlerRegistration instead of HandlerHolder
+Currently the `EventBusMetrics` unregistration happens in `HandlerHolder` when the holder is removed. This design implies that the metrics registrations always happens before the holder is removed. In cluster, the holder is registered locally before the cluster wide registration happens, the metrics is only registered when this cluster registration succeeds. So we don't have the guarantee that the holder will be removed after the clustered registrations is done.
+
+The unregistration can be moved to `HandlerRegistration` instead that actually holds the relevant state to determine whether the unregistration should happen in a non racy manner.

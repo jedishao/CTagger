@@ -1,0 +1,39 @@
+How to make Redisson update a cluster status with new nodes and new IPs
+Is there a way to make Redisson client query the sentinel for Redis hosts in new IPs on a configured interval? or... should scanInterval be doing this?
+
+Elaborating, we have a Redis cluster with a Sentinel cluster, in a Kubernetes environment, so when Redis nodes are taken down and new ones arise, they have different IPs, and the old ones no longer exist.
+
+Reading online I'm aware of:
+
+- scanInterval parameter https://github.com/redisson/redisson/issues/1280
+- dnsMonitoring parameter https://github.com/redisson/redisson/issues/1299
+
+But working with Redisson 3.7.4, clients keep logging that can't connect to some Redis node for days.
+
+Maybe the problem is that Redisson is not contemplating that nodes can change IP, or it only contemplates the IPs changing behind steady DNS names, but not sure.
+
+Is there a way to solve this problem?
+
+### Expected behavior
+Redisson clients to get updated nodes when a Redis Kubernetes cluster is rebuilt and new nodes arise with new IPs. (no DNS names involved)
+
+### Actual behavior
+When the cluster is rebuilt, clients keep logging connection errors for days.
+
+### Steps to reproduce or test case
+Having a Redis cluster, with a Sentinel in front of them, take down Redis nodes and bring up some new ones.
+
+### Redis version
+2.8.19
+
+### Redisson version
+3.7.4
+
+### Redisson configuration
+```
+sentinelServersConfig:
+    masterName: "mymaster"
+    sentinelAddresses:
+     - "redis://redis-sentinel.db:26379"
+codec: !<redis.redisson.ExtendedJsonJacksonCodec> {}
+```

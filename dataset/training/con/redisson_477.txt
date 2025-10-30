@@ -1,0 +1,69 @@
+Error if first node is down in 3 node Master-Master cluster 
+I have a Master Master redis cluster of 3 (node1,node2,node3). Locking mechanism works fine if we block the network for node2 or node 3. But if we block node1's network then it fails with the below error
+
+```
+Exception in thread "main" org.redisson.client.RedisNodeNotFoundException: No node for slot: 15087 and command (EVAL)
+at org.redisson.connection.MasterSlaveConnectionManager.getEntry(MasterSlaveConnectionManager.java:578)
+at org.redisson.connection.MasterSlaveConnectionManager.connectionWriteOp(MasterSlaveConnectionManager.java:563)
+at org.redisson.command.CommandAsyncService.async(CommandAsyncService.java:368)
+at org.redisson.command.CommandAsyncService.evalAsync(CommandAsyncService.java:334)
+at org.redisson.command.CommandAsyncService.evalWriteAsync(CommandAsyncService.java:282)
+at org.redisson.RedissonLock.tryLockInnerAsync(RedissonLock.java:207)
+at org.redisson.RedissonLock.tryAcquire(RedissonLock.java:139)
+at org.redisson.RedissonLock.tryLock(RedissonLock.java:225)
+at com.seamless.common.cache.distributed.LockManager.getLock(LockManager.java:37)
+at com.testlock.app.App.main(App.java:34)
+```
+
+Below is how I'm creating the Redission client
+`
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.log4j.Logger;
+import org.redisson.ClusterServersConfig;
+import org.redisson.Config;
+import org.redisson.ReadMode;
+import org.redisson.Redisson;
+import org.redisson.RedissonClient;
+import org.redisson.core.RLock;
+
+public class LockManager {
+
+```
+private static final Logger LOG = Logger.getLogger(LockManager.class);
+
+
+private RedissonClient redissonClient;
+
+LockManager(List<String> nodes){
+    Config config = new Config();
+    ClusterServersConfig serverConfig=config.useClusterServers();
+    serverConfig.setReadMode(ReadMode.MASTER);
+
+    for(String node :nodes){
+        serverConfig.addNodeAddress(node);
+    }
+    redissonClient = Redisson.create(config);
+
+}
+
+public boolean getLock(final String lockKey,int timeout){
+    RLock lock=redissonClient.getLock(lockKey);
+    try {
+        return lock.tryLock(0, timeout, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+        LOG.error("Error getting lock "+e.getMessage());
+    }
+    return false;
+}   
+
+public void releaseLock(final String lockKey){
+    RLock lock=redissonClient.getLock(lockKey);
+    if(lock.isHeldByCurrentThread())
+        lock.unlock();
+}
+```
+
+}
+`

@@ -1,0 +1,62 @@
+Socket leak in client when server sends GoAway
+Please answer these questions before submitting your issue.
+
+### What version of gRPC are you using?
+1.5.0 (previously 1.0.2)
+
+### What JVM are you using (`java -version`)?
+Various versions of 1.8, this one 1.8.0_66
+
+### What did you do?
+If possible, provide a recipe for reproducing the error.
+
+Golang gRPC server configured with `MaxConnectionAge` set to `30s`. Simple java main client:
+
+```java
+
+ManagedChannel chan = NettyChannelBuilder.forTarget("myhost:port").negotiationType(NegotiationType.PLAINTEXT).build();
+RpcClient rpcClient = createStubFromChan(chan);
+long start = System.currentTimeMillis();
+    try {
+      int lastCount = 0;
+      while (true) {
+        try {
+            rpcClient.execute(ctx, Vtgate.ExecuteRequest
+                .newBuilder()
+                .setQuery(Query.BoundQuery.newBuilder().setSql("select 1").build())
+                .setSession(Vtgate.Session
+                    .newBuilder()
+                    .setTargetString("vttest@master")
+                    .setAutocommit(true))
+                .build()).get();
+          int count = 0;
+          for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (t.getName().contains("grpc-default-worker")) {
+              count++;
+            }
+          }
+          if (count != lastCount) {
+            System.out.println("Threads: " + Long.toString(count));
+            lastCount = count;
+          }
+        } catch (Exception e) {
+          System.out.println("Caught exception: " + e.getMessage());
+        }
+      }
+    } finally {
+      System.out.println("Finished after: " + Long.toString(System.currentTimeMillis() - start));
+    }
+```
+
+### What did you expect to see?
+Max age is set low to exacerbate the issue, but is also seen over a longer period of time when run in production with a larger value.
+
+On GoAway, the streams should be drained and the connection closed once gracefully finished. I expect to see no growth in count of `grpc-default-worker` threads. On the server side I expect to see no growth in grpc http2_client goroutines.
+
+### What did you see instead?
+
+Every time max age is triggered, sending a GoAway, streams seem to be drained and unary calls fail. On retry a new connection and thus `grpc-default-worker` thread is created. Those threads are never cleaned up, even over the course of many hours. When the loop restarts a new connection is created, which results in a new `grpc-default-worker` thread. Therefore we see growth over time.
+
+On the server side, we see a growth in grpc http2_client goroutines. They are all stuck on readFrame, waiting to receive a ping or EOF from the client.
+
+Setting the GRPCMaxConnectionAgeGrace mitigates this a little, in that the server will force close the connections. However, this is not acceptable because sometimes we do have long running streams which we want to allow to finish gracefully.

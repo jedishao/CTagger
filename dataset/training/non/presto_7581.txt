@@ -1,0 +1,23 @@
+JOIN with criteria containing OR predicates may be slow
+The join cannot create a lookup table for criteria with OR predicates, therefore they're executed as a filter.
+E.g.
+```sql
+SELECT
+    COUNT(*) FROM store_sales a, store_sales b
+WHERE a.ss_item_sk = b.ss_item_sk
+    AND (a.ss_sold_date_sk = b.ss_sold_date_sk OR a.ss_sold_date_sk = b.ss_sold_date_sk + 1);
+```
+performs much slower (3x on my laptop and sf1 TPC-DS data set) than equivalent
+```sql
+with x as (
+    select * from store_sales a, store_sales b where a.ss_item_sk = b.ss_item_sk and a.ss_sold_date_sk = b.ss_sold_date_sk
+  UNION
+    select * from store_sales a, store_sales b where a.ss_item_sk = b.ss_item_sk and a.ss_sold_date_sk = b.ss_sold_date_sk + 1)
+select count(*) from x;
+```
+
+Selectivity of `ss_item_sk` is pretty low, therefore JOIN becomes almost cross-join, then filter (with OR predicates) come to play but it has a lot to process what could be already filtered out in lookup phase.
+
+The idea is to create multiple lookup tables. However, there's a drawback of such a solution, which is memory usage.
+
+Until we have fully baked statistics, this solution should be feature-flagged and probably disabled by default. We can make a decision automatically once we have statistics.

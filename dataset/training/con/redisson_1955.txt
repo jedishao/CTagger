@@ -1,0 +1,72 @@
+RedisOutOfMemoryException
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+No errors should be thrown after setting maxmemory-policy :volatile-lru, maxmemory:4MB.
+
+### Actual behavior
+When I am using two threads to put values through redisson to different database with limited memory(maxmemory-policy :volatile-lru, maxmemory:4MB),  error like **org.redisson.client.RedisOutOfMemoryException: command not allowed when used memory > 'maxmemory'** sprang up, and the database was flushed by redisson.
+But I replaced to use Jedis(2.8.0) to test again, no such exceptions came out, and the database was not flushed by Jedis. The items which exceed 4MB  can be deleted by redis automatically because of volatile-lru policy.
+
+### Steps to reproduce or test case
+1. Run commands on redis-cli,  config set maxmemory-policy volatile-lru  config set maxmemory 4mb
+2. Run the code twice(Two threads) using different database with type to 0.
+
+### Redis version
+3.2.4
+### Redisson version
+3.10.3
+### Redisson configuration
+singleServer, refer to the codes for details.
+
+### Codes I run
+```
+import org.redisson.Redisson;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
+
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+import redis.clients.jedis.Jedis;
+
+public class RedisExceptionTest {
+    public static void test(int type, int database) {
+        int index = 0;
+        if (type == 1) {
+            Jedis jedis = new Jedis("localhost", 6379);
+            jedis.select(database);
+            do {
+                index++;
+                try {
+                    jedis.setex("Chemical:" + index, 3 * 60, UUID.randomUUID().toString());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } while (true);
+        } else {
+            Config config = new Config();
+            config.useSingleServer().setAddress("redis://localhost:6379").setDatabase(database);
+            RedissonClient client = Redisson.create(config);
+            do {
+                index++;
+                try {
+                    RMap<String, String> rMap = client.getMap("Chemical:" + index);
+                    rMap.put(String.valueOf(index), UUID.randomUUID().toString());
+                    rMap.expire(3L, TimeUnit.MINUTES);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } while (true);
+        }
+    }
+    public static void main(String[] args) {
+        //First arg 0 means using redisson, Second arg 1 means using database 1.
+        //Please run twice of this application by changing different database.
+        RedisExceptionTest.test(0, 1);
+    }
+}
+```

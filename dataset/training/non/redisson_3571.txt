@@ -1,0 +1,29 @@
+infinty add slaves if cluster nodes are all same ip&port
+```
+// src/main/java/org/redisson/cluster/ClusterConnectionManager.java
+
+private void checkSlaveNodesChange(Collection<ClusterPartition> newPartitions) {
+        Set<ClusterPartition> lastPartitions = getLastPartitions();
+        for (ClusterPartition newPart : newPartitions) {
+            for (ClusterPartition currentPart : lastPartitions) {
+
+                /***** this will always be true if all cluster nodes have same ip & port*****/
+
+                if (!newPart.getMasterAddress().equals(currentPart.getMasterAddress())) {
+                    continue;
+                }
+
+                MasterSlaveEntry entry = getEntry(currentPart.slots().nextSetBit(0));
+                // should be invoked first in order to remove stale failedSlaveAddresses
+
+                /*******  more and more slaves will be added if some master don't have any slave  ******/
+
+                Set<RedisURI> addedSlaves = addRemoveSlaves(entry, currentPart, newPart);
+                // Do some slaves have changed state from failed to alive?
+                upDownSlaves(entry, currentPart, newPart, addedSlaves);
+
+                break;
+            }
+        }
+    }
+```

@@ -1,0 +1,415 @@
+Performance issues with vert.x using apache bench
+Disclaimer: It's more of an observation that we are seeing. May be we are doing something incorrectly
+
+When running the test using apache bench for a vert.x application, we are seeing that the response time increased as we increase the number of concurrent users.
+
+```
+D:\httpd-2.2.34-win64\Apache2\bin>ab -n 500 -c 1 -H "Authorization: 5" -H "Span_Id: 4" -H "Trace_Id: 1" -H "X-test-API-KEY: 6"  http://localhost:8443/product_catalog/products/legacy/001~001~5ZP/terms
+This is ApacheBench, Version 2.3 <$Revision: 655654 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Finished 500 requests
+
+
+Server Software:
+Server Hostname:        localhost
+Server Port:            8443
+
+Document Path:          /product_catalog/products/legacy/001~001~5ZP/terms
+Document Length:        319 bytes
+
+Concurrency Level:      1
+Time taken for tests:   12.366 seconds
+Complete requests:      500
+Failed requests:        0
+Write errors:           0
+Total transferred:      295094 bytes
+HTML transferred:       159500 bytes
+Requests per second:    40.43 [#/sec] (mean)
+Time per request:       24.733 [ms] (mean)
+Time per request:       24.733 [ms] (mean, across all concurrent requests)
+Transfer rate:          23.30 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    1   0.5      1       3
+Processing:     5   24  83.9      8    1293
+Waiting:        5   23  83.9      8    1293
+Total:          6   24  83.9      9    1293
+
+Percentage of the requests served within a certain time (ms)
+  50%      9
+  66%     11
+  75%     13
+  80%     15
+  90%     29
+  95%     57
+  98%    238
+  99%    332
+ 100%   1293 (longest request)
+
+D:\httpd-2.2.34-win64\Apache2\bin>ab -n 500 -c 2 -H "Authorization: 5" -H "Span_Id: 4" -H "Trace_Id: 1" -H "X-test-API-KEY: 6"  http://localhost:8443/product_catalog/products/legacy/001~001~5ZP/terms
+This is ApacheBench, Version 2.3 <$Revision: 655654 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Finished 500 requests
+
+
+Server Software:
+Server Hostname:        localhost
+Server Port:            8443
+
+Document Path:          /product_catalog/products/legacy/001~001~5ZP/terms
+Document Length:        319 bytes
+
+Concurrency Level:      2
+Time taken for tests:   7.985 seconds
+Complete requests:      500
+Failed requests:        0
+Write errors:           0
+Total transferred:      295151 bytes
+HTML transferred:       159500 bytes
+Requests per second:    62.61 [#/sec] (mean)
+Time per request:       31.941 [ms] (mean)
+Time per request:       15.971 [ms] (mean, across all concurrent requests)
+Transfer rate:          36.10 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    1   0.6      1       9
+Processing:     6   30  71.5     12     720
+Waiting:        5   30  71.4     12     720
+Total:          7   31  71.5     13     721
+
+Percentage of the requests served within a certain time (ms)
+  50%     13
+  66%     16
+  75%     21
+  80%     24
+  90%     53
+  95%    113
+  98%    246
+  99%    444
+ 100%    721 (longest request)
+
+D:\httpd-2.2.34-win64\Apache2\bin>ab -n 500 -c 3 -H "Authorization: 5" -H "Span_Id: 4" -H "Trace_Id: 1" -H "X-test-API-KEY: 6"  http://localhost:8443/product_catalog/products/legacy/001~001~5ZP/terms
+This is ApacheBench, Version 2.3 <$Revision: 655654 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Finished 500 requests
+
+
+Server Software:
+Server Hostname:        localhost
+Server Port:            8443
+
+Document Path:          /product_catalog/products/legacy/001~001~5ZP/terms
+Document Length:        319 bytes
+
+Concurrency Level:      3
+Time taken for tests:   7.148 seconds
+Complete requests:      500
+Failed requests:        0
+Write errors:           0
+Total transferred:      295335 bytes
+HTML transferred:       159500 bytes
+Requests per second:    69.95 [#/sec] (mean)
+Time per request:       42.888 [ms] (mean)
+Time per request:       14.296 [ms] (mean, across all concurrent requests)
+Transfer rate:          40.35 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    1   0.6      1       5
+Processing:     6   42  66.2     22     516
+Waiting:        6   41  66.3     22     515
+Total:          7   42  66.3     23     516
+
+Percentage of the requests served within a certain time (ms)
+  50%     23
+  66%     31
+  75%     43
+  80%     51
+  90%     76
+  95%    128
+  98%    259
+  99%    430
+ 100%    516 (longest request)
+
+D:\httpd-2.2.34-win64\Apache2\bin>ab -n 500 -c 4 -H "Authorization: 5" -H "Span_Id: 4" -H "Trace_Id: 1" -H "X-test-API-KEY: 6"  http://localhost:8443/product_catalog/products/legacy/001~001~5ZP/terms
+This is ApacheBench, Version 2.3 <$Revision: 655654 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Finished 500 requests
+
+
+Server Software:
+Server Hostname:        localhost
+Server Port:            8443
+
+Document Path:          /product_catalog/products/legacy/001~001~5ZP/terms
+Document Length:        319 bytes
+
+Concurrency Level:      4
+Time taken for tests:   7.078 seconds
+Complete requests:      500
+Failed requests:        0
+Write errors:           0
+Total transferred:      295389 bytes
+HTML transferred:       159500 bytes
+Requests per second:    70.64 [#/sec] (mean)
+Time per request:       56.623 [ms] (mean)
+Time per request:       14.156 [ms] (mean, across all concurrent requests)
+Transfer rate:          40.76 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    1   0.6      1       4
+Processing:     8   55 112.8     22    1112
+Waiting:        8   55 112.7     21    1111
+Total:          9   56 112.8     22    1112
+
+Percentage of the requests served within a certain time (ms)
+  50%     22
+  66%     31
+  75%     43
+  80%     59
+  90%    120
+  95%    213
+  98%    294
+  99%    387
+ 100%   1112 (longest request)
+```
+
+Also when the test is running, if we hit the API from another console, we see that the response time increases for that as well.
+
+We have used the following code:
+
+Router code:
+
+```
+router.route().handler(LoggerHandler.create(LoggerFormat.SHORT));
+router.route().handler(ResponseTimeHandler.create());
+router.route().handler(CorsHandler.create("*")
+                .allowedMethod(io.vertx.core.http.HttpMethod.GET)
+                .allowedMethod(io.vertx.core.http.HttpMethod.POST)
+                .allowedMethod(io.vertx.core.http.HttpMethod.PUT)
+                .allowedMethod(io.vertx.core.http.HttpMethod.DELETE)
+                .allowedMethod(io.vertx.core.http.HttpMethod.OPTIONS)
+                .allowedHeader("Access-Control-Request-Method")
+                .allowedHeader("Access-Control-Allow-Credentials")
+                .allowedHeader("Access-Control-Allow-Origin")
+                .allowedHeader("Access-Control-Allow-Headers")
+                .allowedHeader("Content-Type")
+                .allowedHeader("Trace_Id")
+                .allowedHeader("Span_Id")
+                .allowedHeader("Authorization")
+                .allowedHeader("X-test-API-KEY")
+                .allowedHeader("Accept"));
+router.get("/product_catalog/products/legacy/:id/terms").handler(this::getByProductCode);
+```
+
+Server Creation:
+```
+vertx
+    .createHttpServer()
+    .exceptionHandler(event -> {
+        logger.error("{}", new GPCLogEvent(className, "global_exception_handler", event, new GPCEntry("global_exception", event.getMessage() != null ? event.getMessage() : "")));
+    })
+    .connectionHandler(handler -> {
+        handler.exceptionHandler(event -> {
+            logger.error("{}", new GPCLogEvent(className, "global_exception_connection_handler", event, new GPCEntry("global_exception", event.getMessage() != null ? event.getMessage() : "")));
+        });
+
+    })
+    .websocketHandler(handler -> {
+        handler.exceptionHandler(event -> {
+            logger.error("{}", new GPCLogEvent(className, "global_exception_websocket_handler", event, new GPCEntry("global_exception", event.getMessage() != null ? event.getMessage() : "")));
+        });
+    })
+    .requestHandler(handler -> {
+        handler.exceptionHandler(event -> {
+            logger.error("{}", new GPCLogEvent(className, "global_exception_request_handler", event, new GPCEntry("global_exception", event.getMessage() != null ? event.getMessage() : "")));
+        });
+    })
+    .requestHandler(router)
+    .listen(serverPort, result -> {
+        if (result.succeeded()) {
+            logger.info("{}",
+                    new GPCLogEvent(className, "start", new GPCEntry<>("Server started at port", serverPort)));
+        } else {
+            logger.error("{}", new GPCLogEvent(className, "start", result.cause(),
+                    new GPCEntry<>("Server failed to start at port", serverPort)));
+        }
+    });
+```
+
+Handler Method:
+
+```
+private void getByProductCode(RoutingContext routingContext) {
+    LocalDateTime requestReceivedTime = LocalDateTime.now();
+    ZonedDateTime nowUTC = ZonedDateTime.now(ZoneOffset.UTC);
+    JsonObject jsonObject = commonUtilities.populateJsonObject(routingContext.request().headers());
+    jsonObject.put("requestReceivedTime", requestReceivedTime.format(commonUtilities.getDateTimeFormatter()));
+    jsonObject.put("path_param_id", routingContext.pathParam("id"));
+    jsonObject.put("TRACING_ID",UUID.randomUUID().toString());
+    long timeTakenInGettingRequestVar = 0;
+    if (jsonObject.getString("requestSentTime") != null) {
+        ZonedDateTime requestSentTime = LocalDateTime.parse(jsonObject.getString("requestSentTime"), commonUtilities.getDateTimeFormatter()).atZone(ZoneId.of("UTC"));
+        timeTakenInGettingRequestVar = ChronoUnit.MILLIS.between(requestSentTime.toLocalDateTime(), nowUTC.toLocalDateTime());
+    }
+    final long timeTakenInGettingRequest = timeTakenInGettingRequestVar;
+    vertx.eventBus().send(TermsVerticleGet.GET_BY_PRODUCT_CODE,
+            jsonObject,
+            result -> {
+                if (result.succeeded()) {
+                    routingContext.response()
+                            .putHeader("content-type", jsonObject.getString("Accept"))
+                            .putHeader("TRACING_ID", jsonObject.getString("TRACING_ID"))
+                            .putHeader("TRACE_ID", jsonObject.getString("TRACE_ID"))
+                            .putHeader("SPAN_ID", jsonObject.getString("SPAN_ID"))
+                            .putHeader("responseSentTime", LocalDateTime.now().format(commonUtilities.getDateTimeFormatter()))
+                            .putHeader("timeTakenInGettingRequest", Long.toString(timeTakenInGettingRequest))
+                            .putHeader("requestReceivedTime", nowUTC.toLocalDateTime().format(commonUtilities.getDateTimeFormatter()))
+                            .putHeader("requestSentTime", jsonObject.getString("requestSentTime") != null ? jsonObject.getString("requestSentTime") : "")
+                            .setStatusCode(200)
+                            .end(result.result().body().toString())
+
+                    ;
+                    logger.info("OUT");
+                } else {
+                    ReplyException cause = (ReplyException) result.cause();
+
+                    routingContext.response()
+                            .putHeader("content-type", jsonObject.getString("Accept"))
+                            .putHeader("TRACING_ID", jsonObject.getString("TRACING_ID"))
+                            .putHeader("TRACE_ID", jsonObject.getString("TRACE_ID"))
+                            .putHeader("SPAN_ID", jsonObject.getString("SPAN_ID"))
+                            .putHeader("responseSentTime", LocalDateTime.now().format(commonUtilities.getDateTimeFormatter()))
+                            .putHeader("timeTakenInGettingRequest", Long.toString(timeTakenInGettingRequest))
+                            .putHeader("requestReceivedTime", nowUTC.toLocalDateTime().format(commonUtilities.getDateTimeFormatter()))
+                            .putHeader("requestSentTime", jsonObject.getString("requestSentTime") != null ? jsonObject.getString("requestSentTime") : "")
+                            .setStatusCode(cause.failureCode())
+                            .end(cause.getMessage());
+                    logger.info("OUT");
+                }
+            });
+
+}
+```
+
+Worker Verticle:
+```
+private void getByProductCode(Message<JsonObject> messageConsumer) {
+        LocalDateTime requestReceivedTime_handler = LocalDateTime.now();
+        ZonedDateTime nowUTC_handler = ZonedDateTime.now(ZoneOffset.UTC);
+        final String TRACING_ID = messageConsumer.body().getString("TRACING_ID");
+        final String TRACE_ID = !commonUtilities.validateNullEmpty(messageConsumer.body().getString("Trace_Id")) ? UUID.randomUUID().toString() : messageConsumer.body().getString("Trace_Id");
+        final String SPAN_ID = !commonUtilities.validateNullEmpty(messageConsumer.body().getString("Span_Id")) ? UUID.randomUUID().toString() : messageConsumer.body().getString("Span_Id");
+
+        logger.info("{}", new GPCLogEvent(className, "getByProductCode", new GPCEntry<>("IN", System.currentTimeMillis()), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID)));
+
+        // Run the validation
+        logger.info("{}", new GPCLogEvent(className, "getByProductCode", new GPCEntry<>("validateCommonRequestHeader", true), new GPCEntry<>("IN", System.currentTimeMillis()), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID)));
+        commonUtilities.validateCommonRequestHeader(messageConsumer.body());
+        logger.info("{}", new GPCLogEvent(className, "getByProductCode", new GPCEntry<>("validateCommonRequestHeader", true), new GPCEntry<>("OUT", System.currentTimeMillis()), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID)));
+
+        // Product code - Mandatory
+        messageConsumer.body().put("product_codes", messageConsumer.body().getString("path_param_id"));
+
+        // Product code validation
+        if (commonUtilities.validateNullEmpty(messageConsumer.body().getString("product_codes"))) {
+            commonUtilities.checkProductIAORGLOGOPCTCode(messageConsumer.body(), TRACING_ID, TRACE_ID, SPAN_ID, false);
+        } else {
+            messageConsumer.body().getJsonArray("errors").add("id (path parameter) is  mandatory field");
+        }
+        // There are validation errors
+        if (messageConsumer.body().getJsonArray("errors").size() > 0) {
+            messageConsumer.body().put("error_message", "Validation errors");
+            messageConsumer.body().put("developer_message", messageConsumer.body().getJsonArray("errors").toString());
+            messageConsumer.body().put("error_code", "400");
+            messageConsumer.body().put("more_information", "There are " + messageConsumer.body().getJsonArray("errors").size() + " validation errors");
+            messageConsumer.fail(400, Json.encode(commonUtilities.errors(messageConsumer.body(), TRACING_ID, TRACE_ID, SPAN_ID)));
+            logger.info("{}", new GPCLogEvent(className, "getByProductCode", new GPCEntry<>("OUT", System.currentTimeMillis()), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID), new GPCEntry<>("TIME_TAKEN", ChronoUnit.MILLIS.between(requestReceivedTime_handler, LocalDateTime.now()))));
+            return;
+        }
+        Handler<AsyncResult<CreditCardTerms>> dataHandler = data -> {
+            if (data.succeeded()) {
+                logger.info("{}", new GPCLogEvent(className, "getByProductCode", new GPCEntry<>("Success", true), new GPCEntry<>("IN", System.currentTimeMillis()), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID)));
+                /*routingContext.response()
+                        .putHeader("content-type", messageConsumer.body().getString("Accept"))
+                        .putHeader("TRACING_ID", TRACING_ID)
+                        .putHeader("TRACE_ID", TRACE_ID)
+                        .putHeader("SPAN_ID", SPAN_ID)
+                        .putHeader("responseSentTime", ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime().format(commonUtilities.getDateTimeFormatter()))
+                        .putHeader("timeTakenInGettingRequest", Long.toString(timeTakenInGettingRequest))
+                        .putHeader("requestReceivedTime", nowUTC_handler.toLocalDateTime().format(commonUtilities.getDateTimeFormatter()))
+                        .putHeader("requestSentTime", messageConsumer.body().getString("requestSentTime") != null ? messageConsumer.body().getString("requestSentTime") : "")
+                        .setStatusCode(200)
+                        .end(Json.encode(data.result()));
+                 */
+                messageConsumer.reply(Json.encode(data.result()));
+                logger.info("{}", new GPCLogEvent(className, "getByProductCode", new GPCEntry<>("OUT", System.currentTimeMillis()), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID), new GPCEntry<>("TIME_TAKEN", ChronoUnit.MILLIS.between(requestReceivedTime_handler, LocalDateTime.now()))));
+            } else {
+                logger.info("{}", new GPCLogEvent(className, "getByProductCode", new GPCEntry<>("onError", true), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID)));
+                if (data.cause() instanceof NoDocumentFoundException) {
+                    messageConsumer.body().put("error_message", "Issue while fetching the details of the product");
+                    messageConsumer.body().put("developer_message", messageConsumer.body().getJsonArray("errors").add(commonUtilities.getStackTrace(data.cause())).toString());
+                    messageConsumer.body().put("error_code", "404");
+                    messageConsumer.body().put("more_information", "Issue while fetching the details of the product");
+                    //commonUtilities.errors(routingContext, messageConsumer.body(), TRACING_ID, TRACE_ID, SPAN_ID);
+                    messageConsumer.fail(404, Json.encode(commonUtilities.errors(messageConsumer.body(), TRACING_ID, TRACE_ID, SPAN_ID)));
+                } else {
+                    messageConsumer.body().put("error_message", "Internal Server Error: Issue while fetching the details of the product");
+                    messageConsumer.body().put("developer_message", messageConsumer.body().getJsonArray("errors").add(commonUtilities.getStackTrace(data.cause())).toString());
+                    messageConsumer.body().put("error_code", "500");
+                    messageConsumer.body().put("more_information", "Internal Server Error: Issue while fetching the details of the product");
+                    //commonUtilities.errors(routingContext, messageConsumer.body(), TRACING_ID, TRACE_ID, SPAN_ID);
+                    messageConsumer.fail(500, Json.encode(commonUtilities.errors(messageConsumer.body(), TRACING_ID, TRACE_ID, SPAN_ID)));
+                }
+                logger.error("{}", new GPCLogEvent(className, "getByProductCode", data.cause(), new GPCEntry<>("OUT", System.currentTimeMillis()), new GPCEntry<>("TRACING_ID", TRACING_ID), new GPCEntry<>("TRACE_ID", TRACE_ID), new GPCEntry<>("SPAN_ID", SPAN_ID), new GPCEntry<>("TIME_TAKEN", ChronoUnit.MILLIS.between(requestReceivedTime_handler, LocalDateTime.now()))));
+
+            }
+        };
+        // Search based on product codes
+        gpcFlowable.getByGPID(TRACING_ID,
+                TRACE_ID,
+                SPAN_ID,
+                TermsConstant.DOCUMENT_KEY,
+                gpcFlowable.getByProductCode(TRACING_ID, TRACE_ID, SPAN_ID, messageConsumer.body().getString("product_codes"),
+                        TermsConstant.API_VERSION_V1), // Get the GPID for the given IA or ORG~LOGO~PCT code
+                TermsConstant.API_VERSION_V1,
+                CreditCardTerms.class)
+                .subscribe(doc -> dataHandler.handle(Future.succeededFuture(doc)),
+                        error -> dataHandler.handle(Future.failedFuture(error)));
+    }
+```

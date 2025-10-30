@@ -1,0 +1,128 @@
+PulsarAdmin.createSubscription method does not work against a multi-node Pulsar cluster
+#### Expected behavior
+
+Subscription create for a topic with PulsarAdmin.createSubscription method does not work against a multi-node Pulsar cluster.
+
+#### Actual behavior
+
+PulsarAdmin reports a `HTTP 500 Internal Server Error` if the node to which PulsarAdmin is connected is not the Master for the topic.
+
+Broker has the following exception in logs:
+```
+Apr 18 17:34:30 localhost broker[10753]: 2018-04-18 17:34:30,816 - INFO  - [pulsar-web-61-30:PersistentTopics@1042] - [null][bfbb44c8-493f-4772-8195-bffa6a43260e] Creating subscription sender at message id 9223372036854775807:9223372036854775807:-1
+Apr 18 17:34:30 localhost broker[10753]: 2018-04-18 17:34:30,819 - WARN  - [pulsar-web-61-30:PersistentTopics@1077] - [null] [persistent://test-prop-2/prod-pulsar-cluster-1/test-namespace-6/bfbb44c8-493f-4772-8195-bffa6a43260e] Failed to create subscription sender at message id 9223372036854775807:9223372036854775807:-1
+Apr 18 17:34:30 localhost broker[10753]: javax.ws.rs.WebApplicationException: HTTP 307 Temporary Redirect
+Apr 18 17:34:30 localhost broker[10753]: #011at org.apache.pulsar.broker.web.PulsarWebResource.validateDestinationOwnership(PulsarWebResource.java:503)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.apache.pulsar.broker.admin.PersistentTopics.validateAdminOperationOnDestination(PersistentTopics.java:286)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.apache.pulsar.broker.admin.PersistentTopics.createSubscription(PersistentTopics.java:1061)
+Apr 18 17:34:30 localhost broker[10753]: #011at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+Apr 18 17:34:30 localhost broker[10753]: #011at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+Apr 18 17:34:30 localhost broker[10753]: #011at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+Apr 18 17:34:30 localhost broker[10753]: #011at java.lang.reflect.Method.invoke(Method.java:498)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory$1.invoke(ResourceMethodInvocationHandlerFactory.java:81)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:144)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:161)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$VoidOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:143)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:99)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:389)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:347)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:102)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.ServerRuntime$2.run(ServerRuntime.java:326)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.internal.Errors$1.call(Errors.java:271)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.internal.Errors$1.call(Errors.java:267)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.internal.Errors.process(Errors.java:315)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.internal.Errors.process(Errors.java:297)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.internal.Errors.process(Errors.java:267)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:317)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:305)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:1154)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:473)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:427)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:388)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:341)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:228)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:845)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1689)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.apache.pulsar.broker.web.ResponseHandlerFilter.doFilter(ResponseHandlerFilter.java:53)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1676)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:581)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:224)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1180)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:511)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:185)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1112)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:213)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:119)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:134)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.Server.handle(Server.java:524)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:319)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:253)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:273)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:95)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.io.SelectChannelEndPoint$2.run(SelectChannelEndPoint.java:93)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.executeProduceConsume(ExecuteProduceConsume.java:303)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.produceConsume(ExecuteProduceConsume.java:148)
+Apr 18 17:34:30 localhost broker[10753]: #011at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.run(ExecuteProduceConsume.java:136)
+Apr 18 17:34:30 localhost broker[10753]: #011at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+Apr 18 17:34:30 localhost broker[10753]: #011at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+Apr 18 17:34:30 localhost broker[10753]: #011at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+Apr 18 17:34:30 localhost broker[10753]: #011at java.lang.Thread.run(Thread.java:748)
+Apr 18 17:34:30 localhost broker[10753]: 2018-04-18 17:34:30,822 - INFO  - [pulsar-web-61-30:Slf4jRequestLog@60] - 192.168.1.2 - - [18/Apr/2018:17:34:30 +0000] "PUT //prod-pulsar-01:8080/admin/persistent/test-prop-2/prod-pulsar-cluster-1/test-namespace-6/bfbb44c8-493f-4772-8195-bffa6a43260e/subscription/sender HTTP/1.1" 500 5168 "-" "Jersey/2.23.2 (HttpUrlConnection 1.8.0_121)" 9
+```
+
+#### Steps to reproduce
+
+Setup multi-node Pulsar cluster and use PulsarAdmin.createSubscription method to create a subscription. Or execute the following unit test:
+
+```
+    @Test
+    public void subscriptionCreateTest() throws Exception
+    {
+        String host = "localhost";
+        String cluster = "multinode-cluster";
+
+        String webServiceUrl = "http://" + host + ":8080";
+        String property = "test-prop-subscription-create-" + UUID.randomUUID().toString();
+        String adminRole = "test-admins";
+        String namespace = "test-namespace";
+        String namespaceName = property + "/" + cluster + "/" + namespace;
+        String subscription = "test-subscription";
+
+        PulsarAdmin pulsarAdmin = new PulsarAdmin(new URL(webServiceUrl), new ClientConfiguration());
+
+        // create property if not exists
+        try
+        {
+            PropertyAdmin propertyAdmin = new PropertyAdmin();
+            propertyAdmin.setAdminRoles(Collections.singletonList(adminRole));
+            propertyAdmin.setAllowedClusters(ImmutableSet.of(cluster));
+            pulsarAdmin.properties().createProperty(property, propertyAdmin);
+        }
+        catch (PulsarAdminException.ConflictException ignored)
+        {
+        }
+
+        // create namespace if not exists
+        try
+        {
+            pulsarAdmin.namespaces().createNamespace(namespaceName);
+        }
+        catch (PulsarAdminException.ConflictException ignored)
+        {
+        }
+
+        // 100 tries to reproduce the issue
+        for (int i = 0; i < 100; ++i)
+        {
+            String topic = UUID.randomUUID().toString();
+            String topicName = "persistent://" + namespaceName + "/" + topic;
+            pulsarAdmin.persistentTopics().createSubscription(topicName, subscription, MessageId.earliest);
+        }
+        pulsarAdmin.close();
+    }
+```
+
+#### System configuration
+**Pulsar version**: 1.22.0
+Multiple Pulsar nodes.

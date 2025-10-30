@@ -1,0 +1,122 @@
+java.lang.NoSuchMethodError: com.google.common.util.concurrent.MoreExecutors.directExecutor()
+I've been grappling all day with java.lang.NoSuchMethodError issues, presumably due to Guava conflicts and some strange interaction with maven. I've also tried with different version of grpc-* and the protoc plugin, to no avail.
+
+Relevant parts of my pom.xml:
+
+```
+> <dependency>
+>       <groupId>io.grpc</groupId>
+>       <artifactId>grpc-netty</artifactId>
+>       <version>1.0.3</version>
+>     </dependency>
+>     <dependency>
+>       <groupId>io.grpc</groupId>
+>       <artifactId>grpc-protobuf</artifactId>
+>       <version>1.0.3</version>
+>     </dependency>
+>     <dependency>
+>       <groupId>io.grpc</groupId>
+>       <artifactId>grpc-stub</artifactId>
+>       <version>1.0.3</version>
+>     </dependency>
+
+> <plugins>
+>         <plugin>
+>         <groupId>org.xolstice.maven.plugins</groupId>
+>         <artifactId>protobuf-maven-plugin</artifactId>
+>         <version>0.5.0</version>
+>         <configuration>
+>           <protocArtifact>com.google.protobuf:protoc:3.0.2:exe:${os.detected.classifier}</protocArtifact>
+>           <pluginId>grpc-java</pluginId>
+>           <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.0.3:exe:${os.detected.classifier}</pluginArtifact>
+>           <checkStaleness>true</checkStaleness>
+>         </configuration>
+>         <executions>
+>           <execution>
+>             <goals>
+>               <goal>compile</goal>
+>               <goal>compile-custom</goal>
+>             </goals>
+>           </execution>
+>         </executions>
+>       </plugin>
+>       <plugin>
+> 
+```
+
+Here is also the relevant output of mvn dependency:tree -X:
+
+```
+[INFO] +- junit:junit:jar:4.12:test
+[INFO] |  \- org.hamcrest:hamcrest-core:jar:1.3:test
+[INFO] +- org.checkerframework:checker-qual:jar:2.1.6:compile
+[INFO] +- org.checkerframework:checker:jar:2.1.6:compile
+[INFO] +- org.checkerframework:compiler:jar:2.1.6:compile
+[INFO] +- org.checkerframework:jdk8:jar:2.1.6:compile
+[INFO] +- io.grpc:grpc-netty:jar:1.0.3:compile
+[INFO] |  +- io.grpc:grpc-core:jar:1.0.3:compile (version selected from constraint [1.0.3,1.0.3])
+[INFO] |  |  +- io.grpc:grpc-context:jar:1.0.3:compile
+[INFO] |  |  \- com.google.code.findbugs:jsr305:jar:3.0.0:compile
+[INFO] |  +- io.netty:netty-handler-proxy:jar:4.1.6.Final:compile
+[INFO] |  |  +- io.netty:netty-transport:jar:4.1.6.Final:compile
+[INFO] |  |  |  +- io.netty:netty-buffer:jar:4.1.6.Final:compile
+[INFO] |  |  |  |  \- io.netty:netty-common:jar:4.1.6.Final:compile
+[INFO] |  |  |  \- io.netty:netty-resolver:jar:4.1.6.Final:compile
+[INFO] |  |  +- io.netty:netty-codec-socks:jar:4.1.6.Final:compile
+[INFO] |  |  |  \- io.netty:netty-codec:jar:4.1.6.Final:compile
+[INFO] |  |  \- io.netty:netty-codec-http:jar:4.1.6.Final:compile
+[INFO] |  \- io.netty:netty-codec-http2:jar:4.1.6.Final:compile (version selected from constraint [4.1.6.Final,4.1.6.Final])
+[INFO] |     \- io.netty:netty-handler:jar:4.1.6.Final:compile
+[INFO] +- io.grpc:grpc-protobuf:jar:1.0.3:compile
+[INFO] |  +- com.google.guava:guava:jar:19.0:compile
+[INFO] |  +- com.google.protobuf:protobuf-java-util:jar:3.0.2:compile
+[INFO] |  |  \- com.google.code.gson:gson:jar:2.3:compile
+[INFO] |  +- com.google.protobuf:protobuf-java:jar:3.0.2:compile
+[INFO] |  \- io.grpc:grpc-protobuf-lite:jar:1.0.3:compile
+[INFO] \- io.grpc:grpc-stub:jar:1.0.3:compile
+
+```
+Please answer these questions before submitting your issue.
+
+### What version of gRPC are you using?
+
+1.0.3 (also tried 1.1.2)
+
+### What JVM are you using (`java -version`)?
+
+java version "1.8.0_101"
+Java(TM) SE Runtime Environment (build 1.8.0_101-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 25.101-b13, mixed mode)
+
+### What did you do?
+If possible, provide a recipe for reproducing the error.
+
+(See above for pom.xml)
+
+I then followed the HelloWorld example to build a client and a server. In a Junit test case, the client simply invokes the rpc via a blockingStub.
+
+### What did you expect to see?
+
+No errors.
+
+### What did you see instead?
+
+With 1.0.3
+```
+ java.lang.NoSuchMethodError: com.google.common.util.concurrent.MoreExecutors.directExecutor()Ljava/util/concurrent/Executor;
+ 	at io.grpc.internal.ClientCallImpl.<init>(ClientCallImpl.java:103)
+ 	at io.grpc.internal.ManagedChannelImpl$RealChannel.newCall(ManagedChannelImpl.java:556)
+ 	at io.grpc.internal.ManagedChannelImpl.newCall(ManagedChannelImpl.java:535)
+ 	at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:133)
+```
+
+With 1.1.2
+
+```
+java.lang.NoSuchMethodError: com.google.common.base.Preconditions.checkArgument(ZLjava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+
+	at io.grpc.ServiceDescriptor.validateMethodNames(ServiceDescriptor.java:129)
+	at io.grpc.ServiceDescriptor.<init>(ServiceDescriptor.java:83)
+	at io.grpc.ServiceDescriptor.<init>(ServiceDescriptor.java:78)
+	at io.grpc.ServiceDescriptor.<init>(ServiceDescriptor.java:66)
+```

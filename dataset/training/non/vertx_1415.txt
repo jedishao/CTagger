@@ -1,0 +1,8 @@
+redeploy="ant_pattern" incorrectly checks path in Windows
+As it is right now, passing something like `--redeploy="src/**/*.java"` has no effect on Windows machines, i.e. no file is ever matched against this pattern since the pattern tokenizer fails to break the pattern into tokens due to the fact that `/` is not a file separator on Windows.
+
+Rather than modifying either the tokenizer or the matching algorithm, a possible solution would be to store the patterns (called includes, see `io/vertx/core/impl/launcher/commands/Watcher.java
+` line `77`) after converting between *nix and Windows file separator char, if needed.
+
+I believe a better solution would be to enforce a file separator char on the pattern, i.e. refuse to accept something like `--redeploy="src\**\*.java"`, only accept path patterns separated by `/` and then replace this with the correct OS file separator, if needed.
+Ant has `/` as its default file separator character but allows you to change it. I don't think this is necessary. An "enforce and convert" should be all that is needed in this case.

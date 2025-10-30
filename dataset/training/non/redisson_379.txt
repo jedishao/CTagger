@@ -1,0 +1,36 @@
+Question: Does redisson handle redis clusters with password?
+when i tried with codes below 
+        Config config = new Config();
+        config.useClusterServers().setPassword("pass01").setScanInterval(3000)
+                .addNodeAddress("192.22.1.189:3382");
+        RedissonClient redisson = Redisson.create(config);
+        RList<String> strList = redisson.getList("strList");
+
+i got this exception
+Exception in thread "main" org.redisson.client.RedisException: NOAUTH Authentication required.. channel: [id: 0x236ed784, /192.20.178.31:62174 => /192.22.1.189:3382] command: CommandData [promise=DefaultPromise@294633e1(incomplete), command=(CLUSTER NODES), params=[], codec=null]
+
+and i debuged into redisson code ,it seems exception is throwed when doing a sync operation while creating a ClusterConnectionManager, 
+
+```
+public ClusterConnectionManager(ClusterServersConfig cfg, Config config) {
+    isReadFromSlaves = cfg.isReadFromSlaves();
+    connectListener = new ClusterConnectionListener(cfg.isReadFromSlaves());
+    init(config);
+
+    this.config = create(cfg);
+    init(this.config);
+
+    for (URI addr : cfg.getNodeAddresses()) {
+        RedisConnection connection = connect(cfg, addr, true);
+        if (connection == null) {
+            continue;
+        }
+
+        String nodesValue = connection.sync(RedisCommands.CLUSTER_NODES);//throws here
+```
+
+....
+
+my redisson version is 2.2.5
+
+thanks

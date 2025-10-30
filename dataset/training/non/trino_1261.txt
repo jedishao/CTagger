@@ -1,0 +1,70 @@
+Skew Join Optimizer in Presto
+Consider following query.
+
+SELECT * from B JOIN A WHERE B.x = A.x
+
+Consider a case, where the Table B data for column x is unevenly distributed and skewed for a specific key. A skewed distribution of keys manifests itself in skewed distribution of workload. As a result, some of the nodes joining the most popular keys will perform heavy computation compared to others. Handling the skewed key becomes a bottleneck for the entire JOIN stage which effectively delays the overall execution of the Hash Join operation.
+
+**Problem**: How can we evenly distribute the workload for a JOIN (INNER) operation with skewed keys ? ”
+
+The above query can be rewritten to redistribute the workload as:
+
+1.
+``` 
+(SELECT *, RAND(n) as newColumnLeft from B) as T1
+join
+(
+select *, 0 as newColumnRight from A
+UNION
+select *, 1 as newColumnRight from A
+UNION
+.
+.
+select *, n-1 as newColumnRight from A
+) as T2
+WHERE T1.x = T2.x AND T1.newColumnLeft = T2.newColumnRight
+```
+
+**Drawback**: Lots of replication for the non-skewed keys.
+
+2. Information about the skewed keys can be used to minimize the replication. assume for now, the keys (1, 3) from column x belonging to table B are skewed and the replication factor is assumed to be 3. The query can be rewritten to redistribute the most popular key further as follows:
+
+```
+SELECT * from
+(SELECT *, RAND(3) as newColumnLeft from B where B.x in (1,3)
+UNION
+SELECT *, 0 as newColumnLeft from B where B.x NOT in (1,3)
+) as T1 
+JOIN
+(SELECT *, 0 as newColumnRight from A where A.x in (1, 3)
+UNION
+SELECT *, 1 as newColumnRight from A.x in (1, 3) 
+UNION
+SELECT *,2 as newColumnRight from A.x in (1, 3)
+UNION
+SELECT *, 0 as newColumnRight from A where A.x NOT in (1, 3)) as T2
+WHERE 
+T1.x = T2.x And T1.newColumnLeft = T2.newColumnRight
+```
+
+For evaluation, two tables are created (Table definition in Appendix 2, https://docs.google.com/document/d/1gmzz8TsuVl9W2VK5sdorUw_sN1W1gWzw_oL4QKgAETM/edit?usp=sharing). Bigger Table has two fields, one of which is skewed on one key, the skewfactor is varied as shown below. The configuration for the cluster is as follows:
+
+Cluster Configs:
+Master Node Type: m3.2xlarge - 8 cores, 30GiB mem
+Worker Node Type: m3.2xlarge - 8 cores, 30GiB mem
+Min/Max Workers: 5 (On Demand Nodes)
+
+
+Bigger Table: # of Rows | Smaller Table: # of Rows | Skew % of the most popular key | Without Optimization | With Optimization | With Broadcast Join
+-- | -- | -- | -- | -- | --
+11000000 | 1000000 | 10% | 44 minutes | 20 minutes | 50 minutes
+11200000 | 1000000 | 12% | 67 minutes | 27 minutes | 63 minutes
+11500000 | 1000000 | 15% | 87 minutes | 32 minutes | 100 minutes
+
+**Drawback**: Appending the new column, there are multiple TableScans for the same table which can introduce latency. 
+
+3. To avoid the multiple table scans, a solution is proposed here: https://docs.google.com/document/d/1gmzz8TsuVl9W2VK5sdorUw_sN1W1gWzw_oL4QKgAETM/edit?usp=sharing (Work in Progress)
+
+Highlights from the doc: 
+a. Hint framework to get inputs from user (can be extended beyond Skew Join Implementation)
+b. Explode Operator (used here for replicating the smaller table, can be extended beyond Skew Join Implementation) 

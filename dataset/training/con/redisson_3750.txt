@@ -1,0 +1,92 @@
+redis lock not working as expected
+I have the following test scenario:
+
+```
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+```
+
+```
+@Configuration
+class RedissonConfig {
+    @Bean
+    fun redissonClient(): RedissonClient {
+        val config = Config()
+        config
+            .useSingleServer()
+            .address = "redis://localhost:6379"
+
+        return Redisson.create(config)
+    }
+
+    @Bean
+    fun redissonReactiveClient(redissonClient: RedissonClient): RedissonReactiveClient {
+        return redissonClient.reactive()
+    }
+}
+```
+
+```
+@Component
+class X(
+    private val redisson: RedissonReactiveClient,
+    private val curatorClient: CuratorFramework,
+    ...
+) {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(X::class.java)
+        private const val jobName = "X"
+    }
+
+    @PostConstruct
+    fun x() = runBlocking {
+        (1..1000)
+            .map { i ->
+                async(Dispatchers.IO) {
+                    runWithRedis(i)
+                }
+            }
+            .awaitAll()
+    }
+
+    suspend fun runWithRedis(i: Int) = coroutineScope {
+        val currentTimeMillis = System.currentTimeMillis()
+        val wasLockAcquired = redisson
+            .getLock("the-lock-name")
+            .tryLock(1, 30, TimeUnit.SECONDS)
+            .awaitSingle()
+
+        if (wasLockAcquired.not()) {
+            log.info(
+                "Job {}: Failed to acquire lock. Possible reason: another instance job might have already acquired the lock for this job type. Terminating job.",
+                jobName
+            )
+            return@coroutineScope
+        }
+
+        log.info("Job {}: Lock acquired ${System.currentTimeMillis() - currentTimeMillis}", jobName)
+
+        ...
+    }
+```
+
+My expectation is the following: if the lock couldn't be acquired in 1s  then it should show `Failed to acquire lock`. If the lock is acquired then, in 30s, it should be automatically released by Redis (this 30s are very important as I only need to allow another run after this time). Only one should should be acquired in 30s. The problem is that most of the times I get multiple `Lock acquired` between 30s intervals.
+
+```
+2021-07-30 10:24:53.277  INFO 7960 --- [tcher-worker-65] i.m.r.s.job.x: Job X: Lock acquired 149
+2021-07-30 10:24:53.317  INFO 7960 --- [tcher-worker-66] i.m.r.s.job.x: Job X: Lock acquired 93
+2021-07-30 10:24:53.359  INFO 7960 --- [tcher-worker-35] i.m.r.s.job.x: Job X: Lock acquired 126
+2021-07-30 10:24:53.396  INFO 7960 --- [tcher-worker-22] i.m.r.s.job.x: Job X: Lock acquired 140
+2021-07-30 10:24:54.229  INFO 7960 --- [tcher-worker-66] i.m.r.s.job.X: Job X: Failed to acquire lock. Possible reason: another instance job might have already acquired the lock for this job type. Terminating job.
+2021-07-30 10:24:54.229  INFO 7960 --- [tcher-worker-22] i.m.r.s.job.X: Job X: Failed to acquire lock. Possible reason: another instance job might have already acquired the lock for this job type. Terminating job.
+2021-07-30 10:24:54.229  INFO 7960 --- [tcher-worker-50] i.m.r.s.job.X: Job X: Failed to acquire lock. Possible reason: another instance job might have already acquired the lock for this job type. Terminating job.
+...
+```
+The code launches 1000 parallel execution tasks. Since Redis is (mostly) single threaded then I wasn't expecting any concurrency problems (and I'm pretty sure they aren't on the Redis side). I am also using a single node Redis.
+
+I have also tried another solution using Zookeeper Leader Election and that one works as expected using the same caller function. It acquired a single lock at a time.
+
+Am I doing something wrong here are we having a Redisson issue?

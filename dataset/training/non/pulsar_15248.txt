@@ -1,0 +1,104 @@
+JWT: Generate different tokens when using key file and key inline with same secret key content
+according the doc: https://pulsar.apache.org/docs/en/2.9.2/security-jwt/ 
+
+I create a secret key
+
+```bash
+bin/pulsar tokens create-secret-key --output  ./my-secret.key --base64
+```
+
+Key file content is `u+FxaxYWpsTfxeEmMh8fQeS3g2jfXw4+sGIv+PTY+BY=`
+
+And I generate tokens using key file:
+
+```bash
+bin/pulsar tokens create --secret-key file:./my-secret.key --subject test-user
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXVzZXIifQ.xLbLDNJU2J_P5y5qQ_3nmeEm8JvoU8V5H2Qir1akRqs
+```
+
+
+but I  generate  key using  inline:
+
+```
+bin/pulsar tokens create --secret-key 'data:;base64,u+FxaxYWpsTfxeEmMh8fQeS3g2jfXw4+sGIv+PTY+BY=' --subject test-user
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXVzZXIifQ.QH0Bm9ANln6JaOwmqh6c1aE1H6UcafydjAiph9j9u_Q
+```
+
+It's totally two different token come out.
+
+Then I look into the code and debug it. 
+code:  [TokensCliUtils](https://github.com/apache/pulsar/blob/branch-2.9/pulsar-broker/src/main/java/org/apache/pulsar/utils/auth/tokens/TokensCliUtils.java) . 
+In `TokensCliUtilsCommandCreateToken.run()` ,  `encodedKey`  are different value when reading from  key file or  reading key inline 
+
+```java
+        public void run() throws Exception {
+            if (secretKey == null && privateKey == null) {
+                System.err.println(
+                        "Either --secret-key or --private-key needs to be passed for signing a token");
+                System.exit(1);
+            } else if (secretKey != null && privateKey != null) {
+                System.err.println(
+                        "Only one of --secret-key and --private-key needs to be passed for signing a token");
+                System.exit(1);
+            }
+
+            Key signingKey;
+
+            if (privateKey != null) {
+                byte[] encodedKey = AuthTokenUtils.readKeyFromUrl(privateKey);
+                signingKey = AuthTokenUtils.decodePrivateKey(encodedKey, algorithm);
+            } else {
+                //------------  different value ---------------
+                byte[] encodedKey = AuthTokenUtils.readKeyFromUrl(secretKey);
+                signingKey = AuthTokenUtils.decodeSecretKey(encodedKey);
+            }
+
+            Optional<Date> optExpiryTime = Optional.empty();
+            if (expiryTime != null) {
+                long relativeTimeMillis;
+                try {
+                    relativeTimeMillis = TimeUnit.SECONDS.toMillis(
+                            RelativeTimeUtil.parseRelativeTimeInSeconds(expiryTime));
+                } catch (IllegalArgumentException exception) {
+                    throw new ParameterException(exception.getMessage());
+                }
+                optExpiryTime = Optional.of(new Date(System.currentTimeMillis() + relativeTimeMillis));
+            }
+
+            String token = AuthTokenUtils.createToken(signingKey, subject, optExpiryTime);
+            System.out.println(token);
+        }
+```
+
+I write simple code to test why:
+
+```java
+byte[] b1 = ByteStreams.toByteArray((InputStream) new URL("file:./my-secret.key").getContent());
+String s = "u+FxaxYWpsTfxeEmMh8fQeS3g2jfXw4+sGIv+PTY+BY=";
+byte[] b11 = s.getBytes(StandardCharsets.UTF_8);
+
+byte[] b2 = ByteStreams.toByteArray((InputStream) new URL("data:;base64," + s).getContent());
+byte[] b22 = Decoders.BASE64.decode(s);
+
+System.out.println(Arrays.toString(b1));
+System.out.println(Arrays.toString(b11));
+
+System.out.println(Arrays.toString(b2));
+System.out.println(Arrays.toString(b22));
+```
+
+output:
+
+```
+[117, 43, 70, 120, 97, 120, 89, 87, 112, 115, 84, 102, 120, 101, 69, 109, 77, 104, 56, 102, 81, 101, 83, 51, 103, 50, 106, 102, 88, 119, 52, 43, 115, 71, 73, 118, 43, 80, 84, 89, 43, 66, 89, 61]
+[117, 43, 70, 120, 97, 120, 89, 87, 112, 115, 84, 102, 120, 101, 69, 109, 77, 104, 56, 102, 81, 101, 83, 51, 103, 50, 106, 102, 88, 119, 52, 43, 115, 71, 73, 118, 43, 80, 84, 89, 43, 66, 89, 61]
+[-69, -31, 113, 107, 22, 22, -90, -60, -33, -59, -31, 38, 50, 31, 31, 65, -28, -73, -125, 104, -33, 95, 14, 62, -80, 98, 47, -8, -12, -40, -8, 22]
+[-69, -31, 113, 107, 22, 22, -90, -60, -33, -59, -31, 38, 50, 31, 31, 65, -28, -73, -125, 104, -33, 95, 14, 62, -80, 98, 47, -8, -12, -40, -8, 22]
+```
+
+So I can conclude that:
+
+1. The key file way is simply  read bytes from file . And key inline way do actually decode base64 string.  So the key value is different. 
+2. The key value is different.  So does the token 
+
+The Problem is , I am not quite sure it is bug or not , for it still run fine if using one way only 

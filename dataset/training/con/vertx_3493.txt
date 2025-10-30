@@ -1,0 +1,7 @@
+Wildcard port (i.e. port 0) should be shared when created by several instances of the same Verticle
+The full details are in this Quarkus issue, but as far as I can see this is only vert.x code so I don't think the Quarkus part is relevant: https://github.com/quarkusio/quarkus/issues/9890
+
+If you set the HTTP port to 0 the every IO thread will open its own HTTP port, but only the last opened one will be reported as the actual port. For HTTPS this causes other problems as the binding is relativity expensive and happens in a sync block, so if you have lots of IO threads they all wait at the sync block and the blocked thread detector prints a warning.
+
+
+

@@ -1,0 +1,19 @@
+`event-listener` called by a thread which the interrupted flag had been set
+If a query failed, `event-listener` will be called by a thread which the interrupted flag had been set to true.
+This may create unexpected trouble to plugin developer.
+```java
+    @Override
+    public void queryCompleted(QueryCompletedEvent queryCompletedEvent)
+    {
+        if (Thread.currentThread().isInterrupted()) {
+            log.info("is Interrupted");
+        }
+        else {
+            log.info("is NOT Interrupted");
+        }
+        ...
+```
+```sql
+SELECT 123;         -- “is NOT Interrupted”
+SELECT syntaxerror; -- “is Interrupted”
+```

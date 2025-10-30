@@ -1,0 +1,9 @@
+Allow connectors to control TopN pushdown based on data-type of the sort keys
+Some databases' default sort order differs from that of Trino due to collation differences.
+For such databases TopN pushdown causes incorrect results when the sort keys include a column which has a collation-aware data-type (e.g. most textual types).
+
+Some databases allow specifying custom collations for functions and operators (e.g. [Postgres](https://www.postgresql.org/docs/13/collation.html)).
+
+We should make enough information available to the connector so that it can decide to use non-default collations when pushing down TopN for a textual datatype. Currently `topNFunction` received a `List<SortItem>` and `limit` which is missing the data types of the columns so this cannot be implemented yet.
+
+Note that in the case of Postgres it only allows `COLLATE` to be used with types that support collation (`text`, `varchar`, `char`) so knowing the Trino `Type` is not enough to make this decision because e.g. `enum` from Postgres also looks like `VarcharType` to Trino.

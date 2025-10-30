@@ -1,0 +1,25 @@
+RemoteService
+``` java
+public interface MyServiceInterface {
+  Long method1(SomeObject arg);
+  Long method2(SomeObject arg1, Long arg2);
+}
+
+// server side - can be N servers (N Redisson instances)
+
+MyServiceInterface bean = new MyObject(); // implements MyServiceInterface
+redisson.getRemoteService().register(bean);
+
+// client side - can be N clients (N Redisson instances)
+
+// Invocation modes:
+// 1. Concurrent (default) - 5 concurrent invocations leads to 5 parallel executions using 5 different Redisson instances on server side 
+// 2. Queue - 5 concurrent invocations will be queued and executed one by one
+MyServiceInterface remote = redisson.getRemoteService().get(MyServiceInterface.class);
+Long res = remote.method1(new SomeObject());
+Long res = remote.method2(new SomeObject(), 100L);
+
+// Queued mode
+MyServiceInterface remote = redisson.getRemoteService().get(MyServiceInterface.class, Mode.Queue);
+Long res = remote.method1(new SomeObject());
+```

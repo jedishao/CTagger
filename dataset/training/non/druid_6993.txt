@@ -1,0 +1,66 @@
+[Proposal] Dynamic prioritization and laning
+# Motivation
+
+(Side note- at various points in this proposal I talk about 'historicals', but by that I mostly mean 'historicals and any other nodes that brokers can fan out to, including task peons'. It would have been a mouthful to type out every time.)
+
+Clusters sometimes have heterogenous workloads: imagine both 'light' queries that could run at interactive speeds and 'heavy' resource-intensive queries. Busy clusters with heterogenous workloads can become unresponsive, even to 'light' queries, when cluster resources are all tied up processing 'heavy' queries. It's frustrating for end users who are accustomed to 'light' queries typically running quickly. Starvation can happen for multiple kinds of resources:
+
+1. The `@Processing` thread pool on historical nodes (`druid.processing.numThreads`). Druid does make an effort to have each processing task be bite-sized (each one just processes one segment), so even though they are not preemptible, they are amenable to prioritization. Currently, query prioritization (setting `priority` in the query context) only does one thing: control the execution order of tasks in the processing pool. When priorities are set properly, this is reasonably effective at avoiding starvation.
+2. The HTTP server thread pool on historicals and brokers (`druid.server.http.numThreads`). The model here is that each query gets one thread.
+3. The merge buffer pool on historicals and brokers (`druid.processing.numMergeBuffers`). Each groupBy query needs one of these on historicals, and may need some on brokers as well.
+4. The HTTP client connection limit from brokers to historicals (`druid.broker.http.numConnections`). Each connection can only carry one query at a time.
+
+Items 2, 3, and 4 are allocated per-query, meaning that they effectively act as limits on the number of concurrent queries that can run. If each historical node has, let's say, 30 HTTP server threads, then no more than 30 queries can run concurrently at a time on that server. If all 30 of these queries are 'heavy' then they will starve out 'light' ones.
+
+In practice, the ways that people prevent starvation of the resources of items 2, 3, and 4 are to either set the limits high enough that they exceed the number of 'heavy' queries that might run at once, or to try to separate 'heavy' and 'light' queries onto different nodes (by issuing heavy vs. light queries to different brokers, and using historical tiers to create a tier that only handles 'light' queries). Neither of these is really a very satisfying approach, since it means cluster architecture must be closely adapted to the expected query workload, creating more work for cluster operators and reducing stability when workloads change unexpectedly.
+
+There is one more problem: even though query prioritization (1) is effective at preventing starvation of the `@Processing` pool, it can be difficult to set priorities appropriately. It's generally doable when end users are accessing Druid through an API layer that is under tight control. But when end users access Druid directly, or are accessing Druid through a third party UI like Superset or Looker, it is not likely that priorities will be properly set.
+
+# Proposed changes
+
+## Concept
+
+The idea is to establish *dynamic prioritization* and *laning*.
+
+Dynamic prioritization (adjusting query properties automatically) is meant to address the problem that end users are not always in a good position to be able to set priorities effectively. Laning, as in fast and slow lanes, is meant to cap the number of concurrently-running low-priority queries, and thereby reserve guaranteed resources for high-priority queries. This makes query prioritization effective at preventing starvation across the entire query stack, not just in the `@Processing` thread pool.
+
+## New properties
+
+|Property|Description|Where?|Default|
+|-|-|-|-|
+|druid.broker.priority.periodThreshold|An ISO8601 period. Queries whose intervals fall outside [now - periodThreshold, ∞) will have their priority adjusted by periodAdjustment.|Broker|null (ignored)|
+|druid.broker.priority.periodAdjustment|Amount to adjust priority for queries who fall outside the periodThreshold. Negative numbers mean lower priorities and positive numbers mean higher. Generally a negative number would make more sense.|Broker|-1|
+|druid.server.http.maxLowPriorityThreads|Maximum number of HTTP server threads to devote to queries with negative priority. This parameter must be set lower than all the limits in items 2, 3, and 4 above in "motivation" in order to prevent starvation.|Broker, Historical, Task|Integer.MAX_VALUE|
+
+## Altered query behavior
+
+When a query comes in with priority less than zero, and the low-priority pool is full (there are maxLowPriorityThreads already running), reject the query with an HTTP 429 "Too Many Requests" code. Clients would be expected to do automatic backoff and retry. HTTP 503 "Service Unavailable" might be a more appropriate return code, but a less-common code like 429 makes it easier to know when to trigger the backoff/retry loop in Druid clients.
+
+Don't ever reject queries with priority zero or higher.
+
+This ensures that queries with non-negative priority cannot be starved out by queries with negative priority.
+
+# Rationale
+
+For dynamic prioritization, the goal in this proposal is to keep it as simple as possible while still being useful. I think basing it totally off the interval does that.
+
+For laning, while arriving at the idea to reject low-priority queries, I thought of a few other options and decided against them:
+
+- Queue up queries past maxLowPriorityThreads rather than rejecting them. I didn't propose this since Druid's HTTP server design is thread-per-request, so a server thread is allocated upfront, and the only way I could see to give up the thread is to abort the query. The HTTP server could potentially be refactored to make it possible to queue up queries without hogging threads, but I think that would make more sense as future work. Of course, at some point, queries would still need to be rejected, since you can't queue an infinite number of requests.
+- Allow low-priority queries to run past maxLowPriorityThreads, but preempt them if higher-priority queries come in. This is how the `@Processing` thread pool works, but I don't think it'd work for the other levels of the query stack, since things like HTTP threads, merge buffers, and broker -> historical connections are allocated upfront and cannot be reclaimed without aborting the query.
+
+# Operational impact
+
+The new features would be optional and off by default, so there will be no operational impact to people that don't want to turn them on.
+
+# Test plan
+
+This sort of thing would need to be tested on real clusters to provide some assurance that it is effective. I have a few in mind that would be good candidates.
+
+# Future work
+
+- Improving the cost function that differentiates 'heavy' and 'light' queries, possibly by taking into account the number of rows, number of columns, expected filter selectivity, amount of computation estimated per row, and so on.
+
+- Queue up low priority queries somehow, rather than rejecting them.
+
+- Some way of setting the low-priority concurrency limit that is easier than `druid.server.http.maxLowPriorityThreads`. Setting a number of threads correctly requires cluster operators to think about many other different parameters on multiple node types.

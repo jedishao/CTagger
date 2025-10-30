@@ -1,0 +1,4 @@
+Store lookups-cached-global data on disk for more reliable startup
+Since the changes to block startup on lookup load in 0.11.0 (which are good for consistency) we have a new problem: the lookups-cached-global extension may block startup for an excessively long time, or indefinitely, if an external service it queries is unavailable. This is particularly noticeable with JDBC lookups although it can happen with other types as well. It would be better if they stored the lookup data on disk and restored this on startup, rather than blocking waiting for an initial sync. Ideally, this location should be shared across all Druid JVMs running on the same machine, which would be super helpful for task peons.
+
+This would be analogous to the global `druid.lookup.snapshotWorkingDir` config, although that one only snapshots lookup _config_ and not lookup _data_.

@@ -1,0 +1,92 @@
+Failed to bind address already in use (shutdown not working properly?)
+Please answer these questions before submitting your issue.
+
+### What version of gRPC are you using?
+* 1.13.1 grpc-all
+* 4.1.25.Final netty-all
+* 2.0.8.Final netty-tcnative-boringssl-static
+
+### What did you expect to see?
+In my shutdown, I do the following:
+* call the `io.grpc.Server#shutdown` method 
+* shut down my bossEventLoopGroup with the `EventLoopGroup#shutdownGracefully()` method
+* shut down my workerEventLoopGroup with the `EventLoopGroup#shutdownGracefully()` method
+* await termination of my bossEventLoopGroup with the `EventLoopGroup#awaitTermination(long timeout, TimeUnit unit)` method
+* await termination of my workerEventLoopGroup with the `EventLoopGroup#awaitTermination(long timeout, TimeUnit unit)` method
+* await termination of my server with the `Server#awaitTermination()` method
+
+This happens in the teardown of a unit test.
+
+Intermittently, the next test that runs fails with an "Address already in use" cause which I have verified is because the previous test is still holding on to the port for some reason.
+
+I expect my shutdown procedure to guarantee that the port will be free after shutdown.
+
+**Am I missing something in my shutdown procedure or could this be a bug?**
+
+Relevant bits of stack trace and thread dump at the point when the second test fails to start the server:
+```
+java.io.IOException: Failed to bind
+ 	at io.grpc.netty.NettyServer.start(NettyServer.java:252)
+ 	at io.grpc.internal.ServerImpl.start(ServerImpl.java:163)
+ 	at io.grpc.internal.ServerImpl.start(ServerImpl.java:78)
+ 	...
+ Caused by: io.netty.channel.unix.Errors$NativeIoException: bind(..) failed: Address already in use
+ 	at io.netty.channel.unix.Errors.newIOException(Errors.java:122)
+ 	at io.netty.channel.unix.Socket.bind(Socket.java:287)
+ 	at io.netty.channel.epoll.AbstractEpollChannel.doBind(AbstractEpollChannel.java:688)
+ 	at io.netty.channel.epoll.EpollServerSocketChannel.doBind(EpollServerSocketChannel.java:70)
+ 	at io.netty.channel.AbstractChannel$AbstractUnsafe.bind(AbstractChannel.java:558)
+ 	at io.netty.channel.DefaultChannelPipeline$HeadContext.bind(DefaultChannelPipeline.java:1358)
+ 	at io.netty.channel.AbstractChannelHandlerContext.invokeBind(AbstractChannelHandlerContext.java:501)
+ 	at io.netty.channel.AbstractChannelHandlerContext.bind(AbstractChannelHandlerContext.java:486)
+ 	at io.netty.channel.DefaultChannelPipeline.bind(DefaultChannelPipeline.java:1019)
+ 	at io.netty.channel.AbstractChannel.bind(AbstractChannel.java:254)
+ 	at io.netty.bootstrap.AbstractBootstrap$2.run(AbstractBootstrap.java:366)
+ 	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163)
+ 	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:404)
+ 	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:313)
+ 	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:884)
+ 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+ 	at java.lang.Thread.run(Thread.java:748)
+
+"epollEventLoopGroup-2-2" 
+    java.lang.Thread.State: RUNNABLE
+         at io.netty.channel.epoll.Native.epollWait0(Native Method)
+         at io.netty.channel.epoll.Native.epollWait(Native.java:114)
+         at io.netty.channel.epoll.EpollEventLoop.epollWait(EpollEventLoop.java:239)
+         at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:256)
+         at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:884)
+         at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+         at java.lang.Thread.run(Thread.java:748)
+ 
+ "epollEventLoopGroup-2-1" 
+    java.lang.Thread.State: RUNNABLE
+         at io.netty.channel.epoll.Native.epollWait0(Native Method)
+         at io.netty.channel.epoll.Native.epollWait(Native.java:114)
+         at io.netty.channel.epoll.EpollEventLoop.epollWait(EpollEventLoop.java:239)
+         at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:256)
+         at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:884)
+         at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+         at java.lang.Thread.run(Thread.java:748)
+ 
+ "ObjectCleanerThread" 
+    java.lang.Thread.State: TIMED_WAITING
+         at java.lang.Object.wait(Native Method)
+         at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:143)
+         at io.netty.util.internal.ObjectCleaner$1.run(ObjectCleaner.java:54)
+         at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+         at java.lang.Thread.run(Thread.java:748)
+
+
+ "Scheduler-560041895" 
+    java.lang.Thread.State: TIMED_WAITING
+         at sun.misc.Unsafe.park(Native Method)
+         at java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:215)
+         at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:2078)
+         at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:1093)
+         at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:809)
+         at java.util.concurrent.ThreadPoolExecutor.getTask(ThreadPoolExecutor.java:1074)
+         at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1134)
+         at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+         at java.lang.Thread.run(Thread.java:748)
+```

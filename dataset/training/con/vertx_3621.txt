@@ -1,0 +1,18 @@
+Vertx http client with http2 on worker verticle
+Hi,
+
+I am looking for suggestion on how to solve the problem we are facing.
+
+We have a compute which is combination of CPU and IO and we do this in worker thread.
+
+IO is basically an http call over http2 - now due to known limitation of http2 call not supported on worker verticle we do this on event loop verticle. We had to create new vertx instance just for http client.
+
+task()   {
+1. CPU bound work -> running on worker thread
+2. Call IO -> context switches to eventloop thread
+3. CPU bound work -> it continus the call back and rest of the execution on same eventloop thread as above. we want this to go back to original or any worker thread but not on eventloop thread.
+}
+
+Entire task code is written with rxjava2 for obvious reasons.
+
+We did 1 more experiment where we made a blocking IO call in step 2 - it holds the worker thread and resumes from same when IO call completes. But we do not want to go with approach as it has other limitations. 

@@ -1,0 +1,20 @@
+Make reads from Spillers asynchronous
+Currently `Spiller` has a following interface:
+
+```
+public interface Spiller
+        extends Closeable
+{
+    /**
+     * Initiate spilling of pages stream. Returns completed future once spilling has finished.
+     */
+    CompletableFuture<?> spill(Iterator<Page> pageIterator);
+
+    /**
+     * Returns list of previously spilled Pages streams.
+     */
+    List<Iterator<Page>> getSpills();
+}
+```
+
+This make reads from spillers synchronous, which can block operators. This should be fixed. The biggest obstacle is in how to use asynchronous reading method in `MergeSorter`.

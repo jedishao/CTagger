@@ -1,0 +1,15 @@
+Disabling a datasource with a running realtime task results in weird state
+Behavior encountered on:
+Druid 0.9.0 / Druid 0.9.1-rc3
+Tranquility Core 0.8.1
+
+**Description**
+When a datasource is disabled that has a running realtime task through the coordinator node REST endpoint (/druid/coordinator/v1/datasources/{dataSourceName}), a 200 is returned, but the datasource is still listed and enabled (can write and query). When the task finishes, the segments before the realtime task’s interval are disabled, but the segments during the interval are persisted. Subsequent writes will create new segments. Listing the datasources will show the datasource that should be disabled. The persisted segments can't be disabled nor can the datasource, which means the segments can't be killed.
+
+Killing the running task and then disabling the datasource does work as expected; however, this means no writes can be made for that interval.
+
+**Steps to Reproduce**
+1. Follow the installation instructions for quickstart, including the real-time ingestion section.
+2. While the real-time task is still running, send a DELETE request to the disable datasource endpoint (/druid/coordinator/v1/datasources/{dataSourceName}) for the datasource being written to.
+3. Wait until the task has completed.
+4. Querying for the data will yield the points written during the real-time task. Listing datasources (/druid/coordinator/v1/datasources) will yield the datasource that was expected to be disabled.

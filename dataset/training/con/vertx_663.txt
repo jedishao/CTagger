@@ -1,0 +1,151 @@
+Problem with shared map
+I'm currently debugging an issue I have with a shared map. It might be due to a misunderstanding on my part. If so, I'm sorry for the noise. Below is a minimal test case that demonstrates the problem. In the Putter verticle, I add a new map entry, and in the Getter verticle I
+1. Print the keySet().
+2. Print the result of containsKey() with the inserted key.
+
+But for some reason the two don't agree on the contents of the map. E.g. I get the output:
+
+```
+[gameId: 1, playerId: 4]
+false
+```
+
+So I'm guessing there's some concurrency issue at play here.
+
+I ran this test case with:
+
+$ javac -cp "/home/estan/Projekt/dynastica/client-proxy/lib/vert.x-1.3.1.final/lib/*" *.java
+$ /home/estan/Projekt/dynastica/client-proxy/lib/vert.x-1.3.1.final/bin/vertx run Starter
+$ telnet 6000
+$ telnet 6001
+
+The last two commands are just to trigger the Putter and Getter to do their jobs, respectively.
+
+Best regards,
+Elvis Stansvik
+
+Test case:
+
+Starter.java
+
+``` java
+import org.vertx.java.deploy.Verticle;
+
+public class Starter extends Verticle {
+    @Override
+    public void start() {
+        container.deployVerticle("Putter");
+        container.deployVerticle("Getter");
+    }
+}
+```
+
+Putter.java
+
+``` java
+import org.vertx.java.core.Handler;
+import org.vertx.java.core.net.NetServer;
+import org.vertx.java.core.net.NetSocket;
+import org.vertx.java.deploy.Verticle;
+
+import java.util.concurrent.ConcurrentMap;
+
+public class Putter extends Verticle {
+    private ConcurrentMap<ClientId, Integer> map;
+
+    public void start() {
+        map = vertx.sharedData().getMap("map");
+
+        NetServer server = vertx.createNetServer();
+        server.connectHandler(new Handler<NetSocket>() {
+            @Override
+            public void handle(final NetSocket socket) {
+                map.put(new ClientId(1, 4), 3);
+            }
+        });
+        server.listen(6000);
+    }
+}
+```
+
+Getter.java
+
+``` java
+import org.vertx.java.core.Handler;
+import org.vertx.java.core.net.NetServer;
+import org.vertx.java.core.net.NetSocket;
+import org.vertx.java.deploy.Verticle;
+
+import java.util.concurrent.ConcurrentMap;
+
+public class Getter extends Verticle {
+    private ConcurrentMap<ClientId, Integer> map;
+
+    public void start() {
+        map = vertx.sharedData().getMap("map");
+
+        NetServer server = vertx.createNetServer();
+        server.connectHandler(new Handler<NetSocket>() {
+            @Override
+            public void handle(final NetSocket socket) {
+                System.out.println(map.keySet());
+                System.out.println(map.containsKey(new ClientId(1, 4)));
+            }
+        });
+        server.listen(6001);
+    }
+}
+```
+
+ClientId.java
+
+``` java
+import org.vertx.java.core.shareddata.Shareable;
+
+public class ClientId implements Shareable {
+
+    private final int playerId;
+    private final int gameId;
+
+    public ClientId(int gameId, int playerId) {
+        this.playerId = playerId;
+        this.gameId = gameId;
+    }
+
+    public int getPlayerId() {
+        return playerId;
+    }
+
+    public int getGameId() {
+        return gameId;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        final ClientId that = (ClientId) o;
+        if (playerId != that.playerId)
+            return false;
+        if (gameId != that.gameId)
+            return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = playerId;
+        result = 31 * result + gameId;
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "gameId: " + gameId + ", playerId: " + playerId;
+    }
+}
+```

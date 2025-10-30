@@ -1,0 +1,159 @@
+Tasks not stop
+### Affected Version
+
+0.12.1
+
+### Description
+
+Job payloads:
+```json
+{
+	"task": "index_realtime_sql-metrics_2019-06-10T11:00:00.000Z_0_0",
+	"payload": {
+		"id": "index_realtime_sql-metrics_2019-06-10T11:00:00.000Z_0_0",
+		"resource": {
+			"availabilityGroup": "sql-metrics-2019-06-10T11:00:00.000Z-0000",
+			"requiredCapacity": 1
+		},
+		"spec": {
+			"dataSchema": {
+				"dataSource": "sql-metrics",
+				"parser": {
+					"type": "map",
+					"parseSpec": {
+						"format": "json",
+						"timestampSpec": {
+							"column": "timestamp",
+							"format": "millis",
+							"missingValue": null
+						},
+						"dimensionsSpec": {
+							"dimensions": ["appName", "hostName", "hostPort", "driverType"],
+							"spatialDimensions": []
+						}
+					}
+				},
+				"metricsSpec": [{
+					"type": "count",
+					"name": "count"
+				}, {
+					"type": "longSum",
+					"name": "costTime",
+					"fieldName": "costTime",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "failurePercent",
+					"fieldName": "failurePercent",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "failureCount",
+					"fieldName": "failureCount",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "total",
+					"fieldName": "total",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "queryCount",
+					"fieldName": "queryCount",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "updateCount",
+					"fieldName": "updateCount",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "requestByteSize",
+					"fieldName": "requestByteSize",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "responseByteSize",
+					"fieldName": "responseByteSize",
+					"expression": null
+				}, {
+					"type": "longSum",
+					"name": "interval",
+					"fieldName": "interval",
+					"expression": null
+				}],
+				"granularitySpec": {
+					"type": "uniform",
+					"segmentGranularity": "HOUR",
+					"queryGranularity": {
+						"type": "none"
+					},
+					"rollup": true,
+					"intervals": null
+				},
+				"transformSpec": {
+					"filter": null,
+					"transforms": []
+				}
+			},
+			"ioConfig": {
+				"type": "realtime",
+				"firehose": {
+					"type": "clipped",
+					"delegate": {
+						"type": "timed",
+						"delegate": {
+							"type": "receiver",
+							"serviceName": "firehose:druid:overlord:sql-metrics-011-0000-0000",
+							"bufferSize": 100000
+						},
+						"shutoffTime": "2019-06-10T12:15:00.000Z"
+					},
+					"interval": "2019-06-10T11:00:00.000Z/2019-06-10T12:00:00.000Z"
+				},
+				"firehoseV2": null
+			},
+			"tuningConfig": {
+				"type": "realtime",
+				"maxRowsInMemory": 100000,
+				"intermediatePersistPeriod": "PT10M",
+				"windowPeriod": "PT10M",
+				"basePersistDirectory": "/alidata/server/druid-0.12.1/var/tmp/1560164400064-0",
+				"versioningPolicy": {
+					"type": "intervalStart"
+				},
+				"rejectionPolicy": {
+					"type": "none"
+				},
+				"maxPendingPersists": 0,
+				"shardSpec": {
+					"type": "linear",
+					"partitionNum": 0
+				},
+				"indexSpec": {
+					"bitmap": {
+						"type": "concise"
+					},
+					"dimensionCompression": "lz4",
+					"metricCompression": "lz4",
+					"longEncoding": "longs"
+				},
+				"buildV9Directly": true,
+				"persistThreadPriority": 0,
+				"mergeThreadPriority": 0,
+				"reportParseExceptions": false,
+				"handoffConditionTimeout": 0,
+				"alertTimeout": 0,
+				"segmentWriteOutMediumFactory": null
+			}
+		},
+		"context": null,
+		"groupId": "index_realtime_sql-metrics",
+		"dataSource": "sql-metrics"
+	}
+}
+```
+
+There is lot of similar jobs and our servers may ran out of memory soon. 
+I find a field `shutoffTime` so I think it should shutdown down at `2019-06-10T12:15:00.000`. But it's still running. I look at the logs but cannot find something helpful.
+So is this a problem? If so, how to fix it?

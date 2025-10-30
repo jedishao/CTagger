@@ -1,0 +1,187 @@
+Topic rebalances cause consumers with receiverQueueSize=0 to get stuck when calling receiveAsync()
+**Describe the bug**
+Topic rebalances cause consumers with receiverQueueSize=0 and calling receiveAsync() to get stuck.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Create a consumer with receiverQueueSize=0 and receive messages with receiveAsync()
+2. Restart the broker that is serving the topic so that the topic is unloaded and rebalanced
+
+**Expected behavior**
+The consumer should continue to process new messages on the topic.
+
+**Actual behavior**
+The consumer gets stuck and does not process additional messages until it is restarted.
+
+**Environment:**
+- Java client 2.7.2
+- Pulsar cluster version 2.7.2
+
+**Additional context**
+
+Consumer settings:
+
+```json
+{
+  "topicNames" : [ "persistent://engineering/restaurant/config-command" ],
+  "topicsPattern" : null,
+  "subscriptionName" : "fig-mgmt-worker-config-command",
+  "subscriptionType" : "Shared",
+  "subscriptionMode" : "Durable",
+  "receiverQueueSize" : 0,
+  "acknowledgementsGroupTimeMicros" : 100000,
+  "negativeAckRedeliveryDelayMicros" : 60000000,
+  "maxTotalReceiverQueueSizeAcrossPartitions" : 50000,
+  "consumerName" : "fig-mgmt-worker-prod-r96-d0-rand-mY-task-8d4116bbb7d5490cb9c51f0746b42e8e",
+  "ackTimeoutMillis" : 0,
+  "tickDurationMillis" : 1000,
+  "priorityLevel" : 0,
+  "maxPendingChuckedMessage" : 10,
+  "autoAckOldestChunkedMessageOnQueueFull" : false,
+  "expireTimeOfIncompleteChunkedMessageMillis" : 60000,
+  "cryptoFailureAction" : "FAIL",
+  "properties" : { },
+  "readCompacted" : false,
+  "subscriptionInitialPosition" : "Latest",
+  "patternAutoDiscoveryPeriod" : 60,
+  "regexSubscriptionMode" : "PersistentOnly",
+  "deadLetterPolicy" : null,
+  "retryEnable" : false,
+  "autoUpdatePartitions" : true,
+  "autoUpdatePartitionsIntervalSeconds" : 60,
+  "replicateSubscriptionState" : false,
+  "resetIncludeHead" : false,
+  "keySharedPolicy" : null,
+  "batchIndexAckEnabled" : false
+}
+```
+
+Client logs during the broker restart:
+
+```
+INFO 2022-05-01T11:18:46.205Z figmgmtworker<96> "pulsar-client-io-1-3" [] o.a.p.c.i.ClientCnx - [prod-pulsar-c1-use1-broker-7-r12.pulsar.prod.toastops.net/10.0.29.30:6651] Broker notification of Closed consumer: 0
+INFO 2022-05-01T11:18:46.205Z figmgmtworker<96> "pulsar-client-io-1-3" [] o.a.p.c.i.ConnectionHandler - [persistent://engineering/restaurant/config-command] [fig-mgmt-worker-config-command] Closed connection [id: 0x6f45bc89, L:/10.0.32.46:55240 - R:prod-pulsar-c1-use1-broker-7-r12.pulsar.prod.toastops.net/10.0.29.30:6651] -- Will try again in 0.1 s
+INFO 2022-05-01T11:18:46.306Z figmgmtworker<96> "pulsar-timer-5-1" [] o.a.p.c.i.ConnectionHandler - [persistent://engineering/restaurant/config-command] [fig-mgmt-worker-config-command] Reconnecting after timeout
+INFO 2022-05-01T11:18:46.317Z figmgmtworker<96> "pulsar-client-io-1-4" [] o.a.p.c.i.ConsumerImpl - [persistent://engineering/restaurant/config-command][fig-mgmt-worker-config-command] Subscribing to topic on cnx [id: 0xa83ab82d, L:/10.0.32.46:38634 - R:prod-pulsar-c1-use1-broker-0-r12.pulsar.prod.toastops.net/10.0.25.232:6651], consumerId 0
+INFO 2022-05-01T11:18:46.330Z figmgmtworker<96> "pulsar-client-io-1-4" [] o.a.p.c.i.ConsumerImpl - [persistent://engineering/restaurant/config-command][fig-mgmt-worker-config-command] Subscribed to topic on prod-pulsar-c1-use1-broker-0-r12.pulsar.prod.toastops.net/10.0.25.232:6651 -- consumer: 0
+ ```
+
+
+Notice that the host serving the topic has changed from `prod-pulsar-c1-use1-broker-7-r12.pulsar.prod.toastops.net` to prod-`pulsar-c1-use1-broker-0-r12.pulsar.prod.toastops.net`
+
+Metrics showing a backlog build up until we manually intervened:
+
+![image](https://user-images.githubusercontent.com/35272561/169401961-94f89a50-dda3-4a84-a8bd-175c871fad4f.png)
+
+
+Output of topic stats during the time when the consumer was connected but not consuming:
+
+```json
+{
+  "msgRateIn": 0.0,
+  "msgThroughputIn": 0.0,
+  "msgRateOut": 0.0,
+  "msgThroughputOut": 0.0,
+  "bytesInCounter": 1452130,
+  "msgInCounter": 5939,
+  "bytesOutCounter": 0,
+  "msgOutCounter": 0,
+  "averageMsgSize": 0.0,
+  "msgChunkPublished": false,
+  "storageSize": 2803581,
+  "backlogSize": 1452130,
+  "offloadedStorageSize": 0,
+  "publishers": [
+   // ... many publishers ...
+  ],
+  "subscriptions": {
+    "fig-mgmt-worker-config-command": {
+      "msgRateOut": 0.0,
+      "msgThroughputOut": 0.0,
+      "bytesOutCounter": 0,
+      "msgOutCounter": 0,
+      "msgRateRedeliver": 0.0,
+      "chuckedMessageRate": 0,
+      "msgBacklog": 5939,
+      "backlogSize": 0,
+      "msgBacklogNoDelayed": 5939,
+      "blockedSubscriptionOnUnackedMsgs": false,
+      "msgDelayed": 0,
+      "unackedMessages": 0,
+      "type": "Shared",
+      "msgRateExpired": 0.0,
+      "totalMsgExpired": 0,
+      "lastExpireTimestamp": 1651507172654,
+      "lastConsumedFlowTimestamp": 0,
+      "lastConsumedTimestamp": 0,
+      "lastAckedTimestamp": 0,
+      "lastMarkDeleteAdvancedTimestamp": 0,
+      "consumers": [
+        {
+          "msgRateOut": 0.0,
+          "msgThroughputOut": 0.0,
+          "bytesOutCounter": 0,
+          "msgOutCounter": 0,
+          "msgRateRedeliver": 0.0,
+          "chuckedMessageRate": 0.0,
+          "consumerName": "fig-mgmt-worker-prod-r96-d0-rand-Tm-task-ec6aab2ab576490f9cd7c44db9154bfc",
+          "availablePermits": 0,
+          "unackedMessages": 0,
+          "avgMessagesPerEntry": 1000,
+          "blockedConsumerOnUnackedMsgs": false,
+          "lastAckedTimestamp": 0,
+          "lastConsumedTimestamp": 0,
+          "metadata": {
+            
+          },
+          "connectedSince": "2022-05-01T11:18:46.329Z",
+          "clientVersion": "2.7.2",
+          "address": "/10.0.28.85:58540"
+        },
+        {
+          "msgRateOut": 0.0,
+          "msgThroughputOut": 0.0,
+          "bytesOutCounter": 0,
+          "msgOutCounter": 0,
+          "msgRateRedeliver": 0.0,
+          "chuckedMessageRate": 0.0,
+          "consumerName": "fig-mgmt-worker-prod-r96-d0-rand-xE-task-f5255f72ef1d4caebbb7729ff3848046",
+          "availablePermits": 0,
+          "unackedMessages": 0,
+          "avgMessagesPerEntry": 1000,
+          "blockedConsumerOnUnackedMsgs": false,
+          "lastAckedTimestamp": 0,
+          "lastConsumedTimestamp": 0,
+          "metadata": {
+            
+          },
+          "connectedSince": "2022-05-01T11:18:46.329Z",
+          "clientVersion": "2.7.2",
+          "address": "/10.0.32.46:38634"
+        }
+      ],
+      "isDurable": true,
+      "isReplicated": false,
+      "consumersAfterMarkDeletePosition": {
+        
+      },
+      "nonContiguousDeletedMessagesRanges": 0,
+      "nonContiguousDeletedMessagesRangesSerializedSize": 0
+    }
+  },
+  "replication": {
+    
+  },
+  "deduplicationStatus": "Disabled",
+  "nonContiguousDeletedMessagesRanges": 0,
+  "nonContiguousDeletedMessagesRangesSerializedSize": 0
+}
+```
+
+Note that both consumers show zero unacked messages and zero available permits:
+```
+          "availablePermits": 0,
+          "unackedMessages": 0,
+```
+
+cc: @klevy-toast 

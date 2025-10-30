@@ -1,0 +1,11 @@
+[Broker] Mutations of propertiesMap is not threadsafe in ManagedLedgerImpl
+### Problem
+
+`propertiesMap` is mutated and read in multiple threads, it's backed by an ordinary HashMap.
+There is a comment in the code related to thread safety in `org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl`:
+
+https://github.com/apache/pulsar/blob/1b8da9245e111718acb337bce310ffdef7b30496/managed-ledger/src/main/java/org/apache/bookkeeper/mledger/impl/ManagedLedgerImpl.java#L187-L190
+
+However, it seems that this type of solution doesn't prevent thread safety issues when multiple threads are involved and there are mutations happening in multiple threads. 
+
+Unsafe mutations and access of HashMaps is a critical problem. It can cause data corruption and threads might go into infinite loops.

@@ -1,0 +1,8 @@
+ConnectionManager call hangs forever if exception is thrown during Command processing
+Bug found that can cause MasterSlaveConnectionManager to hang forever on get() call if exception is thrown anywhere in CommandHandler. 
+
+To replicate the bug, you can use RedissonMap with JsonJacksonCodec to put instance of class that doesn't have default constructor. When you try to fetch that object by using RedissonMap.get() call, deserialization of object will fail in MapOutput because of missing appropriate constructor and thread calling RedissonMap.get() will block forever. 
+
+In more details, this is happening because get() method awaits forever on Future object, which is released when Command.complete() is called. This complete() call is executed in decode() method of CommandHandler after RedisStateMachine processes Redis response. If, for example, RedisStateMachine throws an exception, complete() won't be called and result/exception will never be set to the Future object. This is causing calling thread to block forever in MasterSlaveConnectionManager.get() method. 
+
+Pull request with test case that is proving this bug and bug fix proposition will be published shortly.

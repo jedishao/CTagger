@@ -1,0 +1,83 @@
+PriorityBlockingQueue doesn't release lock after reconnect on network
+15:35:12.756 [redisson-netty-1-1] ERROR org.redisson.client.handler.CommandDecoder - Unable to decode data. reply: $-1
+, channel: [id: 0xf819abf5, L:/10.2.232.212:60019 - R:10.2.145.113/10.2.145.113:6379], command: CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@7078d41d(failure: java.util.concurrent.CancellationException)], command=(EVAL), params=[if (redis.call('exists', KEYS[1]) == 0) then redis.call('hset', KEYS[1], ARGV[2], 1); redis.call('pe..., 1, redisson_sortedset_lock:{testqueue}, 30000, c6d227cd-fb96-4350-b26f-9f47f2bd029c:19], codec=org.redisson.client.codec.LongCodec]
+java.util.concurrent.CancellationException
+	at java.util.concurrent.CompletableFuture.cancel(CompletableFuture.java:2263)
+	at org.redisson.misc.RedissonPromise.cancel(RedissonPromise.java:239)
+	at org.redisson.command.CommandAsyncService$13.run(CommandAsyncService.java:941)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:682)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:757)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:485)
+	at java.lang.Thread.run(Thread.java:745)
+15:39:03.936 [redisson-netty-1-6] ERROR org.redisson.client.handler.CommandDecoder - Unable to decode data. reply: :1
+, channel: [id: 0x25aa8d2b, L:/10.2.232.212:60596 - R:10.2.145.113/10.2.145.113:6379], command: CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@7e62623(failure: java.util.concurrent.CancellationException)], command=(EVAL), params=[if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then redis.call('pexpire', KEYS[1], ARGV[1]); retu..., 1, redisson_sortedset_lock:{testqueue}, 30000, c6d227cd-fb96-4350-b26f-9f47f2bd029c:19], codec=org.redisson.client.codec.LongCodec]
+java.util.concurrent.CancellationException
+	at java.util.concurrent.CompletableFuture.cancel(CompletableFuture.java:2263)
+	at org.redisson.misc.RedissonPromise.cancel(RedissonPromise.java:239)
+	at org.redisson.command.CommandAsyncService$13.run(CommandAsyncService.java:941)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:682)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:757)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:485)
+	at java.lang.Thread.run(Thread.java:745)
+
+### Expected behavior
+
+reconnect to network 
+
+### Actual behavior
+
+there is a lock  name redisson_sortedset_lock:{testqueue} which dosen't release,it seem's like it can't release lock cause network boke,however it get a lock before network boke.
+
+### Steps to reproduce or test case
+
+1.run code blow
+public class TestReleaseLock {
+    public static void main(String[] args) {
+        Config config = new Config();
+
+        MasterSlaveServersConfig serverConfig = config.useMasterSlaveServers()
+                .setTimeout(1000000)
+                .setMasterAddress("redis://10.2.145.113:6379")
+                .addSlaveAddress("redis://10.2.145.113:6379");
+
+        serverConfig.setTimeout(100);
+        serverConfig.setRetryAttempts(3);
+        serverConfig.setRetryInterval(1000);
+        serverConfig.setPingConnectionInterval(10000);
+        serverConfig.setMasterConnectionMinimumIdleSize(5);
+        serverConfig.setKeepAlive(true);
+
+        RedissonClient redissonClient = Redisson.create(config);
+
+        ExecutorService pullService = Executors.newFixedThreadPool(1);
+        pullService.execute(new Runnable() {
+            RPriorityBlockingQueue<String> blockingQueue = redissonClient.getPriorityBlockingQueue("testqueue");
+
+            @Override
+            public void run() {
+                while (true) {
+                    try{
+                        System.out.println("waiting...");
+                        String trunk = blockingQueue.take();
+                        Thread.sleep(1000*2);
+                        System.out.println(trunk);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+    }
+
+}
+
+2.disconnect your network
+3.wait a few minute,then reconnect your network
+
+### Redis version
+3.2.3
+
+### Redisson version
+3.10.1
+
+### Redisson configuration

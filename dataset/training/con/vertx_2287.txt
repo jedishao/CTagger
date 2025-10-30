@@ -1,0 +1,10 @@
+Best practice when writing tests that require deployed verticles and access to the verticle context
+Hi there,
+
+Just curious if there is a recommended way to run a test on the context a verticle is using. Currently, I've solved it in by creating a super class method for integration type tests (https://github.com/pitchpoint-solutions/sfs/blob/master/sfs-server/src/test/java/org/sfs/integration/java/BaseTestVerticle.java) that contains a runOnServerContext method. A rule is responsible for deploying the verticles. 
+
+Here's an example of a test that uses the runOnServerContext method https://github.com/pitchpoint-solutions/sfs/blob/master/sfs-server/src/test/java/org/sfs/integration/java/test/blob/RemoteBlobActionsTest.java. 
+
+If I don't do this I run into deadlock issues when pumping (write/drain/resume calls) involves http client request/response instances and http server request/response instances since either the readstream or writestream context differs from the context used by the verticle. 
+
+In the case of the RemoteBlobActionsTest the test generates a file then attempts to pump it to a remote node using an httpclient associated with the SfsServer verticle. If the AsyncFile isn't opened in the server verticle context the pump deadlocks against the http client request.

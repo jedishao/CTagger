@@ -1,0 +1,71 @@
+RLock unlock with a different thread that the one that locked gives: attempt to unlock lock, not locked by current thread by node id
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+I'm using RxJava and as a part of the sequence I use a RLock, at some point (in another process) I unlock it and if the thread to unlock is not the same as the one that blocked I get an exception (see below).
+
+I see that the lock has been done using the pool of redisson-netty, and the unlock is done by the same pool, but there are several threads in that pool, so any thread can potentially perform the unlock.
+
+That should be as simple as tryLock and unlock without having to control anything else right? Do we have to do something specific to ensure the proper behaviour?
+
+### Expected behavior
+
+The lock gets unlocked regardless the thread that did the lock
+
+### Actual behavior
+
+An exception is thrown and the lock is not unlocked
+`2019-07-11 12:34:02.276 WARN  [redisson-netty-2-15] io.netty.util.concurrent.DefaultPromise - An exception was thrown by org.redisson.misc.RedissonPromise$$Lambda$401/105860882.operationComplete()
+java.lang.IllegalMonitorStateException: attempt to unlock lock, not locked by current thread by node id: 6ad76760-e86c-4273-a5a4-ad3e58e61a2b thread-id: 35
+	at org.redisson.RedissonLock.lambda$unlockAsync$3(RedissonLock.java:578)
+	at org.redisson.misc.RedissonPromise.lambda$onComplete$0(RedissonPromise.java:187)
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:502)
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:476)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:415)
+	at io.netty.util.concurrent.DefaultPromise.addListener(DefaultPromise.java:152)
+	at org.redisson.misc.RedissonPromise.onComplete(RedissonPromise.java:181)
+	at org.redisson.RedissonLock.unlockAsync(RedissonLock.java:570)
+	at org.redisson.RedissonLock.unlockAsync(RedissonLock.java:543)`
+
+### Steps to reproduce or test case
+
+`@Test
+    public void lockTest() throws InterruptedException {
+
+        //Declared outside the method
+        //private RedissonReactiveClient redisson;
+
+        String lockName = "this.is.a.lock";
+
+        Observable.fromPublisher(redisson.getLock(lockName).tryLock())
+            .map(isLocked -> {
+                log.info(Thread.currentThread() + " has the lock");
+                return isLocked;
+            })
+            .delay(2, TimeUnit.SECONDS)
+            .subscribeOn(Schedulers.io())
+            .subscribe();
+
+        Observable.fromPublisher(redisson.getLock(lockName).unlock())
+            .map(v -> {
+                log.info(Thread.currentThread() + " tries to unlock");
+                return v;
+            })
+            .subscribe();
+
+        Thread.sleep(100);
+
+    }`
+
+### Redis version
+
+Redis 5
+
+### Redisson version
+
+Redisson 3.11.1
+
+### Redisson configuration
+
+Default but with setKeepPubSubOrder  = true and setKeepAlive = true

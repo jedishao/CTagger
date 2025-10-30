@@ -1,0 +1,23 @@
+Jetty threads stuck on HttpOutput.write
+See https://groups.google.com/d/msg/druid-development/rQMk8C4cUfs/atGoF8XEBQAJ for the report. I've seen this on other clusters as well with multiple Druid versions (including 0.9.1.1). It seems connected to periods of high load, especially involving long running queries. In the two times I've seen this, upgrading to Jetty 9.3.12.v20160915 helped, although that can't be done without also requiring Java 8 so I didn't submit a patch back to Druid.
+
+This issue tracks the problem and can be resolved when we build for Java 8.
+
+Thread stack of a stuck thread:
+
+```
+"qtp362370312-874" daemon prio=10 tid=0x00007f7d460ee000 nid=0x6c80 waiting on condition [0x00007f7d0f9da000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+        at sun.misc.Unsafe.park(Native Method)
+        - parking to wait for  <0x0000000738d2d000> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+        at java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:226)
+        at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(AbstractQueuedSynchronizer.java:2176)
+        at org.eclipse.jetty.util.SharedBlockingCallback$Blocker.block(SharedBlockingCallback.java:213)
+        at org.eclipse.jetty.server.HttpOutput.write(HttpOutput.java:133)
+        at org.eclipse.jetty.server.HttpOutput.write(HttpOutput.java:347)
+        at org.eclipse.jetty.servlets.gzip.DeflatedOutputStream.deflate(DeflatedOutputStream.java:74)
+        at org.eclipse.jetty.servlets.gzip.DeflatedOutputStream.write(DeflatedOutputStream.java:64)
+        at org.eclipse.jetty.servlets.gzip.GzipOutputStream.write(GzipOutputStream.java:46)
+```
+
+https://bugs.eclipse.org/bugs/show_bug.cgi?id=478923 is possibly related.

@@ -1,0 +1,27 @@
+Set context in executor when calling Credentials.getRequestMetadata
+### What version of gRPC are you using?
+
+1.18.0
+
+### What did you expect to see?
+
+I've written a custom implementation of a `com.google.auth.Credentials` class which retrieves tokens from etcd (using their v3 gRPC api). I'm attempting to trace these method calls by using the Context to link work done on separate threads. I've discovered that the Context is not available in my Credentials class (specifically when `getRequestMetadata` is called using an executor).
+
+I've been able to work around this temporarily by changing:
+
+```java
+kvStub.withDeadlineAfter(5, TimeUnit.SECONDS)
+    .withCallCredentials(creds)
+    .range(rangeRequest, object : StreamObserver<RangeResponse> {
+```
+
+to:
+
+```java
+kvStub.withDeadlineAfter(5, TimeUnit.SECONDS)
+    .withCallCredentials(creds)
+    .withExecutor(Context.currentContextExecutor(Executors.newCachedThreadPool()))
+    .range(rangeRequest, object : StreamObserver<RangeResponse> {
+```
+
+Is it expected that the Context be available for use in a custom Credentials implementation? By doing so, this might also help to close some other open issues (#4929) and also allow deadline propagation to work properly when authenticating against a gRPC api.

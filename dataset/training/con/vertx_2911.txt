@@ -1,0 +1,33 @@
+Verticle based applications only use half of configured event loop threads
+I discovered this issue in 3.5.3 and have verified using the reproducer below that it is still present in 3.6.3 and 3.7.0.
+
+As background, it seems that 1) Netty assigns event loop threads in round-robin fashion, and 2) Netty creates event loop threads only when something is executed on the event loop. The current Verticle deployment path calls `getOrCreateContext()` twice, which results in every other event loop never having anything run on it, and as a consequence applications that use an even number of event loop threads will only use half of them. This is the common case, since the default number of event loop threads is twice the number of cores detected in the system, and it seems likely that custom configurations are likely to use an even number of threads.
+
+The code below can be used to see this issue:
+```
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
+
+public class VerticleRepro {
+    public static class MyVerticle extends AbstractVerticle {
+
+        public void start() {
+            System.out.println("MyVerticle: " + Thread.currentThread().getId() + " "
+                    + vertx.getOrCreateContext().isEventLoopContext() + " "
+                    + vertx.getOrCreateContext().deploymentID() + " "
+                    + vertx.getOrCreateContext());
+        }
+    }
+
+    public static void main(String[] args) {
+        final int numEventLoops = 8;
+        final int numVerticles = 8;
+        VertxOptions vertxOptions = new VertxOptions().setEventLoopPoolSize(numEventLoops);
+        Vertx vertx = Vertx.vertx(vertxOptions);
+        for (int i = 0; i < numVerticles; ++i) {
+            vertx.deployVerticle(MyVerticle.class.getName());
+        }
+    }
+}
+```

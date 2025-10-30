@@ -1,0 +1,69 @@
+Metadata cache inconsistency across brokers (race condition)
+**Describe the bug**
+
+When a metadata store resource is updated using pulsar-admin, the broker that handles the update works fine. But some times on one of the other brokers, the getData() can return stale data in the cache. This results in that broker being out of sync forever (if there are no further updates) or being a step behind (if there are subsequent updates).
+
+**To Reproduce**
+Steps to reproduce the behavior:
+
+GitHub issue
+
+
+# Start two instances of pulsar broker in two separate terminals
+
+PULSAR_BROKER_CONF=~/conf/broker-1.conf bin/pulsar broker
+PULSAR_BROKER_CONF=~/conf/broker-2.conf bin/pulsar broker
+
+# All admin commands are directed to broker-1 using the URL of broker-1
+
+# Create a tenant and a namespace (URL of broker-1)
+
+bin/pulsar-admin --admin-url http://localhost:8081 tenants create rgtenant
+
+bin/pulsar-admin --admin-url http://localhost:8081 namespaces create rgtenant/rgnamespace
+
+# Create a resource group
+bin/pulsar-admin --admin-url http://localhost:8081 resourcegroups create -bd 10000 -md 100 -bp 10000 -mp 100 test1
+
+# Attach the namespace to the resource group
+bin/pulsar-admin --admin-url http://localhost:8082 namespaces set-resource-group -rgn test1 rgtenant/rgnamespace
+
+# broker-1 console
+10:13:44.532 [metadata-store-9-1] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Metadata store notification: Path /admin/policies/rgtenant/rgnamespace, Type Modified
+10:13:44.533 [ForkJoinPool.commonPool-worker-4] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Registering namespace rgtenant/rgnamespace from resource group test1
+10:13:44.535 [pulsar-web-41-13] INFO  org.apache.pulsar.broker.admin.impl.NamespacesBase - [null] Successfully updated resource_group_name configuration: namespace=rgtenant/rgnamespace, value="test1"
+
+# broker-2 console
+# broker-2 gets the watch event for the update, but the getData() returns the stale entry in the cache.
+
+10:09:00.708 [pulsar-load-manager-1-1] INFO  org.apache.pulsar.broker.loadbalance.impl.ModularLoadManagerImpl - Writing local data to metadata store because maximum change 21.0447296500206% exceeded threshold 10%; time since last report written is 5.045 seconds
+10:13:44.532 [metadata-store-9-1] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Metadata store notification: Path /admin/policies/rgtenant/rgnamespace, Type Modified
+
+# Detach the namespace from the resource group bin/pulsar-admin --admin-url http://localhost:8081 namespaces remove-resource-group rgtenant/rgnamespace
+
+# broker-1 console
+10:13:54.477 [metadata-store-9-1] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Metadata store notification: Path /admin/policies/rgtenant/rgnamespace, Type Modified
+10:13:54.478 [ForkJoinPool.commonPool-worker-4] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Unregistering namespace rgtenant/rgnamespace, resource group test1
+10:13:54.478 [pulsar-web-41-12] INFO  org.apache.pulsar.broker.admin.impl.NamespacesBase - [null] Successfully updated resource_group_name configuration: namespace=rgtenant/rgnamespace, value=null
+10:13:54.479 [pulsar-web-41-12] INFO  org.eclipse.jetty.server.RequestLog - 127.0.0.1 - - [02/Jul/2021:10:13:54 -0700] "DELETE /admin/v2/namespaces/rgtenant/rgnamespace/resourcegroup HTTP/1.1" 204 0 "-" "Pulsar-Java-v2.9.0-SNAPSHOT" 16
+
+# brokre-2 console
+# broker-2 gets the watch event for the update, but the getData() returns the stale entry in the cache.
+ 10:13:54.477 [metadata-store-9-1] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Metadata store notification: Path /admin/policies/rgtenant/rgnamespace, Type Modified
+10:13:54.478 [ForkJoinPool.commonPool-worker-11] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Registering namespace rgtenant/rgnamespace from resource group test1
+
+# Do the detach operation again bin/pulsar-admin --admin-url http://localhost:8081 namespaces remove-resource-group rgtenant/rgnamespace
+
+# broker-1 console  10:14:03.251 [metadata-store-9-1] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Metadata store notification: Path /admin/policies/rgtenant/rgnamespace, Type Modified
+10:14:03.252 [pulsar-web-41-12] INFO  org.apache.pulsar.broker.admin.impl.NamespacesBase - [null] Successfully updated resource_group_name configuration: namespace=rgtenant/rgnamespace, value=null
+10:14:03.253 [pulsar-web-41-12] INFO  org.eclipse.jetty.server.RequestLog - 127.0.0.1 - - [02/Jul/2021:10:14:03 -0700] "DELETE /admin/v2/namespaces/rgtenant/rgnamespace/resourcegroup HTTP/1.1" 204 0 "-" "Pulsar-Java-v2.9.0-SNAPSHOT" 5
+
+# broker-2 console
+10:14:03.251 [metadata-store-9-1] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Metadata store notification: Path /admin/policies/rgtenant/rgnamespace, Type Modified
+10:14:03.252 [ForkJoinPool.commonPool-worker-11] INFO  org.apache.pulsar.broker.resourcegroup.ResourceGroupNamespaceConfigListener - Unregistering namespace rgtenant/rgnamespace, resource group test1
+
+**Expected behavior**
+Expect the broker-2 cache to be updated so that getData() returns the most recent data.
+
+**Desktop (please complete the following information):**
+ - OS: [e.g. iOS]MacOS

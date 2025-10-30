@@ -1,0 +1,75 @@
+[Functions worker] Topic has an existing exclusive producer - self-deadlock issue on Pulsar 2.8.0
+**Describe the bug**
+After upgrading to Official Apache Pulsar 2.8.0 docker image we are now seeing a flood of messages like this:
+```
+{"line":"22:48:42.086 [pulsar-client-io-51-1] ERROR org.apache.pulsar.client.impl.ProducerImpl - [persistent://public/functions/metadata] [c-iauto-poc-fw-10.13.2.236-8080-leader] Failed to create producer: org.apache.pulsar.broker.service.BrokerServiceException$ProducerFencedException: Topic has an existing exclusive producer: c-iauto-poc-fw-10.13.2.198-8080-leader\r","source":"stdout","tag":"81a71b1e87da"}
+```
+When this happens we are unable to deploy functions without restarting the function workers/broker nodes
+
+**To Reproduce**
+```
+docker run -d \
+  --name=pulsar-broker \
+  --env='PULSAR_MEM= -Xms10g -Xmx10g -XX:MaxDirectMemorySize=10g' \
+  --volume=/docker/pulsar-broker/pulsar-broker.conf:/pulsar/conf/broker.conf:rw \
+  --volume=/docker/pulsar-broker/pulsar-functions-worker.yml:/pulsar/conf/functions_worker.yml:rw \
+  -p 6650:6650 \
+  -p 8080:8080 \
+  --restart=unless-stopped \
+  docker.io/apachepulsar/pulsar-all:2.8.0 bin/pulsar
+```
+
+Load it up with a bunch of go functions on 3 x i3.xlarge instances and watch the exclusive producers messages flood your screen
+
+**Expected behavior**
+This exclusive producer message and deadlock issue did not appear on Pulsar 2.7.x
+
+**OS Info:**
+Ubuntu 20.04 amd64 + Docker CE 20.10.7
+
+**Additional context**
+
+We did a thread dump of one of the misbehaving brokers and noticed the `pulsar-external-listener-52-1` thread acting funny.
+```
+pulsar-2:
+"pulsar-external-listener-52-1" #137 prio=5 os_prio=0 cpu=19.58ms elapsed=73575.01s tid=0x00007f7830042800 nid=0xf1 waiting on condition  [0x00007f77af2f4000]
+   java.lang.Thread.State: WAITING (parking)
+        at jdk.internal.misc.Unsafe.park(java.base@11.0.11/Native Method)
+        - parking to wait for  <0x00000005845e2950> (a java.util.concurrent.CompletableFuture$Signaller)
+        at java.util.concurrent.locks.LockSupport.park(java.base@11.0.11/LockSupport.java:194)
+        at java.util.concurrent.CompletableFuture$Signaller.block(java.base@11.0.11/CompletableFuture.java:1796)
+        at java.util.concurrent.ForkJoinPool.managedBlock(java.base@11.0.11/ForkJoinPool.java:3128)
+        at java.util.concurrent.CompletableFuture.waitingGet(java.base@11.0.11/CompletableFuture.java:1823)
+        at java.util.concurrent.CompletableFuture.get(java.base@11.0.11/CompletableFuture.java:1998)
+        at org.apache.pulsar.client.impl.ReaderBuilderImpl.create(ReaderBuilderImpl.java:76)
+        at org.apache.pulsar.functions.worker.WorkerUtils.createReader(WorkerUtils.java:331)
+        at org.apache.pulsar.functions.worker.FunctionAssignmentTailer.createReader(FunctionAssignmentTailer.java:134)
+        at org.apache.pulsar.functions.worker.FunctionAssignmentTailer.startFromMessage(FunctionAssignmentTailer.java:77)
+        at org.apache.pulsar.functions.worker.FunctionAssignmentTailer.start(FunctionAssignmentTailer.java:88)
+        - locked <0x00000005845e2ac8> (a org.apache.pulsar.functions.worker.FunctionAssignmentTailer)
+        at org.apache.pulsar.functions.worker.LeaderService.becameInactive(LeaderService.java:160)
+        - locked <0x00000005845e2af8> (a org.apache.pulsar.functions.worker.LeaderService)
+        at org.apache.pulsar.client.impl.ConsumerImpl.lambda$activeConsumerChanged$18(ConsumerImpl.java:986)
+        at org.apache.pulsar.client.impl.ConsumerImpl$$Lambda$1123/0x000000084084fc40.run(Unknown Source)
+        at java.util.concurrent.Executors$RunnableAdapter.call(java.base@11.0.11/Executors.java:515)
+        at java.util.concurrent.FutureTask.run(java.base@11.0.11/FutureTask.java:264)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(java.base@11.0.11/ScheduledThreadPoolExecutor.java:304)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.11/ThreadPoolExecutor.java:1128)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.11/ThreadPoolExecutor.java:628)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(java.base@11.0.11/Thread.java:829)
+```
+
+Also we noticed function submission was blocked
+```
+"pulsar-web-40-3" #92 prio=5 os_prio=0 cpu=5579.70ms elapsed=73596.49s tid=0x00007f78767f6000 nid=0xc2 waiting for monitor entry  [0x00007f77bb156000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at org.apache.pulsar.functions.worker.LeaderService.isLeader(LeaderService.java:173)
+	- waiting to lock <0x00000005845e2af8> (a org.apache.pulsar.functions.worker.LeaderService)
+	at org.apache.pulsar.functions.worker.rest.api.ComponentImpl.internalProcessFunctionRequest(ComponentImpl.java:1577)
+	at org.apache.pulsar.functions.worker.rest.api.ComponentImpl.updateRequest(ComponentImpl.java:887)
+	at org.apache.pulsar.functions.worker.rest.api.FunctionsImpl.registerFunction(FunctionsImpl.java:238)
+```
+Might be related to this PR: https://github.com/apache/pulsar/pull/9275
+
+We've been working with several StreamNative people to diagnose this bug via Slack. Please reach out to us there if you need any more info. Thank you!

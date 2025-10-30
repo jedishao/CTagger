@@ -1,0 +1,8 @@
+[presto-cli] shutdown hook cannot cancel the running query occasionally
+The shutdown hook added in #3521 sometimes cannot cancel the query properly. I have tracked down the problem to the following two issues:
+- In `StatementClien.advance()` loop, if an interrupt is received in the `httpClient.execute()` call  in the exception handler I see that we correctly receive an `InterruptedIOException`, but the interrupt flag is somehow not set (a bug somewhere else?), so the query doesn't get canceled and the loop just goes on.
+- In `StatementClient.close()` we do an async http call and there is probably a race where the main thread closes the http client (in `QueryRunner.close()`) and the other thread doing the http call fails silently (we are not checking the status of this call).
+
+For the first problem I currently handle `InterruptedIOException` as a special case and close the client (and also interrupt the main thread). For the second one I just do a synch. http call to get rid of the race. With these changes I cannot reproduce this problem anymore. 
+
+@electrum any thoughts?

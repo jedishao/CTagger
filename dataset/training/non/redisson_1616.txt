@@ -1,0 +1,81 @@
+Slave unable to switch DNS in AWS ElastiCache ReplicatedServers 
+We are trying to switch the redis dns using route53 on aws elasticCache Service.
+While the master gets switched successfully but slave give the following error
+
+c6e5486feaca PROFILE=dev 2018-08-30 12:18:20.823 UTC  INFO x-request-id=NA x-correlation-id=NA 7 --- [sson-netty-1-13] org.redisson.connection.DNSMonitor       : Detected DNS change. Slave redis-slave.dev.com has changed ip from 22.**.**.*** to 22.**.**.***
+c6e5486feaca PROFILE=dev 2018-08-30 12:18:20.832 UTC ERROR x-request-id=NA x-correlation-id=NA 7 --- [sson-netty-1-13] o.r.connection.pool.SlaveConnectionPool  : slave redis-slave.dev.com/22.**.**.***:6379 disconnected due to failedAttempts=3 limit reached
+c6e5486feaca PROFILE=dev io.netty.channel.ChannelException: Unable to create Channel from class class io.netty.channel.socket.nio.NioSocketChannel
+c6e5486feaca PROFILE=dev 	at io.netty.channel.ReflectiveChannelFactory.newChannel(ReflectiveChannelFactory.java:40)
+c6e5486feaca PROFILE=dev 	at io.netty.bootstrap.AbstractBootstrap.initAndRegister(AbstractBootstrap.java:320)
+c6e5486feaca PROFILE=dev 	at io.netty.bootstrap.Bootstrap.doResolveAndConnect(Bootstrap.java:163)
+c6e5486feaca PROFILE=dev 	at io.netty.bootstrap.Bootstrap.connect(Bootstrap.java:145)
+c6e5486feaca PROFILE=dev 	at org.redisson.client.RedisClient$2.operationComplete(RedisClient.java:198)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:512)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:505)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:484)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:425)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.trySuccess(DefaultPromise.java:104)
+c6e5486feaca PROFILE=dev 	at org.redisson.misc.RedissonPromise.trySuccess(RedissonPromise.java:88)
+c6e5486feaca PROFILE=dev 	at org.redisson.client.RedisClient$1.operationComplete(RedisClient.java:180)
+
+c6e5486feaca PROFILE=dev 2018-08-30 12:18:20.832 UTC ERROR x-request-id=NA x-correlation-id=NA 7 --- [sson-netty-1-12] org.redisson.connection.DNSMonitor       : Can't add slave: redis-slave.dev.com/22.**.**.***:6379
+c6e5486feaca PROFILE=dev org.redisson.client.RedisConnectionException: Unable to connect to Redis server: redis-slave.dev.com/10.**.**.***:6379
+c6e5486feaca PROFILE=dev 	at org.redisson.connection.pool.ConnectionPool$2$1.operationComplete(ConnectionPool.java:138)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:512)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:486)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:425)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:122)
+c6e5486feaca PROFILE=dev 	at org.redisson.misc.RedissonPromise.tryFailure(RedissonPromise.java:108)
+c6e5486feaca PROFILE=dev 	at org.redisson.connection.pool.ConnectionPool.promiseFailure(ConnectionPool.java:307)
+c6e5486feaca PROFILE=dev 	at org.redisson.connection.pool.ConnectionPool.access$400(ConnectionPool.java:54)
+c6e5486feaca PROFILE=dev 	at org.redisson.connection.pool.ConnectionPool$4.operationComplete(ConnectionPool.java:277)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListener(DefaultPromise.java:512)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:505)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:484)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:425)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:122)
+c6e5486feaca PROFILE=dev 	at org.redisson.misc.RedissonPromise.tryFailure(RedissonPromise.java:108)
+c6e5486feaca PROFILE=dev 	at org.redisson.client.RedisClient$2$1$2.run(RedisClient.java:225)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:404)
+c6e5486feaca PROFILE=dev 	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:463)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:886)
+c6e5486feaca PROFILE=dev 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+c6e5486feaca PROFILE=dev 	at java.lang.Thread.run(Thread.java:745)
+c6e5486feaca PROFILE=dev Caused by: io.netty.channel.ChannelException: Unable to create Channel from class class io.netty.channel.socket.nio.NioSocketChannel
+c6e5486feaca PROFILE=dev 	at io.netty.channel.ReflectiveChannelFactory.newChannel(ReflectiveChannelFactory.java:40)
+c6e5486feaca PROFILE=dev 	at io.netty.bootstrap.AbstractBootstrap.initAndRegister(AbstractBootstrap.java:320)
+
+
+### Expected behavior - slave should also resolve the DNS changes
+
+### Actual behavior - slave is not resolving DNS and giving error
+
+### Steps to reproduce or test case - 
+Create two redis cluster with two nodes (one master and one replica).
+Connect the first redis cluster through route 53. Change the DNS in route 53 to point to different redis cluster for master and slave.
+We get the above error.
+
+### Redis version - 3.2.4
+
+### Redisson version - 3.6.1
+
+
+### Code Snippet
+
+
+ @Bean(destroyMethod = "shutdown")
+    public RedissonClient redissonClient() {
+        Config config = new Config();
+        RedisProperties redisProperties = getRedisProperties();
+        config.useReplicatedServers().setLoadBalancer(new RoundRobinLoadBalancer()).setScanInterval(redisProperties.getScanInterval()).
+                setSubscriptionConnectionPoolSize(redisProperties.getSubscriptionPoolSize()).setSubscriptionConnectionMinimumIdleSize(redisProperties.getSubscriptionIdleSize()).
+                setSubscriptionsPerConnection(redisProperties.getSubscriptionPerConnection()).
+                setMasterConnectionPoolSize(redisProperties.getMasterConnectionPoolSize()).setSlaveConnectionPoolSize(redisProperties.getSlaveConnectionPoolSize()).
+                setSlaveConnectionMinimumIdleSize(redisProperties.getIdleConnectionSize()).setMasterConnectionMinimumIdleSize(redisProperties.getIdleConnectionSize()).
+                setIdleConnectionTimeout(redisProperties.getIdleConnectTimeout()).setReconnectionTimeout(redisProperties.getTimeout()).
+                setReadMode(ReadMode.SLAVE).setConnectTimeout(redisProperties.getConnectTimeout()).setTimeout(redisProperties.getTimeout()).addNodeAddress(redisProperties.getRedisHostName());
+        return Redisson.create(config);
+    }
+
+

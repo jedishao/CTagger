@@ -1,0 +1,19 @@
+Channel-state API
+At this moment, creating TCP connections are created lazily on first call of a Channel, and if the TCP connection goes down it isn't reconnected until a subsequent call. However, some users will want the TCP connection to be created and maintained during the lifetime of the Channel.
+
+This "constant connection" behavior does not make as much sense when accessing a third party service, as the service may purposefully be disconnecting idle clients, but is very reasonable in low-latency, intra-datacenter communication.
+
+We need an API to choose between those behaviors and to export failure information about the Channel. All of this is bundled together for the moment under the name "health-checking API," but we can split it apart as it makes sense.
+
+They are tied together for the moment because certain operations like "wait until Channel is healthy" assume that the channel will actively try to connect.
+
+Some notes from @louiscryan:
+
+> Do we want to canonicalize transport failure modes into an enum or are we
+> happy with a boolean indicating transient vs. durable. What failure modes
+> will we have
+> - wire incompatability which can occur at any time and while is in theory
+>   transient you may not want your application to continue working
+> - unreachable
+> - internal implementation error
+> - redirection. the addressed service has moved elsewhere

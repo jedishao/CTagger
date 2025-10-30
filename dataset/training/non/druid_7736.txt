@@ -1,0 +1,164 @@
+Druid keep using segment from the segment-cache the one not exists on deep storage anymore
+Druid keep using segment data from segment cache in queries meanwhile it  was disabled and kill job was ( removed from deep storage). 
+ 
+### Affected Version
+
+apache-druid-0.14.1-incubating
+apache-druid-0.14.0-incubating
+
+### Description
+I would expect next behavior: 
+  when the original segment was disabled and removed by kill job and doesn't exist anymore on deep storage its cached copy  should be removed from historical node segment cache also otherwise it still continue to be part of the incoming queries which is wrong. 
+Lets reproduce on single-machine quickstart/tutorial data according to http://druid.io/docs/latest/tutorials/index.html
+
+$ curl -X 'POST' -H 'Content-Type:application/json' -d @quickstart/tutorial/wikipedia-index.json http://localhost:8090/druid/indexer/v1/task
+{"task":"index_wikipedia_2019-05-23T10:37:52.009Z"}
+
+$ curl -XGET -H 'Content-Type:application/json' http://localhost:8081/druid/coordinator/v1/datasources/wikipedia/segments
+["wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:37:52.149Z"]
+
+$ curl -XGET -H 'Content-Type:application/json' http://localhost:8081/druid/coordinator/v1/datasources/wikipedia?full
+```json
+{"name":"wikipedia","properties":{},"segments":[{"dataSource":"wikipedia","interval":"2015-09-12T00:00:00.000Z/2015-09-13T00:00:00.000Z","version":"2019-05-23T10:37:52.149Z","loadSpec":{"type":"local","path":"/pub/work/projects/druid-poc2/apache-druid-0.14.1-incubating/var/druid/segments/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/index.zip"},"dimensions":"channel,cityName,comment,countryIsoCode,countryName,isAnonymous,isMinor,isNew,isRobot,isUnpatrolled,metroCode,namespace,page,regionIsoCode,regionName,user,added,deleted,delta","metrics":"","shardSpec":{"type":"numbered","partitionNum":0,"partitions":0},"binaryVersion":9,"size":4821529,"identifier":"wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:37:52.149Z"}]}
+```
+
+
+$ curl -X POST http://localhost:8082/druid/v2/?pretty -H 'Content-Type:application/json' -d @quickstart/tutorial/wikipedia-top-pages.json
+```
+[ {
+  "timestamp" : "2015-09-12T00:46:58.771Z",
+  "result" : [ {
+    "count" : 33,
+    "page" : "Wikipedia:Vandalismusmeldung"
+  }, {
+    "count" : 28,
+    "page" : "User:Cyde/List of candidates for speedy deletion/Subpage"
+  }, {
+    "count" : 27,
+    "page" : "Jeremy Corbyn"
+  }, {
+    "count" : 21,
+    "page" : "Wikipedia:Administrators' noticeboard/Incidents"
+  }, {
+    "count" : 20,
+    "page" : "Flavia Pennetta"
+  }, {
+    "count" : 18,
+    "page" : "Total Drama Presents: The Ridonculous Race"
+  }, {
+    "count" : 18,
+    "page" : "User talk:Dudeperson176123"
+  }, {
+    "count" : 18,
+    "page" : "Wikipédia:Le Bistro/12 septembre 2015"
+  }, {
+    "count" : 17,
+    "page" : "Wikipedia:In the news/Candidates"
+  }, {
+    "count" : 17,
+    "page" : "Wikipedia:Requests for page protection"
+  } ]
+} ]
+```
+
+**Now lets disable segment.** 
+$ curl -XGET -H 'Content-Type:application/json' http://localhost:8081/druid/coordinator/v1/datasources/wikipedia/segments
+
+["wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:37:52.149Z"]
+
+$ curl -XDELETE http://localhost:8081/druid/coordinator/v1/datasources/wikipedia/segments/wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:37:52.149Z
+
+**Before to run kill task.** 
+```
+$ find ./var/druid/segment*
+./var/druid/segment-cache
+./var/druid/segment-cache/wikipedia
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/factory.json
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/version.bin
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/00000.smoosh
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/meta.smoosh
+./var/druid/segment-cache/info_dir
+./var/druid/segment-cache/info_dir/wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:37:52.149Z
+./var/druid/segments
+./var/druid/segments/wikipedia
+./var/druid/segments/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z
+./var/druid/segments/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z
+./var/druid/segments/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0
+./var/druid/segments/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/index.zip
+./var/druid/segments/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/descriptor.json
+./var/druid/segments/intermediate_pushes
+```
+
+**Run kill task**
+$ curl -X 'POST' -H 'Content-Type:application/json' -d '{"type": "kill","dataSource": "wikipedia","interval" : "2015-09-12/2015-09-13"}' http://localhost:8090/druid/indexer/v1/task 
+{"task":"kill_wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:45:18.029Z"}
+
+**After running kill task**
+You can see that segment was removed from deep storage but still present in segment-cache of historical node and the most disappointing segment data included in query response.  Why? 
+I believe that historical segment cache should be evicted and removed immediately after removing the segment from deep storage.  
+
+```
+$ find ./var/druid/segment*
+./var/druid/segment-cache
+./var/druid/segment-cache/wikipedia
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/factory.json
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/version.bin
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/00000.smoosh
+./var/druid/segment-cache/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/meta.smoosh
+./var/druid/segment-cache/info_dir
+./var/druid/segment-cache/info_dir/wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:37:52.149Z
+./var/druid/segments
+./var/druid/segments/intermediate_pushes
+```
+
+$ curl -XGET -H 'Content-Type:application/json' http://localhost:8081/druid/coordinator/v1/datasources/wikipedia?full
+
+```
+{"name":"wikipedia","properties":{},"segments":[{"dataSource":"wikipedia","interval":"2015-09-12T00:00:00.000Z/2015-09-13T00:00:00.000Z","version":"2019-05-23T10:37:52.149Z","loadSpec":{"type":"local","path":"/pub/work/projects/druid-poc2/apache-druid-0.14.1-incubating/var/druid/segments/wikipedia/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-05-23T10:37:52.149Z/0/index.zip"},"dimensions":"channel,cityName,comment,countryIsoCode,countryName,isAnonymous,isMinor,isNew,isRobot,isUnpatrolled,metroCode,namespace,page,regionIsoCode,regionName,user,added,deleted,delta","metrics":"","shardSpec":{"type":"numbered","partitionNum":0,"partitions":0},"binaryVersion":9,"size":4821529,"identifier":"wikipedia_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-05-23T10:37:52.149Z"}]}
+```
+
+**And Druid keep responding.**
+
+$ curl -X POST http://localhost:8082/druid/v2/?pretty -H 'Content-Type:application/json' -d @quickstart/tutorial/wikipedia-top-pages.json
+```
+[ {
+  "timestamp" : "2015-09-12T00:46:58.771Z",
+  "result" : [ {
+    "count" : 33,
+    "page" : "Wikipedia:Vandalismusmeldung"
+  }, {
+    "count" : 28,
+    "page" : "User:Cyde/List of candidates for speedy deletion/Subpage"
+  }, {
+    "count" : 27,
+    "page" : "Jeremy Corbyn"
+  }, {
+    "count" : 21,
+    "page" : "Wikipedia:Administrators' noticeboard/Incidents"
+  }, {
+    "count" : 20,
+    "page" : "Flavia Pennetta"
+  }, {
+    "count" : 18,
+    "page" : "Total Drama Presents: The Ridonculous Race"
+  }, {
+    "count" : 18,
+    "page" : "User talk:Dudeperson176123"
+  }, {
+    "count" : 18,
+    "page" : "Wikipédia:Le Bistro/12 septembre 2015"
+  }, {
+    "count" : 17,
+    "page" : "Wikipedia:In the news/Candidates"
+  }, {
+    "count" : 17,
+    "page" : "Wikipedia:Requests for page protection"
+  } ]
+} ]
+```

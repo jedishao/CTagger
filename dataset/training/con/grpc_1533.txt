@@ -1,0 +1,94 @@
+Simulate latency and GRPC thread safety gurantees
+We wrote an interceptor to simulate adding latency and injecting failures into client requests.  In doing so we may be violating thread safety guarantees in GRPC.  I was hoping someone could look this over and let me know if this implementation makes sense or if we should be doing something different.  
+
+First, some details about the implementation and expected behavior,
+-  Failure behavior is provided by an injected FitContext.
+-  Failure can be a delay, an error, or a combination of both.
+-  Simulated errors are implemented as request cancellation.
+-  The implementation is leveraging backpressure to avoid having to queue up requests and responses.  The request() call is delayed to simulate latency.
+-  The solution works for request-response as well as streaming scenarios
+
+Here's the interceptor code,
+
+``` java
+public class FitClientInterceptor implements ClientInterceptor {
+    public static final String FIT_LAYER_NAME = "GrpcClient";
+
+    private final FitContext fitContext;
+    private final InjectionPoint injectionPoint;
+    private final ScheduledExecutorService executor;
+
+    public FitClientInterceptor(final FitContext fitContext, final ScheduledExecutorService executor) {
+        this.fitContext = Preconditions.checkNotNull(fitContext);
+        this.executor = Preconditions.checkNotNull(executor);
+    }
+
+    @Override
+    public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(final MethodDescriptor<ReqT, RespT> method, final CallOptions callOptions, final Channel next) {
+        return new ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
+            volatile boolean failureInjected = false;
+
+            @Override
+            public void start(final Listener<RespT> responseListener, final Metadata headers) {
+                // Convert the cause to FIT error if failure was injected
+                delegate().start(new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
+                    public void onClose(Status status, Metadata trailers) {
+                        if (failureInjected && status.getCode() == Code.CANCELLED) {
+                            delegate().onClose(Status.fromThrowable(new Throwable("Simulated Failure")), trailers);
+                        }
+                        else {
+                            delegate().onClose(status, trailers);
+                        }
+                    }
+                }, headers);
+            }
+
+            @Override
+            public void request(int numMessages) {
+                final InjectedFailure injectedFailure = fitContext.getFailure();
+                if (injectedFailure.anyImpact()) {
+                    if (injectedFailure.getDelay() > 0) {
+                        executor.schedule(() -> { 
+                                if (injectedFailure.shouldFail()) {
+                                    failureInjected = true;
+                                    delegate().cancel();
+                                } else {
+                                    delegate().request(numMessages); 
+                                }
+                            }, 
+                            injectedFailure.getDelay(), TimeUnit.MILLISECONDS);
+                    } else if (injectedFailure.shouldFail()) {
+                        failureInjected = true;
+                        delegate().request(numMessages);
+                        delegate().cancel();
+                    } else {
+                        delegate().request(numMessages);
+                    }
+                }
+                else {
+                    delegate().request(numMessages);
+                }
+            }
+
+            @Override
+            public void halfClose() {
+                // Special handling of requests where halfClose
+                // is still called after immediate failure in request()
+                if (!failureInjected) {
+                    delegate().halfClose();
+                }
+            }
+
+            @Override
+            public void sendMessage(ReqT message) {
+                // Special handling of UNARY requests where sendMessage
+                // is still called after immediate failure in request()
+                if (!failureInjected) {
+                    delegate().sendMessage(message);
+                }
+            }
+        };
+    }
+}
+
+```

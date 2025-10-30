@@ -1,0 +1,71 @@
+httpclient deadlock
+my app locked today,then i print the stack log:
+```
+Found one Java-level deadlock:
+=============================
+"vert.x-eventloop-thread-47":
+  waiting to lock monitor 0x000000001a182748 (object 0x00000000da863a70, a io.vertx.core.http.impl.HttpClientRequestImpl),
+  which is held by "vert.x-eventloop-thread-0"
+"vert.x-eventloop-thread-0":
+  waiting to lock monitor 0x000000001e851bb8 (object 0x00000000ff6253f8, a io.vertx.core.http.impl.ClientConnection),
+  which is held by "vert.x-eventloop-thread-47"
+
+Java stack information for the threads listed above:
+===================================================
+"vert.x-eventloop-thread-47":
+	at io.vertx.core.http.impl.HttpClientRequestImpl.getLock(HttpClientRequestImpl.java:440)
+	- waiting to lock <0x00000000da863a70> (a io.vertx.core.http.impl.HttpClientRequestImpl)
+	at io.vertx.core.http.impl.HttpClientRequestBase.handleException(HttpClientRequestBase.java:106)
+	at io.vertx.core.http.impl.HttpClientRequestImpl.handleException(HttpClientRequestImpl.java:50)
+	at io.vertx.core.http.impl.ClientConnection.handleClosed(ClientConnection.java:410)
+	- locked <0x00000000ff6253f8> (a io.vertx.core.http.impl.ClientConnection)
+	at io.vertx.core.net.impl.VertxHandler$$Lambda$229/1136370131.run(Unknown Source)
+	at io.vertx.core.impl.ContextImpl.lambda$wrapTask$2(ContextImpl.java:314)
+	at io.vertx.core.impl.ContextImpl$$Lambda$9/868737467.run(Unknown Source)
+	at io.vertx.core.impl.ContextImpl.executeFromIO(ContextImpl.java:190)
+	at io.vertx.core.net.impl.VertxHandler.channelInactive(VertxHandler.java:97)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:255)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:241)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:234)
+	at io.netty.channel.CombinedChannelDuplexHandler$DelegatingChannelHandlerContext.fireChannelInactive(CombinedChannelDuplexHandler.java:417)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelInputClosed(ByteToMessageDecoder.java:360)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelInactive(ByteToMessageDecoder.java:325)
+	at io.netty.handler.codec.http.HttpClientCodec$Decoder.channelInactive(HttpClientCodec.java:256)
+	at io.netty.channel.CombinedChannelDuplexHandler.channelInactive(CombinedChannelDuplexHandler.java:220)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:255)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:241)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:234)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelInactive(DefaultChannelPipeline.java:1329)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:255)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:241)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelInactive(DefaultChannelPipeline.java:908)
+	at io.netty.channel.AbstractChannel$AbstractUnsafe$7.run(AbstractChannel.java:744)
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:418)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:440)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:873)
+	at java.lang.Thread.run(Thread.java:745)
+"vert.x-eventloop-thread-0":
+	at io.vertx.core.net.impl.ConnectionBase.writeToChannel(ConnectionBase.java:113)
+	- waiting to lock <0x00000000ff6253f8> (a io.vertx.core.http.impl.ClientConnection)
+	at io.vertx.core.http.impl.ClientConnection.writeHeadWithContent(ClientConnection.java:476)
+	at io.vertx.core.http.impl.HttpClientRequestImpl.writeHeadWithContent(HttpClientRequestImpl.java:700)
+	at io.vertx.core.http.impl.HttpClientRequestImpl.connected(HttpClientRequestImpl.java:656)
+	- locked <0x00000000da863a70> (a io.vertx.core.http.impl.HttpClientRequestImpl)
+	at io.vertx.core.http.impl.HttpClientRequestImpl.access$100(HttpClientRequestImpl.java:50)
+	at io.vertx.core.http.impl.HttpClientRequestImpl$2.handleStream(HttpClientRequestImpl.java:600)
+	at io.vertx.core.http.impl.ConnectionManager$ConnQueue.deliverStream(ConnectionManager.java:258)
+	at io.vertx.core.http.impl.ConnectionManager$ConnQueue.lambda$getConnection$0(ConnectionManager.java:218)
+	at io.vertx.core.http.impl.ConnectionManager$ConnQueue$$Lambda$209/2008704175.handle(Unknown Source)
+	at io.vertx.core.impl.ContextImpl.lambda$wrapTask$2(ContextImpl.java:316)
+	at io.vertx.core.impl.ContextImpl$$Lambda$9/868737467.run(Unknown Source)
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:418)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:440)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:873)
+	at java.lang.Thread.run(Thread.java:745)
+
+Found 1 deadlock.
+```
+
+my vertx version is 3.3.3

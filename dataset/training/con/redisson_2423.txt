@@ -1,0 +1,28 @@
+RedissonMap.getAllAsync return smaller Map<K, V> than expected when load value from external.
+Expected behavior
+RedissonMap.getAllAsync(keySet) can return all correct value when load value from external.
+
+Actual behavior
+RedissonMap.getAllAsync return smaller Map<K, V> than expected when load value from external.
+
+Steps to reproduce or test case
+**suppose:**
+MapOptions<K, V> options= MapOptions.<K, V>defaults().loader(new Loader());
+RMapCache<K, V> redisMapCache = getMapCache(stringName, MapOptions<K, V> options);
+Set<K> keySet = new HashSet<>();
+
+1. clear redis data 
+2. One thread execute redisMapCache.get(key).
+   Another thread execute RFuture<Map<K, V>> myRFuture = redisMapCache.getAllAsync(keySet) concurrently.
+Map<K, V> myMap = myRFuture .get(timeoutValue, TimeUnit.SECONDS);
+
+Sometimes the myMap.size() is smaller than keySet.size(), myMap.get(someKey) is null.
+
+Redis version
+any
+
+Redisson version
+3.10.1
+
+Redisson configuration
+any

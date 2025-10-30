@@ -1,0 +1,10 @@
+Redis Clients always use the same Sentinel
+When using Sentinels with Reddison 3.10.4, the reddison clients always select the same sentinel server due to the predictability of the backing ConcurrentHashMap
+
+https://github.com/redisson/redisson/blob/488fe8fa8ddbc75aa7b13a905f7c919ffa1e9a10/redisson/src/main/java/org/redisson/connection/SentinelConnectionManager.java#L71
+
+In a large enough cluster this causes the CPU load on that Sentinel server to be considerably higher than the other servers.  The following PR
+
+https://github.com/redisson/redisson/pull/1979
+
+Shuffles the sentinel list so that clients distribute the load to all sentinel servers.

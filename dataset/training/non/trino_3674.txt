@@ -1,0 +1,38 @@
+DOS attack system.register_partition() can get BoundedExecutor into an unrecoverable state
+I wrote some misbehaved client code that got our cluster into a bad state. @findepi suggested I document it here in case it helps. From what I can tell, https://github.com/airlift/airlift/pull/742 wouldn't help because it doesn't seem like the executor ever recovers.
+
+1. Create a new partitioned Hive table backed by S3, 1 Presto coordinator with ~80 workers
+2. Concurrently call system.register_partition() for ~7000 partitions
+3. Have clients ignore the QUERY_QUEUE_FULL errors and retry immediately to DOS the coordinator
+4. Observe the "BoundedExecutor is in a failed state" errors. At this point, stop the DOS attack.
+5. Note that no new queries work, the coordinator returns "BoundedExecutor is in a failed state"
+```
+java.lang.IllegalStateException: BoundedExecutor is in a failed state
+	at com.google.common.base.Preconditions.checkState(Preconditions.java:507)
+	at io.airlift.concurrent.BoundedExecutor.execute(BoundedExecutor.java:55)
+	at io.prestosql.spi.VersionEmbedder.lambda$embedVersion$0(VersionEmbedder.java:33)
+	at io.prestosql.plugin.hive.HiveSplitManager$ErrorCodedExecutor.execute(HiveSplitManager.java:488)
+	at io.prestosql.plugin.hive.util.ResumableTasks.submit(ResumableTasks.java:31)
+	at io.prestosql.plugin.hive.BackgroundHiveSplitLoader.start(BackgroundHiveSplitLoader.java:192)
+	at io.prestosql.plugin.hive.HiveSplitManager.getSplits(HiveSplitManager.java:261)
+	at io.prestosql.plugin.base.classloader.ClassLoaderSafeConnectorSplitManager.getSplits(ClassLoaderSafeConnectorSplitManager.java:53)
+	at io.prestosql.split.SplitManager.getSplits(SplitManager.java:86)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner$Visitor.visitScanAndFilter(DistributedExecutionPlanner.java:189)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner$Visitor.visitTableScan(DistributedExecutionPlanner.java:172)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner$Visitor.visitTableScan(DistributedExecutionPlanner.java:149)
+	at io.prestosql.sql.planner.plan.TableScanNode.accept(TableScanNode.java:131)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner$Visitor.visitLimit(DistributedExecutionPlanner.java:360)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner$Visitor.visitLimit(DistributedExecutionPlanner.java:149)
+	at io.prestosql.sql.planner.plan.LimitNode.accept(LimitNode.java:109)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner.doPlan(DistributedExecutionPlanner.java:119)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner.doPlan(DistributedExecutionPlanner.java:124)
+	at io.prestosql.sql.planner.DistributedExecutionPlanner.plan(DistributedExecutionPlanner.java:96)
+	at io.prestosql.execution.SqlQueryExecution.planDistribution(SqlQueryExecution.java:413)
+	at io.prestosql.execution.SqlQueryExecution.start(SqlQueryExecution.java:337)
+	at io.prestosql.execution.SqlQueryManager.createQuery(SqlQueryManager.java:237)
+	at io.prestosql.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:132)
+	at io.prestosql.$gen.Presto_332____20200507_223637_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+```

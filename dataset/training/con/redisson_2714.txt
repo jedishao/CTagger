@@ -1,0 +1,50 @@
+RedissonLock.tryLock() interrupted and keep renew lock
+<!--
+Сonsider Redisson PRO https://redisson.pro version for advanced features and support by SLA.
+-->
+
+**Expected behavior**
+when tryLock is interrupted, watchdog renew listener is cancelled too
+
+**Actual behavior**
+when tryLock is interrupted, watchdog keeps renewing lock, this makes ifinite lock
+
+**Steps to reproduce or test case**
+    private volatile boolean threadTwoScheduled = false;
+    @Test
+    public void lockThenInterruptNotCatchThenBroke() {
+        RLock lock = redissonClient.getLock("concurrent-test2");
+        Assert.assertFalse(lock.isLocked());
+
+        Thread thread = new Thread(() -> {
+            threadTwoScheduled = true;
+            if (!lock.tryLock()) {
+                return;
+            }
+            try {
+                doBusiness();
+            } finally {
+                lock.unlock();
+            }
+        });
+        thread.start();
+        while(!threadTwoScheduled){}
+        // let the tcp request be sent out
+        for (int i = 0; i < 1000; i++) {
+            new Object();
+        }
+        thread.interrupt();
+        try {
+            Thread.sleep(45000L); // longer than default watchdog time
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        // lock is still being renewed by watchdog
+        Assert.assertTrue(lock.isLocked());
+    }
+
+**Redis version**
+doesn't matter
+**Redisson version**
+3.11.2
+**Redisson configuration**

@@ -1,0 +1,72 @@
+Unable to delete schema from topic after getting schema into a certain state
+**Describe the bug**
+I have run into an issue where after a schema has been applied to a topic automatically by referencing the schema during Producer creation in Java, I am unable to delete the schema, and have tried via a number of methods. This is causing an "Incompatible schema used" message when I try to connect via a connection with Java, which I cannot workaround. This has occurred on a number of occasions, and there is seemingly no way to remove the schema via Pulsar CLI or REST.
+
+I have attempted to delete the schema via:
+* CLI to delete schema: pulsar-admin schemas delete persistent://exampletenant/examplens/exampletopic
+* REST: DELETE to: http://pulsar:8080/admin/v2/schemas/exampletenant/examplens/exampletopic/schema
+* CLI to delete topic with schema: pulsar-admin topics delete -d persistent://exampletenant/examplens/exampletopic
+* CLI to delete namespace: pulsar-admin namespaces delete exampletenant/examplens
+* CLI to delete tenant: pulsar-admin namespaces delete exampletenant
+
+After doing any of these it will still show the schema is in place:
+pulsar-admin schemas get persistent://exampletenant/examplens/exampletopic
+
+Initially I would just like to know a workaround for being able to manually delete the schema in bookkeeper if I can't do this directly via pulsar-admin CLI or REST. The exact cause of this may be awkward to reproduce.
+
+Interestingly, if you query this via REST the version of the schema reported is version 2, e.g.
+REST: GET to http://pulsar:8080/admin/v2/schemas/exampletenant/examplens/exampletopic/schema
+```
+{
+    "version": 2,
+    "type": "JSON",
+    "timestamp": 0,
+    "data": "{\"type\":\"record\",\"name\":\"ExampleMessage\",\"namespace\":\"example\",\"fields\":[{\"name\":\"name\",\"type\":[\"null\",\"string\"],\"default\":null},{\"name\":\"version\",\"type\":\"int\"}]}",
+    "properties": {
+        "__alwaysAllowNull": "true"
+    }
+}
+```
+
+However when trying to do a delete via REST, the version of the deletion success message is version 1:
+REST: DELETE to 
+http://pulsar:8080/admin/v2/schemas/exampletenant/examplens/exampletopic/schema
+```
+{
+    "version": 1
+}
+```
+
+Surely this should be reported as version 3? This makes me think that the issue may be due to some internal versioning of the schema, so the delete version is not applied at the correct level? (just at a guess, apologies if its completely off!)
+
+**To Reproduce**
+1. Create a new topic, e.g. in this example I used persistent://exampletenant/examplens/exampletopic
+2. Using the Java API, create a simple object class to use for a schema, e.g. 
+`package example; public class ExampleMessage { public String name = "This is a test"; public String example1 = "This is another test"; public String example2 = "This is another test"; public int version = 1; }`
+3. Use a producer to connect: e.g. `Producer<ExampleMessage> producer = pulsarClient.newProducer(JSONSchema.of(ExampleMessage.class)).topic("persistent://exampletenant/examplens/exampletopic").create();`
+4. Amend the ExampleMessage object to add another property, and then again to get the schema to version 2 within Pulsar
+5. Run the CLI to delete the schema: pulsar-admin schemas delete persistent://exampletenant/examplens/exampletopic
+6. Run the CLI to get the schema: pulsar-admin schemas get persistent://exampletenant/examplens/exampletopic
+
+When the issue occurs the schema is still returned even though it should have been deleted.
+
+_Please note: Re-producing this issue has been inconsistent so there may be other factors which could be affecting this (such as Producers / Readers attached to the topic at the time the schema is attempted to be deleted). I'll attempt to understand the cause more precisely and update this if I can reproduce this consistently._
+
+**Expected behavior**
+The schema should have been  deleted when using either:
+* CLI to delete schema: pulsar-admin schemas delete persistent://exampletenant/examplens/exampletopic
+* REST: DELETE to: http://pulsar:8080/admin/v2/schemas/exampletenant/examplens/exampletopic/schema
+* CLI to delete topic with schema: pulsar-admin topics delete -d persistent://exampletenant/examplens/exampletopic
+
+It would be expected that the schema should now be deleted or at least not enforced. Or there should at least be a way to remove it if it gets into this state.
+
+**Screenshots**
+N/A
+
+**Desktop (please complete the following information):**
+ - OS: Connectivity attempted from Windows 10 Enterprise (1903), Pulsar runs within Kubernetes, pulsar-admin run from the pulsar-admin pod using a kubectl exec. Java version used was OpenJDK 12 with 2.4.0 pulsar libraries.
+
+**Additional context**
+Pulsar version 2.4.0 running within a customer Kubernetes cluster, we essentially followed: https://pulsar.apache.org/docs/en/deploy-kubernetes/ to set this up. Where I note pulsar:8080 above, this refers to the service to the pulsar broker where you can access the REST api.
+
+Apologies if anything isn't clear enough on this ticket! If theres any further specifics which may help then please let me know and I'll do my best to provide..

@@ -1,0 +1,141 @@
+Class Cast Exception while converting object to RExpirable
+I'm using an REntity object that I'd like to store in the redis store. And I'd also like to set the expiry time as 30 miutes for the same. But whenever I use the RExpirable function I get the ClassCastException.
+
+The REntity class that I'm using 
+
+```
+@REntity
+public class Session {
+    @RId
+    private String id;
+    private String api_key;
+    private String userid;
+    private String ip;
+    private Long expirytime;
+    private Long sessionexpirytime;
+
+    public Session() {
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getApi_key() {
+        return api_key;
+    }
+
+    public void setApi_key(String api_key) {
+        this.api_key = api_key;
+    }
+
+    public String getUserid() {
+        return userid;
+    }
+
+    public void setUserid(String userid) {
+        this.userid = userid;
+    }
+
+    public String getIp() {
+        return ip;
+    }
+
+    public void setIp(String ip) {
+        this.ip = ip;
+    }
+
+    public Long getExpirytime() {
+        return expirytime;
+    }
+
+    public void setExpirytime(Long expirytime) {
+        this.expirytime = expirytime;
+    }
+
+    public Long getSessionexpirytime() {
+        return sessionexpirytime;
+    }
+
+    public void setSessionexpirytime(Long sessionexpirytime) {
+        this.sessionexpirytime = sessionexpirytime;
+    }
+
+    private final static String key="Bar12345Bar12345";
+    private static final String initVector = "RandomInitVector";
+    public static String encrypt(String value) {
+        try {
+            IvParameterSpec iv = new IvParameterSpec(initVector.getBytes("UTF-8"));
+            SecretKeySpec skeySpec = new SecretKeySpec(key.getBytes("UTF-8"), "AES");
+
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
+            cipher.init(Cipher.ENCRYPT_MODE, skeySpec, iv);
+
+            byte[] encrypted = cipher.doFinal(value.getBytes());
+            return java.util.Base64.getEncoder().encodeToString(encrypted);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public  static String decrypt(String encrypted) {
+        try {
+            IvParameterSpec iv = new IvParameterSpec(initVector.getBytes("UTF-8"));
+            SecretKeySpec skeySpec = new SecretKeySpec(key.getBytes("UTF-8"), "AES");
+
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
+            cipher.init(Cipher.DECRYPT_MODE, skeySpec, iv);
+
+            byte[] original = cipher.doFinal(java.util.Base64.getDecoder().decode(encrypted));
+
+            return new String(original);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        return null;
+    }
+    /*@Override
+    public boolean equals(Object obj) {
+        return (obj instanceof Session && UUID.fromString(decrypt(((Session) obj).id)).hashCode() == UUID.fromString(decrypt(this.id)).hashCode());
+
+    }
+    @Override
+    public int hashCode() {
+        return UUID.fromString(decrypt(id)).hashCode();
+    }*/
+
+}
+
+
+```
+The function persisting and setting it as RExpirable 
+
+```
+RLiveObjectService service = client.getLiveObjectService();
+Session session = new Session();
+session.setId(encrypt("1345434"));
+session.setExpirytime(Utils.getUnixTimeWithAddedMinutes(10));
+session.setIp("127.0.0.2");
+session.setSessionexpirytime(Utils.getUnixTimeWithAddedMinutes(30));
+session.setUserid(encrypt("301237"));
+session.setApi_key(encrypt("tSpP"));
+service.persist(session);
+service.asRExpirable(session).expire(30, TimeUnit.MINUTES);
+
+
+```
+The persist function works as I'm able to retreive the data back. So the redis config is fine. But the following exception is being thrown.
+
+```
+Caused by: java.lang.ClassCastException: models.Session cannot be cast to org.redisson.api.RExpirable
+	at org.redisson.RedissonLiveObjectService.asRExpirable(RedissonLiveObjectService.java:493) ~[redisson-3.5.0.jar:na]
+
+```
+Any help is appreciated. Thanks!

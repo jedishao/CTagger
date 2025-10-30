@@ -1,0 +1,73 @@
+RedissonPromise泄露
+`RBlockingQueue`的`take`方法导致内存泄露
+
+```java
+public void run(String... args) throws Exception {
+        RBlockingQueue<String> queue = client.getBlockingQueue("demo");
+
+        Runnable producer = () -> {
+            for (int i = 0; i < 1000000; i++) {
+                queue.offer(i + "");
+            }
+        };
+
+        Runnable consumer = () -> {
+            while (true) {
+                try {
+                    String msg = queue.take();
+                    System.out.println("receive: " + msg);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        new Thread(producer).start();
+        new Thread(consumer).start();
+    }
+```
+
+```cmd
+jmap -histo:live 4012
+
+ num     #instances         #bytes  class name
+----------------------------------------------
+   1:       2999440       95982080  io.netty.util.concurrent.ImmediateEventExecutor$ImmediatePromise
+   2:       2999440       71986560  org.redisson.misc.RedissonPromise
+   3:        999793       71985096  org.redisson.command.AsyncDetails
+   4:        999794       55988464  io.netty.util.HashedWheelTimer$HashedWheelTimeout
+   5:       1057046       40346808  [C
+   6:        999793       39991720  io.netty.channel.DefaultChannelPromise
+   7:        999793       39991720  org.redisson.command.CommandAsyncService$8
+   8:        999793       31993376  org.redisson.connection.NodeSource
+   9:       1010953       25483976  [Ljava.lang.Object;
+  10:       1055901       25341624  java.lang.String
+  11:        999793       23995032  org.redisson.command.CommandAsyncService$9
+  12:        999840       15997440  java.util.concurrent.atomic.AtomicBoolean
+  13:        999798       15996768  org.redisson.misc.RedissonPromise$$Lambda$19/1667859935
+  14:             7        4194472  [Lio.netty.util.concurrent.GenericFutureListener;
+```
+
+### Expected behavior
+
+`RedissonPromise`在`full gc`后应该大部分被回收
+
+### Actual behavior
+
+实际上未被回收
+
+### Steps to reproduce or test case
+
+参考问题描述提供的代码
+
+### Redis version
+
+3.0.6
+
+### Redisson version
+
+3.10.5
+
+### Redisson configuration
+
+default config

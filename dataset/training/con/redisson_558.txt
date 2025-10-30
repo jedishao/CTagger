@@ -1,0 +1,123 @@
+loop lock blocked when master-slave failover
+redisson version: 2.2.21
+redis version: 3.2.1
+description: after master-slave failover , the test code blocked forever . 
+redis cluster : 
+
+```
+8ba7e2b89cf7a4f5f48db6cd6da1a50c1507b24f 10.126.53.248:8306 slave 64fb8c29a4f310ba027bd184961f0d797d9737fe 0 1469593221820 59 connected
+64fb8c29a4f310ba027bd184961f0d797d9737fe 10.126.53.248:8308 master - 0 1469593222321 59 connected 0-5460
+39e5601c6e2117113a71b20138ec273f32fa22c1 10.126.53.248:8309 myself,master - 0 0 9 connected 10922-16383
+a2aebc81b4df67404adc40abd96e404da44229af 10.126.53.248:8307 master - 0 1469593223322 11 connected 5461-10921
+```
+
+test code:
+
+```
+public static void main(String[] args) throws Exception {
+        Config config = new Config();
+        config.useClusterServers()//
+                .addNodeAddress("10.126.53.248:8308")//
+                .addNodeAddress("10.126.53.248:8309");//
+        Redisson redisson = new Redisson(config);
+
+        for (int i = 0; i < Integer.MAX_VALUE; i++) {
+            try {
+                RLock lock = redisson.getLock("MYTEST:d");
+                boolean tryLock1 = lock.tryLock(1, TimeUnit.SECONDS);
+                System.out.println(tryLock1);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+```
+
+exception:
+
+```
+
+[nioEventLoopGroup-2-3] WARN io.netty.util.concurrent.DefaultPromise - An exception was thrown by org.redisson.command.CommandAsyncService$9.operationComplete()
+org.redisson.client.RedisNodeNotFoundException: No node for slot: /10.126.53.248:8308
+    at org.redisson.connection.MasterSlaveConnectionManager.getEntry(MasterSlaveConnectionManager.java:594)
+    at org.redisson.connection.MasterSlaveConnectionManager.connectionWriteOp(MasterSlaveConnectionManager.java:584)
+    at org.redisson.command.CommandAsyncService.async(CommandAsyncService.java:425)
+    at org.redisson.command.CommandAsyncService.checkAttemptFuture(CommandAsyncService.java:688)
+    at org.redisson.command.CommandAsyncService.access$3(CommandAsyncService.java:679)
+    at org.redisson.command.CommandAsyncService$9.operationComplete(CommandAsyncService.java:493)
+    at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:514)
+    at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:507)
+    at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:486)
+    at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:427)
+    at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:129)
+    at org.redisson.client.protocol.CommandData.tryFailure(CommandData.java:72)
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:234)
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:117)
+    at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:367)
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:248)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:345)
+    at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:345)
+    at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1294)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:911)
+    at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:131)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:572)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:513)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:427)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:399)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:140)
+    at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:144)
+    at java.lang.Thread.run(Thread.java:745)
+[nioEventLoopGroup-2-2] INFO org.redisson.connection.pool.PubSubConnectionPool - 1 connections initialized for /10.126.53.248:8308
+[nioEventLoopGroup-2-6] INFO org.redisson.connection.pool.SlaveConnectionPool - 5 connections initialized for /10.126.53.248:8308
+[nioEventLoopGroup-2-8] WARN io.netty.util.concurrent.DefaultPromise - An exception was thrown by org.redisson.command.CommandAsyncService$9.operationComplete()
+org.redisson.client.RedisNodeNotFoundException: No node for slot: /10.126.53.248:8308
+    at org.redisson.connection.MasterSlaveConnectionManager.getEntry(MasterSlaveConnectionManager.java:594)
+    at org.redisson.connection.MasterSlaveConnectionManager.connectionWriteOp(MasterSlaveConnectionManager.java:584)
+    at org.redisson.command.CommandAsyncService.async(CommandAsyncService.java:425)
+    at org.redisson.command.CommandAsyncService.checkAttemptFuture(CommandAsyncService.java:688)
+    at org.redisson.command.CommandAsyncService.access$3(CommandAsyncService.java:679)
+    at org.redisson.command.CommandAsyncService$9.operationComplete(CommandAsyncService.java:493)
+    at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:514)
+    at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:507)
+    at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:486)
+    at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:427)
+    at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:129)
+    at org.redisson.client.protocol.CommandData.tryFailure(CommandData.java:72)
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:234)
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:117)
+    at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:367)
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:248)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:345)
+    at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:345)
+    at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1294)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:366)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:352)
+    at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:911)
+    at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:131)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:572)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:513)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:427)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:399)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:140)
+    at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:144)
+    at java.lang.Thread.run(Thread.java:745)
+[nioEventLoopGroup-2-4] INFO org.redisson.connection.MasterSlaveEntry - master 10.126.53.248:8306 used as slave
+[nioEventLoopGroup-2-4] INFO org.redisson.cluster.ClusterConnectionManager - slave //10.126.53.248:8308 removed for slot ranges: [[0-5460]]
+[nioEventLoopGroup-2-4] INFO org.redisson.connection.pool.MasterConnectionPool - 5 connections initialized for /10.126.53.248:8308
+[nioEventLoopGroup-2-4] INFO org.redisson.cluster.ClusterConnectionManager - master: //10.126.53.248:8308 added for slot ranges: [[0-5460]]
+[nioEventLoopGroup-2-4] INFO org.redisson.connection.MasterSlaveEntry - master 10.126.53.248:8308 excluded from slaves
+[nioEventLoopGroup-2-4] INFO org.redisson.cluster.ClusterConnectionManager - slave: //10.126.53.248:8306 added for slot ranges: [[0-5460]]
+
+```

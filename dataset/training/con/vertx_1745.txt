@@ -1,0 +1,42 @@
+Blocking code is executed in the one thread
+My code:
+
+```java
+public class BVerticle extends AbstractVerticle {
+    @Override
+    public void start() throws Exception {
+        WorkerExecutor executor = vertx.createSharedWorkerExecutor("worker", 10, 10000);
+        executor.executeBlocking(future -> {
+            out.printf("start 1, %s \n", Thread.currentThread().getName());
+            try {
+                Thread.sleep(5_000L);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            future.complete();
+        }, result -> {
+            out.printf("finish 2, %s \n", Thread.currentThread().getName());
+        });
+        executor.executeBlocking(future -> {
+            out.printf("start 2, %s \n", Thread.currentThread().getName());
+            try {
+                Thread.sleep(5_000L);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            future.complete();
+        }, result -> {
+            out.printf("finish 2, %s \n", Thread.currentThread().getName());
+        });
+    }
+}
+```
+
+I got output:
+
+> start 1, worker-0 
+> start 2, worker-0 
+> finish 2, vert.x-eventloop-thread-1 
+> finish 2, vert.x-eventloop-thread-1
+
+Why blocking code is executed only in the one thread consequently?

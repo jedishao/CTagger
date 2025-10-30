@@ -1,0 +1,16 @@
+Report possible race issues
+Hi, Developers of mrniko/redisson,
+
+I am writing to report two race issues on use of ConcurrentHashMap. The issues are reported by our tool in an automatic way. Although manually confirmed, they would be false positives, given we do not know the specification of the program. We would very appreciate if you could check below for details and confirm with us whether they are real problems. For more information, please refer to our website: http://sav.sutd.edu.sg/?page_id=2845
+
+File: 
+mrniko/redisson/src/main/java/org/redisson/RedissonCountDownLatch.java
+Location: Line (66, 120)
+Description: 
+Line 120 is in the synchronized block on "ENTRIES". If the intention is to guarantee exclusive access for the !containsKey checking on "ENTRIES" and to ensure the atomicity of the checking and unsubscription (line 120,121), then the write operations on "ENTRIES" in line 66, 115, 117, 136 may break this. Relying on the ConcurrentHashMap to ensure exclusive access is dangerous since ConcurrentHashMap has no guarantee of exclusive access.
+
+File: 
+mrniko/redisson/src/main/java/org/redisson/RedissonLock.java
+Location: Line (75, 113)
+Description: 
+Same as above. 

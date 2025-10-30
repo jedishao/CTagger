@@ -1,0 +1,4 @@
+BloomKFilter used by BloomDimFilter not thread-safe leading to unstable results
+Experienced unstable results from using `BloomDimFilter` - after investigating it would appear that the [`test` method of the `BloomKFilter` is stateful and not thread-safe](https://github.com/apache/hive/blob/master/storage-api/src/java/org/apache/hive/common/util/BloomKFilter.java#L210) leading to understandably very bizarre behavior when querying a large number of segments.
+
+The hive `BloomFilter` implementation does not seem to have that problem with it's `test` methods, which [only read from the `BitSet`](https://github.com/apache/hive/blob/master/storage-api/src/java/org/apache/hive/common/util/BloomFilter.java#L167), and produces stable results in my testing.

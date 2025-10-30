@@ -1,0 +1,63 @@
+HttpServerResponse.sendFile blocks eventloop
+Calling `HttpServerResponse.sendFile` produces the following exception:
+
+```
+Oct 04, 2016 11:07:27 AM io.vertx.core.impl.BlockedThreadChecker
+WARNING: Thread Thread[vert.x-eventloop-thread-3,5,main] has been blocked for 8059 ms, time limit is 2000
+io.vertx.core.VertxException: Thread blocked
+        at com.sun.crypto.provider.GHASH.update(GHASH.java:167)
+        at com.sun.crypto.provider.GaloisCounterMode.doLastBlock(GaloisCounterMode.java:362)
+        at com.sun.crypto.provider.GaloisCounterMode.encryptFinal(GaloisCounterMode.java:419)
+        at com.sun.crypto.provider.CipherCore.finalNoPadding(CipherCore.java:1025)
+        at com.sun.crypto.provider.CipherCore.doFinal(CipherCore.java:984)
+        at com.sun.crypto.provider.AESCipher.engineDoFinal(AESCipher.java:479)
+        at javax.crypto.CipherSpi.bufferCrypt(CipherSpi.java:776)
+        at javax.crypto.CipherSpi.engineDoFinal(CipherSpi.java:730)
+        at javax.crypto.Cipher.doFinal(Cipher.java:2416)
+        at sun.security.ssl.CipherBox.encrypt(CipherBox.java:396)
+        at sun.security.ssl.EngineOutputRecord.write(EngineOutputRecord.java:300)
+        at sun.security.ssl.EngineOutputRecord.write(EngineOutputRecord.java:225)
+        at sun.security.ssl.EngineWriter.writeRecord(EngineWriter.java:186)
+        at sun.security.ssl.SSLEngineImpl.writeRecord(SSLEngineImpl.java:1280)
+        at sun.security.ssl.SSLEngineImpl.writeAppRecord(SSLEngineImpl.java:1251)
+        at sun.security.ssl.SSLEngineImpl.wrap(SSLEngineImpl.java:1166)
+        at javax.net.ssl.SSLEngine.wrap(SSLEngine.java:509)
+        at io.netty.handler.ssl.SslHandler.wrap(SslHandler.java:700)
+        at io.netty.handler.ssl.SslHandler.wrap(SslHandler.java:526)
+        at io.netty.handler.ssl.SslHandler.flush(SslHandler.java:501)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeFlush0(AbstractChannelHandlerContext.java:762)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeFlush(AbstractChannelHandlerContext.java:754)
+        at io.netty.channel.AbstractChannelHandlerContext.flush(AbstractChannelHandlerContext.java:735)
+        at io.netty.channel.ChannelOutboundHandlerAdapter.flush(ChannelOutboundHandlerAdapter.java:115)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeFlush0(AbstractChannelHandlerContext.java:762)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeFlush(AbstractChannelHandlerContext.java:754)
+        at io.netty.channel.AbstractChannelHandlerContext.flush(AbstractChannelHandlerContext.java:735)
+        at io.netty.handler.stream.ChunkedWriteHandler.doFlush(ChunkedWriteHandler.java:310)
+        at io.netty.handler.stream.ChunkedWriteHandler.flush(ChunkedWriteHandler.java:138)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeFlush0(AbstractChannelHandlerContext.java:762)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeFlush(AbstractChannelHandlerContext.java:754)
+        at io.netty.channel.AbstractChannelHandlerContext.flush(AbstractChannelHandlerContext.java:735)
+        at io.netty.channel.ChannelDuplexHandler.flush(ChannelDuplexHandler.java:117)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeFlush0(AbstractChannelHandlerContext.java:762)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeWriteAndFlush(AbstractChannelHandlerContext.java:788)
+        at io.netty.channel.AbstractChannelHandlerContext.write(AbstractChannelHandlerContext.java:800)
+        at io.netty.channel.AbstractChannelHandlerContext.writeAndFlush(AbstractChannelHandlerContext.java:780)
+        at io.netty.channel.AbstractChannelHandlerContext.writeAndFlush(AbstractChannelHandlerContext.java:817)
+        at io.netty.channel.DefaultChannelPipeline.writeAndFlush(DefaultChannelPipeline.java:1011)
+        at io.netty.channel.AbstractChannel.writeAndFlush(AbstractChannel.java:289)
+        at io.vertx.core.net.impl.ConnectionBase.writeToChannel(ConnectionBase.java:117)
+        at io.vertx.core.http.impl.ServerConnection.writeToChannel(ServerConnection.java:184)
+        at io.vertx.core.net.impl.ConnectionBase.sendFile(ConnectionBase.java:248)
+        at io.vertx.core.http.impl.ServerConnection.sendFile(ServerConnection.java:393)
+        at io.vertx.core.http.impl.HttpServerResponseImpl.doSendFile(HttpServerResponseImpl.java:468)
+        at io.vertx.core.http.impl.HttpServerResponseImpl.sendFile(HttpServerResponseImpl.java:336)
+        at io.vertx.core.http.impl.HttpServerResponseImpl.sendFile(HttpServerResponseImpl.java:54)
+        at io.vertx.core.http.HttpServerResponse.sendFile(HttpServerResponse.java:275)
+        at io.vertx.core.http.HttpServerResponse.sendFile(HttpServerResponse.java:262)
+```
+
+Given there is no indication that this is blocking I did not expect the call to execute the write on the current thread. And given the documentation on the similar method says:
+
+``The actual serve is asynchronous and may not complete until some time after this method has returned`
+
+This seems to be inaccurate.

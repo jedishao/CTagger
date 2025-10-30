@@ -1,0 +1,46 @@
+Do not log warnings for Hive cache refresh errors
+These exceptions are expected (cached objects can be deleted on the metastore) and should not be logged.
+
+```
+2014-03-14T15:05:12.697-0700     WARN   ...        com.google.common.cache.LocalCache      Exception thrown during refresh
+java.util.concurrent.ExecutionException: NoSuchObjectException(message:partition values=[...])
+        at com.google.common.util.concurrent.AbstractFuture$Sync.getValue(AbstractFuture.java:299) ~[guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.AbstractFuture$Sync.get(AbstractFuture.java:286) ~[guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.AbstractFuture.get(AbstractFuture.java:116) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.Uninterruptibles.getUninterruptibly(Uninterruptibles.java:135) ~[guava-16.0.1.jar:na]
+        at com.google.common.cache.LocalCache$Segment.getAndRecordStats(LocalCache.java:2346) ~[guava-16.0.1.jar:na]
+        at com.google.common.cache.LocalCache$Segment$1.run(LocalCache.java:2329) ~[guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.MoreExecutors$SameThreadExecutorService.execute(MoreExecutors.java:297) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.ExecutionList.executeListener(ExecutionList.java:156) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.ExecutionList.execute(ExecutionList.java:145) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.AbstractFuture.setException(AbstractFuture.java:202) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.Futures$ChainingListenableFuture.run(Futures.java:857) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.MoreExecutors$SameThreadExecutorService.execute(MoreExecutors.java:297) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.ExecutionList.executeListener(ExecutionList.java:156) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.ExecutionList.execute(ExecutionList.java:145) [guava-16.0.1.jar:na]
+        at com.google.common.util.concurrent.ListenableFutureTask.done(ListenableFutureTask.java:91) [guava-16.0.1.jar:na]
+        at java.util.concurrent.FutureTask.finishCompletion(FutureTask.java:380) [na:1.7.0_45]
+        at java.util.concurrent.FutureTask.setException(FutureTask.java:247) [na:1.7.0_45]
+        at java.util.concurrent.FutureTask.run(FutureTask.java:267) [na:1.7.0_45]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145) [na:1.7.0_45]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615) [na:1.7.0_45]
+        at java.lang.Thread.run(Thread.java:744) [na:1.7.0_45]
+Caused by: org.apache.hadoop.hive.metastore.api.NoSuchObjectException: partition values=[...]
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$get_partition_by_name_result$get_partition_by_name_resultStandardScheme.read(ThriftHiveMetastore.java:49388) ~[na:na]
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$get_partition_by_name_result$get_partition_by_name_resultStandardScheme.read(ThriftHiveMetastore.java:49356) ~[na:na]
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$get_partition_by_name_result.read(ThriftHiveMetastore.java:49287) ~[na:na]
+        at com.facebook.presto.hive.shaded.org.apache.thrift.TServiceClient.receiveBase(TServiceClient.java:78) ~[na:na]
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Client.recv_get_partition_by_name(ThriftHiveMetastore.java:1516) ~[na:na]
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Client.get_partition_by_name(ThriftHiveMetastore.java:1501) ~[na:na]
+        at com.facebook.presto.hive.CachingHiveMetastore$18.call(CachingHiveMetastore.java:537) ~[na:na]
+        at com.facebook.presto.hive.CachingHiveMetastore$18.call(CachingHiveMetastore.java:531) ~[na:na]
+        at com.facebook.presto.hive.HiveMetastoreApiStats$1.call(HiveMetastoreApiStats.java:44) ~[na:na]
+        at com.facebook.presto.hive.RetryDriver.run(RetryDriver.java:85) ~[na:na]
+        at com.facebook.presto.hive.CachingHiveMetastore.loadPartitionByName(CachingHiveMetastore.java:530) ~[na:na]
+        at com.facebook.presto.hive.CachingHiveMetastore.access$600(CachingHiveMetastore.java:64) ~[na:na]
+        at com.facebook.presto.hive.CachingHiveMetastore$7.load(CachingHiveMetastore.java:181) ~[na:na]
+        at com.facebook.presto.hive.CachingHiveMetastore$7.load(CachingHiveMetastore.java:176) ~[na:na]
+        at com.facebook.presto.hive.BackgroundCacheLoader$1.call(BackgroundCacheLoader.java:44) ~[na:na]
+        at java.util.concurrent.FutureTask.run(FutureTask.java:262) [na:1.7.0_45]
+        ... 3 common frames omitted
+```

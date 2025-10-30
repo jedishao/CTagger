@@ -1,0 +1,94 @@
+Websocket deadlock during handshake
+Affects 3.2.1
+
+```
+"test-akka.actor.default-dispatcher-1854" - Thread t@1934
+   java.lang.Thread.State: WAITING
+    at java.lang.Object.wait(Native Method)
+    - waiting on <101efae> (a io.netty.util.concurrent.PromiseTask)
+    at java.lang.Object.wait(Object.java:502)
+    at io.netty.util.concurrent.DefaultPromise.await(DefaultPromise.java:255)
+    at io.netty.util.concurrent.DefaultPromise.await(DefaultPromise.java:33)
+    at io.netty.util.concurrent.AbstractFuture.get(AbstractFuture.java:32)
+    at io.netty.channel.DefaultChannelPipeline.waitForFuture(DefaultChannelPipeline.java:546)
+    at io.netty.channel.DefaultChannelPipeline.remove(DefaultChannelPipeline.java:333)
+    at io.netty.channel.DefaultChannelPipeline.remove(DefaultChannelPipeline.java:304)
+    at io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker.handshake(WebSocketServerHandshaker.java:176)
+    at io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker.handshake(WebSocketServerHandshaker.java:145)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler.lambda$null$26(HttpServerImpl.java:570)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler$$Lambda$47/6681436.run(Unknown
+Source)
+    at io.vertx.core.http.impl.ServerWebSocketImpl.connect(ServerWebSocketImpl.java:257)
+    at io.vertx.core.http.impl.ServerWebSocketImpl.writeFrame(ServerWebSocketImpl.java:229)
+    - locked <150f83c> (a io.vertx.core.http.impl.ServerConnection)
+    at io.vertx.core.http.impl.ServerWebSocketImpl.writeFinalTextFrame(ServerWebSocketImpl.java:239)
+    at com.tomas.test.actor.ConnectionHandlerActor.com$tomas$test$actor$ConnectionHandlerActor$$sendToClient(ConnectionHandlerActor.scala:118)
+    at com.tomas.test.actor.ConnectionHandlerActor.sendToClient(ConnectionHandlerActor.scala:127)
+    at com.tomas.test.actor.ConnectionHandlerActor.handleUnknownUser(ConnectionHandlerActor.scala:131)
+    at com.tomas.test.actor.ConnectionHandlerActor.preStart(ConnectionHandlerActor.scala:70)
+    at akka.actor.Actor$class.aroundPreStart(Actor.scala:470)
+    at com.tomas.test.actor.ConnectionHandlerActor.aroundPreStart(ConnectionHandlerActor.scala:40)
+    at akka.actor.ActorCell.create(ActorCell.scala:580)
+    at akka.actor.ActorCell.invokeAll$1(ActorCell.scala:456)
+    at akka.actor.ActorCell.systemInvoke(ActorCell.scala:478)
+    at akka.dispatch.Mailbox.processAllSystemMessages(Mailbox.scala:279)
+    at akka.dispatch.Mailbox.run(Mailbox.scala:220)
+    at akka.dispatch.Mailbox.exec(Mailbox.scala:231)
+    at scala.concurrent.forkjoin.ForkJoinTask.doExec(ForkJoinTask.java:260)
+    at scala.concurrent.forkjoin.ForkJoinPool$WorkQueue.pollAndExecAll(ForkJoinPool.java:1253)
+    at scala.concurrent.forkjoin.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1346)
+    at scala.concurrent.forkjoin.ForkJoinPool.runWorker(ForkJoinPool.java:1979)
+    at scala.concurrent.forkjoin.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:107)
+
+   Locked ownable synchronizers:
+    - None
+
+
+"vert.x-eventloop-thread-1" - Thread t@13
+   java.lang.Thread.State: BLOCKED
+    at io.vertx.core.http.impl.ServerWebSocketImpl.isRejected(ServerWebSocketImpl.java:272)
+    - waiting to lock <150f83c> (a
+io.vertx.core.http.impl.ServerConnection) owned by
+"test-akka.actor.default-dispatcher-1854" t@1934
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler.lambda$handshake$27(HttpServerImpl.java:583)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler$$Lambda$46/6399973.run(Unknown
+Source)
+    at io.vertx.core.impl.ContextImpl.lambda$wrapTask$16(ContextImpl.java:333)
+    at io.vertx.core.impl.ContextImpl$$Lambda$22/11074884.run(Unknown Source)
+    at io.vertx.core.impl.ContextImpl.executeFromIO(ContextImpl.java:225)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler.handshake(HttpServerImpl.java:554)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler.doMessageReceived(HttpServerImpl.java:509)
+    at io.vertx.core.http.impl.HttpServerImpl$ServerHandler.doMessageReceived(HttpServerImpl.java:420)
+    at io.vertx.core.http.impl.VertxHttpHandler.channelRead(VertxHttpHandler.java:85)
+    at io.vertx.core.net.impl.VertxHandler.channelRead(VertxHandler.java:124)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:307)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:293)
+    at io.netty.handler.timeout.IdleStateHandler.channelRead(IdleStateHandler.java:266)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:307)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:293)
+    at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:307)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:293)
+    at io.netty.handler.codec.MessageToMessageDecoder.channelRead(MessageToMessageDecoder.java:103)
+    at io.netty.handler.codec.MessageToMessageCodec.channelRead(MessageToMessageCodec.java:111)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:307)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:293)
+    at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:276)
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:263)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:307)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:293)
+    at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1070)
+    at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:912)
+    at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:369)
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:244)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:307)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:293)
+    at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:840)
+    at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:131)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:511)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:468)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:382)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:354)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:112)
+    at java.lang.Thread.run(Thread.java:744)
+```

@@ -1,0 +1,82 @@
+BUG: hadoop index task occasional fail (distributed cache related)
+some times, the `hadoop index` task fail.
+
+the task have two phases:
+1) determine_partitions_hashed [success]
+2) real index job  [fail]
+
+from middle manager's log, it reports sth like:
+
+```
+java.lang.RuntimeException: java.lang.reflect.InvocationTargetException
+    at com.google.common.base.Throwables.propagate(Throwables.java:160) ~[guava-16.0.1.jar:?]
+    at io.druid.indexing.common.task.HadoopTask.invokeForeignLoader(HadoopTask.java:201) ~[druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexing.common.task.HadoopIndexTask.run(HadoopIndexTask.java:208) ~[druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexing.overlord.ThreadPoolTaskRunner$ThreadPoolTaskRunnerCallable.call(ThreadPoolTaskRunner.java:407) [druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexing.overlord.ThreadPoolTaskRunner$ThreadPoolTaskRunnerCallable.call(ThreadPoolTaskRunner.java:380) [druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at java.util.concurrent.FutureTask.run(FutureTask.java:262) [?:1.7.0_71]
+    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145) [?:1.7.0_71]
+    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615) [?:1.7.0_71]
+    at java.lang.Thread.run(Thread.java:745) [?:1.7.0_71]
+Caused by: java.lang.reflect.InvocationTargetException
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.7.0_71]
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57) ~[?:1.7.0_71]
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.7.0_71]
+    at java.lang.reflect.Method.invoke(Method.java:606) ~[?:1.7.0_71]
+    at io.druid.indexing.common.task.HadoopTask.invokeForeignLoader(HadoopTask.java:198) ~[druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    ... 7 more
+Caused by: java.lang.RuntimeException: java.io.FileNotFoundException: File does not exist: hdfs://god001:8000/tmp/druid-indexing/myds/2016-03-23T101134.355+0800/4aa9e9219d254e3c87edaff8922b7783/classpath/druid-processing-0.9.0-SNAPSHOT.jar
+    at io.druid.indexer.IndexGeneratorJob.run(IndexGeneratorJob.java:211) ~[druid-indexing-hadoop-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexer.JobHelper.runJobs(JobHelper.java:323) ~[druid-indexing-hadoop-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexer.HadoopDruidIndexerJob.run(HadoopDruidIndexerJob.java:94) ~[druid-indexing-hadoop-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexing.common.task.HadoopIndexTask$HadoopIndexGeneratorInnerProcessing.runTask(HadoopIndexTask.java:261) ~[druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.7.0_71]
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57) ~[?:1.7.0_71]
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.7.0_71]
+    at java.lang.reflect.Method.invoke(Method.java:606) ~[?:1.7.0_71]
+    at io.druid.indexing.common.task.HadoopTask.invokeForeignLoader(HadoopTask.java:198) ~[druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    ... 7 more
+Caused by: java.io.FileNotFoundException: File does not exist: hdfs://god001:8000/tmp/druid-indexing/myds/2016-03-23T101134.355+0800/4aa9e9219d254e3c87edaff8922b7783/classpath/druid-processing-0.9.0-SNAPSHOT.jar
+    at org.apache.hadoop.hdfs.DistributedFileSystem$22.doCall(DistributedFileSystem.java:1309) ~[hadoop-hdfs-2.7.1.jar:?]
+    at org.apache.hadoop.hdfs.DistributedFileSystem$22.doCall(DistributedFileSystem.java:1301) ~[hadoop-hdfs-2.7.1.jar:?]
+    at org.apache.hadoop.fs.FileSystemLinkResolver.resolve(FileSystemLinkResolver.java:81) ~[hadoop-common-2.7.1.jar:?]
+    at org.apache.hadoop.hdfs.DistributedFileSystem.getFileStatus(DistributedFileSystem.java:1301) ~[hadoop-hdfs-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.filecache.ClientDistributedCacheManager.getFileStatus(ClientDistributedCacheManager.java:288) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.filecache.ClientDistributedCacheManager.getFileStatus(ClientDistributedCacheManager.java:224) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.filecache.ClientDistributedCacheManager.determineTimestamps(ClientDistributedCacheManager.java:99) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.filecache.ClientDistributedCacheManager.determineTimestampsAndCacheVisibilities(ClientDistributedCacheManager.java:57) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.JobResourceUploader.uploadFiles(JobResourceUploader.java:179) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.JobSubmitter.copyAndConfigureFiles(JobSubmitter.java:95) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:190) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.Job$10.run(Job.java:1290) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.Job$10.run(Job.java:1287) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at java.security.AccessController.doPrivileged(Native Method) ~[?:1.7.0_71]
+    at javax.security.auth.Subject.doAs(Subject.java:415) ~[?:1.7.0_71]
+    at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1657) ~[hadoop-common-2.7.1.jar:?]
+    at org.apache.hadoop.mapreduce.Job.submit(Job.java:1287) ~[hadoop-mapreduce-client-core-2.7.1.jar:?]
+    at io.druid.indexer.IndexGeneratorJob.run(IndexGeneratorJob.java:199) ~[druid-indexing-hadoop-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexer.JobHelper.runJobs(JobHelper.java:323) ~[druid-indexing-hadoop-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexer.HadoopDruidIndexerJob.run(HadoopDruidIndexerJob.java:94) ~[druid-indexing-hadoop-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at io.druid.indexing.common.task.HadoopIndexTask$HadoopIndexGeneratorInnerProcessing.runTask(HadoopIndexTask.java:261) ~[druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.7.0_71]
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57) ~[?:1.7.0_71]
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.7.0_71]
+    at java.lang.reflect.Method.invoke(Method.java:606) ~[?:1.7.0_71]
+    at io.druid.indexing.common.task.HadoopTask.invokeForeignLoader(HadoopTask.java:198) ~[druid-indexing-service-0.9.0-SNAPSHOT.jar:0.9.0-SNAPSHOT]
+    ... 7 more
+2016-03-23T10:12:24,726 INFO [task-runner-0-priority-0] io.druid.indexing.worker.executor.ExecutorLifecycle - Task completed with status: {
+  "id" : "index_hadoop_myds_2016-03-23T10:11:34.355+08:00",
+  "status" : "FAILED",
+  "duration" : 42553
+}
+```
+
+I can see uploading success for the first job
+
+```
+2016-03-23T13:07:51,478 INFO [task-runner-0-priority-0] io.druid.indexer.JobHelper - Uploading jar to path[/tmp/druid-indexing/myds/2016-03-23T130738.821+0800/f07c492a80a24c3086b733b085cc8f2d/classpath/druid-processing-0.9.0-SNAPSHOT.jar]
+```
+
+It seem a bug related to DistributedCache.
+
+Maybe the hadoop system deleted our Distributed Cache just after the first job succeed.

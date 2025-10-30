@@ -1,0 +1,41 @@
+Different effects when Mix using of multiLock and Lock
+version: 
+redisson-3.14.1
+
+When try to using both multiLock and Lock with same key
+There are different effects according to the lock order
+
+code like
+```
+        String key1 = "key1";
+        String key2 = "key2";
+        
+        RLock lock1 = client.getLock(key1);
+        lock.lock();
+        // do sth.
+        lock.unlock();
+```
+```
+        String key1 = "key1";
+        String key2 = "key2";
+        List<String> keys = new ArrayList<>();
+        keys.add(key1);
+        keys.add(key2);
+        List<RLock> rLocks = new ArrayList<>();
+        for (String key : keys) {
+            RLock lock = client.getLock(key);
+            rLocks.add(lock);
+        }
+        RedissonMultiLock multiLock1 = new RedissonMultiLock(rLocks);
+        multiLock1.lock();
+        // do sth.
+        multiLock1,unlock();
+```
+
+When lock lock1 first ,then lock multiLock1  
+multiLock1 stun for a few seconds and then, lock success(lock1 are not released)
+
+When lock multiLock1 first ,then lock lock1
+lock1 are stoped and waitting for the multiLock to release
+
+it's confused

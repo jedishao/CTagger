@@ -1,0 +1,99 @@
+Deadlock bug within HttpRemoteTaskRunner 
+Recently identified a deadlock happening within the Overlord which caused all our indexing tasks to get stuck as the overlord became unresponsive. Taking a thread dump showed that TaskQueue-Manager thread holds a giant lock at 
+https://github.com/druid-io/druid/blob/305ecc2a782e189d35af2deea9c29ebceb46c1cc/indexing-service/src/main/java/io/druid/indexing/overlord/TaskQueue.java#L227 
+inside the task runner management flow and waits for the status lock at 
+https://github.com/druid-io/druid/blob/305ecc2a782e189d35af2deea9c29ebceb46c1cc/indexing-service/src/main/java/io/druid/indexing/overlord/hrtr/HttpRemoteTaskRunner.java#L1110
+for fetching the known tasks. This status lock is being held at 
+https://github.com/druid-io/druid/blob/305ecc2a782e189d35af2deea9c29ebceb46c1cc/indexing-service/src/main/java/io/druid/indexing/overlord/hrtr/HttpRemoteTaskRunner.java#L383
+by the HttpRemoteTaskRunner-worker-sync thread which itself is waiting for the giant lock at https://github.com/druid-io/druid/blob/305ecc2a782e189d35af2deea9c29ebceb46c1cc/indexing-service/src/main/java/io/druid/indexing/overlord/TaskQueue.java#L382
+while attempting to update the status of a task.
+The thread dump is as follows:
+
+```
+Found one Java-level deadlock:
+=============================
+"KafkaSupervisor-v2_metrics_cluster":
+  waiting for ownable synchronizer 0x000000066db25530, (a java.util.concurrent.locks.ReentrantLock$FairSync),
+  which is held by "TaskQueue-Manager"
+"TaskQueue-Manager":
+  waiting to lock monitor 0x00002b2fb404de28 (object 0x000000066c0b1818, a java.lang.Object),
+  which is held by "HttpRemoteTaskRunner-worker-sync-2"
+"HttpRemoteTaskRunner-worker-sync-2":
+  waiting for ownable synchronizer 0x000000066db25530, (a java.util.concurrent.locks.ReentrantLock$FairSync),
+  which is held by "TaskQueue-Manager"
+
+
+  Java stack information for the threads listed above:
+===================================================
+"KafkaSupervisor-v2_metrics_cluster":
+        at sun.misc.Unsafe.park(Native Method)
+        - parking to wait for  <0x000000066db25530> (a java.util.concurrent.locks.ReentrantLock$FairSync)
+        at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+        at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+        at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireQueued(AbstractQueuedSynchronizer.java:870)
+        at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquire(AbstractQueuedSynchronizer.java:1199)
+        at java.util.concurrent.locks.ReentrantLock$FairSync.lock(ReentrantLock.java:224)
+        at java.util.concurrent.locks.ReentrantLock.lock(ReentrantLock.java:285)
+        at io.druid.indexing.overlord.TaskQueue.add(TaskQueue.java:312)
+        at io.druid.indexing.kafka.supervisor.KafkaSupervisor.createKafkaTasksForGroup(KafkaSupervisor.java:1797)
+        at io.druid.indexing.kafka.supervisor.KafkaSupervisor.createNewTasks(KafkaSupervisor.java:1732)
+        at io.druid.indexing.kafka.supervisor.KafkaSupervisor.runInternal(KafkaSupervisor.java:825)
+        at io.druid.indexing.kafka.supervisor.KafkaSupervisor$RunNotice.handle(KafkaSupervisor.java:574)
+        at io.druid.indexing.kafka.supervisor.KafkaSupervisor$2.run(KafkaSupervisor.java:366)
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:748)
+"TaskQueue-Manager":
+        at io.druid.indexing.overlord.hrtr.HttpRemoteTaskRunner.getKnownTasks(HttpRemoteTaskRunner.java:1110)
+        - waiting to lock <0x000000066c0b1818> (a java.lang.Object)
+        at io.druid.indexing.overlord.TaskQueue.manage(TaskQueue.java:232)
+        at io.druid.indexing.overlord.TaskQueue.access$000(TaskQueue.java:69)
+        at io.druid.indexing.overlord.TaskQueue$1.run(TaskQueue.java:136)
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:748)
+"HttpRemoteTaskRunner-worker-sync-2":
+at sun.misc.Unsafe.park(Native Method)
+        - parking to wait for  <0x000000066db25530> (a java.util.concurrent.locks.ReentrantLock$FairSync)
+        at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+        at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+        at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireQueued(AbstractQueuedSynchronizer.java:870)
+        at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquire(AbstractQueuedSynchronizer.java:1199)
+        at java.util.concurrent.locks.ReentrantLock$FairSync.lock(ReentrantLock.java:224)
+        at java.util.concurrent.locks.ReentrantLock.lock(ReentrantLock.java:285)
+        at io.druid.indexing.overlord.TaskQueue.notifyStatus(TaskQueue.java:382)
+        at io.druid.indexing.overlord.TaskQueue.access$500(TaskQueue.java:69)
+        at io.druid.indexing.overlord.TaskQueue$4.handleStatus(TaskQueue.java:488)
+        at io.druid.indexing.overlord.TaskQueue$4.onSuccess(TaskQueue.java:464)
+        at io.druid.indexing.overlord.TaskQueue$4.onSuccess(TaskQueue.java:459)
+        at com.google.common.util.concurrent.Futures$4.run(Futures.java:1181)
+        at com.google.common.util.concurrent.MoreExecutors$SameThreadExecutorService.execute(MoreExecutors.java:297)
+        at com.google.common.util.concurrent.ExecutionList.executeListener(ExecutionList.java:156)
+        at com.google.common.util.concurrent.ExecutionList.execute(ExecutionList.java:145)
+        at com.google.common.util.concurrent.AbstractFuture.set(AbstractFuture.java:185)
+        at com.google.common.util.concurrent.SettableFuture.set(SettableFuture.java:53)
+        at io.druid.indexing.overlord.RemoteTaskRunnerWorkItem.setResult(RemoteTaskRunnerWorkItem.java:113)
+        at io.druid.indexing.overlord.hrtr.HttpRemoteTaskRunner$HttpRemoteTaskRunnerWorkItem.setResult(HttpRemoteTaskRunner.java:1379)
+        at io.druid.indexing.overlord.hrtr.HttpRemoteTaskRunner.taskComplete(HttpRemoteTaskRunner.java:422)
+        at io.druid.indexing.overlord.hrtr.HttpRemoteTaskRunner.taskAddedOrUpdated(HttpRemoteTaskRunner.java:1274)
+        - locked <0x000000066c0b1818> (a java.lang.Object)
+        at io.druid.indexing.overlord.hrtr.HttpRemoteTaskRunner$$Lambda$51/1870326354.taskAddedOrUpdated(Unknown Source)
+        at io.druid.indexing.overlord.hrtr.WorkerHolder$2.notifyListener(WorkerHolder.java:452)
+        at io.druid.indexing.overlord.hrtr.WorkerHolder$2.deltaSync(WorkerHolder.java:445)
+        at io.druid.server.coordination.ChangeRequestHttpSyncer$1.onSuccess(ChangeRequestHttpSyncer.java:267)
+        - locked <0x000000066f4e0200> (a io.druid.concurrent.LifecycleLock)
+        at io.druid.server.coordination.ChangeRequestHttpSyncer$1.onSuccess(ChangeRequestHttpSyncer.java:223)
+        at com.google.common.util.concurrent.Futures$4.run(Futures.java:1181)
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:748)
+        Found 1 deadlock.
+```

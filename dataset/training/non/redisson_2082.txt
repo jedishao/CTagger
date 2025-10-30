@@ -1,0 +1,32 @@
+RedisTimeoutException : Unable to send command! 每个请求都报错
+完整的堆栈
+
+2019-04-28 12:30:39 [pool-6-thread-1] ERROR (RedisService.java:278) - clusterPutByteValue异常,paramName=FIGHTER_ACCOUNT,key=[B@f581ab8
+
+org.redisson.client.RedisTimeoutException: Unable to send command! Node source: NodeSource [slot=null, addr=null, redisClient=null, redirect=null, entry=MasterSlaveEntry [masterEntry=[freeSubscribeConnectionsAmount=0, freeSubscribeConnectionsCounter=value:0:queue:0, freeConnectionsAmount=0, freeConnectionsCounter=value:0:queue:0, freezed=false, freezeReason=null, client=[addr=redis://10.0.1.16:6379], nodeType=MASTER, firstFail=0]]], connection: RedisConnection@546112941 [redisClient=[addr=redis://10.0.1.16:6379], channel=[id: 0x6387eaf4, L:/10.104.135.249:24836 - R:10.0.1.16/10.0.1.16:6379]], current command in queue: CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@5fd014e8(failure: java.util.concurrent.CancellationException)], command=(EVAL), params=[local v = redis.call('hget', KEYS[1], ARGV[1]); redis.call('hset', KEYS[1], ARGV[1], ARGV[2]); retur..., 1, FIGHTER_ACCOUNT, UnpooledHeapByteBuf(ridx: 0, widx: 16, cap: 16/16), UnpooledHeapByteBuf(ridx: 0, widx: 6259, cap: 6259/6259)], codec=org.redisson.client.codec.ByteArrayCodec], command: (EVAL), command params: [local v = redis.call('hget', KEYS[1], ARGV[1]); redis.call('hset', KEYS[1], ARGV[1], ARGV[2]); retur..., 1, FIGHTER_ACCOUNT, UnpooledHeapByteBuf(ridx: 0, widx: 16, cap: 16/16), UnpooledHeapByteBuf(ridx: 0, widx: 6259, cap: 6259/6259)] after 3 retry attempts
+	at org.redisson.command.CommandAsyncService$10.run(CommandAsyncService.java:734)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:670)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:745)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:473)
+	at java.lang.Thread.run(Thread.java:748)
+
+### Redis version
+redis 4.0
+
+### Redisson version
+redisson 3.10.2
+
+### Redisson configuration
+useSingleServer
+connectionMininumIdleSize = 1
+connectionPoolSize=1
+database = 0
+subscriptionConnectionMininumIdleSize=1
+subscriptionConnectionPoolSize =1
+threads=1
+nettyThreads=1
+
+1.首先用户名密码没问题，这个其他进程都是正常的
+2.出现问题的进程，redisson网络连接状态是正常(netstat查看)，但是任何执行都超时
+3.绝对没有出现所谓的高并发，请求量很少
+4.关于调大nettyThreads，因为任何执行都没有出现超时，应该不是线程数的问题，感觉就是假死，消息一直发布出去，tcpdump也没有任何流量的痕迹

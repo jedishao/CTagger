@@ -1,0 +1,44 @@
+Driver may become blocked when yield signal kicks in
+In `com.facebook.presto.operator.Driver#processInternal` there is a logic:
+```java
+if (!movedPage) {                         /// PLACE1
+    List<Operator> blockedOperators = new ArrayList<>();
+    List<ListenableFuture<?>> blockedFutures = new ArrayList<>();
+    for (Operator operator : operators) {
+        Optional<ListenableFuture<?>> blocked = getBlockedFuture(operator);
+        if (blocked.isPresent()) {                         /// PLACE2
+            blockedOperators.add(operator);
+            blockedFutures.add(blocked.get());
+        }
+    }
+
+    if (!blockedFutures.isEmpty()) {
+        // unblock when the first future is complete
+        ListenableFuture<?> blocked = firstFinishedFuture(blockedFutures);     /// PLACE3
+        // driver records serial blocked time
+        driverContext.recordBlocked(blocked);
+        // each blocked operator is responsible for blocking the execution
+        // until one of the operators can continue
+        for (Operator operator : blockedOperators) {
+            operator.getOperatorContext().recordBlocked(blocked);
+        }
+        return blocked;
+    }
+}
+```
+
+There are two problems here:
+
+### Problem 1. `!movedPage` doesn't mean "no progress"
+
+At `PLACE1`  we assume than if `!movedPage` then we're "basically blocked" and we need to identify why. However, it's completely legal for `operator.getOutput()` to return `null` even if some progress has been eg. when `com.facebook.presto.operator.DriverYieldSignal#isSet` kicks in.
+
+This means a `Driver` may become blocked, waiting on some blocked operator higher up the pipeline (eg. Join's probe side), but it should not be. This may harm parallelism and in extreme case can potentially lead to starvation (when operator higher up is blocked on memory which is held by operator that didn't produce a page due to eg. yield signal).
+
+### Problem 2. We evaluate isBlocked twice
+
+At `PLACE2` we evaluate `operator.isBlocked().isDone()` second time. Any now-unblocked operator won't be part of future list we're waiting for (`PLACE3`). Thus there is a race condition: we didn't make progress because operator `A` was blocked (and some other operator `B` was blocked too). Operator `A` becomes unblocked and so we will wait for operator `B` _only_. In this case, we should not wait at all (it's like losing `Object.notify()` call).
+
+cc @losipiuk @sopel39 @dain @highker 
+
+

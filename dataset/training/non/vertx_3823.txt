@@ -1,0 +1,28 @@
+Implementation of JSON RFCs introduced inconsistency to Json{Object|Array} API
+### Version
+
+Vert.x 4.0.0
+
+### Context
+
+The implementation of the JSON RFCs (#3197) removed the type checking from methods JsonObject.put(String, Object) and JsonArray.add(int, Object) in order to allow future POJO mappings. Nevertheless the methods Json{Object|Array}.copy() are still checking types. This leads to the situation that developers are able to successfully create Json{Object|Array}s that cannot be copied afterwards.
+When using the following piece of code for creating valid JsonObjects
+```
+  try {
+    jsonObject.put(key, value);
+  }
+  catch (IllegalStateExcveption e) {
+    jsonObject.put(key, value.toString());
+  }
+```
+which are copied afterwards, #3197 breaks that piece of code and is not backward compatible.
+
+### Do you have a reproducer?
+
+A small reproducer can be found at https://github.com/riemenschneider/JDBCPreparedQueryTest. The test fails with Vert.x 4.0.0 and runs successful using Vert.x 3.9.5.
+
+### Steps to reproduce
+
+1. Clone the reproducer mentioned above.
+2. Run ``gradlew test``.
+3. Change Vert.x dependency in ``build.gradle`` to ``io.vertx:vertx-core:3.9.5`` and run again ``gradlew test``.

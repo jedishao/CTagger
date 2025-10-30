@@ -1,0 +1,112 @@
+[PROPOSAL] Query vectorization
+# Motivation
+
+Vectorized execution (operating on batches of rows at a time, instead of individual rows) is widely recognized as being crucial to maximizing performance of analytical databases like Druid. It allows queries to be sped up by reducing the number of method calls, allowing more cache-efficiency, and potentially enabling CPU SIMD instructions. (At least, in theory it makes the latter possible, but I haven't looked into whether such instructions are actually being generated in this patch.)
+
+However, Druid today does not have a vectorized query engine. [Benchmarks](https://static.imply.io/gianm/vb.html) on the implementation in #6794 indicate we could get a 1.3-3x speedup on various kinds of queries. This would represent a major change for how Druid query engines work, but one that would be beneficial, and a long time coming (see #3011 for some earlier discussion).
+
+<a href="https://static.imply.io/gianm/vb.html"><img width="75%" src="https://static.imply.io/gianm/plot.png" /></a>
+
+# Proposed changes
+
+The proposal is to enable the following:
+
+1. Iterating bitmaps in batches (see #6770) instead of one row at a time.
+2. Reading values from columns in batches instead of one value at a time. There's already some batching (decompression happens in batch) but currently we still have one method call per retrieval from the decompression buffer.
+3. Filtering rows in batches instead of one row at a time.
+4. Processing rows by the per-segment query engines (TimeseriesQueryEngine, GroupByQueryEngineV2, etc) in batches instead of one value at a time.
+5. Processing rows by aggregators in batches instead of one value at a time.
+
+In all cases, cutting down on method calls and improving locality are expected benefits.
+
+In the interests of getting a limited, but still useful, set of functionality out at first, I am proposing doing a subset of the work as **"Phase 1"**. The following subsections detail the plan.
+
+## New vectorized methods
+
+The following interfaces do not need vectorized analogs, but will instead have vectorized methods added.
+
+|Existing class|New methods|
+|--------------|-------------------------|
+|[CursorFactory](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/CursorFactory.java)|`canVectorize`, `makeVectorCursor`|
+|[Filter](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/filter/Filter.java)|`canVectorizeMatcher`, `makeVectorMatcher`|
+|[DimensionSpec](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/dimension/DimensionSpec.java)|`canVectorize`, `decorate(SingleValueDimensionVectorSelector selector)`, `decorate(MultiValueDimensionVectorSelector selector)`|
+|[AggregatorFactory](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/aggregation/AggregatorFactory.java)|`canVectorize`, `factorizeVector`|
+
+## New vectorized interfaces
+
+The following interfaces will have vectorized analogs added. None of the vectorized implementations are annotated with `@HotLoopCallee`, because it is anticipated that monomorphic optimization will not be necessary due to amortization of costs over vectors of rows.
+
+|Existing interface|Vectorized interface|Purpose|
+|--------------|-------------------------|-------|
+|[Cursor](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/segment/Cursor.java)|[VectorCursor](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/VectorCursor.java)|Iterate through rows or blocks of rows, and provide column selector factories. Unlike regular cursors, vector cursors do not understand time granularity. They expect query engines to handle this on their own, which a new [VectorCursorGranularizer](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/vector/VectorCursorGranularizer.java) class helps with. This avoids excessive batch-splitting and respects the fact that vector selectors are somewhat more heavyweight than regular selectors.|
+|[ColumnSelectorFactory](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/segment/ColumnSelectorFactory.java)|[VectorColumnSelectorFactory](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/VectorColumnSelectorFactory.java)|Create column selectors (objects that read the current value or block of values). One major difference is that the vectorized version's `getColumnCapabilities` is guaranteed to return non-null capabilities if the column exists. This makes life substantially easier for callers and is doable because, in practice, we don't expecte vectorizable storage adapters to not know what their columns are.|
+|[Offset](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/segment/data/Offset.java)|[VectorOffset](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/VectorOffset.java)|Used internally by cursors to track what row or block of rows they are currently on. Unlike regular offsets, the vectorized [FilteredVectorOffset](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/FilteredVectorOffset.java) does not leverage indexes for filters that might partially support them. I'm not sure that this behavior is desirable anyway (it is potentially too eager) but, at any rate, it'd be better to harmonize it between the two classes. Potentially they should both do some different thing that is smarter than what either of them is doing right now. See #6889 for some discussion.|
+|[ReadableOffset](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/segment/data/ReadableOffset.java)|[ReadableVectorOffset](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/ReadableVectorOffset.java)|Read-only version of an offset. Most prominent use is being passed to selectors when selectors are created.|
+|[BufferAggregator](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/query/aggregation/BufferAggregator.java)|[VectorAggregator](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/aggregation/VectorAggregator.java)|Wraps selectors and aggregates rows or blocks of rows into ByteBuffers.|
+|[ValueMatcher](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/query/filter/ValueMatcher.java)|[VectorValueMatcher](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/filter/vector/VectorValueMatcher.java)|Used by cursors and filtered aggregators when they need to know if a particular filter would select the current row or block of rows.|
+|[DimensionSelector](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/segment/DimensionSelector.java)|[SingleValueDimensionVectorSelector](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/SingleValueDimensionVectorSelector.java) and [MultiValueDimensionVectorSelector](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/MultiValueDimensionVectorSelector.java)|Selectors for string columns. Unlike the standard version, the vectorized version is split up into single-value and multi-value, since it allows the single-value version to provide a simple array of integers.|
+|[ColumnValueSelector](https://github.com/apache/incubator-druid/blob/master/processing/src/main/java/org/apache/druid/segment/ColumnValueSelector.java)|[VectorValueSelector](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/VectorValueSelector.java) and [VectorObjectSelector](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/segment/vector/VectorObjectSelector.java)|Selectors for primitives (long, double, float) and objects. Unlike the standard version, the vectorized version is split up, since there didn't seem to be a benefit to having each being able to offer the methods of the other.|
+
+## Vectorized query engines
+
+The following query engines will have vectorized analogs added. In both cases, vectorization only applies to per-segment processing. Merging is still row-at-a-time.
+
+- Timeseries: See [TimeseriesQueryEngine](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/timeseries/TimeseriesQueryEngine.java)'s `processVectorized` method.
+
+- GroupBy: See [VectorGroupByEngine](https://github.com/gianm/druid/blob/vectoreyes/processing/src/main/java/org/apache/druid/query/groupby/epinephelinae/vector/VectorGroupByEngine.java). As you can see in `canVectorize`, it doesn't handle multi-value dimensions or granularity other than "all" yet.
+
+## New context parameters
+
+The following query parameters are added.
+
+|property|default| description|
+|--------|-------|------------|
+|vectorize|`false`|Enables or disables vectorized query execution. Possible values are `false` (disabled), `true` (enabled if possible, disabled otherwise, on a per-segment basis), and `force` (enabled, and groupBy or timeseries queries that cannot be vectorized will fail). The `"force"` setting is meant to aid in testing, and is not generally useful in production (since real-time segments can never be processed with vectorized execution, any queries on real-time data will fail).|
+|vectorSize|`512`|Sets the row batching size for a particular query.|
+
+## Initial implementation
+
+Initial implementation of "phase 1" is present on #6794. It has the following limitations. I believe the patch is mergeable without these limitations being addressed, however, since it gets the foundation in place and allows more than one person to work on improving it.
+
+- Only timeseries and groupBy have vectorized engines.
+- GroupBy doesn't handle multi-value dimensions or granularity other than "all" yet.
+- Vector cursors cannot handle virtual columns or descending order.
+- Expressions are not supported anywhere: not as inputs to aggregators, in virtual functions, or in filters.
+- Only some aggregators have vectorized implementations: "count", "doubleSum", "floatSum", "longSum", "hyperUnique", and "filtered".
+- Only some filters have vectorized matchers: "selector", "bound", "in", "like", "regex", "search", "and", "or", and "not".
+- Dimension specs other than "default" don't work yet (no extraction functions or filtered dimension specs).
+
+# Rationale
+
+For the long term health of the Druid project, I don't think there is any alternative to implementing vectorization somehow. Some alternative implementations that I didn't go with include:
+
+- Replacing existing classes with vectorized implementations. I thought this would be too disruptive and too big of a potential hit to stability, in the case of bugs found in the vectorized implementations. The biggest issue with this approach is it is a lot of new code to maintain, and it adds a new code path to every dimension spec, filter, aggregator, and query engine. Both non-vectorized and vectorized implementations could be maintained for some time. This may be a quite a while, depending on how long it takes us to feel that vectorization is stable. But for our collective sanity, we may want to consider working on projects that allow us to remove the non-vectorized code paths. This would include vectorizing other query engines (notably topN), adding vectorization support for virtual columns and descending order (neither of which are supported in this patch), and adding vectorized implementations for all aggregators, filters, and dimension specs that don't currently have them.
+
+- Vectorizing the _entire_ query processing pipeline. This patch only addresses the per-segment processing, and does not affect how results are merged between segments. There are opportunities for improvement here, especially with topN and groupBy. However, for most common Druid use cases, most of the work is in the per-segment processing stages, because those tend to reduce data sizes substantially (due to aggregation).
+
+- Using Apache Arrow to represent and/or process the vectors. I felt this would be too much of a departure from the 'classic' Druid code paths. It would also represent a radical departure from the culture of implementing our column serdes and query processors 'in-house' to allow ourselves maximum flexibility. However, this does not preclude potentially using Arrow as a result format for external responses, or as an inter-process data transfer format, in the future.
+
+# Operational impact
+
+The functionality is completely optional, so there is no operational impact if the feature is not used. Even if the feature _is_ used, there is no expected impact to cluster updates, because the inter-process request and response formats have not changed beyond the addition of the "vectorize" context parameter (which is just a hint, anyway, and can be ignored). Heap memory use may increase somewhat if the feature is used, due to the need for query processing operators to allocate arrays for their outputs.
+
+# Test plan
+
+Currently, the testing strategy includes adding vectorization-enabled tests to TimeseriesQueryRunnerTest, GroupByQueryRunnerTest, GroupByTimeseriesQueryRunnerTest, CalciteQueryTest, and all of the filtering tests that extend BaseFilterTest. In all of those classes, there are some test cases that don't support vectorization. They are marked by special function calls like "cannotVectorize" or "skipVectorize" that tell the test harness to either expect an exception or to skip the test case.
+
+Testing should be expanded in the future -- a project in and of itself.
+
+# Future work
+
+One thing that is _not_ a part of this proposal is vectorization of later parts of the query processing pipeline: anything beyond the per-segment engines. So result merging code on both historicals and brokers would not be modified. It would make sense to do this at some point, but I haven't thought much about how to tackle it.
+
+Future work should also include addressing all of the limitations discussed above in the "Initial implementation" section:
+
+- Vectorizing other query engines: topN, scan, select, search.
+- Vectorizing all the aggregators, filters, and dimension specs that do not currently support it.
+- Adding support for virtual columns and vectorizing the expression system.
+- Adding support for 'descending' cursors.
+- Adding support for multi-value dimensions to the vectorized groupBy engine.
+- Improving test coverage by adding vectorized versions of more test cases.
+
+I think with a framework in place like the one this patch adds, it would be possible for more than one person to contribute to the 'future work' stuff.

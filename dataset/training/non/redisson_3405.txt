@@ -1,0 +1,126 @@
+ping exception problem under the mode of redisson blocking queue
+<!--
+Сonsider Redisson PRO https://redisson.pro version for advanced features and support by SLA.
+-->
+
+**Expected behavior**
+使用redisson阻塞队列（带超时时间的阻塞方式poll(timeout,timeunit)或者pollAsync(timeout,timeunit)）的这种场景下：
+如果我开启了Ping，就会有如下几种异常出现：
+1、PingConnectionHandler类报异常，之前分析过这个类，这个异常报得特别多 一晚上将近10w条
+PingConnectionHandler第89行报错 ：
+2021-02-04 18:47:53.613 [TID: N/A] ERROR 16545 --- [redisson-timer-4-1] o.r.c.h.PingConnectionHandler           :89 : {} Unable to send PING command over channel: [id: 0xe7012642, L:/xxxxxxxx:50954 ! R:/xxxxxx:6379]
+
+org.redisson.client.RedisTimeoutException: Command execution timeout for command: (PING), params: [], Redis client: [addr=redis://xxxx:6379]
+        at org.redisson.client.RedisConnection.lambda$async$1(RedisConnection.java:207) ~[redisson-3.15.0.jar!/:3.15.0]
+        at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:672) [netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:747) [netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:472) [netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at java.lang.Thread.run(Thread.java:745) [?:1.8.0_121]
+
+2、RedisExecutor类异常，堆栈如下
+        at org.redisson.command.RedisExecutor$2.run(RedisExecutor.java:205) ~[redisson-3.15.0.jar!/:3.15.0]
+        at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:672) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:747) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:472) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at java.lang.Thread.run(Thread.java:745) [?:1.8.0_121]
+
+3、Caused by: org.redisson.client.WriteRedisConnectionException: Channel has been closed!
+org.redisson.client.WriteRedisConnectionException: Unable to write command into connection! Node source: NodeSource [slot=0, addr=null, redisClient=null, redirect=null, entry=null], connection: RedisConnection@1927498671 [redisClient=[addr=redis://xxxx:6379], channel=[id: 0x5fdf22a7, L:/10.65.140.249:11565 ! R:/10.111.17.89:6379], currentCommand=CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@23022fc(failure: org.redisson.client.RedisTimeoutException: Command execution timeout for command: (PING), params: [], Redis client: [addr=redis://xxx:6379])], command=(PING), params=[], codec=org.redisson.client.codec.StringCodec]], command: (BLPOP), params: [KEC:MESSAGE:MIGRATE_VM_TO_DEDICATED_QUEUE:cn-shanghai-fin, 14] after 3 retry attempts
+        at org.redisson.command.RedisExecutor.checkWriteFuture(RedisExecutor.java:275) ~[redisson-3.15.0.jar!/:3.15.0]
+        at org.redisson.command.RedisExecutor.access$100(RedisExecutor.java:58) ~[redisson-3.15.0.jar!/:3.15.0]
+        at org.redisson.command.RedisExecutor$1.operationComplete(RedisExecutor.java:156) ~[redisson-3.15.0.jar!/:3.15.0]
+        at org.redisson.command.RedisExecutor$1.operationComplete(RedisExecutor.java:153) ~[redisson-3.15.0.jar!/:3.15.0]
+        at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:577) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:551) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:490) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:615) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:608) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:117) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at org.redisson.client.handler.CommandsQueue.channelInactive(CommandsQueue.java:74) ~[redisson-3.15.0.jar!/:3.15.0]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:239) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at org.redisson.client.handler.ConnectionWatchdog.channelInactive(ConnectionWatchdog.java:82) ~[redisson-3.15.0.jar!/:3.15.0]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:239) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelInactive(DefaultChannelPipeline.java:1405) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.DefaultChannelPipeline.fireChannelInactive(DefaultChannelPipeline.java:901) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannel$AbstractUnsafe$8.run(AbstractChannel.java:818) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+
+
+如果我关闭了PING则会出现下面这样一种异常：
+2021-02-07 10:35:57.250 [TID: N/A] ERROR 32018 --- [redisson-timer-4-1] o.r.c.h.PingConnectionHandler           :89 : {} Unable to send PING command over channel: [id: 0x2c682c89, L:/1xxx:16100 ! R:/10xxx9:6379]
+
+org.redisson.client.WriteRedisConnectionException: Channel has been closed! Can't write command: (PING), params: [] to channel: [id: 0x50381f72, L:/10.111.17.89:21618 ! R:/10.111.17.89:6379]
+	at org.redisson.client.handler.CommandsQueue.channelInactive(CommandsQueue.java:76) ~[redisson-3.15.0.jar!/:3.15.0]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:239) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at org.redisson.client.handler.ConnectionWatchdog.channelInactive(ConnectionWatchdog.java:82) ~[redisson-3.15.0.jar!/:3.15.0]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:239) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelInactive(DefaultChannelPipeline.java:1405) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.DefaultChannelPipeline.fireChannelInactive(DefaultChannelPipeline.java:901) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.AbstractChannel$AbstractUnsafe$8.run(AbstractChannel.java:818) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:500) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+	at java.lang.Thread.run(Thread.java:745) [?:1.8.0_121]
+ at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:500) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at java.lang.Thread.run(Thread.java:745) [?:1.8.0_121]
+Caused by: org.redisson.client.WriteRedisConnectionException: Channel has been closed! Can't write command: (BLPOP), params: [KEC:MESSAGE:MIGRATE_VM_TO_DEDICATED_QUEUE:cn-shanghai-fin, 14] to channel: [id: 0x5fdf22a7, L:/10.65.140.249:11565 ! R:/10.111.17.89:6379]
+        at org.redisson.client.handler.CommandsQueue.channelInactive(CommandsQueue.java:76) ~[redisson-3.15.0.jar!/:3.15.0]
+
+**Actual behavior**
+个人分析的结果就是在阻塞连接的断开和发送PING的时候有并发问题引起。
+为证实猜想我在每次阻塞获取到数据并在处理完之后，让程序休眠1s后，PingConnectionHandler这个类的异常消失了。但是会出现另外一个异常：
+2021-02-07 00:25:10.759 [TID: N/A] ERROR 32018 --- [redisson-timer-4-1] o.r.c.h.PingConnectionHandler           :89 : {} Unable to send PING command over channel: [id: 0xdb83a2ad, L:/xxx9:37602 ! R:/1xxx9:6379]
+
+org.redisson.client.WriteRedisConnectionException: Channel has been closed! Can't write command: (PING), params: [] to channel: [id: 0xaafedd5b, L:/10.111.xxx.xx:38828 ! R:/10.111.17.89:6379]
+        at org.redisson.client.handler.CommandsQueue.channelInactive(CommandsQueue.java:76) ~[redisson-3.15.0.jar!/:3.15.0]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:239) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at org.redisson.client.handler.ConnectionWatchdog.channelInactive(ConnectionWatchdog.java:82) ~[redisson-3.15.0.jar!/:3.15.0]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:239) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelInactive(DefaultChannelPipeline.java:1405) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.DefaultChannelPipeline.fireChannelInactive(DefaultChannelPipeline.java:901) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.AbstractChannel$AbstractUnsafe$8.run(AbstractChannel.java:818) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:500) ~[netty-transport-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [netty-common-4.1.45.Final.jar!/:4.1.45.Final]
+        at java.lang.Thread.run(Thread.java:745) [?:1.8.0_121]
+
+但是异常2
+
+**Steps to reproduce or test case**
+使用多个阻塞方式的Redisson队列，阻塞时间10s-20s，不停的循环阻塞获取队列元素，异常在一天之内就会出现
+
+**Redis version**
+2.8
+**Redisson version**
+3.15.0
+**Redisson configuration**

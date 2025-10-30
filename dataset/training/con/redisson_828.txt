@@ -1,0 +1,22 @@
+URIBuilder seems not to be thread safe
+We test this in case of a multi cluster setup and sometimes went the java.net.URL.factory to null instead of the original factory.
+
+Scenario:
+Thread 1
+replaceURLFactory
+	currentFactory is original value
+start create URL
+
+Thread 2
+replaceURLFactory
+	currentFactory == newFactory -> currentFactory = null
+start create URL
+
+Thread 1 and 2
+restoreURLFactory
+	set URL.factory to null
+
+Next “new URL(…)” from different call cause to load new handlers.
+
+Best,
+  ebersb

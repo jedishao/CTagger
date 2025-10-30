@@ -1,0 +1,64 @@
+Redis is disconnected for a long time, and using redisson's trylock() will cause the thread to wait all the time
+**Expected behavior**
+notify thread and return false
+or throw redis disconnected exception
+**Actual behavior**
+Keep waiting
+**Steps to reproduce or test case**
+1.Run application
+2.Disconnect redis
+3.Execute trylock()
+(1)Create a thread pool
+CorePoolSize:8
+QueueCapacity:200
+ThreadNamePrefix:cmdpAsyncExecutor-
+(2)Use trylock() in a thread.for loop 10 times
+```
+    public void test() {
+        for (int i = 0; i < 10; i++) {
+            int finalI = i;
+            asyncConfiguration.getThreadPoolTaskExecutor().execute(() -> {
+                RLock lock = redissonClient.getLock("test100" + finalI);
+                try {
+                    System.out.println("begin tryLock");
+                    if (!lock.tryLock(5, 2, TimeUnit.SECONDS)) {
+                        System.out.println("tryLock end");
+                        return;
+                    }
+                    System.out.println("tryLock end");
+                } catch (InterruptedException e) {
+                    System.out.println("tryLock end");
+                    e.printStackTrace();
+                }
+                try {
+                    System.out.println("test1");
+                } catch (Exception e) {
+                    log.error(e.getMessage());
+                } finally {
+                    if (lock.isLocked()) {
+                        lock.unlock();
+                    }
+                }
+            });
+        }
+    }
+```
+4.Wait a few minutes
+5.Reonnect redis
+6.View thread status
+![image](https://user-images.githubusercontent.com/41674383/95809070-76f88a80-0d40-11eb-894c-d593c033559d.png)
+View thread stack information
+![image](https://user-images.githubusercontent.com/41674383/95809115-955e8600-0d40-11eb-8f4d-3ea16af32777.png)
+We found that the thread had been waiting
+**Redis version**
+5.0.4
+**Redisson version**
+3.12.5
+**Redisson configuration**
+dnsMonitoringInterval=5000
+idleConnectionTimeout=5000
+retryInterval=1000
+database=0
+connectionMinimumIdleSize=5
+connectionPoolSize=20
+retryAttempts=5

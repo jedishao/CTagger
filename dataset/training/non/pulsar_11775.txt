@@ -1,0 +1,38 @@
+[testclient] --subscriptions size is less than --num-subscriptions can cause IndexOutOfBoundsException in consumption
+**Describe the bug**
+`--subscriptions` size is less than `--num-subscriptions` can cause IndexOutOfBoundsException when execute `bin/pulsar-perf consume`
+
+**To Reproduce**
+Steps to reproduce the behavior:
+**case 1:**
+`bin/pulsar-perf consume -ns 2 -n 1 -st Exclusive -sp Earliest -ss sub -r 100 test01`
+**case 2:**
+`bin/pulsar-perf consume -ns 3 -n 2 -st Share -sp Earliest -ss mysub01,mysub02 -r 100 test01`
+
+**Expected behavior**
+**case 1:**
+22:50:41.638 [main] INFO  org.apache.pulsar.testclient.PerformanceConsumer - Adding 1 consumers per subscription on topic persistent://public/default/test01
+Exception in thread "main" java.lang.IndexOutOfBoundsException: Index: 1, Size: 1
+	at java.util.ArrayList.rangeCheck(ArrayList.java:653)
+	at java.util.ArrayList.get(ArrayList.java:429)
+	at org.apache.pulsar.testclient.PerformanceConsumer.main(PerformanceConsumer.java:369)
+**case 2:**
+23:34:50.050 [main] INFO  org.apache.pulsar.testclient.PerformanceConsumer - Adding 2 consumers per subscription on topic persistent://public/default/test01
+Exception in thread "main" java.lang.IndexOutOfBoundsException: Index: 2, Size: 2
+	at java.util.ArrayList.rangeCheck(ArrayList.java:653)
+	at java.util.ArrayList.get(ArrayList.java:429)
+	at org.apache.pulsar.testclient.PerformanceConsumer.main(PerformanceConsumer.java:369)
+
+**Screenshots**
+**case 1:**
+<img width="1400" alt="WX20210826-001802@2x" src="https://user-images.githubusercontent.com/13013780/130827481-1c21450d-dac8-45e1-814e-1305bcda7140.png">
+**case 2:**
+<img width="1404" alt="22222" src="https://user-images.githubusercontent.com/13013780/130828162-58509b64-c9ea-4742-a005-4b0310c11bfe.png">
+
+**Desktop (please complete the following information):**
+ - OS: [Mac]
+
+**Additional context**
+in branch-2.8，releated to code - `org.apache.pulsar.testclient.PerformanceConsumer`
+<img width="937" alt="code" src="https://user-images.githubusercontent.com/13013780/130828421-20cdf2cd-13e4-4184-8406-0635b6f39d8c.png">
+

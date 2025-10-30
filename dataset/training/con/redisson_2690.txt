@@ -1,0 +1,15 @@
+RedissonSessionRepository topic listeners initialization has race condition
+We’ve successfully migrated to using `RedissonSessionRepository` for our Spring sessions, but we get intermittent NPEs right after startup. It looks like the issue is that the [first listener is added before all of the topics are initialized](https://github.com/redisson/redisson/blob/15c464013d295aaae83bb3fd6daaa273cded3188/redisson/src/main/java/org/redisson/spring/session/RedissonSessionRepository.java#L251), and [the conditional matching in `onMessage` doesn’t go in the same order as initialization](https://github.com/redisson/redisson/blob/15c464013d295aaae83bb3fd6daaa273cded3188/redisson/src/main/java/org/redisson/spring/session/RedissonSessionRepository.java#L285).
+
+```
+java.lang.NullPointerException
+        at org.redisson.spring.session.RedissonSessionRepository.onMessage(RedissonSessionRepository.java:303)
+        at org.redisson.spring.session.RedissonSessionRepository.onMessage(RedissonSessionRepository.java:58)
+        at org.redisson.PubSubPatternMessageListener.onPatternMessage(PubSubPatternMessageListener.java:83)
+        at org.redisson.client.RedisPubSubConnection.onMessage(RedisPubSubConnection.java:84)
+        at org.redisson.client.handler.CommandPubSubDecoder.lambda$enqueueMessage$0(CommandPubSubDecoder.java:181)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(Thread.java:748)
+```

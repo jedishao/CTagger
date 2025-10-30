@@ -1,0 +1,21 @@
+Optimize product tests memory usage
+The idea is to provision only required external services in order to run product tests.
+
+It doesn't make sense to provision Cassandra and mysql when only hive connector tests are needed to be run. 
+
+We are very limited on memory in travis. Running both, say, Cassandra and Hive might result in out of memory even for simple queries using MapReduce in Hive.
+
+Here is a list of steps that must be done:
+
+- Segregate product tests per connector basic (`tpch_connector`, `hive_connector`, `mysql_connector`, `postgres_connector`, `cassandra_connector`, `mssql_connector`)
+- Make sure Tempto starts without hadoop / hive provisioned
+- Modify `run_on_docker.sh` to accept two additional parameters
+  - `--services`  - list of services to start needed by tests, e.g.: `mysql,hive,cassandra`
+  - `--presto` - presto configuration, e.g.: `multinode`/`singlenode`/`singlenodeldap`, etc.
+- Avoid having multiple services in a single compose file. 1 compose file = 1 service (`mysql`/`presto singlenode`, `presto multinode`, etc.)
+- Change `.travis.yaml`. Eventual product tests cmd should look like
+   - ` presto-product-tests/bin/run_on_docker.sh --services cassandra --presto singlenode -g cassandra_connector`
+   - ` presto-product-tests/bin/run_on_docker.sh --services hive --presto multinode -g hive_connector`
+   - `presto-product-tests/bin/run_on_docker.sh --services mysql,postgreesql --presto singlenode -g mysql_connector,hive_connector`
+   - ` presto-product-tests/bin/run_on_docker.sh --services hive-kerberos --presto singlenode-hive-kerberos -g hive_connector,hive_connector_kerberos,hive_connector_impersonation`
+   - etc.

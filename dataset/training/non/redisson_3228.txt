@@ -1,0 +1,126 @@
+register expired event topic in cluster didn't work
+HI, I want use subscription features, but redisson always register it at only one node, I can't got other node's expired event.
+I tried more times, the results are same,
+and I lock WIKI 10.6 Low level Redis client :https://github.com/redisson/redisson/wiki/10.-additional-features
+but I can't found the method in my use version
+```
+RedisClient client = RedisClient.create(config);
+RedisConnection conn = client.connect();
+```
+redis version: 6.0.8 and 6.0.9
+Redisson version: 3.13.4 and 3.13.6
+JAVA version: JDK8
+
+my test:
+```
+127.0.0.1:7000> setex {7000} 1 2
+OK
+127.0.0.1:7000> exit
+127.0.0.1:7001> setex {7001} 1 2
+OK
+127.0.0.1:7001> exit
+127.0.0.1:7002> setex {7002} 1 2
+OK
+```
+
+output:
+```
+register topic
+register pattern topic
+wait sub...
+onExpired::key:{7001}, pattern:__keyevent*:expired, charSequence:__keyevent@0__:expired
+onExpired::key:{7002}, charSequence:__keyevent@0__:expired
+```
+
+example code:
+```
+import org.apache.commons.io.IOUtils;
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.api.listener.MessageListener;
+import org.redisson.api.listener.PatternMessageListener;
+import org.redisson.client.codec.StringCodec;
+import org.redisson.config.Config;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
+public class redissonTest {
+	private static RedissonClient redisson;
+	public static void main(String[] args) throws Exception {
+		initRedisson("redis.yaml");
+
+		initExpiredTopic();
+		System.out.println("wait sub...");
+		while (true) {
+			Thread.sleep(5000);
+		}
+
+	}
+
+	public static void initRedisson(String file) throws Exception {
+		try (InputStream in = redissonTest.class.getResourceAsStream(file)) {
+			String yamlConfig = IOUtils.toString(in, StandardCharsets.UTF_8);
+			Config config = Config.fromYAML(yamlConfig);
+
+			redisson = Redisson.create(config);
+		}
+	}
+
+	public static class ExpiredListener implements MessageListener<String> {
+		@Override
+		public void onMessage(CharSequence channel, String msg) {
+			System.out.printf("onExpired::key:%s, charSequence:%s\n", msg, channel);
+		}
+	}
+
+	public static class PatternExpiredListener implements PatternMessageListener<String> {
+		@Override
+		public void onMessage(CharSequence pattern, CharSequence channel, String msg) {
+			System.out.printf("onExpired::key:%s, pattern:%s, charSequence:%s\n", msg, pattern, channel);
+		}
+	}
+
+	private static void initExpiredTopic() {
+		System.out.println("register topic");
+		redisson.getTopic("__keyevent@0__:expired", StringCodec.INSTANCE)
+				.addListener(String.class, new ExpiredListener());
+		System.out.println("register pattern topic");
+		redisson.getPatternTopic("__keyevent*:expired", StringCodec.INSTANCE)
+				.addListener(String.class, new PatternExpiredListener());
+	}
+}
+```
+redis.yaml:
+```
+---
+clusterServersConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 100
+  failedSlaveReconnectionInterval: 3000
+  failedSlaveCheckInterval: 60000
+  subscriptionsPerConnection: 32
+  clientName: null
+  loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+  subscriptionConnectionPoolSize: 64
+  readMode: "MASTER_SLAVE"
+  subscriptionMode: "MASTER"
+  nodeAddresses:
+    - "redis://127.0.0.1:7000"
+    - "redis://127.0.0.1:7001"
+    - "redis://127.0.0.1:7002"
+    - "redis://127.0.0.1:7003"
+    - "redis://127.0.0.1:7004"
+    - "redis://127.0.0.1:7005"
+  scanInterval: 1000
+  pingConnectionInterval: 30000
+  keepAlive: true
+  tcpNoDelay: false
+threads: 0
+nettyThreads: 0
+#codec: !<org.redisson.client.codec.StringCodec> {}
+transportMode: "NIO"
+```

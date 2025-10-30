@@ -1,0 +1,106 @@
+Oauth
+Hi I new developer in vertx, I develop in Ruby.
+I trying to make a social login (facebook and twitter) also try with github but this works.
+
+- Facebook:
+   Code:
+```
+# create an OAuth2 provider, clientID and clientSecret should be requested to github
+    authProvider = VertxAuthOauth2::FacebookAuth.create(vertx, "xxxxxx", "xxxxxx")
+
+# create a oauth2 handler on our running server
+# the second argument is the full url to the callback as you entered in your provider management console.
+    oauth2 = VertxWeb::OAuth2AuthHandler.create(authProvider, "http://localhost:8080/callback/facebook")
+
+# setup the callback handler for receiving the GitHub callback
+    oauth2.setup_callback(router.route())
+
+# protect everything under /protected
+    router.route("/protected/facebook/*").handler(&oauth2.method(:handle))
+# mount some handler under the protected zone
+    router.route("/protected/facebook/somepage").handler() { |rc|
+      rc.response().end("Welcome to the protected resource!")
+    }
+
+    router.route("/callback/facebook").handler do |rc|
+      puts 'HIII'
+      rc.response.end('EEEEE')
+    end
+```
+
+  Error:
+
+```
+abr 19, 2017 3:14:58 PM io.vertx.ext.web.impl.RoutingContextImplBase
+GRAVE: Unexpected exception in route
+java.lang.ClassCastException: java.util.LinkedHashMap cannot be cast to java.lang.CharSequence
+	at io.vertx.core.json.JsonObject.getString(JsonObject.java:108)
+	at io.vertx.ext.auth.oauth2.impl.OAuth2API.handleToken(OAuth2API.java:248)
+	at io.vertx.ext.auth.oauth2.impl.OAuth2API.lambda$null$1(OAuth2API.java:217)
+	at io.vertx.core.http.impl.HttpClientResponseImpl$BodyHandler.notifyHandler(HttpClientResponseImpl.java:301)
+	at io.vertx.core.http.impl.HttpClientResponseImpl.lambda$bodyHandler$0(HttpClientResponseImpl.java:193)
+	at io.vertx.core.http.impl.HttpClientResponseImpl.handleEnd(HttpClientResponseImpl.java:257)
+	at io.vertx.core.http.impl.ClientConnection.handleResponseEnd(ClientConnection.java:361)
+	at io.vertx.core.http.impl.ClientHandler.doMessageReceived(ClientHandler.java:80)
+	at io.vertx.core.http.impl.ClientHandler.doMessageReceived(ClientHandler.java:38)
+	at io.vertx.core.http.impl.VertxHttpHandler.lambda$channelRead$0(VertxHttpHandler.java:71)
+	at io.vertx.core.impl.ContextImpl.lambda$wrapTask$2(ContextImpl.java:335)
+	at io.vertx.core.impl.ContextImpl.executeFromIO(ContextImpl.java:193)
+	at io.vertx.core.http.impl.VertxHttpHandler.channelRead(VertxHttpHandler.java:71)
+	at io.vertx.core.net.impl.VertxHandler.channelRead(VertxHandler.java:122)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:349)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:341)
+	at io.netty.channel.CombinedChannelDuplexHandler$DelegatingChannelHandlerContext.fireChannelRead(CombinedChannelDuplexHandler.java:435)
+	at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:293)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:267)
+	at io.netty.channel.CombinedChannelDuplexHandler.channelRead(CombinedChannelDuplexHandler.java:250)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:349)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:341)
+	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1228)
+	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1039)
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:411)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:248)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:349)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:341)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1334)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:349)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:926)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:129)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:642)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:565)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:479)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:441)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:858)
+	at java.lang.Thread.run(Thread.java:745)
+```
+ - Twitter:
+Code:
+```
+# create an OAuth2 provider, clientID and clientSecret should be requested to github
+    authProvider = VertxAuthOauth2::TwitterAuth.create(vertx, "xxxxx", "xxxxx")
+
+# create a oauth2 handler on our running server
+# the second argument is the full url to the callback as you entered in your provider management console.
+    oauth2 = VertxWeb::OAuth2AuthHandler.create(authProvider, "http://localhost:8080/callback/twitter")
+
+# setup the callback handler for receiving the GitHub callback
+    oauth2.setup_callback(router.route())
+
+# protect everything under /protected
+    router.route("/protected/twitter/*").handler(&oauth2.method(:handle))
+# mount some handler under the protected zone
+    router.route("/protected/twitter/somepage").handler() { |rc|
+      rc.response().end("Welcome to the protected resource!")
+    }
+```
+Error:
+```
+Whoa there!
+There is no request token for this page. That's the special key we need from applications asking to use your Twitter account. Please go back to the site or application that sent you here and try again; it was probably just a mistake.
+```
+
+Thanks in advance.

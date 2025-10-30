@@ -1,0 +1,73 @@
+Error while acquire Lock and ReadLock
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+No exception happened
+
+**Actual behavior**
+Exception happened
+
+**Redis version**
+6.2.6
+
+**Redisson version**
+org.redisson:redisson:3.13.1
+
+**Redisson configuration**
+```
+Config config = new Config();
+config.useSingleServer().setAddress("redis://127.0.0.1:6379");
+config.setLockWatchdogTimeout(15 * 1000);
+RedissonClient client = Redisson.create(config);
+```
+
+**Steps to reproduce or test case**
+Let me simplify the reproduce process:
+
+1. Thread x get Lock "A" and hold the Lock
+2. Thread y get ReadLock "A" and also hold the ReadLock
+3. Thread x and thread y all acquired lock
+4. Thread y call method `unlock` to release ReadLock y
+5. After a few seconds, thread x also call method `unlock` to release Lock x，and then it causes an exception 
+
+Here is stacktrace
+```
+Exception in thread "main" java.lang.IllegalMonitorStateException: attempt to unlock lock, not locked by current thread by node id: 1c5efec7-219a-4dbe-b1e0-2a8606bcba51 thread-id: 1
+	at org.redisson.RedissonLock.lambda$unlockAsync$3(RedissonLock.java:601)
+	at org.redisson.misc.RedissonPromise.lambda$onComplete$0(RedissonPromise.java:187)
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:578)
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:552)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:491)
+	at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:616)
+	at io.netty.util.concurrent.DefaultPromise.setSuccess0(DefaultPromise.java:605)
+	at io.netty.util.concurrent.DefaultPromise.trySuccess(DefaultPromise.java:104)
+	at org.redisson.misc.RedissonPromise.trySuccess(RedissonPromise.java:82)
+	at org.redisson.client.handler.CommandDecoder.completeResponse(CommandDecoder.java:451)
+	at org.redisson.client.handler.CommandDecoder.handleResult(CommandDecoder.java:446)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:377)
+	at org.redisson.client.handler.CommandDecoder.decodeCommandBatch(CommandDecoder.java:266)
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:207)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:134)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:104)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:507)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:719)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:655)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:581)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)
+```

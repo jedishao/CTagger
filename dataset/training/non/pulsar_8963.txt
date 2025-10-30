@@ -1,0 +1,124 @@
+NullPointerException Thrown Trying to Auth Client
+**Describe the bug**
+When trying to authenticate a client connection to the broker, getting a NullPointerException.
+
+```
+2020-12-11 00:03:13,999 DEBUG o.e.j.u.t.ReservedThreadExecutor [pulsar-web-46-16] ReservedThreadExecutor@562457e1{s=1/1,p=0}@b5fb1d size 1 > capacity
+2020-12-11 00:03:14,001 DEBUG o.a.p.c.p.PulsarDecoder [pulsar-io-26-14] [/10.1.66.150:59258] Received cmd CONNECT
+2020-12-11 00:03:14,001 DEBUG o.a.p.b.s.ServerCnx [pulsar-io-26-14] Received CONNECT from /10.1.66.150:59258, auth enabled: true: has original principal = false, original principal =
+2020-12-11 00:03:14,001 WARN o.a.p.b.s.ServerCnx [pulsar-io-26-14] [/10.1.66.150:59258] Unable to authenticate java.lang.NullPointerException
+	at org.apache.pulsar.broker.authentication.AuthenticationProviderTls.authenticate(AuthenticationProviderTls.java:75)
+	at org.apache.pulsar.broker.authentication.OneStageAuthenticationState.<init>(OneStageAuthenticationState.java:46)
+	at org.apache.pulsar.broker.authentication.AuthenticationProvider.newAuthState(AuthenticationProvider.java:76)
+	at org.apache.pulsar.broker.service.ServerCnx.handleConnect(ServerCnx.java:716)
+	at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:167)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.handler.flow.FlowControlHandler.dequeue(FlowControlHandler.java:191)
+	at io.netty.handler.flow.FlowControlHandler.channelRead(FlowControlHandler.java:153)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:321)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:295)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1486)
+	at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1235)
+	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1282)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:498)
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:437)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:792)
+	at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:475)
+	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+**To Reproduce**
+Steps to reproduce the behavior:
+
+1. Generate a CSR and Private Key using the following documentation:
+https://pulsar.apache.org/docs/en/security-tls-authentication/#create-client-certificates
+
+```
+#openssl.conf
+[ req ]
+default_bits           = 2048
+distinguished_name     = req_distinguished_name
+prompt                 = no
+default                = sha256
+req_extensions         = req_ext
+
+# distinguished_name
+[ req_distinguished_name ]
+stateOrProvinceName    = "FL"                                           # ST=
+countryName            = "US"                                           # C=
+localityName           = "Delray Beach"                                 # L=
+organizationName       = "mParticle"                                    # O=
+organizationalUnitName = "ops"                                          # OU=
+commonName             = "services.pluster-01.example.com"    # CN=
+emailAddress           = "ops@example.com"                            # CN/emailAddress=
+
+[ req_ext ]
+extendedKeyUsage=serverAuth,clientAuth
+```
+
+2. Generate a `Computer-ClientAuth` Certificate using Active Directory Certificate Services CA:
+<img width="322" alt="Computer-ClientAuth" src="https://user-images.githubusercontent.com/7016955/102244157-912a2280-3ec1-11eb-8144-5f59953ac34f.png">
+
+3. Configure `client.conf`:
+```
+# client.conf
+webServiceUrl=https://pulsar-pluster-01.example.com:8443/
+brokerServiceUrl=pulsar+ssl://pulsar-pluster-01.example.com:6651/
+authPlugin=org.apache.pulsar.client.impl.auth.AuthenticationKeyStoreTls
+authParams={"keyStoreType":"JKS","keyStorePath":"/opt/pulsar/tls/client.keystore.jks","keyStorePassword":"XXXXXXXXXXXXXXX"}
+tlsAllowInsecureConnection=false
+tlsEnableHostnameVerification=false
+useKeyStoreTls=true
+tlsTrustStoreType=PEM
+tlsTrustStorePath=/opt/pulsar/tls/truststore.jks
+tlsTrustStorePassword=XXXXXXXXXXXXXXX
+useTls=true
+```
+
+4. Attempt to produce to the broker:
+```
+# producer   
+sudo /opt/pulsar/bin/pulsar-perf produce persistent://public/default/test-partitioned-perftool --batch-max-messages 1
+```
+
+```
+22:30:33.866 [pulsar-client-io-2-1] INFO  org.apache.pulsar.client.impl.ConnectionPool - [[id: 0x1327459b, L:/10.3.22.138:59344 - R:pulsar-pluster-01.example.com/10.3.22.230:6651]] Connected to server
+22:30:33.883 [pulsar-client-io-2-1] WARN  org.apache.pulsar.client.impl.ClientCnx - [id: 0x1327459b, L:/10.3.22.138:59344 - R:pulsar-pluster-01.example.com/10.3.22.230:6651] Received error from server: Unable to authenticate
+22:30:33.883 [pulsar-client-io-2-1] WARN  org.apache.pulsar.client.impl.ClientCnx - [id: 0x1327459b, L:/10.3.22.138:59344 - R:pulsar-pluster-01.example.com/10.3.22.230:6651] Received unknown request id from server: -1
+22:30:33.884 [pulsar-client-io-2-1] INFO  org.apache.pulsar.client.impl.ClientCnx - [id: 0x1327459b, L:/10.3.22.138:59344 ! R:pulsar-pluster-01.example.com/10.3.22.230:6651] Disconnected
+```
+
+**Expected behavior**
+Client should authenticate and produce messages.
+
+**Desktop (please complete the following information):**
+ - OS: Amazon Linux 2 (Both client and server)
+
+**Additional context**
+@sijie has mentioned that this appears to be a failure to extract the common name: https://apache-pulsar.slack.com/archives/C5Z4T36F7/p1607707789124200?thread_ts=1607446610.061600&cid=C5Z4T36F7
+
+```
+# Confirmed with Openssl that CN is in the Subject line
+[ec2-user@monitoring tls]$ openssl x509 -in pulsar-client-certificate.cer -text -noout | grep 'Subject:'
+        Subject: C=US, ST=FL, L=Delray Beach, O=Company, OU=ops, CN=services.pluster-01.example.com/emailAddress=ops@mparticle.com
+```

@@ -1,0 +1,121 @@
+Error during handshake for tls auth by apache pulsar client on ubuntu server
+I have setup the `apache pulsar v2.3` on Ubuntu 18.04.2 LTS from [Run Pulsar locally](https://pulsar.apache.org/docs/en/standalone/). It sends message successfully without any authentication. 
+But i would like to send message using tls authentication , so configuring tls certificate using [security-tls-transport](https://pulsar.apache.org/docs/en/security-tls-transport/) and [security-tls-authentication](https://pulsar.apache.org/docs/en/security-tls-authentication/). 
+
+Using above link I have created the certificates and modified following config files `broker.conf`,`client.conf` and `standalone.conf`. I am trying to  send message by CLI with below command.
+` bin/pulsar-client produce my-topic --messages "hello-pulsar"`
+
+But it throws the following error
+
+ ```
+[pulsar-client-io-1-1] INFO  org.apache.pulsar.client.impl.ConnectionPool -           
+ [[id: 0x8010c4f5, L:/127.0.0.1:42840 - R:localhost/127.0.0.1:6651]] 
+ Connected to server
+ 09:47:17.686 [pulsar-client-io-1-1] WARN  
+ org.apache.pulsar.client.impl.ClientCnx - Error during handshake
+ java.nio.channels.ClosedChannelException: null
+    at io.netty.handler.ssl.SslHandler.channelInactive(...)(Unknown Source) 
+ ~[io.netty-netty-all-4.1.32.Final.jar:4.1.32.Final]
+ 09:47:17.691 [pulsar-client-io-1-1] INFO  
+ org.apache.pulsar.client.impl.ClientCnx - [id: 0x8010c4f5, 
+ L:/127.0.0.1:42840 ! R:localhost/127.0.0.1:6651] Disconnected
+ 09:47:17.692 [pulsar-client-io-1-1] WARN  
+ org.apache.pulsar.client.impl.ConnectionPool - [[id: 0x8010c4f5, 
+ L:/127.0.0.1:42840 ! R:localhost/127.0.0.1:6651]] Connection handshake 
+ failed: org.apache.pulsar.client.api.PulsarClientException: Connection 
+ already closed
+ 09:47:17.692 [pulsar-client-io-1-1] WARN  
+ org.apache.pulsar.client.impl.PulsarClientImpl - [my-topic] Failed to get 
+ partitioned topic metadata: 
+ org.apache.pulsar.client.api.PulsarClientException: Connection already 
+ closed
+ 09:47:17.692 [main] ERROR org.apache.pulsar.client.cli.PulsarClientTool - 
+ Error while producing messages
+ 09:47:17.692 [main] ERROR org.apache.pulsar.client.cli.PulsarClientTool - 
+ Connection already closed
+ org.apache.pulsar.client.api.PulsarClientException: Connection already 
+ closed at 
+ org.apache.pulsar.client.impl.ClientCnx.channelInactive(ClientCnx.java:204) 
+ ~[org.apache.pulsar-pulsar-client-original-2.3.0.jar:2.3.0]
+    at 
+ io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+ (AbstractChannelHandlerContext.java:245) ~[io.netty-netty-all- 
+ 4.1.32.Final.jar:4.1.32.Final]
+    at 
+ io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+(AbstractChannelHandlerContext.java:231) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at 
+io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive
+(AbstractChannelHandlerContext.java:224) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at 
+io.netty.handler.codec.ByteToMessageDecoder.channelInputClosed
+(ByteToMessageDecoder.java:390) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at 
+io.netty.handler.codec.ByteToMessageDecoder.channelInactive
+   (ByteToMessageDecoder.java:355) ~[io.netty-netty-all- 
+  4.1.32.Final.jar:4.1.32.Final]
+    at 
+  io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+   (AbstractChannelHandlerContext.java:245) ~[io.netty-netty-all- 
+  4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+  (AbstractChannelHandlerContext.java:231) ~[io.netty-netty-all- 
+  4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive
+  (AbstractChannelHandlerContext.java:224) ~[io.netty-netty-all- 
+ 4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.handler.codec.ByteToMessageDecoder.channelInputClosed
+ (ByteToMessageDecoder.java:390) ~[io.netty-netty-all- 
+ 4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.handler.codec.ByteToMessageDecoder.channelInactive
+     (ByteToMessageDecoder.java:355) ~[io.netty-netty-all- 
+  4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.handler.ssl.SslHandler.channelInactive(SslHandler.java:1054) 
+ ~[io.netty-netty-all-4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+  (AbstractChannelHandlerContext.java:245) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+ (AbstractChannelHandlerContext.java:231) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive
+(AbstractChannelHandlerContext.java:224) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.DefaultChannelPipeline$HeadContext.channelInactive
+(DefaultChannelPipeline.java:1429) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+(AbstractChannelHandlerContext.java:245) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive
+(AbstractChannelHandlerContext.java:231) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.DefaultChannelPipeline.fireChannelInactive
+(DefaultChannelPipeline.java:947) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.AbstractChannel$AbstractUnsafe$8.run
+(AbstractChannel.java:826) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.util.concurrent.AbstractEventExecutor.safeExecute
+(AbstractEventExecutor.java:163) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks
+(SingleThreadEventExecutor.java:404) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:335) ~ 
+[io.netty-netty-all-4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.util.concurrent.SingleThreadEventExecutor$5.run
+(SingleThreadEventExecutor.java:909) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run
+(FastThreadLocalRunnable.java:30) ~[io.netty-netty-all- 
+4.1.32.Final.jar:4.1.32.Final]
+    at java.lang.Thread.run(Thread.java:748) ~[?:1.8.0_201]
+09:47:17.694 [main] INFO  org.apache.pulsar.client.cli.PulsarClientTool - 0 
+messages successfully produced
+```
+
+Could anyone please help to resolve this ?

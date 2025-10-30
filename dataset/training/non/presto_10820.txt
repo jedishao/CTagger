@@ -1,0 +1,35 @@
+Fix property derivations for joins
+A discussion in #10731 revealed that property derivations logic for joins in `PropertyDerivations.Visitor#visitJoin` is incorrect. 
+
+The behavior should be as follows (as discussed in #10814):
+
+  | Global | Local | Constants
+-- | -- | -- | --
+INNER | ALL | ALL(probe) | ALL(probe + build)
+INNER + spill | ALL | Constant(probe) | ALL(probe + build)
+LEFT | ALL(probe) | ALL(probe) | ALL(probe)
+LEFT + spill | ALL(probe) | Constant(probe) | ALL(probe)
+RIGHT | ALL(build) | Grouping(probe) + SortingNullsLast(probe) | ALL(build)
+FULL | SingleStream(probe) | Grouping(probe) + SortingNullsLast(probe) | NONE
+CROSS | ALL | None | ALL(probe + build)
+
+* **Global** describes partitioning across streams (nodes or threads within a single node)
+* **Local** describes properties of a single stream
+* **Constants** lists columns with constant values within a single stream
+* RIGHT and FULL joins don't support spill
+
+Currently, `PropertyDerivations.Visitor#visitJoin` is implemented as follows (discrepancies with the above are highlighted in bold):
+
+  | Global | Local | Constants
+-- | -- | -- | --
+INNER | **ALL(probe)** | ALL(probe) | ALL(probe+build)
+INNER+spill | **ALL(probe)** | Constant(probe) | ALL(probe+build)
+LEFT | ALL(probe) | ALL(probe) | ALL(probe)
+LEFT+spill | ALL(probe) | Constant(probe) | ALL(probe)
+RIGHT | ALL(build) | **NONE** | ALL(build)
+FULL | SingleStream(probe) | **NONE** | NONE
+CROSS | **ALL(probe)** | **ALL(probe)** | ALL(probe+build)
+
+The discrepancy for the CROSS join is a correctness issue: local properties for CROSS join are stronger then they should be. This is being fixed in #10731 . Other discrepancies are weaker then they could be, hence, represent an opportunity for optimizations.
+
+CC: @sopel39 @findepi @martint 

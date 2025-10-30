@@ -1,0 +1,160 @@
+Consult vert.x a multithreade problem
+The program starts with 3 threads, the thread pool is set to 2, but the result is only two threads.
+
+Program code is as follows：
+
+package org.snowball;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
+
+public class App {
+    public static void main(String[] args) {
+        int MAX_WORKER_COUNT = 2;
+        System.out.println("Hello World!");
+        VertxOptions vopt = new VertxOptions();
+        vopt.setWorkerPoolSize(MAX_WORKER_COUNT);
+        //vopt.setMaxWorkerExecuteTime(10000 * 500);
+        DeploymentOptions dopt = new DeploymentOptions().setWorker(true);
+        Vertx vx = Vertx.vertx(vopt);
+        for (int index = 0; index < 3; index++) {
+            vx.deployVerticle(new Test(), dopt);
+        }
+        try {
+            Thread.sleep(1000 * 20);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        vx.close(); // release all workers
+    }
+}
+
+2.      Test.java
+
+package org.snowball;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.MessageConsumer;
+import java.util.Random;
+
+public class Test extends AbstractVerticle {
+
+    public String domain = new Random().nextInt(152) + "";
+    public int size = 0;
+
+    @Override
+    public void start() throws Exception {
+        super.start();
+        // sub inner msg
+        EventBus eb = getVertx().eventBus();
+        MessageConsumer<String> mc = eb.consumer(domain);
+        String messageStr = "start job,id:" + domain;
+        mc.handler(message -> {
+            if (message.body() == messageStr) {
+                System.out.println(messageStr);
+                try {
+                    jobDo();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                eb.send(domain, messageStr);
+            }
+        });
+        eb.send(domain, messageStr);
+    }
+
+    @Override
+    public void stop() throws Exception {
+        System.out.println("stop callback");
+        EventBus eb = getVertx().eventBus();
+        MessageConsumer<String> mc = eb.consumer(domain);
+        mc.unregister(res -> {
+            if (res.succeeded()) {
+                System.out.println("The handler un-registration has reached all nodes");
+            } else {
+                System.out.println("Un-registration failed!");
+            }
+        });
+        super.stop();
+    }
+
+    public void jobDo() throws Exception {
+        Thread.sleep(1000);
+    }
+}
+
+connsole prints information:
+Hello World!
+start job,id:135
+start job,id:104
+start job,id:104
+start job,id:135
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:104
+start job,id:135
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:135
+start job,id:104
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+start job,id:135
+start job,id:104
+stop callback
+stop callback
+The handler un-registration has reached all nodes
+The handler un-registration has reached all nodes
+十二月 05, 2016 9:13:52 上午 io.vertx.core.impl.ContextImpl
+严重: Unhandled exception
+java.lang.IllegalStateException: Result is already complete: succeeded
+	at io.vertx.core.impl.FutureImpl.checkComplete(FutureImpl.java:164)
+	at io.vertx.core.impl.FutureImpl.complete(FutureImpl.java:108)
+	at io.vertx.core.impl.FutureImpl.handle(FutureImpl.java:135)
+	at io.vertx.core.impl.FutureImpl.handle(FutureImpl.java:23)
+	at io.vertx.core.eventbus.impl.EventBusImpl.lambda$callCompletionHandlerAsync$2(EventBusImpl.java:340)
+	at io.vertx.core.impl.ContextImpl.lambda$wrapTask$2(ContextImpl.java:316)
+	at io.vertx.core.impl.OrderedExecutorFactory$OrderedExecutor.lambda$new$0(OrderedExecutorFactory.java:94)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+
+十二月 05, 2016 9:13:52 上午 io.vertx.core.impl.ContextImpl
+严重: Unhandled exception
+java.lang.IllegalStateException: Result is already complete: succeeded
+	at io.vertx.core.impl.FutureImpl.checkComplete(FutureImpl.java:164)
+	at io.vertx.core.impl.FutureImpl.complete(FutureImpl.java:108)
+	at io.vertx.core.impl.FutureImpl.handle(FutureImpl.java:135)
+	at io.vertx.core.impl.FutureImpl.handle(FutureImpl.java:23)
+	at io.vertx.core.eventbus.impl.EventBusImpl.lambda$callCompletionHandlerAsync$2(EventBusImpl.java:340)
+	at io.vertx.core.impl.ContextImpl.lambda$wrapTask$2(ContextImpl.java:316)
+	at io.vertx.core.impl.OrderedExecutorFactory$OrderedExecutor.lambda$new$0(OrderedExecutorFactory.java:94)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+
+Process finished with exit code 0

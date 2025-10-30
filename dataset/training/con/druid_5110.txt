@@ -1,0 +1,77 @@
+Remote driver error: IllegalStateException: DefaultQueryMetrics must not be modified from multiple threads.
+Hello there,
+I recently write a Presto/Druid connector via JDBC, for a simple query from Presto, I got the following error:
+```java.lang.IllegalStateException: DefaultQueryMetrics must not be modified from multiple threads. If it is needed to gather dimension or metric information from multiple threads or from an async thread, this information should explicitly be passed between threads (e. g. using Futures), or this DefaultQueryMetrics's ownerThread should be reassigned explicitly
+        at io.druid.query.DefaultQueryMetrics.checkModifiedFromOwnerThread(DefaultQueryMetrics.java:59)
+        at io.druid.query.DefaultQueryMetrics.reportMetric(DefaultQueryMetrics.java:253)
+        at io.druid.query.DefaultQueryMetrics.reportCpuTime(DefaultQueryMetrics.java:231)
+        at io.druid.query.CPUTimeMetricQueryRunner$1.after(CPUTimeMetricQueryRunner.java:86)
+        at io.druid.java.util.common.guava.WrappingYielder.close(WrappingYielder.java:96)
+        at io.druid.java.util.common.guava.Yielders$2.close(Yielders.java:73)
+        at io.druid.java.util.common.guava.ConcatSequence.wrapYielder(ConcatSequence.java:123)
+        at io.druid.java.util.common.guava.ConcatSequence.access$000(ConcatSequence.java:29)
+        at io.druid.java.util.common.guava.ConcatSequence$3.next(ConcatSequence.java:143)
+        at io.druid.sql.avatica.DruidStatement.nextFrame(DruidStatement.java:277)
+        at io.druid.sql.avatica.DruidMeta.fetch(DruidMeta.java:209)
+        at org.apache.calcite.avatica.remote.LocalService.apply(LocalService.java:252)
+        at org.apache.calcite.avatica.remote.Service$FetchRequest.accept(Service.java:1350)
+        at org.apache.calcite.avatica.remote.Service$FetchRequest.accept(Service.java:1317)
+        at org.apache.calcite.avatica.remote.AbstractHandler.apply(AbstractHandler.java:95)
+        at org.apache.calcite.avatica.remote.JsonHandler.apply(JsonHandler.java:52)
+        at org.apache.calcite.avatica.server.AvaticaJsonHandler.handle(AvaticaJsonHandler.java:129)
+        at io.druid.sql.avatica.DruidAvaticaHandler.handle(DruidAvaticaHandler.java:63)
+        at org.eclipse.jetty.server.handler.HandlerList.handle(HandlerList.java:52)
+        at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:134)
+        at org.eclipse.jetty.server.Server.handle(Server.java:534)
+        at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:320)
+        at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:251)
+        at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:283)
+        at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:108)
+        at org.eclipse.jetty.io.SelectChannelEndPoint$2.run(SelectChannelEndPoint.java:93)
+        at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.executeProduceConsume(ExecuteProduceConsume.java:303)
+        at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.produceConsume(ExecuteProduceConsume.java:148)
+        at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.run(ExecuteProduceConsume.java:136)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:671)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool$2.run(QueuedThreadPool.java:589)
+        at java.lang.Thread.run(Thread.java:745)
+        Suppressed: java.lang.RuntimeException: java.util.concurrent.ExecutionException: java.lang.IllegalStateException: DefaultQueryMetrics must not be modified from multiple threads. If it is needed to gather dimension or metric inf
+ormation from multiple threads or from an async thread, this information should explicitly be passed between threads (e. g. using Futures), or this DefaultQueryMetrics's ownerThread should be reassigned explicitly
+                at com.google.common.base.Throwables.propagate(Throwables.java:160)
+                at io.druid.sql.avatica.DruidStatement.close(DruidStatement.java:335)
+                at io.druid.sql.avatica.DruidStatement.nextFrame(DruidStatement.java:290)
+                ... 22 more
+        Caused by: java.util.concurrent.ExecutionException: java.lang.IllegalStateException: DefaultQueryMetrics must not be modified from multiple threads. If it is needed to gather dimension or metric information from multiple thread
+s or from an async thread, this information should explicitly be passed between threads (e. g. using Futures), or this DefaultQueryMetrics's ownerThread should be reassigned explicitly
+                at java.util.concurrent.FutureTask.report(FutureTask.java:122)
+                at java.util.concurrent.FutureTask.get(FutureTask.java:192)
+                at io.druid.sql.avatica.DruidStatement.close(DruidStatement.java:319)
+                ... 23 more
+        Caused by: java.lang.IllegalStateException: DefaultQueryMetrics must not be modified from multiple threads. If it is needed to gather dimension or metric information from multiple threads or from an async thread, this informati
+on should explicitly be passed between threads (e. g. using Futures), or this DefaultQueryMetrics's ownerThread should be reassigned explicitly
+                at io.druid.query.DefaultQueryMetrics.checkModifiedFromOwnerThread(DefaultQueryMetrics.java:59)
+                at io.druid.query.DefaultQueryMetrics.reportMetric(DefaultQueryMetrics.java:253)
+                at io.druid.query.DefaultQueryMetrics.reportCpuTime(DefaultQueryMetrics.java:231)
+                at io.druid.query.CPUTimeMetricQueryRunner$1.after(CPUTimeMetricQueryRunner.java:86)
+                at io.druid.java.util.common.guava.WrappingYielder.close(WrappingYielder.java:96)
+                at io.druid.java.util.common.guava.ConcatSequence$3.close(ConcatSequence.java:157)
+                at io.druid.java.util.common.guava.ConcatSequence$3.close(ConcatSequence.java:156)
+                at io.druid.sql.avatica.DruidStatement.lambda$close$3(DruidStatement.java:315)
+                at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+                at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+                at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+                ... 1 more
+
+
+        at org.apache.calcite.avatica.remote.Service$ErrorResponse.toException(Service.java:2476)
+        at org.apache.calcite.avatica.remote.JsonService.decode(JsonService.java:55)
+        at org.apache.calcite.avatica.remote.JsonService.apply(JsonService.java:140)
+        at org.apache.calcite.avatica.remote.RemoteMeta$14.call(RemoteMeta.java:309)
+
+```
+
+By searching from the existing threads, it seems there was a few issues with similar error messages (e.g. https://github.com/druid-io/druid/search?q=DefaultQueryMetrics+must+not+be+modified+from+multiple+t&type=Issues&utf8=%E2%9C%93), but I am not sure if it gets fixed or it is a new issue.
+
+Druid version: 0.10.1
+Query: select * from {data_source}
+
+Thanks in advance!

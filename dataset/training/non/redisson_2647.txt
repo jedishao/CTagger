@@ -1,0 +1,36 @@
+Question about PingConnectionInterval and KeepAlive
+Redisson: 3.12.1
+Java: 1.8
+
+In production we saw below error few times. As per some closed issues if we set `pingConnectionInterval`, will the excess idle connections be closed after `idleConnectionTimeout` ? 
+And also enabling `KeepAlive` solved the issue for any? 
+
+```
+org.redisson.client.WriteRedisConnectionException: Unable to write command into connection! Node source: NodeSource [slot=0, addr=null, redisClient=null, redirect=null, entry=MasterSlaveEntry [masterEntry=[freeSubscribeConnectionsAmount=1, freeSubscribeConnectionsCounter=value:50:queue:0, freeConnectionsAmount=0, freeConnectionsCounter=value:230:queue:0, freezed=false, freezeReason=null, client=[addr=redis://<removed>:6379], nodeType=MASTER, firstFail=0]]], connection: RedisConnection@1929783894 [redisClient=[addr=redis://<removed>:6379], channel=[id: 0x3a9bcda0, L:/<<removed>>:6379], currentCommand=CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@63c1de5f(success)], command=(BLPOP), params=[userqueue2, 60], codec=org.redisson.client.codec.StringCodec]], command: (BLPOP), params: [userqueue2, 60] after 3 retry attempts
+    at org.redisson.command.RedisExecutor.checkWriteFuture(RedisExecutor.java:280)
+    at org.redisson.command.RedisExecutor.access$100(RedisExecutor.java:60)
+    at org.redisson.command.RedisExecutor$1.operationComplete(RedisExecutor.java:162)
+    at org.redisson.command.RedisExecutor$1.operationComplete(RedisExecutor.java:159)
+    at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:577)
+    at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:551)
+    at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:490)
+    at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:615)
+    at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:608)
+    at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:117)
+    at org.redisson.client.handler.CommandsQueue.channelInactive(CommandsQueue.java:83)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:260)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:246)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:239)
+```
+
+```
+Config config = new Config();
+		config.setCodec(StringCodec.INSTANCE);
+		
+		ReplicatedServersConfig replicatedServersConfig = config.useReplicatedServers()
+				.setScanInterval(2000) 
+				.setReadMode(READ_MODE) 
+				.setTimeout(CacheConstants.TIMEOUT) 
+				.setMasterConnectionPoolSize(CacheConstants.MAX_TOTAL_CONNECTIONS)
+				.setSlaveConnectionPoolSize(CacheConstants.SLAVE_MAX_TOTAL_CONNECTIONS);
+```

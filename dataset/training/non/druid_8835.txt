@@ -1,0 +1,82 @@
+Ingestion task fails with NullPointerException during BUILD_SEGMENTS phase
+### Affected Version
+0.16.0-incubating
+
+I am fairly sure this did not happen with 0.12.3  (we are currently upgrading, and upgraded our test environment so far)
+
+### Description
+I am using native index tasks to ingest data into Druid (they override data already in that interval).  I submit about 30 tasks all at once, and they get queued up and processed in the middle managers and peons.
+
+Every time I run this, several of the index tasks fail (their status in the UI is FAILED), and I find this stacktrace in the middlemanager logs :
+```
+2019-11-01T06:46:32,759 ERROR [task-runner-0-priority-0] org.apache.druid.indexing.common.task.IndexTask - Encountered exception in BUILD_SEGMENTS.
+java.lang.RuntimeException: java.util.concurrent.ExecutionException: java.io.IOException: java.lang.NullPointerException
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.checkFetchException(Fetcher.java:199) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.next(Fetcher.java:170) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactory$2.next(PrefetchableTextFilesFirehoseFactory.java:242) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactory$2.next(PrefetchableTextFilesFirehoseFactory.java:228) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.FileIteratingFirehose.getNextLineIterator(FileIteratingFirehose.java:107) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.FileIteratingFirehose.hasMore(FileIteratingFirehose.java:68) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.indexing.common.task.FiniteFirehoseProcessor.process(FiniteFirehoseProcessor.java:98) ~[druid-indexing-service-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.indexing.common.task.IndexTask.generateAndPublishSegments(IndexTask.java:859) ~[druid-indexing-service-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.indexing.common.task.IndexTask.runTask(IndexTask.java:467) [druid-indexing-service-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.indexing.common.task.AbstractBatchIndexTask.run(AbstractBatchIndexTask.java:137) [druid-indexing-service-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:419) [druid-indexing-service-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:391) [druid-indexing-service-0.16.0-incubating.jar:0.16.0-incubating]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_222]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_222]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_222]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_222]
+Caused by: java.util.concurrent.ExecutionException: java.io.IOException: java.lang.NullPointerException
+	at java.util.concurrent.FutureTask.report(FutureTask.java:122) ~[?:1.8.0_222]
+	at java.util.concurrent.FutureTask.get(FutureTask.java:192) ~[?:1.8.0_222]
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.checkFetchException(Fetcher.java:190) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	... 15 more
+Caused by: java.io.IOException: java.lang.NullPointerException
+	at org.apache.druid.java.util.common.FileUtils.copyLarge(FileUtils.java:305) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.FileFetcher.download(FileFetcher.java:89) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.fetch(Fetcher.java:134) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.lambda$fetchIfNeeded$0(Fetcher.java:110) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	... 4 more
+Caused by: java.lang.NullPointerException
+	at org.apache.druid.java.util.common.FileUtils.lambda$copyLarge$1(FileUtils.java:293) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:86) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:125) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.java.util.common.FileUtils.copyLarge(FileUtils.java:291) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.FileFetcher.download(FileFetcher.java:89) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.fetch(Fetcher.java:134) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.lambda$fetchIfNeeded$0(Fetcher.java:110) ~[druid-core-0.16.0-incubating.jar:0.16.0-incubating]
+	... 4 more
+```
+
+Info:
+In this test environment, I have a single MiddleManager with a task capacity of 2, and also a realtime kafka ingestion task running.  In my production environment, I have 2 middle managers, 2 historicals, 2 coordinator/overlords, and 2 brokers.
+
+I am using S3 for deep storage.
+
+The tasks that I submit look like this:
+```
+{
+            "type": "index",
+            "spec": {
+                "dataSchema": {
+                    "dataSource": "redacted",
+                    "metricsSpec": metrics_spec,
+                    "granularitySpec": {
+                        "segmentGranularity": "HOUR",
+                        "queryGranularity": "NONE",
+                        "intervals": intervals
+                    },
+                    "parser": parser
+                },
+                "ioConfig": {
+                    "type": "index",
+                    "firehose": {
+                        "type": "static-s3",
+                        "prefixes": s3_prefixes
+                    }
+                }
+            }
+        }
+```
+

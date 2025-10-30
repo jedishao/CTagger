@@ -1,0 +1,4 @@
+SockJSSession needs to use the transport thread when using the transport
+Currently the `SockJSSession` uses the transport for write/close operations from any thread. This can cause deadlocks when used from external threads or because the transport thread has changed (for instance a session reconnection with an scaled http server).
+
+It can be fixed by recording the transport context when the transport is associated with the session (register method) and doing a `runOnContext` when the current context is not the same. This shall also prevent race conditions for instance a write operation is scheduled from a non vertx thread, the register method is called and gives a new transport to the session. In this case the write will be rescheduled.

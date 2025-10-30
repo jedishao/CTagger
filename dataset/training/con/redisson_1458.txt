@@ -1,0 +1,104 @@
+ReadWriteLock timeout does not work as expected
+I wrote a simple test to check the ReadWriteLock.
+### Redisson configuration:
+```
+Config config = new Config();
+String host = "localhost";
+int port = 32768;
+config.useSingleServer().setAddress(String.format("redis://%s:%d", host, port));
+RedissonClient redisson = Redisson.create(config);
+```
+
+### Redis version
+The redis is inside a docker container based on `redis:3.2.1` image
+
+### Redisson version
+Using gradle: `compile 'org.redisson:redisson:3.7.0'`
+
+### Test cases:
+#### First:
+```
+RReadWriteLock lock = redisson.getReadWriteLock("lock1");
+
+Thread readThread = new Thread(() -> {
+    try {
+        lock.readLock().lock();
+        lock.readLock().lock();
+        lock.readLock().lock();
+        lock.readLock().lock();
+        logger.info("all read locks are locked");
+    } catch (Exception e) {
+    }
+});
+readThread.start();
+
+Thread writeThread = new Thread(() -> {
+    try {
+        Thread.sleep(1000);
+        logger.info("trying to take a write lock");
+        lock.writeLock().lock();
+        logger.info("write lock is taken");
+    } catch (Exception e) {
+    }
+});
+writeThread.start();
+
+writeThread.join();
+```
+
+#### Second:
+```
+RReadWriteLock lock = redisson.getReadWriteLock("lock1");
+
+Thread readThread = new Thread(() -> {
+    try {
+        lock.readLock().lock();
+        lock.readLock().lock();
+        lock.readLock().lock();
+        lock.readLock().lock();
+        logger.info("all read locks are locked");
+
+        Thread.sleep(40000);
+        logger.info("unlocking read locks");
+        lock.readLock().unlock();
+        lock.readLock().unlock();
+        lock.readLock().unlock();
+        lock.readLock().unlock();
+        logger.info("read locks are unlocked");
+    } catch (Exception e) {
+    }
+});
+readThread.start();
+
+Thread writeThread = new Thread(() -> {
+    try {
+        Thread.sleep(1000);
+        logger.info("trying to take a write lock");
+        lock.writeLock().lock();
+        logger.info("write lock is taken");
+    } catch (Exception e) {
+    }
+});
+writeThread.start();
+
+writeThread.join();
+```
+
+### The behaviour
+First case: Read thread finishes executing properly, write thread hangs forever
+Second case: Behaves as expected. Read thread locks, sleeps and unlocks. Write thread hangs until the read thread finishes and then locks and finishes.
+
+### What I see in redis in both cases at the beginning:
+![image](https://user-images.githubusercontent.com/6184997/40606586-849ba8ae-626e-11e8-9fc9-598b15480e6e.png)
+
+### What I see in redis in both cases after some time:
+![image](https://user-images.githubusercontent.com/6184997/40606637-a5b87b16-626e-11e8-9296-f809a0e41702.png)
+
+* The `rwlock_timeout` entries expire in both cases, it seems like no one is updating their timeout in redis.
+* In the first case, where the `readThread` finished running but the `lock1` entry never expires and is stuck forever like this:
+![image](https://user-images.githubusercontent.com/6184997/40606810-46f234a4-626f-11e8-91db-acbd8e985fb1.png)
+
+
+### What I expected
+* In the first case when the read thread finished running I'd expect the read locks to expire after some time and unlock the `lock1` entry
+* In the second case I'd expect the `rwlock_timeout` entries not to expire since the read thread is alive, it sleeps but it is alive.

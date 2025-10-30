@@ -1,0 +1,59 @@
+The deadlock of RedissonMultiLock
+When I used the RedissonMultiLock.lock(), I found the code of Redisson.
+
+```
+       for (RLock lock : locks) {
+            tryLockRequestsAmount.incrementAndGet();
+            Future<Boolean> future;
+            if (waitTime > 0 || leaseTime > 0) {
+                future = ((RedissonLock)lock).tryLockAsync(waitTime, leaseTime, unit, currentThreadId);
+            } else {
+                future = ((RedissonLock)lock).tryLockAsync(currentThreadId);
+            }
+            tryLockFutures.put(future, lock);
+        }
+
+        for (Future<Boolean> future : tryLockFutures.keySet()) {
+            future.addListener(listener);
+        }
+```
+
+
+This is my code.
+```
+	@Test
+	public void testMultiLock() {
+		RLock lock2000 = redisson.getLock("lock2000");
+		RLock lockSoundbox = redisson.getLock("lockSoundbox");
+		RedissonMultiLock lockA = new RedissonMultiLock(lockSoundbox, lock2000);		
+		RedissonMultiLock lockB = new RedissonMultiLock(lock2000, lockSoundbox);
+		multiLockThreadRun(lockA, "A"); // **Thread A**
+		multiLockThreadRun(lockB, "B");	// **Thread B**
+	}
+
+	public void multiLockThreadRun(RedissonMultiLock lock, String c) {
+		ScheduledExecutorService scheduledThreadPool = Executors.newScheduledThreadPool(20);
+		scheduledThreadPool.schedule(new Runnable() {
+			public void run() {
+				lock.lock();
+				log.info("===========>{}multiLock had locked success", c);
+				try {Thread.sleep(2000);} catch (InterruptedException e) {}
+				log.info("===========>{}do some things", c);
+				if (lock != null) {
+					lock.unlock();
+					log.info("===========>{}multiLock had unlocked success", c);
+				}
+			}
+		}, 1, TimeUnit.SECONDS);
+	}
+```
+The program execution sequence is as follows：
+
+1. Thread A locked the 'lockSoundbox' of lockA. It's OK?
+2. Thread B locked the 'lock2000' of lockB. It's OK?
+3. Thread A locked the 'lock2000' of lockA. It's OK?
+4. Thread B locked the 'lockSoundbox' of lockB. It's OK?
+
+I think there's a deadlock between 3 and 4, but I'm not going to try it out.
+
+

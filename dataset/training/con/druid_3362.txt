@@ -1,0 +1,16 @@
+Race on segment loading
+Hi,
+
+I see a lot of "Replicant create queue stuck after 15+ runs!" messages in coordinator.
+
+From the log files it looks like this:
+- Indexer builds a segment
+- Coordinator schedules to load it
+- Auto-merge detects that it can be merged and the merge finishes before the historical node actually downloaded the segment
+- Now historical doesn't download the segment anymore (it's not the latest), but it doesn't get flushed from the load queue.
+
+The only way to break it is to restart the historical node. It complains about missing segment on disk and unable to unload, then actually does the right thing.
+
+Unfortunately, it looks like this seems to stall loading of other segments as well (even though I have multiple threads assigned to loading).
+
+Does that make any sense? Some of the above is guesswork.

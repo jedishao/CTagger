@@ -1,0 +1,32 @@
+JavaScript: Non-thread-safe use of shared globals
+JavaScriptExtractionFn (probably some other JavaScript stuff too) has a global scope that is shared between multiple threads, leading to issues when user functions use globals instead of `var`s. The global scope should probably be thread local.
+
+Maybe related: https://groups.google.com/d/msg/druid-user/ROv2-WohcUc/QAt4aj59AwAJ
+
+Almost surely related: an exception we saw on our cluster today with a trace like the following (on JS code that checked for definedness of a global variable before calling `.length` on it).
+
+```
+org.mozilla.javascript.EcmaError: TypeError: Cannot read property "length" from undefined (fn#1)
+        at org.mozilla.javascript.ScriptRuntime.constructError(ScriptRuntime.java:3689) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.ScriptRuntime.constructError(ScriptRuntime.java:3667) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.ScriptRuntime.typeError(ScriptRuntime.java:3695) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.ScriptRuntime.typeError2(ScriptRuntime.java:3714) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.ScriptRuntime.undefReadError(ScriptRuntime.java:3726) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.ScriptRuntime.getObjectProp(ScriptRuntime.java:1483) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.gen.fn_776._c_anonymous_0(fn:1) ~[?:?]
+        at org.mozilla.javascript.gen.fn_776.call(fn) ~[?:?]
+        at org.mozilla.javascript.ContextFactory.doTopCall(ContextFactory.java:394) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.ScriptRuntime.doTopCall(ScriptRuntime.java:3090) ~[rhino-1.7R5.jar:1.7R5]
+        at org.mozilla.javascript.gen.fn_776.call(fn) ~[?:?]
+        at io.druid.query.extraction.JavaScriptExtractionFn$1.apply(JavaScriptExtractionFn.java:61) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.extraction.JavaScriptExtractionFn$1.apply(JavaScriptExtractionFn.java:52) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.extraction.JavaScriptExtractionFn.apply(JavaScriptExtractionFn.java:119) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.extraction.JavaScriptExtractionFn.apply(JavaScriptExtractionFn.java:125) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.segment.QueryableIndexStorageAdapter$CursorSequenceBuilder$1$1$2.lookupName(QueryableIndexStorageAdapter.java:493) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.topn.DimExtractionTopNAlgorithm.scanAndAggregate(DimExtractionTopNAlgorithm.java:108) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.topn.DimExtractionTopNAlgorithm.scanAndAggregate(DimExtractionTopNAlgorithm.java:34) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.topn.BaseTopNAlgorithm.run(BaseTopNAlgorithm.java:95) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.topn.TopNMapFn.apply(TopNMapFn.java:58) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.topn.TopNMapFn.apply(TopNMapFn.java:27) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+        at io.druid.query.topn.TopNQueryEngine$1.apply(TopNQueryEngine.java:84) ~[druid-processing-0.9.1.1.jar:0.9.1.1]
+```

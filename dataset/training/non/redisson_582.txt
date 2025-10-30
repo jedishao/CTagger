@@ -1,0 +1,89 @@
+java.lang.ArithmeticException: / by zero in WeightedRoundRobinBalancer if the connections to the only Slave are frozen
+I was trying to use the WeightedRoundRobinBalancer to give preference to a Redis server over another for reads and encountered java.lang.ArithmeticException: / by zero. Following is the unit test and the stacktace. Interestingly, this error happens only when the slave is given an higher weight; if the master is given a weight of 2 and slave a weight of 1, then the error does not occur.
+
+The setup used for the unit test below is:
+- Master listening on localhost:6379
+- Slave listening on localhost:6380
+- Sentinels running on localhost:5000, localhost:5001 and localhost:5002
+- All the above processes running in a guest VM
+- With port forwarding setup from host to guest for 6379, 6380, 5001, 5001 and 5002
+- But the slave on the guest had the `bind` configuration to listen only on 127.0.0.1. i.e. connections from host wouldn't work.
+
+``` java
+import static org.junit.Assert.assertEquals;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.log4j.BasicConfigurator;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.redisson.Config;
+import org.redisson.ReadMode;
+import org.redisson.Redisson;
+import org.redisson.RedissonClient;
+import org.redisson.SentinelServersConfig;
+import org.redisson.connection.balancer.WeightedRoundRobinBalancer;
+
+public class WeightedRoundRobinBalancerTest {
+
+    static {
+        // For logging to console
+        BasicConfigurator.configure();
+    }
+
+    private static RedissonClient redissonClient;
+
+    @BeforeClass
+    public static void beforeClass() throws InterruptedException {
+        Config config = new Config();
+        SentinelServersConfig sentinelServersConfig = config.useSentinelServers();
+        sentinelServersConfig.setMasterName("mymaster");
+        sentinelServersConfig.addSentinelAddress(new String[] { "localhost:5000", "localhost:5001", "localhost:5002" });
+        sentinelServersConfig.setReadMode(ReadMode.MASTER_SLAVE);
+
+        Map<String, Integer> serverWeightsMap = new HashMap<>();
+        serverWeightsMap.put("localhost:6379", 1);
+        serverWeightsMap.put("localhost:6380", 2);
+        sentinelServersConfig.setLoadBalancer(new WeightedRoundRobinBalancer(serverWeightsMap, 1));
+
+        redissonClient = Redisson.create(config);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        if (redissonClient != null) {
+            redissonClient.shutdown();
+        }
+    }
+
+    @Test
+    public void testReads() {
+        redissonClient.getBucket("testReads").set("value");
+
+        assertEquals("value", redissonClient.getBucket("testReads").get());
+        assertEquals("value", redissonClient.getBucket("testReads").get());
+        assertEquals("value", redissonClient.getBucket("testReads").get());
+        assertEquals("value", redissonClient.getBucket("testReads").get());
+    }
+
+}
+```
+
+The stacktrace is:
+
+```
+java.lang.ArithmeticException: / by zero
+    at org.redisson.connection.balancer.WeightedRoundRobinBalancer.getEntry(WeightedRoundRobinBalancer.java:150)
+    at org.redisson.connection.pool.ConnectionPool.getEntry(ConnectionPool.java:135)
+    at org.redisson.connection.pool.ConnectionPool.get(ConnectionPool.java:140)
+    at org.redisson.connection.pool.SlaveConnectionPool.get(SlaveConnectionPool.java:24)
+    at org.redisson.connection.balancer.LoadBalancerManagerImpl.nextConnection(LoadBalancerManagerImpl.java:139)
+    at org.redisson.connection.MasterSlaveEntry.connectionReadOp(MasterSlaveEntry.java:363)
+    at org.redisson.connection.MasterSlaveConnectionManager.connectionReadOp(MasterSlaveConnectionManager.java:589)
+    at org.redisson.command.CommandAsyncService.async(CommandAsyncService.java:393)
+    at org.redisson.command.CommandAsyncService.readAsync(CommandAsyncService.java:267)
+    at org.redisson.RedissonBucket.getAsync(RedissonBucket.java:97)
+    at org.redisson.RedissonBucket.get(RedissonBucket.java:92)
+```

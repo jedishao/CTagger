@@ -1,0 +1,15 @@
+[Performance] DimensionStats implementation uses inefficient Prometheus client method CollectorRegistry.getSampleValue which is only intended for use in unit tests
+**Is your enhancement request related to a problem? Please describe.**
+
+The Prometheus https://github.com/prometheus/client_java/blob/master/simpleclient_hotspot/src/main/java/io/prometheus/client/hotspot/StandardExports.java class is creating exceptions as part of ordinary execution path. This causes an additional performance overhead.
+
+example in exceptions flamegraph:
+![image](https://user-images.githubusercontent.com/66864/118958813-6d847000-b96a-11eb-881f-c8e7e71df0f6.png)
+
+it also looks like the same metrics are gathered multiple times:
+
+![image](https://user-images.githubusercontent.com/66864/118959504-0fa45800-b96b-11eb-9e7c-b1b1e9d0883e.png)
+
+**Describe the solution you'd like**
+
+The javadoc of CollectorRegistry.getSampleValue method states: ["This is inefficient, and intended only for use in unittests.".](https://github.com/prometheus/client_java/blob/8fcc7bc03dfbabd0c15776640d5fe52942aa9309/simpleclient/src/main/java/io/prometheus/client/CollectorRegistry.java#L261) . The [usage of the CollectorRegistry.getSampleMethod method in DimensionStats implementation](https://github.com/apache/pulsar/blob/102fa9de03509b86e47f58ab8e1c0dde2095da3b/pulsar-broker/src/main/java/org/apache/pulsar/broker/stats/DimensionStats.java#L107-L108) should be replaced somehow. Perhaps this causes a larger refactoring?

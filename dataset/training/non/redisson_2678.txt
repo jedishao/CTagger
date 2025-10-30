@@ -1,0 +1,44 @@
+RedisNodeNotFoundException after failover in AWS Elasticache
+
+**Expected behavior** : Redisson should be able to talk to redis without any hiccups while failover is in progress or completed.
+
+**Actual behavior**  : After failover is completed, redisson is throwing exceptions for a slot which is 1684. It also mentions that it is unable to connect to master in logs.
+Why we think redisson is causing issue and not redis:
+When the application was restarted which means the redisson was disconnected and reconnected to same configuration URL. Redisson worked fine, which tell us the issue was with redisson and not redis. We could see that all slots were covered via redis console and also via redis-cli. We were able to connect and retrieve data from 1684 slot from redis-cli. Cluster nodes and Cluster info command also shows everything is fine. 
+
+Below is the logs of interest:
+
+2020-04-03 05:35:07,946 [ redisson-netty-2-6] [ ] [ ] [ ] (uster.ClusterConnectionManager) ERROR - Can't connect to master: rediss://pega-XXXXXXX-0001-002.pega-XXXXXXX.XXXXX.use1.cache.amazonaws.com:6379 with slot ranges: [[0-5461]]
+2020-04-03 05:35:12,698 [ Agent queue Thread] [ ] [ ] [ ] (RedisDistributedMapDiagnostics) ERROR - DMAP [default#com.pega.pegarules.session.internal.async.AgentInfo] Operation [get] failed on key [PZPROCESSREBASE:PEGA-RULEREFACTORING:UTIL-I-0351C91AF120DC92B] with message [Node for slot: 1684 hasn't been discovered yet. Check cluster slots coverage
+org.redisson.client.RedisNodeNotFoundException: Node for slot: 1684 hasn't been discovered yet. Check cluster slots coverage using CLUSTER NODES command
+at org.redisson.connection.MasterSlaveConnectionManager.createNodeNotFoundFuture(MasterSlaveConnectionManager.java:610) ~[redisson-3.11.3.jar:?]
+at org.redisson.connection.MasterSlaveConnectionManager.connectionReadOp(MasterSlaveConnectionManager.java:594) ~[redisson-3.11.3.jar:?]
+at org.redisson.command.RedisExecutor.getConnection(RedisExecutor.java:669) ~[redisson-3.11.3.jar:?]
+at org.redisson.command.RedisExecutor.execute(RedisExecutor.java:134) ~[redisson-3.11.3.jar:?]
+at org.redisson.command.RedisExecutor$2.run(RedisExecutor.java:273) ~[redisson-3.11.3.jar:?]
+at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:682) ~[netty-all-4.1.37.Final.jar:?]
+at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:757) ~[netty-all-4.1.37.Final.jar:?]
+at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:485) ~[netty-all-4.1.37.Final.jar:?]
+at java.lang.Thread.run(Thread.java:748) [?:1.8.0_171]
+
+**Steps to reproduce or test case**:
+While the application was running. We have triggered a manual failover from AWS elasticache console. Which resulted in this exception. It is consistently reproducible.
+
+**Redis version** :  Elasticache Redis 5.0.6, cluster mode, ssl enabled, password enabled. Redisson connects using configuration URL provided for redis.
+
+**Redisson version**: 3.11.3
+
+**Redisson configuration** 
+clusterServersConfig:
+     connectTimeout: 10000
+     timeout: 3000
+     retryAttempts: 3
+     retryInterval: 1500
+     password: XXXX
+     nodeAddresses: []
+     clientName: "PEGA_REDISSON_NODE"
+threads: 8
+nettyThreads: 16
+codec: !<org.redisson.codec.LZ4Codec> {}
+useScriptCache: TRUE
+keepPubSubOrder: FALSE

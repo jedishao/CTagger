@@ -1,0 +1,42 @@
+renewExpiration not working when manually delete key
+<!--
+Please consider to take commercial 24x7 support included in PRO version https://redisson.pro
+-->
+
+### Expected behavior
+renewExpiration  normal
+### Actual behavior
+1.Multiple spring boot services have been started
+2.Get the lock every 2 seconds
+3.After the lock is acquired, the lock key is removed through the redis client
+4.After deletion, the first few times can be normal, or it may not update the expiration event
+### Steps to reproduce or test case
+```
+ @Override
+    public void run() {
+        try {
+            if (!isMaster) {
+                isMaster = lock.tryLock(2, TimeUnit.SECONDS);
+                if (isMaster) {
+                    System.out.println("i am master");
+                }
+            } else {
+                if (!lock.isLocked()) {
+                    //when manual delete lock key
+                    System.out.println("give up master");
+                    isMaster = false;
+                    TimeUnit.SECONDS.sleep(2);
+                }
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+```
+### Redis version
+2.8
+### Redisson-spring-boot-starter
+3.11.1  
+
+### Redisson configuration
+default

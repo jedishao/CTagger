@@ -1,0 +1,21 @@
+Issue in locking on key in concurrency
+In my project, I have a servlet, that call a utility class.
+Utility class calls a wrapper class that  I have implemented over redisson lock.
+Wrapper class holds RLock object for a thread and provides lock and unlock methods that call RLock's lock and unlock method
+But while running a apache ab-test tool for concurrency, Following exception occurs.
+Can you tell me if I am missing something over here?
+
+java.lang.IllegalMonitorStateException: Attempt to unlock lock, not locked by current id: 286dad3d-dd4b-434e-bca7-30c35eec01eb thread-id: 158
+    at org.redisson.RedissonLock$4.execute(RedissonLock.java:416)
+    at org.redisson.RedissonLock$4.execute(RedissonLock.java:1)
+    at org.redisson.connection.MasterSlaveConnectionManager.write(MasterSlaveConnectionManager.java:272)
+    at org.redisson.connection.MasterSlaveConnectionManager.write(MasterSlaveConnectionManager.java:261)
+    at org.redisson.RedissonLock.unlock(RedissonLock.java:402)
+    at com.sokrati.redisClient.JedisConnection.unlock(JedisConnection.java:431)
+    at com.sokrati.throttlingService.operations.RedisOperations.unlock(RedisOperations.java:112)
+    at com.sokrati.throttlingService.utils.ThrottlerUtil.checkKeyBlocked(ThrottlerUtil.java:135)
+    at com.sokrati.throttlingService.servlets.Throttler.fetch(Throttler.java:70)
+    at sun.reflect.GeneratedMethodAccessor29.invoke(Unknown Source)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke(Method.java:606)
+    at com.sokrati.restCommunicator.RestCommunicator.invokeServiceMethod(RestCommunicator.java:308)

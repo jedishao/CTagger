@@ -1,0 +1,35 @@
+Incorrect ClassLoader (need ability to select/configure)
+In `ManagedChannelProvider` there is the function below to determine which classloader to use for loading the channel providers:
+
+```java
+private static ClassLoader getCorrectClassLoader() {
+    if (isAndroid()) {
+      return ManagedChannelProvider.class.getClassLoader();
+    }
+    return Thread.currentThread().getContextClassLoader();
+  }
+```
+
+Because this is all setup in the static initializers, there is no ability to change the classloader used. When using custom classloading (URLClassLoader for example), I don't want the threads classloader -- I want the classloader that loaded `this` class (essentially I want the `isAndroid()` logic when not in an android app).
+
+Not sure what the community's preferred solution would be, but a few options are: offer a configuration parameter to change the selected classloader, don't set the classloader in the static initializer section to allow overriding, expose the ClassLoader as a parameter of the builder so the correct ClassLoader can be passed in.
+
+### What version of gRPC are you using? 
+
+1.2.0
+
+### What JVM are you using (`java -version`)?
+
+`1.8.0_51`
+
+### What did you do?
+
+The Thread's context classloader is always used (non-Android)
+
+### What did you expect to see?
+
+Ability to override classloader used for providers
+
+### What did you see instead?
+
+ClassLoader is pinned in the static initializers, preventing any override or configuration ability

@@ -1,0 +1,21 @@
+Make IntelliJ's inspection "Lock acquired but not safely unlocked" a error
+There are about a dozen violations of this rule in the codebase. Most of them look relatively benign, though they are still antipatterns, for example, in `NamespaceLookupExtractorFactory`, where code
+```java
+final Lock writeLock = startStopSync.writeLock();
+try {
+  writeLock.lockInterruptibly();
+}
+catch (InterruptedException e) {
+  throw new RuntimeException(e);
+}
+```
+Doesn't make sense to me. I think it should be replaced with simple
+```java
+final Lock writeLock = startStopSync.writeLock();
+writeLock.lock();
+```
+
+A little more serious violations are in several classes where:
+ - There are some statements between `lock()` method call and the beginning of the `try {}` block: exceptions in these statements may lead to a dangling lock.
+ - `lockInterruptibly()` is called within the `try {}` block, rather than before it: if the locking is interrupted, an attempt to unlock in the `finally {}` block will lead to an `IllegalMonitorStateException` (at best), masking the real problem.
+ - `fullyLock()` and `fullyUnlock()` in `BytesBoundedLinkedQueue` should be annotated `@LockMethod({"takeLock", "putLock"})` and `@UnlockMethod({"takeLock", "putLock"})`, respectively.

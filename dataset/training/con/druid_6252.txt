@@ -1,0 +1,66 @@
+Deadlock may be in TaskMaster when stopping
+When I try to close the whole druid cluster, I found the Overlord process still remained in the system. The following info is part of stack.
+
+
+"Thread-71" #160 prio=5 os_prio=0 tid=0x0000000006bf1000 nid=0xd918f waiting on condition [0x00007f4a38b4a000]
+   java.lang.Thread.State: WAITING (parking)
+                at sun.misc.Unsafe.park(Native Method)
+                - parking to wait for  <0x0000000080bed6a8> (a java.util.concurrent.locks.ReentrantLock$FairSync)
+                at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+                at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+                at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireQueued(AbstractQueuedSynchronizer.java:870)
+                at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquire(AbstractQueuedSynchronizer.java:1199)
+                at java.util.concurrent.locks.ReentrantLock$FairSync.lock(ReentrantLock.java:224)
+                at java.util.concurrent.locks.ReentrantLock.lock(ReentrantLock.java:285)
+                at io.druid.indexing.overlord.TaskMaster.stop(TaskMaster.java:191)
+                at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+                at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+                at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+                at java.lang.reflect.Method.invoke(Method.java:498)
+                at io.druid.java.util.common.lifecycle.Lifecycle$AnnotationBasedHandler.stop(Lifecycle.java:434)
+                at io.druid.java.util.common.lifecycle.Lifecycle.stop(Lifecycle.java:335)
+                at io.druid.java.util.common.lifecycle.Lifecycle$1.run(Lifecycle.java:366)
+                at java.lang.Thread.run(Thread.java:748)
+                
+"LeaderSelector[/druid/overlord/_OVERLORD]" #161 daemon prio=5 os_prio=0 tid=0x0000000002686800 nid=0xd1ff5 in Object.wait() [0x00007f4a39350000]
+   java.lang.Thread.State: WAITING (on object monitor)
+                at java.lang.Object.wait(Native Method)
+                at java.lang.Object.wait(Object.java:502)
+                at io.druid.indexing.overlord.RemoteTaskRunner.start(RemoteTaskRunner.java:327)
+                - locked <0x00000000807d05b0> (a java.lang.Object)
+                at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+                at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+                at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+                at java.lang.reflect.Method.invoke(Method.java:498)
+                at io.druid.java.util.common.lifecycle.Lifecycle$AnnotationBasedHandler.start(Lifecycle.java:413)
+                at io.druid.java.util.common.lifecycle.Lifecycle.start(Lifecycle.java:311)
+                at io.druid.indexing.overlord.TaskMaster$1.becomeLeader(TaskMaster.java:141)
+                at io.druid.curator.discovery.CuratorDruidLeaderSelector$1.isLeader(CuratorDruidLeaderSelector.java:91)
+                at org.apache.curator.framework.recipes.leader.LeaderLatch$10.apply(LeaderLatch.java:703)
+                at org.apache.curator.framework.recipes.leader.LeaderLatch$10.apply(LeaderLatch.java:699)
+                at org.apache.curator.framework.listen.ListenerContainer$1.run(ListenerContainer.java:93)
+                at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+                at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+                at java.lang.Thread.run(Thread.java:748)
+                
+"main" #1 prio=5 os_prio=0 tid=0x0000000001b39000 nid=0xa0f02 in Object.wait() [0x00007f4a62dd4000]
+   java.lang.Thread.State: WAITING (on object monitor)
+                at java.lang.Object.wait(Native Method)
+                - waiting on <0x000000008001b460> (a java.lang.Thread)
+                at java.lang.Thread.join(Thread.java:1252)
+                - locked <0x000000008001b460> (a java.lang.Thread)
+                at java.lang.Thread.join(Thread.java:1326)
+                at io.druid.java.util.common.lifecycle.Lifecycle.join(Lifecycle.java:377)
+                at io.druid.cli.ServerRunnable.run(ServerRunnable.java:53)
+                at io.druid.cli.Main.main(Main.java:116)
+
+
+
+===================================
+
+From above trace, when the program stopping, it stuck in TaskMaster.java:191, when it need to get a ReentrantLock.
+But unfortunately, this node (overlord process) becomes a leader, it had got the Lock before and also stuck in RemoteTaskRunner.java:327. Actually in this time, the whole system is try to stop, and no other signal, maybe from Zookeeper, can invoke this thread. 
+Or in some other abnormal scene, the program could stuck in RemoteTaskRunner.java:327.
+
+So, in this scene, no matter why it stuck in RemoteTaskRunner.java:327 (it looks like another deadlock scene, I met several times before ), the stop method cannot acquire the same ReentrantLock, and program will pause here forever. Technically, I just want to stop everything at now, so maybe the Lock in stop method is unnecessary.
+Or else, using LifecycleLock in RemoteTaskRunner.java instead of ReentrantLock looks like a better practice here.

@@ -1,0 +1,72 @@
+java.net.URISyntaxException: Illegal character in scheme name at index 0: []r[]e[]d[]i[]s[]:[]/[]/[]:[]0[]
+Hi team,
+
+```
+        Config config = new Config();
+        config.useClusterServers().addNodeAddress("redis://10.16.179.14:6379", "redis://10.16.179.30:6379", "redis://10.16.179.31:6379",
+                "redis://10.16.179.24:6379", "redis://10.16.179.16:6379", "redis://10.16.179.15:6379");
+        RedissonClient redisson = Redisson.create(config);
+        redisson.shutdown();
+```
+
+Redisson 3.4.4
+Windows 7 64bit
+Oracle jdk 1.8.0_111
+
+It throw an error, but it works fine @3.4.2 without prefix (redis://)
+```
+Exception in thread "main" org.redisson.client.RedisConnectionException: Can't connect to servers!
+	at org.redisson.cluster.ClusterConnectionManager.<init>(ClusterConnectionManager.java:139)
+	at org.redisson.config.ConfigSupport.createConnectionManager(ConfigSupport.java:237)
+	at org.redisson.Redisson.<init>(Redisson.java:116)
+	at org.redisson.Redisson.create(Redisson.java:155)
+	at redis.main(redis.java:11)
+Caused by: org.redisson.client.RedisException: Unexpected exception while processing command
+	at org.redisson.client.RedisConnection.await(RedisConnection.java:159)
+	at org.redisson.client.RedisConnection.sync(RedisConnection.java:183)
+	at org.redisson.client.RedisConnection.sync(RedisConnection.java:169)
+	at org.redisson.cluster.ClusterConnectionManager.<init>(ClusterConnectionManager.java:93)
+	... 4 more
+Caused by: java.lang.IllegalArgumentException: Illegal character in scheme name at index 0: []r[]e[]d[]i[]s[]:[]/[]/[]:[]0[]
+	at java.net.URI.create(URI.java:852)
+	at org.redisson.misc.URIBuilder.create(URIBuilder.java:37)
+	at org.redisson.cluster.ClusterNodeInfo.setAddress(ClusterNodeInfo.java:56)
+	at org.redisson.client.protocol.decoder.ClusterNodesDecoder.decode(ClusterNodesDecoder.java:50)
+	at org.redisson.client.protocol.decoder.ClusterNodesDecoder.decode(ClusterNodesDecoder.java:35)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:259)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:103)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:489)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:367)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:265)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1334)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:926)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:134)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:644)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:579)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:496)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:458)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:858)
+	at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:138)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.net.URISyntaxException: Illegal character in scheme name at index 0: []r[]e[]d[]i[]s[]:[]/[]/[]:[]0[]
+	at java.net.URI$Parser.fail(URI.java:2848)
+	at java.net.URI$Parser.checkChars(URI.java:3021)
+	at java.net.URI$Parser.checkChar(URI.java:3031)
+	at java.net.URI$Parser.parse(URI.java:3047)
+	at java.net.URI.<init>(URI.java:588)
+	at java.net.URI.create(URI.java:850)
+	... 32 more
+```

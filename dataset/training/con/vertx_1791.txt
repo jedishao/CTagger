@@ -1,0 +1,138 @@
+createHttpServer: io.vertx.core.VertxException: Thread blocked. ver 3.3.3
+I followed the [example](http://vertx.io/docs/vertx-web/java/#_re_cap_on_vert_x_core_http_servers), but an error occurred.
+An error does not occur in 3.2.1 but an error occurs in 3.3.3.
+
+1. build.gradle
+
+```
+plugins {
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '1.2.3'
+}
+
+
+repositories {
+    jcenter()
+}
+
+version = '1.0-SNAPSHOT'
+sourceCompatibility = '1.8'
+mainClassName = 'io.vertx.core.Launcher'
+
+def vertxVersion = '3.3.3'
+def mainVerticleName = 'com.prographer.exam.HelloWorldVerticle'
+def watchForChange = 'src/**/*'
+def doOnChange = './gradlew classes'
+
+dependencies {
+    compile "io.vertx:vertx-core:$vertxVersion"
+    compile "io.vertx:vertx-rx-java:$vertxVersion"
+    testCompile "io.vertx:vertx-unit:$vertxVersion"
+    testCompile "junit:junit:4.12"
+}
+
+shadowJar {
+    classifier = 'fat'
+    manifest {
+        attributes "Main-Verticle": mainVerticleName
+    }
+    mergeServiceFiles {
+        include 'META-INF/services/io.vertx.core.spi.VerticleFactory'
+    }
+}
+
+run {
+    args = ['run', mainVerticleName, "--redeploy=$watchForChange", "--launcher-class=$mainClassName", "--on-redeploy=$doOnChange"]
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.1'
+}
+```
+
+2. ServerVerticle.java  code
+
+```
+public class ServerVerticle extends AbstractVerticle {
+    @Override
+    public void start() throws Exception {
+        HttpServer server = vertx.createHttpServer();
+
+        server.requestHandler(request -> {
+
+            // This handler gets called for each request that arrives on the server
+            HttpServerResponse response = request.response();
+            response.putHeader("content-type", "text/plain");
+
+            // Write to the response and end it
+            response.end("Hello World!");
+        });
+
+        server.listen(8080);
+    }
+}
+```
+
+3. Exception
+
+```
+$ vertx run ServerVerticle.java 
+Thread Thread[vert.x-eventloop-thread-0,5,main] has been blocked for 2398 ms, time limit is 2000 
+Thread Thread[vert.x-eventloop-thread-0,5,main] has been blocked for 3403 ms, time limit is 2000 
+Thread Thread[vert.x-eventloop-thread-0,5,main] has been blocked for 4404 ms, time limit is 2000 
+Thread Thread[vert.x-eventloop-thread-0,5,main] has been blocked for 5407 ms, time limit is 2000 
+io.vertx.core.VertxException: Thread blocked
+        at java.lang.Throwable.fillInStackTrace(Native Method)
+        at java.lang.Throwable.fillInStackTrace(Throwable.java:783)
+        at java.lang.Throwable.<init>(Throwable.java:287)
+        at java.lang.Exception.<init>(Exception.java:84)
+        at java.lang.ReflectiveOperationException.<init>(ReflectiveOperationException.java:75)
+        at java.lang.ClassNotFoundException.<init>(ClassNotFoundException.java:82)
+        at java.net.URLClassLoader.findClass(URLClassLoader.java:381)
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:424)
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:411)
+        at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:331)
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:357)
+        at java.lang.ClassLoader.defineClass1(Native Method)
+        at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
+        at java.security.SecureClassLoader.defineClass(SecureClassLoader.java:142)
+        at java.net.URLClassLoader.defineClass(URLClassLoader.java:467)
+        at java.net.URLClassLoader.access$100(URLClassLoader.java:73)
+        at java.net.URLClassLoader$1.run(URLClassLoader.java:368)
+        at java.net.URLClassLoader$1.run(URLClassLoader.java:362)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at java.net.URLClassLoader.findClass(URLClassLoader.java:361)
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:424)
+        at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:331)
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:357)
+        at java.lang.ClassLoader.defineClass1(Native Method)
+        at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
+        at java.security.SecureClassLoader.defineClass(SecureClassLoader.java:142)
+        at java.net.URLClassLoader.defineClass(URLClassLoader.java:467)
+        at java.net.URLClassLoader.access$100(URLClassLoader.java:73)
+        at java.net.URLClassLoader$1.run(URLClassLoader.java:368)
+        at java.net.URLClassLoader$1.run(URLClassLoader.java:362)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at java.net.URLClassLoader.findClass(URLClassLoader.java:361)
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:424)
+        at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:331)
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:357)
+        at io.vertx.core.http.impl.HttpServerImpl.listen(HttpServerImpl.java:217)
+        at io.vertx.core.http.impl.HttpServerImpl.listen(HttpServerImpl.java:186)
+        at com.prographer.exam.ServerVerticle.start(ServerVerticle.java:14)
+        at io.vertx.core.AbstractVerticle.start(AbstractVerticle.java:111)
+        at io.vertx.core.impl.DeploymentManager.lambda$doDeploy$8(DeploymentManager.java:434)
+        at io.vertx.core.impl.DeploymentManager$$Lambda$24/33563464.handle(Unknown Source)
+        at io.vertx.core.impl.ContextImpl.lambda$wrapTask$2(ContextImpl.java:316)
+        at io.vertx.core.impl.ContextImpl$$Lambda$25/756936249.run(Unknown Source)
+        at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163)
+        at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:418)
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:440)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:873)
+        at java.lang.Thread.run(Thread.java:745)
+
+```
+
+It takes a long time here.[https://github.com/eclipse/vert.x/blob/master/src/main/java/io/vertx/core/net/impl/SSLHelper.java#L109](url)
+
+Is this a JDK issue? my jdk version is 1.8.0_73

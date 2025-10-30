@@ -1,0 +1,15 @@
+Query result merges improperly occur in jetty threads
+When queries have very large quantity of results, the merges happen on the jetty threads and can cause significant cpu load under high concurrent query load. As an example, a "large threshold" topN against a hyper-unique aggregator can cause a cpu-time flame graph on brokers similar to this:
+
+<img width="1423" alt="screen shot 2018-06-15 at 9 29 58 am" src="https://user-images.githubusercontent.com/8213081/41479254-6f9966fc-707f-11e8-818b-b58fc5f804d0.png">
+
+You'll notice the merge sequence yielder applies the topn merge functions in the stack trace of the query resource `doPost` method. This work and its prioritization is completely untracked by the processing queues which include the concept of query priority. That means under heavy contention, it is impossible to predict how the jetty threads will get priority, and impossible to tell exactly what their contention with the processing threads will be.
+
+This is expected to affect historicals when there are many large segment results to merge (like big group by or topn results) as well as brokers in larger clusters (couple hundred nodes or more).
+
+A couple solutions that could work include:
+
+1. using the processing executor service with properly set query priority runnables. This has a risk of deadlock if not handled correctly, where all threads are taken up by merge needs without the ability for worker sub-tasks to do their thing.
+1. using a fork-join pool, but with proper query priority understanding.
+
+Putting such things in place can help with large result set merges and speed up query time as well as increase predictability of performance by honoring query priority settings.

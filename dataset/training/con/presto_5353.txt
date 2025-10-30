@@ -1,0 +1,62 @@
+Query stuck in Presto 0.147
+Hi
+
+I use presto 0.147 + jdk1.8.0_45 + HDP 2.1 + hive connector + CentOS 6.5.
+
+If I execute the following query, it does't return.
+
+One task's state is alway RUNNING.
+
+```
+select count(1) from aaa
+```
+
+"aaa" table has more than 400 partitions.
+
+jstack is the following.
+
+https://gist.github.com/wyukawa/83f75b457870911cfed245a5991671b5
+
+I check jstack result many times, but the following is the same.
+
+It seems that query stuck occurs...
+
+```
+"http-worker-158-acceptor-2@1edfedf1-http@6b9fdbc6{HTTP/1.1,[http/1.1, h2c, h2c-17, h2c-16, h2c-15, h2c-14]}{0.0.0.0:12080}" #158 prio=3 os_prio=0 tid=0x00007fba7c005800 nid=0x1682 runnable [0x00007fbaed1d4000]
+   java.lang.Thread.State: RUNNABLE
+        at sun.nio.ch.ServerSocketChannelImpl.accept0(Native Method)
+        at sun.nio.ch.ServerSocketChannelImpl.accept(ServerSocketChannelImpl.java:422)
+        at sun.nio.ch.ServerSocketChannelImpl.accept(ServerSocketChannelImpl.java:250)
+        - locked <0x00000003c1e4bbc0> (a java.lang.Object)
+        at org.eclipse.jetty.server.ServerConnector.accept(ServerConnector.java:382)
+        at org.eclipse.jetty.server.AbstractConnector$Acceptor.run(AbstractConnector.java:593)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:654)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool$3.run(QueuedThreadPool.java:572)
+        at java.lang.Thread.run(Thread.java:745)
+
+"http-worker-157-acceptor-1@482f7af0-http@6b9fdbc6{HTTP/1.1,[http/1.1, h2c, h2c-17, h2c-16, h2c-15, h2c-14]}{0.0.0.0:12080}" #157 prio=3 os_prio=0 tid=0x00007fba78004000 nid=0x1681 waiting for monitor entry [0x00007fbaed3d6000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at sun.nio.ch.ServerSocketChannelImpl.accept(ServerSocketChannelImpl.java:233)
+        - waiting to lock <0x00000003c1e4bbc0> (a java.lang.Object)
+        at org.eclipse.jetty.server.ServerConnector.accept(ServerConnector.java:382)
+        at org.eclipse.jetty.server.AbstractConnector$Acceptor.run(AbstractConnector.java:593)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:654)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool$3.run(QueuedThreadPool.java:572)
+        at java.lang.Thread.run(Thread.java:745)
+
+"http-worker-156-acceptor-0@4863c8ac-http@6b9fdbc6{HTTP/1.1,[http/1.1, h2c, h2c-17, h2c-16, h2c-15, h2c-14]}{0.0.0.0:12080}" #156 prio=3 os_prio=0 tid=0x00007fba7c004000 nid=0x1680 waiting for monitor entry [0x00007fbaed2d5000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at sun.nio.ch.ServerSocketChannelImpl.accept(ServerSocketChannelImpl.java:233)
+        - waiting to lock <0x00000003c1e4bbc0> (a java.lang.Object)
+        at org.eclipse.jetty.server.ServerConnector.accept(ServerConnector.java:382)
+        at org.eclipse.jetty.server.AbstractConnector$Acceptor.run(AbstractConnector.java:593)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:654)
+        at org.eclipse.jetty.util.thread.QueuedThreadPool$3.run(QueuedThreadPool.java:572)
+        at java.lang.Thread.run(Thread.java:745)
+```
+
+![](https://gyazo.com/da158a4185710f62dcca9e3f838eb9a5.png)
+
+ task info (json document)  is the following.
+
+https://gist.github.com/wyukawa/373550992c219ff3a4e88681ef4d4705

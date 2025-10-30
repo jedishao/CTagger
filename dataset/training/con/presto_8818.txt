@@ -1,0 +1,93 @@
+Presto coordinator high CPU when plan the SQL, looks like an unsafe use of HashSet in multi threads.
+```
+ PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+5144 presto    20   0 92.7g  59g  53m R 100.0 57.9  77:14.65 java
+8286 presto    20   0 92.7g  59g  53m R 99.7 57.9  24:25.51 java
+5658 presto    20   0 92.7g  59g  53m S  2.0 57.9 204:08.64 java
+8271 root      20   0 27996 1916 1088 R  0.7  0.0   0:06.09 top
+   13 root      20   0     0    0    0 S  0.3  0.0   0:04.21 ksoftirqd/2
+5646 presto    20   0 92.7g  59g  53m S  0.3 57.9   7:49.25 java
+5726 presto    20   0 92.7g  59g  53m S  0.3 57.9  20:01.44 java
+8304 presto    20   0 92.7g  59g  53m S  0.3 57.9   0:00.15 java
+8318 presto    20   0 92.7g  59g  53m S  0.3 57.9   0:00.10 java
+8343 presto    20   0 92.7g  59g  53m S  0.3 57.9   0:00.33 java
+8347 presto    20   0 92.7g  59g  53m S  0.3 57.9   0:00.08 java
+8352 presto    20   0 92.7g  59g  53m S  0.3 57.9   0:00.05 java
+```
+
+```
+"Query-20170823_092807_00030_5sg4m-27658" #27658 prio=5 os_prio=0 tid=0x00007f8bf44d3bc0 nid=0x1418 runnable [0x00007f8a5ca8f000]
+   java.lang.Thread.State: RUNNABLE
+        at java.util.HashMap$HashIterator.nextNode(HashMap.java:1441)
+        at java.util.HashMap$KeyIterator.next(HashMap.java:1461)
+        at com.facebook.presto.metadata.SignatureBinder$TypeRelationshipConstraintSolver.update(SignatureBinder.java:829)
+        at com.facebook.presto.metadata.SignatureBinder.iterativeSolve(SignatureBinder.java:399)
+        at com.facebook.presto.metadata.SignatureBinder.bindVariables(SignatureBinder.java:114)
+        at com.facebook.presto.metadata.SignatureBinder.bind(SignatureBinder.java:91)
+        at com.facebook.presto.metadata.FunctionRegistry.identifyApplicableFunctions(FunctionRegistry.java:722)
+        at com.facebook.presto.metadata.FunctionRegistry.matchFunction(FunctionRegistry.java:691)
+        at com.facebook.presto.metadata.FunctionRegistry.matchFunctionExact(FunctionRegistry.java:681)
+        at com.facebook.presto.metadata.FunctionRegistry.resolveFunction(FunctionRegistry.java:627)
+        at com.facebook.presto.metadata.FunctionRegistry.resolveOperator(FunctionRegistry.java:1018)
+        at com.facebook.presto.sql.planner.ExpressionInterpreter$Visitor.invokeOperator(ExpressionInterpreter.java:1275)
+        at com.facebook.presto.sql.planner.ExpressionInterpreter$Visitor.visitInPredicate(ExpressionInterpreter.java:691)
+        at com.facebook.presto.sql.tree.InPredicate.accept(InPredicate.java:58)
+        at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+        at com.facebook.presto.sql.planner.ExpressionInterpreter.optimize(ExpressionInterpreter.java:281)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.shouldPrune(AddExchanges.java:677)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.lambda$planTableScan$4(AddExchanges.java:586)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter$$Lambda$865/1432647214.test(Unknown Source)
+        at com.facebook.presto.hive.HivePartitionManager.parseValuesAndFilterPartition(HivePartitionManager.java:198)
+        at com.facebook.presto.hive.HivePartitionManager.getPartitions(HivePartitionManager.java:141)
+        at com.facebook.presto.hive.HiveMetadata.getTableLayouts(HiveMetadata.java:1365)
+        at com.facebook.presto.spi.connector.classloader.ClassLoaderSafeConnectorMetadata.getTableLayouts(ClassLoaderSafeConnectorMetadata.java:74)
+        at com.facebook.presto.metadata.MetadataManager.getLayouts(MetadataManager.java:310)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.planTableScan(AddExchanges.java:584)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitFilter(AddExchanges.java:527)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitFilter(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.FilterNode.accept(FilterNode.java:72)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.planChild(AddExchanges.java:1227)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:218)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.ProjectNode.accept(ProjectNode.java:92)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.planChild(AddExchanges.java:1227)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:218)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.ProjectNode.accept(ProjectNode.java:92)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitJoin(AddExchanges.java:767)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitJoin(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.JoinNode.accept(JoinNode.java:205)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.planChild(AddExchanges.java:1227)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:218)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.ProjectNode.accept(ProjectNode.java:92)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitJoin(AddExchanges.java:767)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitJoin(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.JoinNode.accept(JoinNode.java:205)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.planChild(AddExchanges.java:1227)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:218)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitProject(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.ProjectNode.accept(ProjectNode.java:92)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitJoin(AddExchanges.java:767)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitJoin(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.JoinNode.accept(JoinNode.java:205)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.planChild(AddExchanges.java:1227)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitAggregation(AddExchanges.java:264)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitAggregation(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.AggregationNode.accept(AggregationNode.java:278)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.planChild(AddExchanges.java:1227)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitOutput(AddExchanges.java:224)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges$Rewriter.visitOutput(AddExchanges.java:184)
+        at com.facebook.presto.sql.planner.plan.OutputNode.accept(OutputNode.java:82)
+        at com.facebook.presto.sql.planner.optimizations.AddExchanges.optimize(AddExchanges.java:148)
+        at com.facebook.presto.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:128)
+        at com.facebook.presto.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:119)
+        at com.facebook.presto.execution.SqlQueryExecution.doAnalyzeQuery(SqlQueryExecution.java:312)
+        at com.facebook.presto.execution.SqlQueryExecution.analyzeQuery(SqlQueryExecution.java:291)
+        at com.facebook.presto.execution.SqlQueryExecution.start(SqlQueryExecution.java:247)
+                   at com.facebook.presto.execution.QueuedExecution.lambda$start$1(QueuedExecution.java:62)
+        at com.facebook.presto.execution.QueuedExecution$$Lambda$757/1889333904.run(Unknown Source)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+```

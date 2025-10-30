@@ -1,0 +1,53 @@
+Only a single pod is working using Redis Clustered Mode
+Hey there!
+
+I'm running Clustered Redis on AWS ElastiCache with 3 shards, 6 nodes (cache.m5.large) and using engine 5.0.6. Today, I was facing a lot of RedisTimeout error so I have choosed to upgrade Redisson from version 3.5.6 to 3.13.2.
+
+The timeout error were gone but now I'm facing a strange behaviour.
+
+My application is running on Kubernetes (it starts with 3 pods and can scale up) but only a single pod is working correctly with Redis, the others pods are throwing some exceptions like:
+
+```
+org.redisson.client.RedisConnectionException: SlaveConnectionPool no available Redis entries
+```
+
+Usually, this exception is throwed when the app make a request to `cacheServiceImpl.get("<key>")`.
+
+The code is super simple, I'm using RBucket to read and insert data:
+
+```
+@Service
+class CacheServiceImpl(val redissonClient: RedissonClient) : CacheService {
+
+    private val logger = logger<CacheServiceImpl>()
+
+    override fun put(key: String, value: String, expiresInSeconds: Long) {
+        logger.info("Storing key $key into bucket")
+        val rBucket = getBucket(key)
+
+        rBucket.set(value, expiresInSeconds, TimeUnit.SECONDS)
+    }
+
+    override fun get(key: String): String? {
+        logger.info("Retrieving key $key from bucket")
+        val rBucket = getBucket(key)
+
+        return rBucket.get()
+    }
+
+    private fun getBucket(key: String) = redissonClient.getBucket<String>(key, StringCodec.INSTANCE)
+}
+```
+
+And for Redisson configuration, I'm using the following:
+
+```
+clusterServersConfig:
+  host: "rediss://clustercfg.whatever.ao91z1.nae1.cache.amazonaws.com:6379"
+```
+
+I'm assuming that Redisson is using default values for other attributes. As host, I have tried the cluster endpoint and a specific node endpoint but both cases fail with same excepion.
+
+Any idea where can I look or what can I change in configuration to make it work?
+
+Thanks in advance.

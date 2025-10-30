@@ -1,0 +1,54 @@
+RedissonRedLock trylock success while another thread already hold the lock in specific conditions
+it's reproducible, my code is below.
+
+```
+RLock singlelock = redissonClient.getLock("lock2");
+        RLock multilock1 = redissonClient.getLock("lock1");
+        RLock multilock2 = redissonClient.getLock("lock2");
+        RLock multilock3 = redissonClient.getLock("lock3");
+
+        singlelock.forceUnlock();
+        multilock1.forceUnlock();
+        multilock2.forceUnlock();
+        multilock3.forceUnlock();
+
+        Thread t = new Thread(() -> {
+            try {
+                boolean singlelock_result = singlelock.tryLock(10,300, TimeUnit.SECONDS);
+                System.out.println(Thread.currentThread().getId() + " single lock result : " + singlelock_result);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+        t.start();
+        Thread.sleep(5000);
+
+        RedissonRedLock redlock = new RedissonRedLock(multilock1,multilock2,multilock3);
+        boolean redlock_result = redlock.tryLock(5,300, TimeUnit.SECONDS);
+        System.out.println(Thread.currentThread().getId() + " multi lock result : " + redlock_result);
+```
+
+redlock lock result will be success, but when I check redis, I found the multi locks belong to different thread. 
+like:
+lock1 : 8d3c3d43-03b0-4cd8-8966-8bbd088f8c58:1
+lock2 : 8d3c3d43-03b0-4cd8-8966-8bbd088f8c58:**29**
+lock3 : 8d3c3d43-03b0-4cd8-8966-8bbd088f8c58:1
+
+I did more test and found:
+1. if the single lock is the first of redlock, it's ok.
+   when I move multilock2 to first position ,it will return false correctly.
+   the code below
+
+```
+RedissonRedLock redlock = new RedissonRedLock(multilock2,multilock1,multilock3);
+boolean redlock_result = redlock.tryLock(5,300, TimeUnit.SECONDS);
+```
+1. if there are just 2 multi locks, it's ok.
+   the code below will return false.
+
+```
+RedissonRedLock redlock = new RedissonRedLock(multilock1,multilock2);
+boolean redlock_result = redlock.tryLock(5,300, TimeUnit.SECONDS);
+```
+
+I am wondering if it is a bug or not?

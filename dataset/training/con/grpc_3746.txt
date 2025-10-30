@@ -1,0 +1,18 @@
+Make ServerImpl's internalClose thread-safe
+So we have this in `ServerImpl.JumpToApplicationThreadServerStreamListener`:
+
+```java
+/**
+ * Like {@link ServerCall#close(Status, Metadata)}, but thread-safe for internal use.
+ */
+private void internalClose() {
+  // TODO(ejona86): this is not thread-safe :)
+  stream.close(Status.UNKNOWN, new Metadata());
+}
+```
+
+We should fix that. There's two ways to fix this:
+1. Allow truncated messages in our stream and deliver trailers. This would be nicest and would be helpful in other cases (like if too many requests are sent in a server call), as we can deliver a message to the client
+2. Treat this as a cancel and send RST_STREAM. This would be similar to client-side cancellation, but we'd still need to verify it'd be safe on server-side.
+
+In either case it'd probably be good if we made this trigger onCancel instead of onCompleted. That'd probably happen naturally for (2), but (1) would need special plumbing, but it's probably not too onerous.

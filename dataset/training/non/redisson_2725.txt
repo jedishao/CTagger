@@ -1,0 +1,19 @@
+JbossMarshallingRiver Codec implementation corrupts objects serialized in the thread which had a serialization exception before
+<!--
+Сonsider Redisson PRO https://redisson.pro version for advanced features and support by SLA.
+-->
+
+**Expected behavior**
+For JbossMarshallingRiver Codec
+If I encounter notSerializableException for an object, then any other object afterwards sent for serialization should not be incorrectly serialized i.e there should not be any cascading effects
+**Actual behavior**
+On encountering notSerializableException , some objects serialized  in the same thread afterwards throw unsupported protocol version exception during deserialization.
+**Root Cause**
+When an encoding exception (like notSerializable) occurs during encoding, Marshaller methods finish() and close() are not called and since the Marhsaller encoder is stored in FastThreadLocal variable,further serialization by same marshaller create a problem. We have fixed same by simply applying try{..} finally clause in our implementation and it works.
+
+**Redis version**
+5.0.5
+**Redisson version**
+3.11.5
+**Redisson configuration**
+Mostly default configuration but with MarshallingCodec

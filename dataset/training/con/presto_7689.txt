@@ -1,0 +1,4 @@
+Flaky tests that rely on async counters/variables
+Test cases like [``AbstractTestDistributedQueries.testQueryLoggingCount``](https://github.com/prestodb/presto/blob/de1e6782eb843d67298fcfb66ebea2740b6f06ee/presto-tests/src/main/java/com/facebook/presto/tests/AbstractTestDistributedQueries.java#L712) assert on a counter that is updated by a query state change listener. There is a race condition between the assertion on the counter and the execution of the listener (similar issue here #7667). 
+
+To reproduce the problem, one can manually add a sleep in the listener callback (e.g. sleep 10ms [here](https://github.com/prestodb/presto/blob/16cd00b9b74b7f2532df55fad9d9cecf1ec3dd42/presto-main/src/main/java/com/facebook/presto/execution/SqlQueryManager.java#L393)).

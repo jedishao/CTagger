@@ -1,0 +1,58 @@
+If Rejection Policy is Noop,Index
+If Rejection Policy is set to "none",index can't be merged.
+the log as following:
+Start time [2015-11-16T03:00:00.000+08:00] >= [1970-01-01T08:00:00.000+08:00] min timestamp required in this run. Segment will be picked up in a future run.
+
+Deep into the code 
+
+``` java
+DateTime minTimestampAsDate = segmentGranularity.truncate(
+        new DateTime(
+            Math.max(
+                windowMillis,
+                rejectionPolicy.getCurrMaxTime()
+                               .getMillis()
+            )
+            - windowMillis
+        )
+    );
+    long minTimestamp = minTimestampAsDate.getMillis();
+
+    log.info("Found [%,d] segments. Attempting to hand off segments that start before [%s].", sinks.size(), minTimestampAsDate);
+
+    List<Map.Entry<Long, Sink>> sinksToPush = Lists.newArrayList();
+    for (Map.Entry<Long, Sink> entry : sinks.entrySet()) {
+      final Long intervalStart = entry.getKey();
+      if (intervalStart < minTimestamp) {
+        log.info("Adding entry [%s] for merge and push.", entry);
+        sinksToPush.add(entry);
+      } else {
+        log.info(
+            "Skipping persist and merge for entry [%s] : Start time [%s] >= [%s] min timestamp required in this run. Segment will be picked up in a future run.",
+            entry,
+            new DateTime(intervalStart),
+            minTimestampAsDate
+        );
+      }
+    }
+
+```
+
+minTimestampAsDate always is 1970-01-01T08:00:00.000+08:00,because rejectionPolicy.getCurrMaxTime().getMillis() is 0.
+
+``` java
+  return new RejectionPolicy()
+    {
+      @Override
+      public DateTime getCurrMaxTime()
+      {
+        return new DateTime(0);
+      }
+
+      @Override
+      public boolean accept(long timestamp)
+      {
+        return true;
+      }
+    };
+```

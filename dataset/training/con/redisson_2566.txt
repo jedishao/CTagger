@@ -1,0 +1,92 @@
+Unable to unlock  when thread isInterrupted
+<!--
+Сonsider Redisson PRO https://redisson.pro version for advanced features and support by SLA.
+-->
+
+**Unable to unlock when thread isInterrupted,Please,RUN it First!!!!!!**
+ 
+![image](https://user-images.githubusercontent.com/19231863/70864971-06070b80-1f93-11ea-84a0-47c4cb4336a8.png)
+
+ 
+`
+
+    /**
+     * redis testlock
+     */
+    @GetMapping("/testLock")
+    public void testLock() {
+      new Thread(() -> executeRedis()).start();
+      log.error("====================控制器结束==================================="+this);
+    }
+
+
+
+    public void executeRedis(){
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        FutureTask<Integer> future = new FutureTask(new RedisCallable(new Date()));
+        executor.submit(future);
+        try {
+            int result = future.get(3, TimeUnit.SECONDS);
+            log.error("=================,Thread Finish，Result：{}",JSON.toJSONString(result));
+        } catch (Exception e) {
+            log.error("=================,Thread Error：{}",e.getMessage(),e);
+        }finally {
+            future.cancel(true);
+            executor.shutdownNow();
+        }
+    }
+
+
+    @Data
+    @AllArgsConstructor
+    class RedisCallable implements Callable<Integer> {
+        private Date date ;
+        @Override
+        public Integer call(){
+            return redisLock(date);
+        }
+    }
+
+
+
+    //-----------------------------------------------------------------------------------------------------------------
+
+    public int redisLock(Date startTimeStamp) {
+        boolean isLock = false;
+        RLock lock = redisService.getRedisLock("AAAAAAAAAAAAAAAAAAAA-LOCK");
+        try {
+            isLock = lock.tryLock(0, TimeUnit.SECONDS);
+            if (isLock ) {
+                log.error("=================,获取锁成功,开始执行....");
+                while( (System.currentTimeMillis()-startTimeStamp.getTime())/1000 <=10 ){
+                   // log.error("Execute.......{}" , (System.currentTimeMillis()-startTimeStamp.getTime())/1000  );
+                }
+                log.error("=================线程10s，结束");
+               return 1;
+            }
+        } catch (InterruptedException e) {
+            log.error("redisLock-ERROR:{}",e.getMessage(),e);
+        } finally {
+            unlock(isLock,lock);
+        }
+        return 0;
+    }
+
+
+    public void sleep(int sleep,TimeUnit timeUnit){
+        try {
+            timeUnit.sleep(sleep);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+    public void unlock(boolean isLock,RLock lock){
+        //sleep(1,TimeUnit.MILLISECONDS);  //此段注释则不会自动删除锁,此段打开则可删除
+        if (isLock && lock.isHeldByCurrentThread()){
+            lock.unlock();
+        }
+    }
+

@@ -1,0 +1,17 @@
+Version 1.0.x and >= 1.1.0 are binary incompatible
+I tried using [google-cloud-spanner](https://github.com/GoogleCloudPlatform/google-cloud-java/tree/master/google-cloud-spanner) which uses 1.0.3 in a project that uses 1.2.0. So gradle resolves this version conflict in favor of 1.2.0. Running the project then fails with a `NoSuchMethodError`.
+
+```java
+Exception in thread "main" java.lang.NoSuchMethodError: io.grpc.netty.NettyChannelBuilder.build()Lio/grpc/internal/ManagedChannelImpl;
+        at com.google.cloud.spanner.SpannerOptions$NettyRpcChannelFactory.newChannel(SpannerOptions.java:278)
+```
+
+Notice how it tries to call `NettyChannelBuilder.build()` with `ManagedChannelImpl` as a return type. However, in 1.1.0 the return type changed to `ManagedChannel` [1] and in Java Byte Code the return type is also part of the method signature.
+
+I also opened an issue at Cloud Spanner https://github.com/GoogleCloudPlatform/google-cloud-java/issues/1776#issuecomment-288032418
+
+I understand that `NettyChannelBuilder` is marked experimental and thus it's technically fine to break this. Although I am not exactly sure if experimental also includes ABI compatibility.
+
+@ejona86 @zhangkun83 
+
+[1] https://github.com/grpc/grpc-java/commit/d17a7b5bd47ff7eb0f47f64ff82d6cb2457a662a#diff-34c34e0485cd6a3ebabb1f46de341a1aL269

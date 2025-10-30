@@ -1,0 +1,92 @@
+Clustered vertx blocking vertx.eventBus().send
+**vertx-core** version 3.4.1
+**vertx-hazelcast** version 3.4.1
+
+Here is a little example
+```
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
+
+public class MainTest {
+
+    public static void main(String[] args) throws Exception {
+        VertxOptions options = new VertxOptions();
+        deploy(Vertx.vertx(options));
+        // Vertx.clusteredVertx(options, res -> {
+        // deploy(res.result());
+        // });
+    }
+
+    public static void deploy(Vertx vertx) {
+        vertx.deployVerticle(new ReceiveVerticle(), new DeploymentOptions().setInstances(1).setWorker(true), e -> {
+            // when ReceiveVerticle is deployed, deploy SendVerticle
+            vertx.deployVerticle(new SendVerticle(), new DeploymentOptions().setInstances(1).setWorker(true));
+        });
+    }
+
+    public static class SendVerticle extends AbstractVerticle {
+        @Override
+        public void start() throws Exception {
+            // start executing some job
+            for (int i = 0; i < 5; i++) {
+                // send some partial result asynchronously to ReceiveVerticle
+                String message = String.valueOf(i);
+                System.out.println("Sending message " + message);
+                vertx.eventBus().send("receive_address", message);
+                Thread.sleep(1000l);
+            }
+        }
+    }
+
+    public static class ReceiveVerticle extends AbstractVerticle {
+        @Override
+        public void start() throws Exception {
+            vertx.eventBus().consumer("receive_address", e -> {
+                System.out.println("Receive message " + e.body());
+            });
+        }
+    }
+
+}
+```
+Here is and output of this example:
+```
+Sending message 0
+Receive message 0
+Sending message 1
+Receive message 1
+Sending message 2
+Receive message 2
+Sending message 3
+Receive message 3
+Sending message 4
+Receive message 4
+```
+Everything is totally fine in non clustered vertx instance.
+But when I do the same with clustered vertx
+```
+        // deploy(Vertx.vertx(options));
+        Vertx.clusteredVertx(options, res -> {
+            deploy(res.result());
+        });
+```
+I have a totally different result
+```
+Sending message 0
+Sending message 1
+Sending message 2
+Sending message 3
+Sending message 4
+Receive message 0
+Receive message 1
+Receive message 2
+Receive message 3
+Receive message 4
+```
+Messages have been sent just after SendVerticle execution finish. Seems like clustered vertx blocking `eventBus().send` from sending messages.
+
+So the **question** is: How can I achieve in clustered vertx exactly the same result as in non clustered? I need this messages to be send asynchronously.
+
+P.S. Also the interesting thing is that: If I use `.setMultiThreaded(true)` to the `SendVerticle.class` everything is fine... But it seems like a hack and may be there is a better way to achieve what I need because it is not working exactly in clustered vertx instance. And also my `SendVerticle` is really not multithreaded.

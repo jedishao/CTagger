@@ -1,0 +1,14 @@
+Pulsar schema service should retry on concurrent schema updates
+**Describe the bug**
+
+Currently Pulsar doesn't retry on exceptions thrown when concurrently updating same schema. So the exception is propagated to Pulsar client directly. This is not a good experience for clients.
+
+We should consider handling errors and retry it again.
+
+Example exceptions are:
+
+```
+org.apache.zookeeper.KeeperException$BadVersionException: KeeperErrorCode = BadVersion
+	at org.apache.pulsar.client.api.PulsarClientException.unwrap(PulsarClientException.java:297) ~[pulsar-client-api-2.5.0-2cc34afc0.jar:2.5.0-2cc34afc0]
+	at org.apache.pulsar.client.impl.ProducerBuilderImpl.create(ProducerBuilderImpl.java:88) ~[pulsar-client-all-2.5.0-2cc34afc0.jar:2.5.0-2cc34afc0]
+```

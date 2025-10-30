@@ -1,0 +1,27 @@
+Documentation on locks
+I was wondering if the documentation could be clarified on what happens to each of the lock types should one redisson node request a lock, then die before releasing it while another node is waiting on it.
+
+i.e.
+```java
+Node1:
+Lock lock = redisson.getLock("LOCK-1");
+lock.lock();
+try{
+  //do something but the jvm is hard killed externally (power loss, reboot, etc)
+} finally {
+ lock.unlock();
+}
+
+Node2: called after node1 enters the lock, but before node 1 dies
+Lock lock = redisson.getLock("LOCK-1");
+lock.lock();
+try{
+  //do something
+} finally {
+ lock.unlock();
+}
+```
+
+If the documentation could also note suggested ways to prevent deadlocking in such cases (should deadlocking occur) that would be good too. It's not clear if the distributed locking takes into account the loss of a node while holding a lock.
+
+https://github.com/redisson/redisson/wiki/8.-distributed-locks-and-synchronizers

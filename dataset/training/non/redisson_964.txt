@@ -1,0 +1,46 @@
+RLocalCachedMap with JsonJacksonCodec
+Hi. Why this code does not work?
+
+```java
+ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.NONE);
+        objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        objectMapper.disable(MapperFeature.DEFAULT_VIEW_INCLUSION);
+        objectMapper.setConfig(objectMapper.getSerializationConfig().withView(MobileView.MainFeed.class));
+
+        Config config = new Config();
+        config
+            .setCodec(new JsonJacksonCodec(objectMapper))
+            .useSingleServer()
+            .setAddress("redis://" + "localhost" + ":" + 6379)
+            .setFailedAttempts(10_000)
+            .setReconnectionTimeout(300)
+            .setRetryAttempts(3)
+            .setRetryInterval(100);
+        RedissonClient redissonClient = Redisson.create(config);
+
+        LocalCachedMapOptions options = LocalCachedMapOptions.defaults()
+            .evictionPolicy(LocalCachedMapOptions.EvictionPolicy.LFU)
+            .cacheSize(1000)
+            .invalidationPolicy(LocalCachedMapOptions.InvalidationPolicy.ON_CHANGE);
+
+        RLocalCachedMap<String, List<FeedPost>> map = redissonClient.getLocalCachedMap("test1", options);
+
+        map.put("1", Collections.singletonList(FeedPost.builder().buttonLink("tt").build()));
+        map.put("1", Collections.singletonList(FeedPost.builder().buttonLink("tt").build()));
+```
+I see on second put:
+```java
+Exception in thread "redisson-3-2" java.lang.NullPointerException
+	at org.redisson.RedissonLocalCachedMap$2.onMessage(RedissonLocalCachedMap.java:307)
+	at org.redisson.PubSubMessageListener.onMessage(PubSubMessageListener.java:76)
+	at org.redisson.client.RedisPubSubConnection.onMessage(RedisPubSubConnection.java:81)
+	at org.redisson.client.handler.CommandDecoder$1.run(CommandDecoder.java:366)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:138)
+	at java.lang.Thread.run(Thread.java:748)
+
+```

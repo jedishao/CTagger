@@ -1,0 +1,42 @@
+`useScriptCache=true` sends whole script to Redis for each lock call when using `RedisBaseLock`
+**Expected behavior**
+
+When `useScriptCache = true` is in config `evalsha` should be used for all script executions rather than `eval` to reduce network load as specified in the docs.
+
+**Actual behavior**
+
+When `useScriptCache = true` in config `eval` rather than `evalsha` gets used for each lock call resulting in significant network load.
+
+**Steps to reproduce or test case**
+
+- Open Redis CLI
+- Execute MONITOR command to see commands executed on Redis
+- Run `redisson.getFairLock('lock-test').tryLock(10, TimeUnit.SECONDS);` using the configuration below.
+
+Note the EVAL from the MONITOR:
+
+``"EVAL" "while true do local firstThreadId2 = redis.call('lindex', KEYS[2], 0);if firstThreadId2 == false then break;end; local timeout = tonumber(redis.call('zscore', KEYS[3], firstThreadId2));if timeout <= tonumber(ARGV[4]) then redis.call('zrem', KEYS[3], firstThreadId2); redis.call('lpop', KEYS[2]); else break;end; end;if (redis.call('exists', KEYS[1]) == 0) then local nextThreadId = redis.call('lindex', KEYS[2], 0); if nextThreadId ~= false then redis.call('publish', KEYS[4] .. ':' .. nextThreadId, ARGV[1]); end; return 1; end;if (redis.call('hexists', KEYS[1], ARGV[3]) == 0) then return nil;end; local counter = redis.call('hincrby', KEYS[1], ARGV[3], -1); if (counter > 0) then redis.call('pexpire', KEYS[1], ARGV[2]); return 0; end; redis.call('del', KEYS[1]); local nextThreadId = redis.call('lindex', KEYS[2], 0); if nextThreadId ~= false then redis.call('publish', KEYS[4] .. ':' .. nextThreadId, ARGV[1]); end; return 1; "``
+
+The reason for this is that `CommandBatchService` is hardcoded to ignore the config setting:
+
+https://github.com/redisson/redisson/blob/05bbe1c895d1dfe10ef8e6eb043a70d0a69ccc38/redisson/src/main/java/org/redisson/command/CommandBatchService.java#L504-L507
+
+`CommandBatchService` is used by `RedisBaseLock` when executing its scripts.
+
+**Redis version**
+
+6.2
+
+**Redisson version**
+
+3.15.4
+
+**Redisson configuration**
+
+```
+Config config = new Config();
+config.setUseScriptCache(true);
+config.useSingleServer()
+   .setConnectionPoolSize(1024)
+   .setAddress(String.format("redis://%s:%s", redisHost, redisPort));
+```

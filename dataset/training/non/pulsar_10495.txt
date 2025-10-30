@@ -1,0 +1,16 @@
+msgDropRate metric is not available through non-deprecated Java interface, CLI, or Pulsar Manager
+**Describe the bug**
+https://github.com/apache/pulsar/pull/1634 consolidated the Admin API's `persistentTopics()` and `nonPersistentTopics()` to `topics(),` but the non-persistent _msgDropRate_ metric available in `nonPersistentTopics().stats()` is not available in the consolidated `topics().stats()`. Since `nonPersistentTopics()` is deprecated, so there is no supported API for getting _msgDropRate_. There is also no way to get this statistic from the `pulsar-admin` CLI tool or Pulsar Manager, presumably because they are using `topics().stats().`
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Create a non-persistent topic _nptopic_
+2. Use CLI tool: `pulsar-admin topics stats non-persistent://public/default/nptopic` -- _msgDropRate_ is not available
+3. Use Java client: `admin.topics().getStats(topic)` -- _msgDropRate_ is not available
+4. Use Java client: `admin.nonPersistentTopics().getStats(topic)` -- _msgDropRate_ **is** available, but this interface is deprecated
+
+**Expected behavior**
+This metric should be available through `topics().stats()`. OR a new method should be added to topics that returns non-persistent topic stats, similar to the `getPartitionedStats()` method that gets stats for partitioned topics.
+
+**Version**
+2.7.1

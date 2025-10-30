@@ -1,0 +1,54 @@
+Exceptions when changing node type in AWS Elasticache on the fly
+We tried to update underlying node type in our Elasticache Redis cluster. When AWS starts switching to newly created nodes, we see a lot of exception:
+```
+org.redisson.client.RedisException: MOVED redirection loop detected. Node redis://<node_address>:6379 has further redirect to redis://<same_node_address>:6379
+	at org.redisson.command.RedisExecutor.checkAttemptPromise(RedisExecutor.java:404) ~[redisson-3.13.5.jar:3.13.5]
+	at org.redisson.command.RedisExecutor.lambda$execute$3(RedisExecutor.java:164) ~[redisson-3.13.5.jar:3.13.5]
+	at org.redisson.misc.RedissonPromise.lambda$onComplete$0(RedissonPromise.java:183) ~[redisson-3.13.5.jar:3.13.5]
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:500) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:493) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:472) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:413) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:538) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:531) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:111) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at org.redisson.misc.RedissonPromise.tryFailure(RedissonPromise.java:96) ~[redisson-3.13.5.jar:3.13.5]
+	at org.redisson.client.protocol.CommandData.tryFailure(CommandData.java:78) ~[redisson-3.13.5.jar:3.13.5]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:339) ~[redisson-3.13.5.jar:3.13.5]
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:196) ~[redisson-3.13.5.jar:3.13.5]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:134) ~[redisson-3.13.5.jar:3.13.5]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:104) ~[redisson-3.13.5.jar:3.13.5]
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:505) ~[netty-codec-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366) ~[netty-codec-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:283) ~[netty-codec-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:374) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:360) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:352) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1475) ~[netty-handler-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1224) ~[netty-handler-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1271) ~[netty-handler-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:505) ~[netty-codec-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:444) ~[netty-codec-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:283) ~[netty-codec-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:374) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:360) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:352) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1421) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:374) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:360) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:930) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:163) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:697) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:632) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:549) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:511) ~[netty-transport-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:918) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.38.Final.jar:4.1.38.Final]
+	at java.lang.Thread.run(Thread.java:829) [?:?]
+```
+
+Is it possible to scale Redis cluster vertically on the fly using Redisson?
+
+Engine Version Compatibility: 6.0.5
+Redisson version: 3.13.5, also tried 3.16.1

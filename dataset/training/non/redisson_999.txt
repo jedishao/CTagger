@@ -1,0 +1,43 @@
+Issues when master goes down
+Hi,
+
+I have configured redisson with the following configuration
+`"replicatedServersConfig": {
+        "timeout":1000,
+        "nodeAddresses": ["redis://redis-cache-1.redis.ppe:6379","redis://redis-cache-0.redis.ppe:6379","redis://redis-cache-2.redis.ppe:6379"]
+     }`
+
+I am initalising reddison client at the start of my application like this
+`try {
+			Config config = Config.fromJSON(redisConfiguration.toString());
+			RedissonReactiveClient client = Redisson.createReactive(config);
+			cache = client.getMapCache("cache");
+		} catch (IOException e) {
+			throw new IllegalArgumentException(e);
+		}`
+I wanted to test the scenario of how redisson behaves when master  goes down
+I brought the master node down and  it was back up within a minute
+
+I see this in redisson logs
+`
+
+13:46:56.482 [] [redisson-netty-3-3] INFO  o.r.c.ReplicatedConnectionManager:195 - Master has changed from redis://redis-cache-2.redis.ppe:6379 to redis://redis-cache-0.redis.ppe:6379
+--
+  
+So redisson aware of the new master
+
+However I am getting this exception from the logs
+org.redisson.client.RedisTimeoutException: Command execution timeout for redis-cache-2.redis.ppe/100.96.5.7:6379
+	at org.redisson.client.RedisConnection$2.run(RedisConnection.java:212) ~[productlist.jar:na]
+	at io.netty.util.concurrent.PromiseTask$RunnableAdapter.call(PromiseTask.java:38) [productlist.jar:na]
+	at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:120) [productlist.jar:na]
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:163) [productlist.jar:na]
+
+This is trying to connect to the old master node when I am doing status check by redisson.getNodesGroup().pingAll();
+
+Also getting this exception from ReplicatedConnectionManager
+14:36:33.463 [] [redisson-netty-3-5] ERROR o.r.c.ReplicatedConnectionManager:183 - Command execution timeout for redis-cache-2.redis.ppe/100.96.5.7:6379
+--
+ My redis cluster is very simple. It is using kubernetes helm chart https://github.com/kubernetes/charts/tree/master/incubator/redis-cache to use redis as an in memory cache
+
+Could you please advice if anything is wrong with the configuration or is it a bug?

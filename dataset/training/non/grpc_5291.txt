@@ -1,0 +1,225 @@
+Why does opencensus custom stats exporter not work in 1.18.0
+Please answer these questions before submitting your issue.
+
+### What version of gRPC are you using?
+1.18.0
+### What did you expect to see?
+statistics metric data through a custom opencensus stats exporter.
+
+Glad to see that grpc 1.18.0 uses the latest opencensus. I wrote a simple stats exporter, expecting to see metric data log to json format. codes like:
+```
+public class MyStatsExporter {
+
+	private static final Object monitor = new Object();
+
+	private final MyExporterWorkThread workerThread;
+
+	@GuardedBy("monitor")
+	@Nullable
+	private static MyStatsExporter exporter = null;
+
+	private MyStatsExporter(MetricProducerManager metricProducerManager) {
+		this.workerThread = new MyExporterWorkThread(metricProducerManager);
+	}
+
+	public static void create(MetricProducerManager metricProducerManager) {
+		synchronized (monitor) {
+			Preconditions.checkState(exporter == null, "my stats exporter is already created.");
+			exporter = new MyStatsExporter(metricProducerManager);
+			exporter.workerThread.start();
+		}
+	}
+
+	static void unsafeResetExporter() {
+		synchronized (monitor) {
+			if (exporter != null) {
+				MyExporterWorkThread workerThread = exporter.workerThread;
+				if (workerThread != null && workerThread.isAlive()) {
+					try {
+						workerThread.interrupt();
+						workerThread.join();
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+				}
+				exporter = null;
+			}
+		}
+	}
+}
+```
+```
+public class MyExporterWorkThread extends Thread {
+
+	private static Logger logger = LoggerFactory.getLogger(MyExporterWorkThread.class);
+
+	private final long intervalMs = 5000L;
+	private MetricProducerManager metricProducerManager;
+	
+	public MyExporterWorkThread(MetricProducerManager metricProducerManager) {
+		this.metricProducerManager = metricProducerManager;
+	}
+	
+	@Override
+	public void run() {
+		while (true) {
+			try {
+				export();
+				Thread.sleep(intervalMs);
+			} catch (InterruptedException ie) {
+				Thread.currentThread().interrupt();
+				break;
+			} catch (Throwable e) {
+				logger.error("Exception thrown by the my stats exporter", e);
+			}
+		}
+		logger.info("my stats exporter stopped.");
+	}
+
+	void export() throws IOException {
+		Gson gson = new Gson();
+		logger.info("stats: {}", Stats.getState());
+		for (MetricProducer metricProducer : metricProducerManager.getAllMetricProducer()) {
+			if (!metricProducer.getMetrics().isEmpty()) {
+				for(Metric m : metricProducer.getMetrics()) {
+					if(!m.getTimeSeriesList().isEmpty()) {
+						logger.info("valid stats data not empty: {}", gson.toJson(m));
+					}
+				}
+			}
+		}
+	}
+}
+```
+```
+public class StatsGrpcServer {
+
+	private static Logger logger = LoggerFactory.getLogger(StatsGrpcServer.class);
+
+	public static void main(String[] args) throws Exception {
+		setupUpStatsExporter();
+		logger.info("finish server stats regist");
+		Server server = ServerBuilder.forPort(55555).addService(new GreeterServiceImpl()).build().start();
+		logger.info("stared, listening...");
+		server.awaitTermination();
+	}
+
+	private static void setupUpStatsExporter() throws Exception {
+		RpcViews.registerServerGrpcViews();
+		RpcViews.registerRealTimeMetricsViews();
+		MyStatsExporter.create(Metrics.getExportComponent().getMetricProducerManager());
+
+		// always samples
+		TraceConfig traceConfig = Tracing.getTraceConfig();
+		traceConfig.updateActiveTraceParams(
+				traceConfig.getActiveTraceParams().toBuilder().setSampler(Samplers.alwaysSample()).build());
+		LoggingTraceExporter.register();
+
+		try {
+			//start zpage handler
+			ZPageHandlers.startHttpServerAndRegisterAll(8887);
+		} catch (IOException e) {
+			logger.error("start zpage server error.", e);
+		}
+	}
+}
+```
+```
+public class StatsGrpcClient {
+
+	private static Logger logger = LoggerFactory.getLogger(StatsGrpcClient.class);
+
+	public static void main(String[] args) throws Exception {
+//		setupUpStatsExporter();
+//		logger.info("finish stats regist");
+		ManagedChannel channel = ManagedChannelBuilder.forAddress("127.0.0.1", 55555).usePlaintext().build();
+
+		GreeterGrpc.GreeterBlockingStub stub = GreeterGrpc.newBlockingStub(channel);
+		IntStream.range(1, 100).forEach(i -> call(stub, i + ""));
+		logger.info("end call.");
+		channel.shutdown().awaitTermination(10, TimeUnit.SECONDS);
+		logger.info("application exit.");
+	}
+
+	public static void call(GreeterBlockingStub stub, String name) {
+		try {
+			TimeUnit.MILLISECONDS.sleep(new Random().nextInt(1000));
+		} catch (InterruptedException e1) {
+			e1.printStackTrace();
+		}
+		HelloRequest request = null;
+		if (name != null) {
+			request = HelloRequest.newBuilder().setName(name).build();
+		}
+		try {
+			logger.info("send request：{}", request);
+			HelloReply r = stub.withDeadlineAfter(1, TimeUnit.SECONDS).sayHello(request);
+			logger.info("receive response：{}", r);
+		} catch (Exception e) {
+			logger.error("rpc error", e);
+		}
+	}
+	
+	private static void setupUpStatsExporter() {
+		RpcViews.registerClientGrpcViews();
+		RpcViews.registerRealTimeMetricsViews();
+		MyStatsExporter.create(Metrics.getExportComponent().getMetricProducerManager());
+		
+		//update trace config
+		TraceConfig traceConfig = Tracing.getTraceConfig();
+        traceConfig.updateActiveTraceParams(
+                traceConfig.getActiveTraceParams()
+                    .toBuilder()
+                    .setSampler(Samplers.alwaysSample())
+                    .build());
+        LoggingTraceExporter.register();
+        
+        try {
+			ZPageHandlers.startHttpServerAndRegisterAll(8889);
+		} catch (IOException e) {
+			logger.error("start zpage server error.", e);
+		}
+	}
+}
+```
+
+and my pom.xml:
+```
+<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-netty-shaded</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-protobuf</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-stub</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.opencensus</groupId>
+			<artifactId>opencensus-impl</artifactId>
+			<version>${opencensus.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opencensus</groupId>
+			<artifactId>opencensus-contrib-monitored-resource-util</artifactId>
+			<version>${opencensus.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opencensus</groupId>
+			<artifactId>opencensus-contrib-zpages</artifactId>
+			<version>${opencensus.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opencensus</groupId>
+			<artifactId>opencensus-exporter-trace-logging</artifactId>
+			<version>${opencensus.version}</version>
+		</dependency>
+```
+But I can't see any log out, or see any data from zpage /stats and /rpcz.

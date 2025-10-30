@@ -1,0 +1,59 @@
+Support transactional inserts in Kafka
+### **Problem**
+
+The current configuration of producers in the Kafka connector supports at-least-once message delivery semantics which could result in duplicate messages being sent to a topic.
+
+### **Goal**
+
+Use transactional producers for `SQL INSERT` in Kafka connector. A transactional producer ensures exactly-once delivery semantics. This is important because it will prevent duplicate rows being sent if the producer or broker crashes.
+
+### **Resources**
+
+This post on the confluent blog provides more information about [transactional messaging in Kafka](https://www.confluent.io/blog/transactions-apache-kafka/)
+
+### **Implementation**
+
+**Transaction ID**
+
+Transactional producers require a transaction ID, which is a unique identifier for each producer. 
+
+I propose that the transaction ID follows the pattern:
+`transactional-producer-<topic name>-<unique producer instance id>`
+
+Where the `<topic name>` is the destination topic for the inserted rows and the `<unique producer instance id>` is a unique identifier for each producer instance. This could be a number starting at 1 that increments with each new transactional producer created or maybe a random UUID. It might also be helpful to include the Presto query ID in the transaction ID.
+
+The transaction ID for each producer would be generated in the producer factory (`io.prestosql.plugin.kafka.PlaintTextKafkaProducerFactory`) when the `create` method is called. We would have to add the topic name as a parameter to the `create` method.
+
+Producer instances must have unique transaction IDs otherwise they will interfere with one another.
+
+**Idempotence**
+
+The transactional producer requires that the producer `ENABLE_IDEMPOTENCE_CONFIG` field be set to true. The `ACKS_CONFIG` field must not be changed by the producer config.
+
+**Transactional Producer Methods**
+
+The transactional producer comes with a number of new methods that must be called to complete a transaction.
+
+- `KafkaProducer#initTransactions()` - Registers the producers transaction ID with the Kafka transaction coordinator, must be called by each transactional producer once before beginning any transactions
+- `KafkaProducer#beginTransaction()` - Should be called before the start of a new transaction
+- `KafkaProducer#commitTransaction()` - Commits the current transaction, should be called at the end of each transaction
+- `KafkaProducer#abortTransaction()` - Aborts the ongoing transaction. Any un-flushed producer messages will be aborted
+
+**Transactional Producer Exceptions**
+
+The transactional producer methods can throw a few new exceptions
+
+- `ProducerFencedException` - Thrown if another producer with the same transaction ID is started, causing this producer to be "fenced"
+- `OutOfOrderSequenceException` - Indicates that data may have been lost during a transaction
+- `AuthorizationException`
+- `KafkaException` - Any other exception encountered during a transaction, producers are not able to recover from these exceptions
+
+**Transactional Producers and Presto**
+
+Coordinating transaction commits across threads and nodes in Presto is going to be the biggest challenge. I am not sure at the moment how this should be done. There are three proposed solutions for this:
+
+1. Ideally we would use the same transaction across threads and nodes and then commit it from coordinator at the end. This is unfortunately not possible to do.
+2. The next best option would be to use separate transactions on different threads/nodes and then commit them centrally at the end. This is also not possible to do.
+3. The least ideal solution would be to make the write non-distributed and just use one producer across threads on one node. This is possible but would negatively affect performance.
+
+Given these solutions it doesn't seem like transactional producers will work very well within a distributed system. Maybe if the user needs exactly-once-delivery semantics we could allow them to set a config property to choose between transactional without distributed and non-transactional with distributed.

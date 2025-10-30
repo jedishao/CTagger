@@ -1,0 +1,124 @@
+Broker Shutdown while unloading bundles
+Using the functionallity in #88 we enabled Broker loadbalancing and testing it.
+We're seeing that almost everytime a Broker unloads a topic it prints a bunch of stacks like the following that do not seem too harmful.
+```
+2016-11-16 17:34:41,750 - INFO  - [pulsar-web-44-1:Consumer@257] - Disconnecting consumer: Consumer{subscription=PersistentSubscription{topic=persistent://items/global/items/items-partition-7, name=items-104}, consumerId=1057, consumerName=ip-10-3-3-105, address=/10.3.3.105:44574}
+2016-11-16 17:34:41,750 - WARN  - [pulsar-web-44-19:DestinationLookup@114] - Failed to lookup broker for topic persistent://items/global/items/items-partition-7: java.lang.IllegalStateException: Namespace bundle items/global/items/0x33333332_0x4ccccccb is being unloaded
+java.util.concurrent.CompletionException: java.lang.IllegalStateException: Namespace bundle items/global/items/0x33333332_0x4ccccccb is being unloaded
+        at java.util.concurrent.CompletableFuture.encodeRelay(CompletableFuture.java:326)
+        at java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:984)
+        at java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2124)
+        at com.yahoo.pulsar.broker.namespace.NamespaceService.getBrokerServiceUrlAsync(NamespaceService.java:131)
+        at com.yahoo.pulsar.broker.lookup.DestinationLookup.lookupDestinationAsync(DestinationLookup.java:77)
+        at sun.reflect.GeneratedMethodAccessor13.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory$1.invoke(ResourceMethodInvocationHandlerFactory.java:81)
+        at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:144)
+        at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:161)
+        at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$VoidOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:143)
+        at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:99)
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:389)
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:347)
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:102)
+        at org.glassfish.jersey.server.ServerRuntime$2.run(ServerRuntime.java:326)
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:271)
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:267)
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:315)
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:297)
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:267)
+        at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:317)
+        at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:305)
+        at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:1154)
+        at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:473)
+        at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:427)
+        at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:388)
+        at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:341)
+        at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:228)
+        at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:845)
+        at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:583)
+        at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:224)
+        at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1180)
+        at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:511)
+        at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:185)
+        at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1112)
+        at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141)
+        at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:213)
+        at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:119)
+        at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:134)
+        at org.eclipse.jetty.server.Server.handle(Server.java:524)
+        at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:319)
+        at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:253)
+        at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:273)
+        at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:95)
+        at org.eclipse.jetty.io.SelectChannelEndPoint$2.run(SelectChannelEndPoint.java:93)
+        at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.executeProduceConsume(ExecuteProduceConsume.java:303)
+        at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.produceConsume(ExecuteProduceConsume.java:148)
+        at org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume.run(ExecuteProduceConsume.java:136)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:144)
+        at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.IllegalStateException: Namespace bundle items/global/items/0x33333332_0x4ccccccb is being unloaded
+        at com.yahoo.pulsar.broker.namespace.NamespaceService.lambda$findBrokerServiceUrl$4(NamespaceService.java:305)
+        at java.util.concurrent.CompletableFuture.uniAccept(CompletableFuture.java:656)
+        at java.util.concurrent.CompletableFuture.uniAcceptStage(CompletableFuture.java:669)
+        at java.util.concurrent.CompletableFuture.thenAccept(CompletableFuture.java:1997)
+        at com.yahoo.pulsar.broker.namespace.NamespaceService.findBrokerServiceUrl(NamespaceService.java:289)
+        at com.yahoo.pulsar.broker.namespace.NamespaceService.lambda$getBrokerServiceUrlAsync$0(NamespaceService.java:131)
+        at java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:981)
+        ... 52 more
+2016-11-16 17:34:41,752 - INFO  - [pulsar-web-44-19:Slf4jRequestLog@60] - 10.3.3.231 - - [16/Nov/2016:17:34:41 +0000] "GET //pulsar-discovery.furycloud.io/lookup/v2/destination/persistent/items/global/items/items-partition-7 HTTP/1.1" 500 392 "-" "Pulsar-Java-v1.15.2" 2
+2016-11-16 17:34:41,752 - INFO  - [pulsar-web-44-1:PersistentDispatcherMultipleConsumers@108] - Removed consumer Consumer{subscription=PersistentSubscription{topic=persistent://items/global/items/items-partition-7, name=items-104}, consumerId=1057, consumerName=ip-10-3-3-105, address=/10.3.3.105:44574} with pending 1000 acks
+```
+
+The problem is that after a few seconds the broker always looses it's connection to Zookeeper and then crashes.
+
+```
+2016-11-16 17:34:09,533 - INFO  - [pool-1-thread-1:SimpleLoadManagerImpl@1345] - Running namespace bundle split with thresholds: topics 1000, sessions 1000, msgRate 1000, bandwidth 104857600, maxBundles 128
+2016-11-16 17:34:09,534 - INFO  - [pool-1-thread-1:SimpleLoadManagerImpl@1381] - Will split hot namespace bundle items/global/items/0x33333332_0x4ccccccb, topics 4, producers+consumers 4, msgRate in+out 5103.013012492122, bandwidth in+out 2094753.0844518002
+2016-11-16 17:34:09,535 - INFO  - [pool-1-thread-1:SimpleLoadManagerImpl@1381] - Will split hot namespace bundle items/global/items/0xccccccc8_0xe6666661, topics 3, producers+consumers 3, msgRate in+out 3823.7859370443607, bandwidth in+out 1568994.7075086082
+2016-11-16 17:34:09,575 - INFO  - [pool-1-thread-1:PulsarService@563] - Admin api url: http://ip-10-3-3-225:8080
+2016-11-16 17:34:09,681 - INFO  - [pulsar-web-44-8:Namespaces@781] - [null] Split namespace bundle items/global/items/0x33333332_0x4ccccccb
+2016-11-16 17:34:09,702 - INFO  - [pulsar-web-44-8:OwnershipCache@224] - Trying to acquire ownership of items/global/items/0x33333332_0x3ffffffe
+2016-11-16 17:34:09,702 - INFO  - [pulsar-web-44-8:OwnershipCache@224] - Trying to acquire ownership of items/global/items/0x3ffffffe_0x4ccccccb
+2016-11-16 17:34:09,706 - INFO  - [main-EventThread:OwnershipCache@229] - Successfully acquired ownership of /namespace/items/global/items/0x33333332_0x3ffffffe
+2016-11-16 17:34:09,706 - INFO  - [main-EventThread:OwnershipCache@229] - Successfully acquired ownership of /namespace/items/global/items/0x3ffffffe_0x4ccccccb
+2016-11-16 17:34:09,709 - INFO  - [main-EventThread:ZooKeeperDataCache@131] - [State:CONNECTED Timeout:30000 sessionid:0x2586d8253880021 local:/10.3.3.225:41540 remoteserver:ip-10-3-3-143.ec2.internal/10.3.3.143:2181 lastZxid:4294989977 xid:4113 sent:4113 recv:4173 queuedpkts:0 pendingresp:0 queuedevents:1] Received ZooKeeper watch event: WatchedEvent state:SyncConnected type:NodeDataChanged path:/admin/local-policies/items/global/items
+2016-11-16 17:34:12,805 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 25 seconds
+2016-11-16 17:34:14,805 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 23 seconds
+2016-11-16 17:34:16,806 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 21 seconds
+2016-11-16 17:34:19,073 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 18 seconds
+2016-11-16 17:34:21,106 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 16 seconds
+2016-11-16 17:34:23,106 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 14 seconds
+2016-11-16 17:34:25,106 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 12 seconds
+2016-11-16 17:34:27,107 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 10 seconds
+2016-11-16 17:34:29,107 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 8 seconds
+2016-11-16 17:34:31,107 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 6 seconds
+2016-11-16 17:34:33,108 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 4 seconds
+2016-11-16 17:34:35,108 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 2 seconds
+2016-11-16 17:34:37,108 - WARN  - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@160] - zoo keeper disconnected, waiting to reconnect, time remaining = 0 seconds
+2016-11-16 17:34:38,101 - INFO  - [pulsar-io-39-2:ServerCnx@577] - [PersistentTopic{topic=persistent://items/global/items/items-partition-7}][pulsar.repl.us-east] Closing producer on cnx /10.3.3.140:57424
+2016-11-16 17:34:38,106 - INFO  - [pulsar-io-39-2:ServerCnx@580] - [PersistentTopic{topic=persistent://items/global/items/items-partition-7}][pulsar.repl.us-east] Closed producer on cnx /10.3.3.140:57424
+2016-11-16 17:34:38,225 - INFO  - [pulsar-io-39-6:ClientCnx@288] - [ip-10-3-3-140/10.3.3.140:6650] Broker notification of Closed producer: 58
+2016-11-16 17:34:38,226 - INFO  - [pulsar-io-39-6:HandlerBase@109] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Closed connection [id: 0x21af9022, L:/10.3.3.225:55580 - R:ip-10-3-3-140/10.3.3.140:6650] -- Will try again in 0.12 s
+2016-11-16 17:34:38,347 - WARN  - [pulsar-timer-46-1:HandlerBase@112] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Reconnecting after timeout
+2016-11-16 17:34:38,359 - WARN  - [pulsar-io-39-3:HttpClient@140] - [http://internal-pulsar-brokers-1007547935.us-east-1.elb.amazonaws.com/lookup/v2/destination/persistent/items/global/items/items-partition-7] HTTP get request failed: Request failed.
+2016-11-16 17:34:38,359 - WARN  - [pulsar-io-39-3:HandlerBase@74] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Error connecting to broker: com.yahoo.pulsar.client.api.PulsarClientException: HTTP get request failed: Request failed.
+2016-11-16 17:34:38,359 - WARN  - [pulsar-io-39-3:HandlerBase@92] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Could not get connection to broker: com.yahoo.pulsar.client.api.PulsarClientException: HTTP get request failed: Request failed. -- Will try again in 0.235 s
+2016-11-16 17:34:38,595 - INFO  - [pulsar-timer-46-1:HandlerBase@96] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Reconnecting after connection was closed
+2016-11-16 17:34:38,597 - WARN  - [pulsar-io-39-3:HttpClient@140] - [http://internal-pulsar-brokers-1007547935.us-east-1.elb.amazonaws.com/lookup/v2/destination/persistent/items/global/items/items-partition-7] HTTP get request failed: Request failed.
+2016-11-16 17:34:38,598 - WARN  - [pulsar-io-39-3:HandlerBase@74] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Error connecting to broker: com.yahoo.pulsar.client.api.PulsarClientException: HTTP get request failed: Request failed.
+2016-11-16 17:34:38,598 - WARN  - [pulsar-io-39-3:HandlerBase@92] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Could not get connection to broker: com.yahoo.pulsar.client.api.PulsarClientException: HTTP get request failed: Request failed. -- Will try again in 0.431 s
+2016-11-16 17:34:39,030 - INFO  - [pulsar-timer-46-1:HandlerBase@96] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Reconnecting after connection was closed
+2016-11-16 17:34:39,032 - WARN  - [pulsar-io-39-3:HttpClient@140] - [http://internal-pulsar-brokers-1007547935.us-east-1.elb.amazonaws.com/lookup/v2/destination/persistent/items/global/items/items-partition-7] HTTP get request failed: Request failed.
+2016-11-16 17:34:39,032 - WARN  - [pulsar-io-39-3:HandlerBase@74] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Error connecting to broker: com.yahoo.pulsar.client.api.PulsarClientException: HTTP get request failed: Request failed.
+2016-11-16 17:34:39,032 - WARN  - [pulsar-io-39-3:HandlerBase@92] - [persistent://items/global/items/items-partition-7] [pulsar.repl.us-west] Could not get connection to broker: com.yahoo.pulsar.client.api.PulsarClientException: HTTP get request failed: Request failed. -- Will try again in 0.904 s
+2016-11-16 17:34:39,109 - ERROR - [pulsar-zk-session-watcher-10-1:ZooKeeperSessionWatcher@155] - timeout expired for reconnecting, invoking shutdown service
+2016-11-16 17:34:39,109 - INFO  - [pulsar-zk-session-watcher-10-1:ZooKeeper@684] - Session: 0x2586d8253880021 closed
+2016-11-16 17:34:39,109 - INFO  - [pulsar-zk-session-watcher-10-1:MessagingServiceShutdownHook@94] - Invoking Runtime.halt(-1)
+```
+
+Do you know what could be happening? We don't see any issue with Zookeepers and the other brokers continue working properly.
+
+EDIT: Broker load doesn't seem to affect this, a broker with 7% CPU usage just crashed with the same exceptions.

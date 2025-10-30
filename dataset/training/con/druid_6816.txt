@@ -1,0 +1,29 @@
+Race when killing segments
+In Druid, Killing segments means removing the segment files from the deep storage and deletes the entries from the metadata store. This is currently done using KillTask. Since it's a task, it first gets taskLocks and do the below:
+
+```java
+    final List<DataSegment> unusedSegments = toolbox
+        .getTaskActionClient()
+        .submit(new SegmentListUnusedAction(getDataSource(), getInterval()));
+
+    if (!TaskActionPreconditions.isLockCoversSegments(taskLockMap, unusedSegments)) {
+      throw new ISE(
+          "Locks[%s] for task[%s] can't cover segments[%s]",
+          taskLockMap.values().stream().flatMap(List::stream).collect(Collectors.toList()),
+          getId(),
+          unusedSegments
+      );
+    }
+
+    // Kill segments
+    for (DataSegment segment : unusedSegments) {
+      toolbox.getDataSegmentKiller().kill(segment);
+      toolbox.getTaskActionClient().submit(new SegmentNukeAction(ImmutableSet.of(segment)));
+    }
+```
+
+However, the coordinator provides an HTTP endpoint to enable a segment (setting `used` = true for a segment) which can happen between `SegmentListUnusedAction` and `SegmentNukeAction` without getting a taskLock.
+
+Also, the order of killing segments should be changed: the metadata store must be updated first before removing the segment file.
+
+I think we may change the way of killing segments to not use the task. Instead, the coordinator can kill segments directly because enabling/disabling existing segments happens only in the coordinator.

@@ -1,0 +1,82 @@
+[Transaction] internalPinnedExecutor will stuck in acquire semaphore
+**Describe the bug**
+1. TransactionMetaStoreHandler use a internalPinnedExecutor to execute` new transaction``addPublishPartitionToTxnAsync` and so on.
+2. We add a semaphore in TransactionMetaStoreHandler before execute ops.
+3. If we new  transaction and produce message in callback of new transaction, internalPinnedExecutor will stuck in acquire  semaphore, and we also need this internalPinnedExecutor to release semaphore.
+
+**To Reproduce**
+Run this test.
+  
+>```
+>   public void testExternalThreadToAcquireSemaphore() throws Exception {
+>         long st = System.currentTimeMillis();
+>         String topic = NAMESPACE1 + "/test";
+>         int numOfTransaction = 1000;
+>         int transactionTimeoutInSec = 30;
+>         int numOfMessagesPerTransaction = 20;
+> 
+>         Producer<Long> producer = pulsarClient.newProducer(Schema.INT64)
+>                 .producerName("transaction-send-test")
+>                 .sendTimeout(0, TimeUnit.SECONDS)
+>                 .topic(topic)
+>                 .enableBatching(false)
+>                 .create();
+>         CountDownLatch waitSendCompletely = new CountDownLatch(numOfTransaction);
+>         AtomicBoolean exitByException = new AtomicBoolean(false);
+> 
+>         for (int i = 0; i < numOfTransaction; i++) {
+>             pulsarClient.newTransaction()
+>                     .withTransactionTimeout(transactionTimeoutInSec, TimeUnit.SECONDS)
+>                     .build().whenComplete((transaction, throwable) -> {
+>                 if (throwable != null) {
+>                     log.error("Failed to open transaction", throwable);
+>                     exitByException.set(true);
+>                 } else {
+>                     for (long j = 0; j < numOfMessagesPerTransaction; j++) {
+>                         producer.newMessage(transaction)
+>                                 .value(j)
+>                                 .sendAsync()
+>                                 .whenComplete((messageId, exception) -> {
+>                                     if (exception != null) {
+>                                         log.error("Failed to send messages", exception);
+>                                         exitByException.set(true);
+>                                     }
+>                                 });
+>                     }
+>                     transaction.commit().thenRun(() -> {
+>                         waitSendCompletely.countDown();
+>                     }).exceptionally(throwable1 -> {
+>                         log.error("Failed to commit the transaction [{}]", transaction, throwable1);
+>                         waitSendCompletely.countDown();
+>                         exitByException.set(true);
+>                         return null;
+>                     });
+>                 }
+>             });
+>         }
+>         new Thread(() -> {
+>             try {
+>                 Thread.sleep(30000);
+>                 exitByException.set(true);
+>                 waitSendCompletely.countDown();
+>             } catch (InterruptedException e) {
+>                 e.printStackTrace();
+>             }
+>         });
+>         waitSendCompletely.await();
+>         assertFalse(exitByException.get());
+>         log.info("test completely in [{}] secs", (System.currentTimeMillis() - st) / 1000);
+>     }
+> 
+
+**Expected behavior**
+A clear and concise description of what you expected to happen.
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+**Desktop (please complete the following information):**
+ - OS: [e.g. iOS]
+
+**Additional context**
+Add any other context about the problem here.

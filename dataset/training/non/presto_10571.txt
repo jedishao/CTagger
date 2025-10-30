@@ -1,0 +1,89 @@
+Possible memory leaks on selecting certain columns
+Hello, all
+I have been using presto for 2 years, and really satisfied with it.
+I mainly bring up the cluster using EMR and recently upgraded from 0.170 to 0.194 where I think found a bug. 
+
+I have data on s3 that is partitioned by dates that I have it available on presto as external table using hive catalog. The table has about 8 columns all string types, and I am experiencing very weird OOM happening when I query a certain column from it.
+
+> select problematic_column From db.tableA where other_column='abcde' and reqdate='2018-03-01' limit 1;
+
+Above query will run for couple minutes and will fail with OOM. 
+(Above query is expect to result 0 rows)
+What makes me to think the weird part is 
+
+> select some_other_column From db.tableA where other_column='abcde' and reqdate='2018-03-01' limit 1;
+
+Will run fine with expected result. I checked if there was any problem with problematic column using spark, checking length, any outstanding row, etc. but the column looks alright.
+
+> select problematic_column From b.tableA where reqdate='2018-03-01' limit 1;
+
+Above query ran fine. so it has to do something with worker node has some kind of memory leaking when it has where caluse with condition that will have 0 rows of output. 
+
+When query fails, it actually brings down the worker node with it. When I observed memory usage by presto on worker nodes, when query is running, it will indefinitely use memory until it reaches Xmx on jvm config and worker nodes gets restarted. 
+
+My team has been blocked by this bug and could not use any newer versions of Presto with Disk Spilling avaialble. Any help regarding solving, debugging this bug would be very much appreciated.
+
+Here are related configurations
+```
+[hadoop@ip-xxxxx conf]$ cat config.properties
+coordinator=false
+node-scheduler.include-coordinator=false
+discovery.uri=http://ip-xxxxx.ec2.internal:8889
+http-server.threads.max=500
+discovery-server.enabled=true
+sink.max-buffer-size=1GB
+query.max-memory=60GB
+query.max-memory-per-node=30GB
+query.max-history=40
+query.min-expire-age=30m
+http-server.http.port=8889
+http-server.log.path=/var/log/presto/http-request.log
+http-server.log.max-size=67108864B
+http-server.log.max-history=5
+log.max-size=268435456B
+log.max-history=5
+experimental.spiller-threads = 8
+experimental.spiller-spill-path = /mnt/presto-spill
+experimental.spill-enabled = true
+```
+
+```
+[hadoop@ip-xxxxx conf]$ cat jvm.config
+-verbose:class
+-server
+-Xmx103079215104
+-Xmn512M
+-XX:+UseConcMarkSweepGC
+-XX:+ExplicitGCInvokesConcurrent
+-XX:+CMSClassUnloadingEnabled
+-XX:+AggressiveOpts
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:OnOutOfMemoryError=kill -9 %p
+-XX:ReservedCodeCacheSize=150M
+-Xbootclasspath/p:
+-Djava.library.path=/usr/lib/hadoop/lib/native/:/usr/lib/hadoop-lzo/lib/native/:/usr/lib/
+```
+
+```
+[hadoop@ip-172-31-43-202 conf]$ cat catalog/hive.properties
+hive.s3.max-backoff-time=10m
+hive.max-partitions-per-writers=10000
+hive.max-partitions-per-scan=100000000
+hive.allow-drop-table=true
+hive.s3.max-connections=1000
+hive.s3.max-error-retries =50
+hive.metastore-refresh-interval=1m
+hive.s3.staging-directory=/mnt/tmp/
+hive.s3.socket-timeout=2m
+hive.s3.max-client-retries=50
+hive.metastore-cache-ttl=20m
+hive.metastore.uri=thrift://xxxxx.compute-1.amazonaws.com:9083
+hive.s3.connect-timeout=2m
+connector.name=hive-hadoop2
+hive.metastore-timeout=1m
+hive.s3-file-system-type=PRESTO
+hive.table-statistics-enabled=false
+```
+
+I have coordinator only master node m4.xlarge and two worker nodes r4.4xlarge for above cluster.  I orginally had 12 worker nodes on production, but used less nodes to reporduce the bug.
+

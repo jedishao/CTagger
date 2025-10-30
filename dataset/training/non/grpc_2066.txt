@@ -1,0 +1,17 @@
+[Question] BlockingResponseStream.hasNext blocks forever
+I run into an issue that `BlockingResponseStream.hasNext` occasionally blocks forever while sending response for a streaming RPC. I haven't found any reliable way to reproduce this issue, but following code and comment in `ClientCalls.java` caught my attention:
+
+``` java
+try {
+  // Will block here indefinitely waiting for content. RPC timeouts defend against permanent
+  // hangs here as the call will become closed.
+  last = waitForNext();
+} catch (InterruptedException ie) {
+  Thread.currentThread().interrupt();
+  throw Status.CANCELLED.withCause(ie).asRuntimeException();
+}
+
+```
+
+I am not vary familiar with GRPC codebase. Could someone tell me when is this call going to block and which thread usually unblocks it? What could cause the call being blocked forever?
+It seems GRPC does not timeout by default. Should I specify RPC timeout (BTW is timeout the same thing as deadline)?

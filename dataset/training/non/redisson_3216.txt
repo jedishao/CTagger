@@ -1,0 +1,24 @@
+redis 使用哨兵模式，开启读写分离，redisTemplate.opsForGeo().radius 报错
+public class RedisTest extends BaseTest {
+
+    @Autowired
+    private RedisTemplate redisTemplate;
+    
+    @Test
+    public void testGeo() {
+        String key = "test_geo_key";
+        Point point = new Point(116.401001, 40.119499);
+        redisTemplate.opsForGeo().add(key, point, "a");
+
+        point = new Point(111.545998, 36.133499);
+        redisTemplate.opsForGeo().add(key, point, "b");
+
+        point = new Point(111.483002, 36.030998);
+        redisTemplate.opsForGeo().add(key, point, "c");
+        Circle within = new Circle(116.401001, 40.119499, 80000);
+        RedisGeoCommands.GeoRadiusCommandArgs args = RedisGeoCommands.GeoRadiusCommandArgs.newGeoRadiusArgs().includeCoordinates();
+        GeoResults<RedisGeoCommands.GeoLocation<String>> res = redisTemplate.opsForGeo().radius(key, within, args);
+        System.out.println(res);
+    }
+
+}

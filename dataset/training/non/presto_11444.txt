@@ -1,0 +1,17 @@
+Improve plan stability
+Currently, the output of `explain <query>` may change even if neither query nor environment changed. There are at least two causes:
+
+- UUIDs printed in `TableCommit[catalog:HiveTransactionHandle{uuid=19a6c34d-9ab8-4e16-8d93-b010d244be66}...`
+
+- Partition columns printed in random order (due to `hiveColumnIndex = -1`)
+
+```
+HiveColumnHandle{name=ts, hiveType=string, hiveColumnIndex=-1, columnType=PARTITION_KEY, comment=}
+HiveColumnHandle{name=ds, hiveType=string, hiveColumnIndex=-1, columnType=PARTITION_KEY, comment=YYYY-MM-DD}
+```
+
+This makes it difficult to compare plans with and without CBO. 
+
+Hence, let's make the order of partition columns deterministic and remove UUIDs from the plan.
+
+CC: @rschlussel

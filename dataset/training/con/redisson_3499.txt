@@ -1,0 +1,41 @@
+ClassLoader issues when using Redisson Transactions with asynchronously acquired RedissonClient 
+**Expected behavior**
+When using an asynchronously acquired RedissonClient (via. `CompletableFuture.supplyAsync`) with transactions I expect the class loader used to be correct.
+
+Some constraints to narrow the scope of the problem:
+- I only encountered this when using Redisson Transactions.
+- If the client was acquired in a synchronous way, I did not see this behavior.
+
+**Actual behavior**
+Similar to #2984 I am seeing that on the first request to my WAR on a web server, the correct class loader is used.
+![Screen Shot 2021-03-17 at 10 55 06 AM](https://user-images.githubusercontent.com/11669595/111498022-96d91380-870f-11eb-83df-30b5e307da00.png)
+
+But then on subsequent requests, it is using the URLClassPath loader what I assume to be the default for Jetty.
+![Screen Shot 2021-03-17 at 10 59 04 AM](https://user-images.githubusercontent.com/11669595/111498281-d0aa1a00-870f-11eb-9719-38679003f898.png)
+
+After this breaks, I get consistent ClassNotFound errors. 
+
+**Steps to reproduce or test case**
+I created a minimal jetty project [here](https://github.com/nab0310/jetty-redisson-class-loader-issue) in an effort to reproduce the code we are running.
+
+In words, my steps were as follows:
+Create a Jetty Server running `9.4.30.v20200611`, and deploy a WAR on it. Place objects into Redis, using transactions, and try to retrieve them. After the first request succeeds, observe ClassNotFound issues when trying to retrieve other objects. The stack trace can be found in a [gist](https://gist.github.com/nab0310/cd58b5e016ea857a18a96a784859ecde).
+
+**Redis version**
+6.0.5
+
+**Redisson version**
+13.15.1
+
+**Redisson configuration**
+```
+    redissonConfig
+        .useSingleServer()
+        .setConnectTimeout(10_000)
+        .setTimeout(10_000)
+        .setRetryAttempts(0)
+        .setConnectionPoolSize(20)
+        .setConnectionMinimumIdleSize(1)
+        .setPassword("SECRET")
+        .setAddress("redis://host.docker.internal:6379");
+```

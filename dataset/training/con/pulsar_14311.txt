@@ -1,0 +1,77 @@
+creat ledger timeout and thread BookKeeperClientWorker in stuck
+**Describe the bug**
+we found many timeout logs when creating producer or sending message.like this,we creat a new topic and then build a producer to send message:
+```2022-02-15 12:50:06,265Z [pulsar-io-4-2] ERROR org.apache.pulsar.broker.service.ServerCnx - [/10.244.2.27:44396] Failed to create topic persistent://public/default/test-22-partition-0, producerId=0
+java.util.concurrent.CompletionException: org.apache.pulsar.common.util.FutureUtil$LowOverheadTimeoutException: Failed to load topic within timeout 
+        at java.util.concurrent.CompletableFuture.encodeThrowable(Unknown Source) ~[?:?]
+        at java.util.concurrent.CompletableFuture.completeThrowable(Unknown Source) ~[?:?]
+        at java.util.concurrent.CompletableFuture$UniApply.tryFire(Unknown Source) ~[?:?]
+        at java.util.concurrent.CompletableFuture.postComplete(Unknown Source) ~[?:?]
+        at java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source) ~[?:?]
+```
+we check the stack trace of create ledger and found that when creating ledger complete it can't get the thread `BookKeeperClientWorker ` to do callback's work
+
+![image](https://user-images.githubusercontent.com/25685998/154185897-b6b5896f-cd0a-4b60-935d-823bcfef38a4.png)
+
+we dump tread stack, `BookKeeperClientWorker-OrderedExecutor-0-0` is always BLOCKED 
+```
+"BookKeeperClientScheduler-OrderedScheduler-0-0" #26 prio=5 os_prio=0 cpu=61864.97ms elapsed=268089.10s tid=0x00007f88598ef800 nid=0x17b in Object.wait()  [0x00007f87fa5e1000]
+   java.lang.Thread.State: WAITING (on object monitor)
+        at java.lang.Object.wait(java.base@11.0.12/Native Method)
+        - waiting on <no object reference available>
+        at java.lang.Object.wait(java.base@11.0.12/Unknown Source)
+        at io.netty.util.concurrent.DefaultPromise.awaitUninterruptibly(DefaultPromise.java:275)
+        - waiting to re-lock in wait() <0x00000000cb13f9c0> (a io.netty.channel.DefaultChannelPromise)
+        at io.netty.channel.DefaultChannelPromise.awaitUninterruptibly(DefaultChannelPromise.java:137)
+        at io.netty.channel.DefaultChannelPromise.awaitUninterruptibly(DefaultChannelPromise.java:30)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.closeInternal(PerChannelBookieClient.java:1081)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.disconnect(PerChannelBookieClient.java:1034)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.disconnect(PerChannelBookieClient.java:1029)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.failTLS(PerChannelBookieClient.java:2555)
+        - locked <0x00000000b8293218> (a org.apache.bookkeeper.proto.PerChannelBookieClient)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.access$2900(PerChannelBookieClient.java:154)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$StartTLSCompletion.errorOut(PerChannelBookieClient.java:1961)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$CompletionValue.timeout(PerChannelBookieClient.java:1614)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$CompletionValue.maybeTimeout(PerChannelBookieClient.java:1606)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.lambda$static$3(PerChannelBookieClient.java:1011)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$$Lambda$596/0x00000001006f8440.test(Unknown Source)
+        at org.apache.bookkeeper.util.collections.ConcurrentOpenHashMap$Section.removeIf(ConcurrentOpenHashMap.java:411)
+        at org.apache.bookkeeper.util.collections.ConcurrentOpenHashMap.removeIf(ConcurrentOpenHashMap.java:172)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.checkTimeoutOnPendingOperations(PerChannelBookieClient.java:1015)
+        at org.apache.bookkeeper.proto.DefaultPerChannelBookieClientPool.checkTimeoutOnPendingOperations(DefaultPerChannelBookieClientPool.java:132)
+        at org.apache.bookkeeper.proto.BookieClientImpl.monitorPendingOperations(BookieClientImpl.java:572)
+        at org.apache.bookkeeper.proto.BookieClientImpl.lambda$new$0(BookieClientImpl.java:131)
+        at org.apache.bookkeeper.proto.BookieClientImpl$$Lambda$163/0x000000010038e840.run(Unknown Source)
+        at org.apache.bookkeeper.util.SafeRunnable$1.safeRun(SafeRunnable.java:43)
+        at org.apache.bookkeeper.common.util.SafeRunnable.run(SafeRunnable.java:36)
+        at com.google.common.util.concurrent.MoreExecutors$ScheduledListeningDecorator$NeverSuccessfulListenableFutureTask.run(MoreExecutors.java:705)
+        at java.util.concurrent.Executors$RunnableAdapter.call(java.base@11.0.12/Unknown Source)
+        at java.util.concurrent.FutureTask.runAndReset(java.base@11.0.12/Unknown Source)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(java.base@11.0.12/Unknown Source)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.12/Unknown Source)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.12/Unknown Source)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(java.base@11.0.12/Unknown Source)
+
+"BookKeeperClientWorker-OrderedExecutor-0-0" #27 prio=5 os_prio=0 cpu=616668.69ms elapsed=268089.10s tid=0x00007f88598f3000 nid=0x17c waiting for monitor entry  [0x00007f87fa4e0000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at org.apache.bookkeeper.proto.PerChannelBookieClient.connectIfNeededAndDoOp(PerChannelBookieClient.java:631)
+        - waiting to lock <0x00000000b8293218> (a org.apache.bookkeeper.proto.PerChannelBookieClient)
+        at org.apache.bookkeeper.proto.DefaultPerChannelBookieClientPool.obtain(DefaultPerChannelBookieClientPool.java:121)
+        at org.apache.bookkeeper.proto.DefaultPerChannelBookieClientPool.obtain(DefaultPerChannelBookieClientPool.java:116)
+        at org.apache.bookkeeper.proto.BookieClientImpl.addEntry(BookieClientImpl.java:329)
+        at org.apache.bookkeeper.client.PendingAddOp.sendWriteRequest(PendingAddOp.java:152)
+        at org.apache.bookkeeper.client.PendingAddOp.safeRun(PendingAddOp.java:278)
+        at org.apache.bookkeeper.common.util.SafeRunnable.run(SafeRunnable.java:36)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.12/Unknown Source)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.12/Unknown Source)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(java.base@11.0.12/Unknown Source)
+
+```
+
+**To Reproduce**
+i don't known how to reproduce
+
+**Additional context**
+version：2.9.1

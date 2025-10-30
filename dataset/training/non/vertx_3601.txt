@@ -1,0 +1,159 @@
+eventbus inboundInterceptor event executed out of context
+vertx 4.0.0.beta3
+
+As part of contextual data flow we found that insight inboundInterceptor event, vertx context is null. Following unit test that reproduce the issue:
+
+```
+package io.vertx.ext.contextual.tracing;
+
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
+import io.vertx.core.impl.ContextInternal;
+import io.vertx.core.logging.Log4j2LogDelegateFactory;
+import io.vertx.junit5.VertxExtension;
+import io.vertx.junit5.VertxTestContext;
+
+@ExtendWith(VertxExtension.class)
+class EventBusTest2 {
+	static{
+		System.setProperty("vertx.logger-delegate-factory-class-name",
+				Log4j2LogDelegateFactory.class.getName());	
+	}
+	
+	private static final String EVENT_ADDRESS = ".eventbus.test1";
+	private static final String CONTEXTUAL_KEY = "val";
+	
+	private static Logger logger = LogManager.getLogger(EventBusTest2.class);
+	
+	private static class TestVerticle extends AbstractVerticle {
+		
+		private static Logger internalLogger = LogManager.getLogger(TestVerticle.class);
+		private VertxTestContext testContext;
+		
+		public TestVerticle(VertxTestContext testContext) {
+			this.testContext = testContext;
+		}
+		
+		@Override
+		public void start(Promise<Void> startPromise) throws Exception {
+			vertx.eventBus().addInboundInterceptor(event ->{
+				var value = event.message().headers().get(CONTEXTUAL_KEY);
+				if(null != value) {
+					logger.trace("put value: {} to context", value);
+					put(CONTEXTUAL_KEY, value);
+					if(null == Vertx.currentContext()) {
+						logger.trace("No context found");
+					}
+				}
+				event.next();
+			});
+			
+			vertx.eventBus().consumer(EVENT_ADDRESS).handler(msg -> {
+				logger.trace("msg:{}", msg.body());
+				var expected = msg.body().toString();
+				var actual = get(CONTEXTUAL_KEY);
+				try {
+					Assertions.assertEquals(expected, actual, CONTEXTUAL_KEY);
+					testContext.completeNow();
+				} catch(Throwable t) {
+					testContext.failNow(t);
+				}
+			});
+			
+			startPromise.complete();
+		}
+	}
+	
+	@BeforeEach
+	void setUp(Vertx vertx) throws Exception {
+		
+	}
+
+	@Test
+	void testPublish(Vertx vertx, VertxTestContext context) {
+		logger.trace("testPublish");
+		vertx.runOnContext(nil -> {
+			vertx.eventBus().addOutboundInterceptor(event-> {
+				var value = get(CONTEXTUAL_KEY);
+				if(null != value) {
+					logger.trace("put contextual value: {} to header", value);
+					event.message().headers().add(CONTEXTUAL_KEY, value);
+				}
+				event.next();
+			});
+			vertx.deployVerticle(new TestVerticle(context))
+			.map(id -> {
+				String value = UUID.randomUUID().toString();
+				put(CONTEXTUAL_KEY, value);
+				logger.trace("publish:{}", value);
+				vertx.eventBus().publish(EVENT_ADDRESS, value);
+				return null;
+			});
+		});	
+	}
+	
+	@Test
+	void testSend(Vertx vertx, VertxTestContext context) {
+		logger.trace("testSend");
+		vertx.runOnContext(nil -> {
+			vertx.eventBus().addOutboundInterceptor(event-> {
+				var value = get(CONTEXTUAL_KEY);
+				if(null != value) {
+					logger.trace("put contextual value: {} to header", value);
+					event.message().headers().add(CONTEXTUAL_KEY, value);
+				}
+				event.next();
+			});
+			vertx.deployVerticle(new TestVerticle(context))
+			.map(id -> {
+				String value = UUID.randomUUID().toString();
+				put(CONTEXTUAL_KEY, value);
+				logger.trace("send:{}", value);
+				vertx.eventBus().send(EVENT_ADDRESS, value);
+				return null;
+			});
+		});	
+	}
+	
+	private static String put(String key, String value) {
+		Objects.requireNonNull(key);
+		Objects.requireNonNull(value);
+		ContextInternal ctx = (ContextInternal) Vertx.currentContext();
+		if (ctx == null) {
+			if (logger.isTraceEnabled()) {
+				logger.trace("Attempt to set contextual data from a non Vert.x thread");
+			}
+			return null;
+		} else {
+			return contextualDataMap(ctx).put(key, value);
+		}
+	}
+
+	public static String get(String key) {
+		Objects.requireNonNull(key);
+		ContextInternal ctx = (ContextInternal) Vertx.currentContext();
+		if (ctx != null) {
+			return contextualDataMap(ctx).get(key);
+		}
+		return null;
+	}
+	
+	private static ConcurrentMap<String, String> contextualDataMap(ContextInternal ctx) {
+		Objects.requireNonNull(ctx);
+		return (ConcurrentMap<String, String>) ctx.localContextData().computeIfAbsent(EventBusTest2.class, k -> new ConcurrentHashMap<String,String>());
+	}
+}
+```
