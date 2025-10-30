@@ -1,0 +1,6 @@
+camel-azure-servicebus: azure-servicebus: Unable to set only senderClient or processorClient
+When using a custom ServiceBus client, the configuration validation logic in ServiceBusComponent is not quite correct. It checks to see if both the senderClient and processorClient options have been provided before validating if the connectionString or fullyQualifiedNamespace options are set.
+
+https://github.com/apache/camel/blob/557b7ff166a754dcdd34997d56648de8f78b5dcb/components/camel-azure/camel-azure-servicebus/src/main/java/org/apache/camel/component/azure/servicebus/ServiceBusComponent.java#L90-L98
+
+However, if you're configuring the ServiceBus consumer, it only makes sense to specify the processorClient. Likewise, if you're configuring the servicebus producer, only the senderClient is relevant. You'd never supply both client options unless they get autowired.

@@ -1,0 +1,81 @@
+Memory Leak Issue with Redisson's  AsyncSemaphore in a 3 Master 3 Slave Redis Cluster
+Hello,
+
+I'm encountering an issue with Redisson in our production environment. Here are the details of our setup:
+
+JDK Version: 1.8
+Redisson Version: 3.27.2
+Redis Server Version: 5.0.3
+Deployment: 3 Master 3 Slave Sharded Cluster
+Web container：tomcat8.5
+After about 1.5 months of operation, we've noticed that the memory size of the org.redisson.misc.AsyncSemaphore class has ballooned to 2.5GB, occupying a significant portion of our JVM's old generation space. This has led to continuous Full GC events. Upon analyzing the heap dump, the Leak Suspects report is as follows (attach the diagram here):
+
+![image](https://github.com/user-attachments/assets/16bd6584-1f40-425c-a27f-33e226d98881)
+![image](https://github.com/user-attachments/assets/3b7d3163-d19b-4194-b577-20675a0bcc35)
+![image](https://github.com/user-attachments/assets/f495cf10-d8f8-481a-9c7e-16874973eca8)
+
+
+Thread Details:
+The thread stack for pool-14-thread-1 is as follows:
+> at sun.misc.Unsafe.park(ZJ)V (Native Method)
+at java.util.concurrent.locks.LockSupport.parkNanos(Ljava/lang/Object;J)V (LockSupport.java:215)
+at java.util.concurrent.CompletableFuture$Signaller.block()Z (CompletableFuture.java:1709)
+at java.util.concurrent.ForkJoinPool.managedBlock(Ljava/util/concurrent/ForkJoinPool$ManagedBlocker;)V (ForkJoinPool.java:3323)
+at java.util.concurrent.CompletableFuture.timedGet(J)Ljava/lang/Object; (CompletableFuture.java:1788)
+at java.util.concurrent.CompletableFuture.get(JLjava/util/concurrent/TimeUnit;)Ljava/lang/Object; (CompletableFuture.java:1928)
+at org.redisson.RedissonLock.tryLock(JJLjava/util/concurrent/TimeUnit;)Z (RedissonLock.java:246)
+at com.xcc.recinter.quartz.kakfa.KafkaResendSchedule.processTask()V (KafkaResendSchedule.java:76)
+at com.xcc.recinter.quartz.ConfigurerScheduling.lambda$configureTasks$0()V (ConfigurerScheduling.java:49)
+at com.xcc.recinter.quartz.ConfigurerScheduling$$Lambda$1614.run()V (Unknown Source)
+at org.springframework.scheduling.support.DelegatingErrorHandlingRunnable.run()V (DelegatingErrorHandlingRunnable.java:54)
+at org.springframework.scheduling.concurrent.ReschedulingRunnable.run()V (ReschedulingRunnable.java:95)
+at java.util.concurrent.Executors$RunnableAdapter.call()Ljava/lang/Object; (Executors.java:511)
+at java.util.concurrent.FutureTask.run()V (FutureTask.java:266)
+at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(Ljava/util/concurrent/ScheduledThreadPoolExecutor$ScheduledFutureTask;)V (ScheduledThreadPoolExecutor.java:180)
+at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run()V (ScheduledThreadPoolExecutor.java:293)
+at java.util.concurrent.ThreadPoolExecutor.runWorker(Ljava/util/concurrent/ThreadPoolExecutor$Worker;)V (ThreadPoolExecutor.java:1149)
+at java.util.concurrent.ThreadPoolExecutor$Worker.run()V (ThreadPoolExecutor.java:624)
+at java.lang.Thread.run()V (Thread.java:750)
+
+The thread appears to be part of a scheduled task that runs every minute (the task thread pool is set to 5, which might indicate duplicate task execution). The task first attempts to acquire a lock, processes the task, and then releases the lock. The relevant code snippet is as follows:
+
+```
+protected void processTask() {
+    while (true){
+        RLock resenfKafkaLock = null;
+        boolean b = false;
+        try {
+            // Acquire lock from Redis
+            RedissonClient redisClient = dynamicRedis.getRedisClient();
+            resenfKafkaLock = redisClient.getLock(LockConstants.LOCK_RESEND);
+            b = resenfKafkaLock.tryLock(10, 600, TimeUnit.SECONDS);
+            if (b) {
+                // Process tasks...
+                // Return if no tasks
+            }
+        } catch (Exception ex) {
+            logger.error("resend error {}", ex.toString());
+        } finally {
+            LockUtils.release(resenfKafkaLock, b);
+        }
+    }
+}
+```
+
+```
+public static void release( RLock r, boolean locked){
+    if(r != null && r.isHeldByCurrentThread() && locked){
+        r.unlock();
+    }
+}
+```
+
+Redisson's configuration is as follows:
+[redisson.txt](https://github.com/user-attachments/files/18048586/redisson.txt)
+
+I'm unsure why there are so many objects accumulating in java.util.concurrent.ConcurrentLinkedQueue. Any insights or suggestions on how to resolve this memory leak issue would be greatly appreciated.
+
+Thank you for your time and assistance.
+
+Best regards,
+ly

@@ -1,0 +1,27 @@
+Optimize the listing files for direct insert
+*Background:*
+Insert Overwrite query with hive.acid.direct.insert.enabled=true writes data directly to the target directory(actual table location) in the MOVE stage. 
+Say insert query is of writeid 5 and cleaner has got writeid 2 directories marked as obsolete
+{code:java}
+private static Path[] getDirectInsertDirectoryCandidatesRecursive(FileSystem fs,
+    Path path, int skipLevels, PathFilter filter) throws IOException {
+  String lastRelDir = null;
+  HashSet<Path> results = new HashSet<Path>();
+  String relRoot = Path.getPathWithoutSchemeAndAuthority(path).toString();
+  if (!relRoot.endsWith(Path.SEPARATOR)) {
+    relRoot += Path.SEPARATOR;
+  }
+  RemoteIterator<LocatedFileStatus> allFiles = fs.listFiles(path, true);
+  while (allFiles.hasNext()) {
+  LocatedFileStatus lfs = allFiles.next();
+  .
+  .
+}{code}
+_*fs.listFiles(path, true)*_
+    - This recursively lists {*}all files{*}, even those that may be obsolete or deleted during iteration. So if Hive's cleaner deletes {{base_000002}} _after_ it's discovered by {{listFiles()}} but _before_ {{hasNext()}} tries to access it (for metadata resolution), we get a {{{}FileNotFoundException{}}}.
+
+There is a fix for this issue in Hadoop upstream HADOOP-18662
+This was discovered when run hadoop version without this fix.
+
+But why list all the files recursively irrespective of the current write id which is unnecessary which we will be filtering out later.
+Need to optimize from hive side to see if we can filter and list only current write id files from hdfs.

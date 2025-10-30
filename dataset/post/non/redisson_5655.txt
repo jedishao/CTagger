@@ -1,0 +1,120 @@
+BaseRedissonList::remove(Object) doesn't work with JsonJacksonCodec and Java9 internal ImmutableCollections classes
+Hello!
+There's an issue removing Objects from a Redisson List (tested not working on List, Queue and Deque).
+Removing by index works, removing by value (using the method remove(Object) on BaseRedissonList) doesn't work if the Object contains ImmutableCollections objects.
+
+Please find more infos below:
+
+**Redis version (from INFO command):** 7.2.3 
+**Redisson version:** 3.27.0 (with Quarkus v3.7.4)
+
+**Expected behavior**
+`boolean remove(Object)` should remove the Object from the list and return true
+
+**Actual behavior**
+The method returns false and, checking using `redis-cli` tool, the Object doesn't get removed from the list.
+
+`BaseRedissonList::remove(Object)` internally calls the Redis command `LREM` which removes the Object comparing the string value, built after the Codec encoding.
+The JavaJacksonCodec() codec encodes/decodes internal Java9 collections using different classes, so the LREM command doesn't work properly.
+
+**Workaround**
+Switching to Kryo5Codec (which is default), the remove(Object) method works correctly.
+
+**TestCase showing issue, using Java9 immutable collections classes**
+```
+@Test
+public void givenDtoWithJava9ImmutableListTypeTestRemoveFromListUsingJacksonCodecDoesntWork() throws IOException {
+    TestDto testDto = new TestDto();
+    testDto.id = 10L;
+    testDto.list = List.of("test1v1", "test1v2");
+
+    RList<TestDto> queue = redissonClient.getList("testlist", new JsonJacksonCodec());
+    queue.addAll(Arrays.asList(testDto));
+
+    TestDto first = queue.getFirst();
+
+    ByteBuf firstEncodedBuffer = new JsonJacksonCodec().getValueEncoder().encode(first);
+    ByteBuf removedEncodedBuffer = new JsonJacksonCodec().getValueEncoder().encode(testDto);
+
+    boolean removed = queue.remove(first);
+    int queueSize = queue.size();
+
+    // deleting test queue
+    queue.delete();
+
+    System.out.println("getFirst id " + first.id);
+    System.out.println("Dto encoded: " + firstEncodedBuffer.toString(Charset.defaultCharset()));
+    System.out.println("First encoded: " + removedEncodedBuffer.toString(Charset.defaultCharset()));
+
+    Assertions.assertThat(removed).isFalse();
+    Assertions.assertThat(firstEncodedBuffer).isNotEqualTo(removedEncodedBuffer);
+    Assertions.assertThat(queueSize).isEqualTo(1);
+}
+```
+Encoding result between the two objects is not the same, thus remove doesn't work correctly:
+
+```
+Dto encoding output: {"@class":"io.pms.redisson.JsonJacksonCodecIssueRedissonClientTest$TestDto","id":["java.lang.Long",10],"list":["java.util.ArrayList",["test1v1","test1v2"]]}
+First encoding output: {"@class":"io.pms.redisson.JsonJacksonCodecIssueRedissonClientTest$TestDto","id":["java.lang.Long",10],"list":["java.util.ImmutableCollections$List12",["test1v1","test1v2"]]}
+```
+
+**WORKING TestCase using Java ArrayList class**
+
+Setup:
+```
+public class JsonJacksonCodecIssueRedissonClientTest {
+    private RedissonClient redissonClient;
+    private Config config;
+
+    public static class TestDto implements Serializable {
+        public Long id;
+        public List<String> list;
+
+    }
+
+    @BeforeEach
+    public void setUp() {
+        config = new Config();
+        config.useSingleServer().setAddress("redis://127.0.0.1:6379");
+        redissonClient = Redisson.create(config);
+    }
+```
+Test case:
+```
+@Test
+public void givenDtoWithJavaArrayListRemoveFromListUsingJacksonCodecWorks() throws IOException {
+    TestDto testDto = new TestDto();
+    testDto.id = 10L;
+    testDto.list = new ArrayList<>(List.of("testv1", "testv2"));
+
+    RList<TestDto> queue = redissonClient.getList("testlist", new JsonJacksonCodec());
+    queue.addAll(Arrays.asList(testDto));
+
+    TestDto first = queue.getFirst();
+
+    ByteBuf firstEncodedBuffer = new JsonJacksonCodec().getValueEncoder().encode(first);
+    ByteBuf removedEncodedBuffer = new JsonJacksonCodec().getValueEncoder().encode(testDto);
+
+    boolean removed = queue.remove(first);
+    int queueSize = queue.size();
+
+    // deleting test queue
+    queue.delete();
+
+    System.out.println("getFirst id " + first.id);
+    System.out.println("Dto encoded: " + firstEncodedBuffer.toString(Charset.defaultCharset()));
+    System.out.println("First encoded: " + removedEncodedBuffer.toString(Charset.defaultCharset()));
+
+    Assertions.assertThat(removed).isTrue();
+    Assertions.assertThat(firstEncodedBuffer).isEqualTo(removedEncodedBuffer);
+    Assertions.assertThat(queueSize).isZero();
+}
+```
+Encoding result is the same, thus remove works correctly:
+
+```
+Dto encoding output: {"@class":"io.pms.redisson.JsonJacksonCodecIssueRedissonClientTest$TestDto","id":["java.lang.Long",10],"list":["java.util.ArrayList",["testv1","testv2"]]}
+First encoding output: {"@class":"io.pms.redisson.JsonJacksonCodecIssueRedissonClientTest$TestDto","id":["java.lang.Long",10],"list":["java.util.ArrayList",["testv1","testv2"]]}
+```
+
+Thank you for checking

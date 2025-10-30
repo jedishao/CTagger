@@ -1,0 +1,27 @@
+Patched Datanucleus RDBMS 
+*DataNucleus(DN): (Tested both mysql and postgres)*
+Upgrading to 6.0.0-release causes an issue when executing the hive-schema file.
+ 
+{code:java}
+Error: Error while compiling statement: FAILED: Execution Error, return code 40000 from org.apache.hadoop.hive.ql.ddl.DDLTask. MetaException(message:JDOUserException: Table ""PARTITION_KEYS"" has been specified with a primary-key to include column ""TBL_ID"" but this column is not found in the table. Please check your <primary-key> column specification.
+
+[2024-04-11T21:28:16.977Z] Root cause: org.datanucleus.exceptions.NucleusUserException: Table ""PARTITION_KEYS"" has been specified with a primary-key to include column ""TBL_ID"" but this column is not found in the table. Please check your <primary-key> column specification.) (state=08S01,code=40000) {code}
+**
+ 
+*Root Cause:* enclosing the primary key column name with quotes causes comparison problem and gives us that there is no column found even though it is present.
+
+*Commit which introduced the issue:* [https://github.com/datanucleus/datanucleus-rdbms/commit/b99df3c803862f9e9feacc7891461bcb21160b38]Identifier case values supported by DN are * uppercase
+ * mixedcase
+ * lowercase
+
+uppercase and mixedcase gives the same error (attached error for mysql) :
+Caused by: org.datanucleus.exceptions.NucleusUserException: Table "`PARTITION_KEYS`" has been specified with a primary-key to include column "`TBL_ID`" but this column is not found in the table. Please check your <primary-key> column specification.
+ 
+lowercase: database sys is not recognising even though the database is present (show databases has sys in it).
+FAILED: SemanticException [Error 10072]: Database does not exist: SYS 24/05/19 13:39:04 [ee0082ab-479f-4f13-85ad-18330707ab00 main]: ERROR ql.Driver: FAILED: SemanticException [Error 10072]: Database does not exist: SYS org.apache.hadoop.hive.ql.parse.SemanticException: Database does not exist: SYS
+ 
+*workaround solutions:* # Patched datanucleus-rdbms jar with modifying the required file.
+
+*Permanent solution:* 
+
+Make the fix in datanucleus-rdbms repo. Requires a mini scale reproduction of this issue in a code to raise an issue in DN.

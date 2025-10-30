@@ -1,0 +1,30 @@
+Metadata can't resolve `$internal$json_string_to_array_cast` built in function
+
+Following query fails in hive with projection pushdown enabled as  `ConnectorExpressionTranslator` can't resolve [$internal$json_string_to_array_cast function](https://github.com/trinodb/trino/blob/master/core/trino-main/src/main/java/io/trino/sql/planner/ConnectorExpressionTranslator.java#L295-L297).  Issue could be related to [IrExpressionOptimizer generating different call Expression](https://github.com/trinodb/trino/blob/master/core/trino-main/src/main/java/io/trino/sql/ir/optimizer/rule/SpecializeCastWithJsonParse.java#L54-L57) than the [expected one](https://github.com/trinodb/trino/blob/master/core/trino-main/src/main/java/io/trino/operator/scalar/JsonStringToArrayCast.java#L34-L44). Same problem could exist with`$internal$json_string_to_map_cast` and `$internal$json_string_to_row_cast`.
+
+```
+trino:tpch> create table hive.default.t1 as select cast(row('[1]', '[2]') as row(a varchar, b varchar)) as col;
+CREATE TABLE: 1 row
+
+Query 20240726_171809_00034_76pnh, FINISHED, 1 node
+Splits: 20 total, 20 done (100.00%)
+0.24 [0 rows, 0B] [0 rows/s, 0B/s]
+
+trino:tpch> select cast(json_parse(col.a) as array(varchar)) from hive.default.t1;
+Query 20240726_171831_00035_76pnh failed: Unexpected parameters (varchar) for function $internal$json_string_to_array_cast. Expected: $internal$json_string_to_array_cast(varchar(N)) T
+
+...
+
+
+trino:tpch> set session hive.projection_pushdown_enabled=false;
+SET SESSION
+trino:tpch> select cast(json_parse(col.a) as array(varchar)) from hive.default.t1;
+ _col0 
+-------
+ [1]   
+(1 row)
+
+Query 20240726_172442_00038_76pnh, FINISHED, 1 node
+Splits: 1 total, 1 done (100.00%)
+0.15 [1 rows, 374B] [6 rows/s, 2.5KB/s]
+```

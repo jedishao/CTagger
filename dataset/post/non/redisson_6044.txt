@@ -1,0 +1,53 @@
+Shutting down Redisson client much slower since 3.30.0
+### Redis version
+
+7.4.1
+
+### Redisson version
+
+3.30.0
+
+### Redisson configuration
+
+redis.url=redis://${redis.host}:${redis.port}
+redis.connectTimeout=10000
+redis.timeout=1500
+redis.retryAttempts=1
+redis.retryInterval=500
+redis.pingConnectionInterval=5000
+redis.connectionPoolSize=16
+redis.connectionPoolMinIdleSize=6
+redis.subscriptionConnectionPoolSize=12
+redis.subscriptionConnectionPoolMinIdleSize=2
+redis.threads=8
+redis.nettyThreads=16
+redis.useScriptCache=true
+
+### What is the Expected behavior?
+
+_No response_
+
+### What is the Actual behavior?
+
+Shutdown of a `RedissonClient` is significantly slower since 3.30.0.
+
+The reproducer takes almost 2s since 3.30.0 and <500ms on 3.29.0.
+
+### Additional information
+
+Reproducer:
+
+```java
+class ShutdownTest {
+
+	@Inject
+	private RedissonClient redissonClient;
+	
+	@Test
+	void shouldShutDown() {
+		redissonClient.shutdown();
+
+		assertThat(redissonClient.isShutdown()).isTrue();
+	}
+}
+```

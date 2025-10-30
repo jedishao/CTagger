@@ -1,0 +1,59 @@
+protoc-gen-grpc-java can't be built with gradle and protobuf 22+
+I'm trying to package grpc-java 1.66.0 for Alpine Linux. I have modified `compiler/build.gradle` as follows:
+```
+cppCompiler.executable = 'aarch64-alpine-linux-musl-c++'
+linker.executable = 'aarch64-alpine-linux-musl-c++'
+```
+I'm using the following steps to run the build:
+```
+apk add openjdk21-jre-headless protobuf-dev nss
+wget https://github.com/grpc/grpc-java/archive/v1.66.0.tar.gz
+tar xzf v1.66.0.tar.gz 
+cd grpc-java-1.66.0/compiler
+export GRADLE_USER_HOME="$srcdir"/.gradle
+export CXXFLAGS="--std=c++17"
+export LDFLAGS="-L/usr/lib"
+../gradlew --no-daemon --parallel --info java_pluginExecutable -PskipAndroid=true
+```
+The build seems to succeed, but linking fails with:
+```
+> Task :grpc-compiler:compileJava_pluginExecutableJava_pluginCpp UP-TO-DATE
+Found all include files for ':grpc-compiler:compileJava_pluginExecutableJava_pluginCpp'
+Caching disabled for task ':grpc-compiler:compileJava_pluginExecutableJava_pluginCpp' because:
+  Build cache is disabled
+Skipping task ':grpc-compiler:compileJava_pluginExecutableJava_pluginCpp' as it is up-to-date.
+Resolve mutations for :grpc-compiler:linkJava_pluginExecutable (Thread[#74,Execution worker Thread 5,5,main]) started.
+:grpc-compiler:linkJava_pluginExecutable (Thread[#74,Execution worker Thread 5,5,main]) started.
+
+> Task :grpc-compiler:linkJava_pluginExecutable FAILED
+Caching disabled for task ':grpc-compiler:linkJava_pluginExecutable' because:
+  Build cache is disabled
+  Not made cacheable, yet
+Task ':grpc-compiler:linkJava_pluginExecutable' is not up-to-date because:
+  Task has failed previously.
+See file:///home/builder/package/grpc-java-1.66.0/compiler/build/tmp/linkJava_pluginExecutable/output.txt for all output for linkJava_pluginExecutable.
+Starting process 'command '/usr/bin/g++''. Working directory: /home/builder/package/grpc-java-1.66.0/compiler Command: /usr/bin/g++ @/home/builder/package/grpc-java-1.66.0/compiler/build/tmp/linkJava_pluginExecutable/options.txt -m64
+Successfully started process 'command '/usr/bin/g++''
+/usr/lib/gcc/x86_64-alpine-linux-musl/13.2.1/../../../../x86_64-alpine-linux-musl/bin/ld: cannot find -lprotoc: No such file or directory
+/usr/lib/gcc/x86_64-alpine-linux-musl/13.2.1/../../../../x86_64-alpine-linux-musl/bin/ld: cannot find -lprotobuf: No such file or directory
+collect2: error: ld returned 1 exit status
+
+Finished linkJava_pluginExecutable, see full log file:///home/builder/package/grpc-java-1.66.0/compiler/build/tmp/linkJava_pluginExecutable/output.txt.
+
+FAILURE: Build failed with an exception.
+```
+
+But the libraries installed by `protobuf-dev` exist:
+```
+/home/builder/package/grpc-java-1.66.0/compiler # ls -lha /usr/lib/libproto*
+lrwxrwxrwx 1 root root   22 Aug 13 21:18 /usr/lib/libprotobuf-lite.so -> libprotobuf-lite.so.24
+lrwxrwxrwx 1 root root   26 Aug 13 21:18 /usr/lib/libprotobuf-lite.so.24 -> libprotobuf-lite.so.24.4.0
+-rwxr-xr-x 1 root root 487K Jul 22 17:26 /usr/lib/libprotobuf-lite.so.24.4.0
+lrwxrwxrwx 1 root root   17 Aug 13 21:18 /usr/lib/libprotobuf.so -> libprotobuf.so.24
+lrwxrwxrwx 1 root root   21 Aug 13 21:18 /usr/lib/libprotobuf.so.24 -> libprotobuf.so.24.4.0
+-rwxr-xr-x 1 root root 2.7M Jul 22 17:26 /usr/lib/libprotobuf.so.24.4.0
+lrwxrwxrwx 1 root root   15 Aug 13 21:18 /usr/lib/libprotoc.so -> libprotoc.so.24
+lrwxrwxrwx 1 root root   19 Aug 13 21:18 /usr/lib/libprotoc.so.24 -> libprotoc.so.24.4.0
+-rwxr-xr-x 1 root root 2.4M Jul 22 17:26 /usr/lib/libprotoc.so.24.4.0
+```
+Can anyone help me resolve this linking issue?

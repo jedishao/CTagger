@@ -1,0 +1,20 @@
+Overlay modified session level metaconf to new hmsclient connection
+Scenario steps:
+{code:java}
+1. Create a beeline session and modify metaconf like following (for example):
+
+set metaconf:metastore.try.direct.sql=false;
+set metaconf:metastore.partition.name.whitelist.pattern=[^9]*;
+
+2. Restart HMS keeping the beeline session same.
+
+3. Run some queries which leverages the modified metaConf, the sessions level modified metaconf are not honoured (observation){code}
+ 
+
+In SetProcessor.java, for metaconf's, SessionState is not updated. setMetaConf() is called which calls HMSHandler#setMetaConf and updates HMSHandlerContext which is ThreadLocal.
+
+SessionState should store modified metaconf in a map, similar to SessionState#overriddenConfigurations which currently stores only HS2 level configs.
+
+{*}From user perspective{*}, if the configs are set on beeline, it shouldn't matter to them, if HMS crashes and restarted or the HMS call (get_table etc) goes to another HMS (if more than 1 HMS are present), it should honour the session level modified conf. The new hmsclient connection should pass the metaConf to HMSHandler.
+
+ 

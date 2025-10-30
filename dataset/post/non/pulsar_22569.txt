@@ -1,0 +1,65 @@
+[Bug] Broker could take 30+ seconds to close with extensible load manager
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+master (89b201ed8a49877e0a7148b060af945b29074b02)
+
+### Minimal reproduce step
+
+```java
+public class ExtensibleLoadManagerCloseTest extends MultiBrokerBaseTest {
+
+    @Override
+    protected void startBroker() throws Exception {
+        addCustomConfigs(conf);
+        super.startBroker();
+    }
+
+    @Override
+    protected ServiceConfiguration createConfForAdditionalBroker(int additionalBrokerIndex) {
+        return addCustomConfigs(getDefaultConf());
+    }
+
+    private static ServiceConfiguration addCustomConfigs(ServiceConfiguration config) {
+        config.setLoadManagerClassName(ExtensibleLoadManagerImpl.class.getName());
+        config.setDefaultNumberOfNamespaceBundles(16);
+        config.setLoadBalancerAutoBundleSplitEnabled(false);
+        config.setLoadBalancerDebugModeEnabled(true);
+        return config;
+    }
+
+    @Test
+    public void test() throws Exception {
+        final var topic = "test";
+        admin.topics().createPartitionedTopic(topic, 20);
+        admin.lookups().lookupPartitionedTopic(topic);
+        @Cleanup final var client = PulsarClient.builder().serviceUrl(pulsar.getBrokerServiceUrl()).build();
+        @Cleanup final var producer = (PartitionedProducerImpl<byte[]>) client.newProducer().topic(topic).create();
+    }
+}
+```
+
+### What did you expect to see?
+
+It should not takes too long to complete.
+
+### What did you see instead?
+
+It sometimes took about 54 seconds to complete and sometimes 22 seconds.
+
+### Anything else?
+
+With the default load manager, it only takes about 15 seconds to complete.
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

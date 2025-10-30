@@ -1,0 +1,18 @@
+Handling of abandoned connections
+Hi,
+
+I have a question regarding how "abandoned" Redis connections are handled. By this I mean a connection that was acquired from the pool, but never returned. In the documentation I found information about idle connection cleanup, but in the abandoned case, I think the connection wouldn't be idle.
+
+Maybe this might happen in a reactive environment:
+```
+...
+.flatMap(/* interact with redis  */)
+.timeout(Duration.ofSeconds(10))
+```
+
+In this example the operation in flatMap could be randomly interrupted after the timeout. In my understanding, the interruption could occur directly after the connection was acquired, but before it was returned back to the pool. 
+
+Does Redisson get rid of such abandoned connections? The `GenericObjectPool` used with lettuce for example explicitly mentions this:
+> The pool can also be configured to detect and remove "abandoned" objects, i.e. objects that have been checked out of the pool but neither used nor returned 
+
+https://commons.apache.org/proper/commons-pool/apidocs/org/apache/commons/pool2/impl/GenericObjectPool.html

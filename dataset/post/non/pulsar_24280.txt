@@ -1,0 +1,128 @@
+[Bug] Failure to load encryption key creates a producer connection on server side but throws exception on client side
+### Search before reporting
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that [unsupported versions](https://pulsar.apache.org/contribute/release-policy/#supported-versions) don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### User environment
+
+Broker version : 3.3.7
+Broker Operating system : local 
+Broker Java version : 17
+Client library type : Java
+Client library version : 3.3.7
+Client Operating system : local
+Client Java version: 17
+
+### Issue Description
+
+Failure to load the encryption public key while creating the producer creates a producer on the server side but returns an exception on client side.
+I was trying to create a producer by providing a configuration with encryption key and crypto key reader and crypto key reader implementation failed while loading the public key. The failure to load the public key is cascaded as PulsarClientException.CryptoException on the client side but still creates a successful connection on the server side.
+As per the design, failure to load the key should not prevent producer creation but the send will eventually fail as the key is not there. However the producer creation failed on the client side but was successful on server side.
+I expected that the producer creation would be successful and send would fail or the producer connection should not be created on the server side.
+
+### Error messages
+
+```text
+Cleint:
+Exception in creating the producer :org.apache.pulsar.client.api.PulsarClientException$CryptoException: The producer null of the topic persistent://cms-test/standalone/ns1/tt3 adds the public key cipher was failed
+[persistent://cms-test/standalone/ns1/tt3] [null] [0]Failed to load public key mykey. Cannot invoke "org.apache.pulsar.client.api.EncryptionKeyInfo.getKey()" because "keyInfo" is null
+
+Broker:
+2025-05-08T11:19:04,224-0400 [BookKeeperClientWorker-OrderedExecutor-9-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [cms-test/standalone/ns1/persistent/tt3] Created ledger 7 after closed null
+2025-05-08T11:19:04,228-0400 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerFactoryImpl - [cms-test/standalone/ns1/persistent/tt3] Successfully initialize managed ledger
+2025-05-08T11:19:04,230-0400 [broker-topic-workers-OrderedExecutor-7-0] INFO  org.apache.pulsar.broker.service.BrokerService - Created topic persistent://cms-test/standalone/ns1/tt3 - dedup is disabled
+2025-05-08T11:19:04,235-0400 [broker-topic-workers-OrderedExecutor-6-0] INFO  org.apache.pulsar.broker.service.ServerCnx - [/127.0.0.1:52315] Created new producer: Producer{topic=PersistentTopic{topic=persistent://cms-test/standalone/ns1/tt3}, client=[id: 0x2d3c09bb, L:/127.0.0.1:6650 - R:/127.0.0.1:52315] [SR:127.0.0.1, state:Connected], producerName=standalone-0-0, producerId=0}
+
+Stats:
+bin/pulsar-admin topics stats persistent://cms-test/standalone/ns1/tt3
+{
+  "msgRateIn" : 0.0,
+  "msgThroughputIn" : 0.0,
+  "msgRateOut" : 0.0,
+  "msgThroughputOut" : 0.0,
+  "bytesInCounter" : 0,
+  "msgInCounter" : 0,
+  "systemTopicBytesInCounter" : 0,
+  "bytesOutCounter" : 0,
+  "msgOutCounter" : 0,
+  "bytesOutInternalCounter" : 0,
+  "averageMsgSize" : 0.0,
+  "msgChunkPublished" : false,
+  "storageSize" : 0,
+  "backlogSize" : 0,
+  "backlogQuotaLimitSize" : 10737418240,
+  "backlogQuotaLimitTime" : -1,
+  "oldestBacklogMessageAgeSeconds" : -1,
+  "publishRateLimitedTimes" : 0,
+  "earliestMsgPublishTimeInBacklogs" : 0,
+  "offloadedStorageSize" : 0,
+  "lastOffloadLedgerId" : 0,
+  "lastOffloadSuccessTimeStamp" : 0,
+  "lastOffloadFailureTimeStamp" : 0,
+  "ongoingTxnCount" : 0,
+  "abortedTxnCount" : 0,
+  "committedTxnCount" : 0,
+  "publishers" : [ {
+    "accessMode" : "Shared",
+    "msgRateIn" : 0.0,
+    "msgThroughputIn" : 0.0,
+    "averageMsgSize" : 0.0,
+    "chunkedMessageRate" : 0.0,
+    "producerId" : 0,
+    "supportsPartialProducer" : false,
+    "producerName" : "standalone-0-1",
+    "address" : "/127.0.0.1:52437",
+    "connectedSince" : "2025-05-08T11:21:09.058212-04:00",
+    "clientVersion" : "Pulsar-Java-v3.3.7-SNAPSHOT",
+    "metadata" : { }
+  } ],
+  "waitingPublishers" : 0,
+  "subscriptions" : { },
+  "replication" : { },
+  "deduplicationStatus" : "Disabled",
+  "nonContiguousDeletedMessagesRanges" : 0,
+  "nonContiguousDeletedMessagesRangesSerializedSize" : 0,
+  "delayedMessageIndexSizeInBytes" : 0,
+  "compaction" : {
+    "lastCompactionRemovedEventCount" : 0,
+    "lastCompactionSucceedTimestamp" : 0,
+    "lastCompactionFailedTimestamp" : 0,
+    "lastCompactionDurationTimeInMills" : 0
+  },
+  "ownerBroker" : "localhost:8080"
+}
+```
+
+### Reproducing the issue
+
+Try creating a producer using pulsar java client
+```
+producer = cmsClient.newProducer().addEncryptionKey("mykey").cryptoKeyReader(new MyKeyReader()).topic(topicName).create(); 
+```
+MyKeyReader implementation will return null to mimoc the scenario where fetching public key would fail
+```
+public class MyKeyReader implements CryptoKeyReader {
+    @Override
+    public EncryptionKeyInfo getPublicKey(String keyName, Map<String, String> metadata) {
+        return null;
+    }
+    @Override
+    public EncryptionKeyInfo getPrivateKey(String keyName, Map<String, String> metadata) {
+        return null;
+    }
+}
+```
+
+### Additional information
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

@@ -1,0 +1,69 @@
+Broken TestRedshiftUnloadTypeMapping.testTimestampWithTimeZoneOverflow
+https://github.com/trinodb/trino/actions/runs/14163801309/job/39673543868
+
+```
+Error:  Tests run: 43, Failures: 1, Errors: 0, Skipped: 1, Time elapsed: 169.4 s <<< FAILURE! -- in io.trino.plugin.redshift.TestRedshiftUnload
+Error:  io.trino.plugin.redshift.TestRedshiftUnloadTypeMapping.testTimestampWithTimeZoneOverflow -- Time elapsed: 13.99 s <<< FAILURE!
+java.lang.AssertionError: Expected TrinoException or wrapper, but got: io.trino.testing.QueryFailedException io.trino.testing.QueryFailedException: Millis overflow: 9224318015999000
+	at io.trino.testing.assertions.TrinoExceptionAssert.assertThatTrinoException(TrinoExceptionAssert.java:79)
+	at io.trino.testing.assertions.TrinoExceptionAssert.assertTrinoExceptionThrownBy(TrinoExceptionAssert.java:71)
+	at io.trino.sql.query.QueryAssertions$QueryAssert.failure(QueryAssertions.java:400)
+	at io.trino.plugin.redshift.TestRedshiftTypeMapping.testTimestampWithTimeZoneOverflow(TestRedshiftTypeMapping.java:654)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:507)
+	at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.tryRemoveAndExec(ForkJoinPool.java:1434)
+	at java.base/java.util.concurrent.ForkJoinPool.helpJoin(ForkJoinPool.java:2[197](https://github.com/trinodb/trino/actions/runs/14163801309/job/39673543868#step:18:198))
+	at java.base/java.util.concurrent.ForkJoinTask.awaitDone(ForkJoinTask.java:495)
+	at java.base/java.util.concurrent.ForkJoinTask.join(ForkJoinTask.java:662)
+	at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:507)
+	at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1394)
+	at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1970)
+	at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187)
+Caused by: io.trino.testing.QueryFailedException: Millis overflow: 9224318015999000
+	at io.trino.testing.AbstractTestingTrinoClient.execute(AbstractTestingTrinoClient.java:138)
+	at io.trino.testing.DistributedQueryRunner.executeInternal(DistributedQueryRunner.java:565)
+	at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:548)
+	at io.trino.sql.query.QueryAssertions$QueryAssert.lambda$new$1(QueryAssertions.java:317)
+	at com.google.common.base.Suppliers$NonSerializableMemoizingSupplier.get(Suppliers.java:[198](https://github.com/trinodb/trino/actions/runs/14163801309/job/39673543868#step:18:199))
+	at org.assertj.core.api.ThrowableAssert.catchThrowable(ThrowableAssert.java:63)
+	at org.assertj.core.api.AssertionsForClassTypes.catchThrowable(AssertionsForClassTypes.java:904)
+	at org.assertj.core.api.Assertions.catchThrowable(Assertions.java:1472)
+	at io.trino.testing.assertions.TrinoExceptionAssert.assertTrinoExceptionThrownBy(TrinoExceptionAssert.java:67)
+	... 12 more
+	Suppressed: java.lang.Exception: SQL: SELECT * FROM test_schema.timestamp_tz_max5fz8b7balc
+		at io.trino.testing.DistributedQueryRunner.executeInternal(DistributedQueryRunner.java:572)
+		... 19 more
+Caused by: java.lang.IllegalArgumentException: Millis overflow: 9224318015999000
+	at io.trino.spi.type.DateTimeEncoding.pack(DateTimeEncoding.java:30)
+	at io.trino.spi.type.DateTimeEncoding.packDateTimeWithZone(DateTimeEncoding.java:52)
+	at io.trino.parquet.reader.decoders.ValueDecoders.lambda$getInt96ToLongTimestampWithTimeZoneDecoder$0(ValueDecoders.java:489)
+	at io.trino.parquet.reader.decoders.ValueDecoders$InlineTransformDecoder.read(ValueDecoders.java:1339)
+	at io.trino.parquet.reader.flat.DictionaryDecoder.getDictionaryDecoder(DictionaryDecoder.java:118)
+	at io.trino.parquet.reader.ColumnReaderFactory.lambda$createColumnReader$0(ColumnReaderFactory.java:290)
+	at io.trino.parquet.reader.AbstractColumnReader.setPageReader(AbstractColumnReader.java:84)
+	at io.trino.parquet.reader.ParquetReader.readPrimitive(ParquetReader.java:641)
+	at io.trino.parquet.reader.ParquetReader.readColumnChunk(ParquetReader.java:731)
+	at io.trino.parquet.reader.ParquetReader.readBlock(ParquetReader.java:711)
+	at io.trino.parquet.reader.ParquetReader$ParquetSourcePage.getBlock(ParquetReader.java:338)
+	at io.trino.parquet.reader.ParquetReader$ParquetSourcePage.getPage(ParquetReader.java:357)
+	at io.trino.operator.TableScanOperator.getOutput(TableScanOperator.java:272)
+	at io.trino.operator.Driver.processInternal(Driver.java:403)
+	at io.trino.operator.Driver.lambda$process$0(Driver.java:306)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:709)
+	at io.trino.operator.Driver.process(Driver.java:298)
+	at io.trino.operator.Driver.processForDuration(Driver.java:269)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:890)
+	at io.trino.execution.executor.dedicated.SplitProcessor.run(SplitProcessor.java:77)
+	at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.lambda$run$0(TaskEntry.java:[201](https://github.com/trinodb/trino/actions/runs/14163801309/job/39673543868#step:18:202))
+	at io.trino.$gen.Trino_testversion____20250331_040924_283.run(Unknown Source)
+	at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.run(TaskEntry.java:[202](https://github.com/trinodb/trino/actions/runs/14163801309/job/39673543868#step:18:203))
+	at io.trino.execution.executor.scheduler.FairScheduler.runTask(FairScheduler.java:177)
+	at io.trino.execution.executor.scheduler.FairScheduler.lambda$submit$0(FairScheduler.java:164)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:128)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:74)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:80)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1095)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:619)
+	at java.base/java.lang.Thread.run(Thread.java:1447)
+```

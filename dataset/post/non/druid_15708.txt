@@ -1,0 +1,42 @@
+Better error message when enabling basic security
+When using Druid in K8s with an operator, adding basic security to the cluster causes an error on restart with the historical servers.  This is because the historical servers are started first with the coordinator coming later; you have to manually force a restart of the coordinator to allow the cluster to properly restart.
+
+Unfortunately, the error in the historical logs does not point to the fact it initialize authentication, at least not obviously.  The error has to do with the fact that the JSON parser is getting an empty string.  It took a bit of time to figure out what was going on here so an error message more along the lines of "Cannot initialize security [specific reason here]" would make it much easier to quickly figure out the problem.
+
+The exception that is generated is:
+
+2024-01-17T13:41:11,286 INFO [NodeRoleWatcher[COORDINATOR]] org.apache.druid.discovery.BaseNodeRoleWatcher - Node [http://198.18.1.150:8088] of role [coordinator] detected.
+2024-01-17T13:41:11,287 INFO [NodeRoleWatcher[COORDINATOR]] org.apache.druid.discovery.BaseNodeRoleWatcher - Node watcher of role [coordinator] is now initialized with 1 nodes.
+2024-01-17T13:41:11,365 INFO [main] org.apache.druid.security.basic.authentication.db.cache.CoordinatorPollingBasicAuthenticatorCacheManager - Empty cached serialized user map retrieved, authenticator - MyBasicMetadataAuthenticator
+2024-01-17T13:41:11,367 INFO [main] org.apache.druid.security.basic.authentication.db.cache.CoordinatorPollingBasicAuthenticatorCacheManager - Started CoordinatorPollingBasicAuthenticatorCacheManager.
+2024-01-17T13:41:11,367 INFO [main] org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager - Starting CoordinatorPollingBasicAuthorizerCacheManager.
+2024-01-17T13:41:11,378 WARN [main] org.apache.druid.java.util.common.RetryUtils - Retrying (1 of 9) in 1,325ms.
+com.fasterxml.jackson.databind.exc.MismatchedInputException: No content to map due to end-of-input
+ at [Source: (byte[])""; line: -1, column: 0]
+	at com.fasterxml.jackson.databind.exc.MismatchedInputException.from(MismatchedInputException.java:59) ~[jackson-databind-2.10.5.1.jar:2.10.5.1]
+	at com.fasterxml.jackson.databind.ObjectMapper._initForReading(ObjectMapper.java:4360) ~[jackson-databind-2.10.5.1.jar:2.10.5.1]
+	at com.fasterxml.jackson.databind.ObjectMapper._readMapAndClose(ObjectMapper.java:4205) ~[jackson-databind-2.10.5.1.jar:2.10.5.1]
+	at com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:3292) ~[jackson-databind-2.10.5.1.jar:2.10.5.1]
+	at org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager.tryFetchUserMapsFromCoordinator(CoordinatorPollingBasicAuthorizerCacheManager.java:400) ~[?:?]
+	at org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager.lambda$fetchUserAndRoleMapFromCoordinator$4(CoordinatorPollingBasicAuthorizerCacheManager.java:330) ~[?:?]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:129) ~[druid-core-25.0.0.jar:25.0.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:81) ~[druid-core-25.0.0.jar:25.0.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:163) ~[druid-core-25.0.0.jar:25.0.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:153) ~[druid-core-25.0.0.jar:25.0.0]
+	at org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager.fetchUserAndRoleMapFromCoordinator(CoordinatorPollingBasicAuthorizerCacheManager.java:328) ~[?:?]
+	at org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager.initUserMaps(CoordinatorPollingBasicAuthorizerCacheManager.java:457) ~[?:?]
+	at org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager.start(CoordinatorPollingBasicAuthorizerCacheManager.java:116) ~[?:?]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+	at org.apache.druid.java.util.common.lifecycle.Lifecycle$AnnotationBasedHandler.start(Lifecycle.java:446) ~[druid-core-25.0.0.jar:25.0.0]
+	at org.apache.druid.java.util.common.lifecycle.Lifecycle.start(Lifecycle.java:341) ~[druid-core-25.0.0.jar:25.0.0]
+	at org.apache.druid.guice.LifecycleModule$2.start(LifecycleModule.java:152) ~[druid-core-25.0.0.jar:25.0.0]
+	at org.apache.druid.cli.GuiceRunnable.initLifecycle(GuiceRunnable.java:136) ~[druid-services-25.0.0.jar:25.0.0]
+	at org.apache.druid.cli.GuiceRunnable.initLifecycle(GuiceRunnable.java:94) ~[druid-services-25.0.0.jar:25.0.0]
+	at org.apache.druid.cli.ServerRunnable.run(ServerRunnable.java:63) ~[druid-services-25.0.0.jar:25.0.0]
+	at org.apache.druid.cli.Main.main(Main.java:112) ~[druid-services-25.0.0.jar:25.0.0]
+
+Thanks,
+Sean

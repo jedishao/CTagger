@@ -1,0 +1,18 @@
+Clarify MongoDB Object Mapping: Add json to Mongo Connector Documentation
+While setting up Trino to connect to a MongoDB instance, I encountered challenges with the mapping for MongoDB `Object` types. Since Trino only reads the first document and my types are quite flexible, I first tried to make a script to turn JSON Schema into a Trino `_schema` document, but after a few hours I decided to just do it manually.
+
+The documentation under ["MongoDB to Trino type mapping"](https://trino.io/docs/current/connector/mongodb.html#mongodb-to-trino-type-mapping) currently lists `ROW` as the mapping for MongoDB `Object`.
+Using `ROW` enforces a rigid structure, which is not always ideal for MongoDB data with nested or varied structures. I tried using it as `ROW()` but that threw an error, since `ROW` needs the name of the properties with their types. Since the documentation clearly states that **_"No other types are supported"_** I didn't try other data types (except `map` which could also be added to the documentation or the Data Types documentation could be linked at least).
+
+After considerable trial and error, I discovered that using `json` can provide the flexibility needed for these complex schemas. Knowing that beforehand would've saved me a lot of time.
+
+
+### **Requests:**
+
+1. **Documentation Update:** Please consider updating the MongoDB mapping section to include `json` as an alternative mapping for `Object`. 
+
+    - **Suggested Mesasge:** "MongoDB Object can also be mapped to `json` in Trino for more flexible schemas."
+
+2. **Guidance on Usage:** It would also be helpful to include guidance on when to use `json` versus `ROW`. I mean maybe I'm not even supposed to use `json` as a type at all, so please  let me know what the drawbacks are of setting something to type `json`.
+
+These changes would save time and prevent frustration for users handling dynamic MongoDB schemas. It provides clearer instructions for handling common schema patterns, such as unions, which are otherwise challenging to represent in a strict `ROW` format.

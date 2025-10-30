@@ -1,0 +1,25 @@
+TestSyncTimeRangeTracker fails with OOM with small -Xms values
+Edit2: It's not the OS, it's the -Xms value determined from the host memory size.
+
+Edit: It's related to the OS and it's default java 8 , not to the processor architecture.
+
+This test seems to be cutting real close to the heap size.
+On ARM, it consistently fails on my RHEL8.8 Aarch64 VM with Java 8.
+{noformat}
+mvn test -P runDevTests -Dtest.build.data.basedirectory=/ram2G -Dhadoop.profile=3.0 -fn -B -Dtest=TestSyncTimeRangeTracker* -pl hbase-server
+...
+[ERROR] org.apache.hadoop.hbase.regionserver.TestSyncTimeRangeTracker.testConcurrentIncludeTimestampCorrectness  Time elapsed: 1.969 s  <<< ERROR!
+java.lang.OutOfMemoryError: Java heap space
+{noformat}
+It seems that Java on ARM has some higher memory overhead than x86_64.
+
+Simply bumping -Xmx from the default 2200m to 2300m allows it to pass. 
+{noformat}
+mvn test -P runDevTests -Dtest.build.data.basedirectory=/ram2G -Dhadoop.profile=3.0 -fn -B -Dtest=TestSyncTimeRangeTracker* -pl hbase-server -Dsurefire.Xmx=2300m
+...
+[INFO] Running org.apache.hadoop.hbase.regionserver.TestSyncTimeRangeTracker
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.395 s - in org.apache.hadoop.hbase.regionserver.TestSyncTimeRangeTracker
+{noformat}
+However, the real solution should be reducing the memory usage for this test.
+
+ 

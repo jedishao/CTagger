@@ -1,0 +1,26 @@
+An SAI-specific mechanism to ensure consistency isn't violated for multi-column (i.e. AND) queries at CL > ONE
+CASSANDRA-19007 is going to be where we add a guardrail around filtering/index queries that use intersection/AND over partially updated non-key columns. (ex. Restricting one clustering column and one normal column does not cause a consistency problem, as primary keys cannot be partially updated.) This issue exists to attempt to fix this specifically for SAI in 5.0.x, as Accord will (last I checked) not be available until the 5.1 release.
+
+The SAI-specific version of the originally reported issue is this:
+
+{noformat}
+try (Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int PRIMARY KEY, a int, b int)"));
+            cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.t(a) USING 'sai'"));
+            cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.t(b) USING 'sai'"));
+
+            // insert a split row
+            cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.t(k, a) VALUES (0, 1)"));
+            cluster.get(2).executeInternal(withKeyspace("INSERT INTO %s.t(k, b) VALUES (0, 2)"));
+
+        // Uncomment this line and test succeeds w/ partial writes completed...
+        //cluster.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
+
+            String select = withKeyspace("SELECT * FROM %s.t WHERE a = 1 AND b = 2");
+            Object[][] initialRows = cluster.coordinator(1).execute(select, ConsistencyLevel.ALL);
+            assertRows(initialRows, row(0, 1, 2)); // not found!!
+        }
+{noformat}
+
+To make a long story short, the local SAI indexes are hiding local partial matches from the coordinator that would combine there to form full matches. Simple non-index filtering queries also suffer from this problem, but they hide the partial matches in a different way. I'll outline a possible solution for this in the comments that takes advantage of replica filtering protection and the repaired/unrepaired datasets...and attempts to minimize the amount of extra row data sent to the coordinator.

@@ -1,0 +1,18 @@
+Prevent double closing SSTable writer
+Analytics uses `org.apache.cassandra.io.sstable.SSTableSimpleWriter` to produce SSTables. Its implementation allows to be closed multiple times. However, the subsequent calls to "close" cause exception. For example,
+
+
+{code:java}
+java.lang.RuntimeException: Last written key DecoratedKey(-3078932293011064831, 000022fd) >= current key DecoratedKey(-3078932293011064831, 000022fd) writing into nb-1-big-Data.db
+    	at org.apache.cassandra.io.sstable.format.big.BigTableWriter.beforeAppend(BigTableWriter.java:169)
+    	at org.apache.cassandra.io.sstable.format.big.BigTableWriter.append(BigTableWriter.java:208)
+    	at org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter.append(SimpleSSTableMultiWriter.java:48)
+    	at org.apache.cassandra.io.sstable.SSTableTxnWriter.append(SSTableTxnWriter.java:57)
+    	at org.apache.cassandra.io.sstable.SSTableSimpleWriter.writePartition(SSTableSimpleWriter.java:152)
+    	at org.apache.cassandra.io.sstable.SSTableSimpleWriter.writeLastPartitionUpdate(SSTableSimpleWriter.java:125)
+    	at org.apache.cassandra.io.sstable.SSTableSimpleWriter.close(SSTableSimpleWriter.java:93)
+    	at org.apache.cassandra.io.sstable.CQLSSTableWriter.close(CQLSSTableWriter.java:337)
+{code}
+
+
+Cassandra analytics should prevent double closing the underlying writer.

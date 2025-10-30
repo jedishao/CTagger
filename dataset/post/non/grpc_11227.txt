@@ -1,0 +1,67 @@
+Client requests fail with NullPointerException in PickFirstLeafLoadBalancer after temporary DNS resolution failures
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.63.0
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+Linux Ubuntu 20.04
+Openjdk version "21.0.2" 2024-01-16 LTS 
+ 
+### What did you expect to see?
+No `Uncaught exception in the SynchronizationContext. Panic!
+java.lang.NullPointerException: Cannot invoke "io.grpc.internal.PickFirstLeafLoadBalancer$SubchannelData.getSubchannel()" because "subchannelData" is null` errors in client requests.
+
+### What did you see instead?
+In logs I see NPE errors in PickFirstLeafLoadBalancer, causing client requests to fail.
+These errors are intermittent and happen on some apparently random VMs.
+
+After some investigation I found temporary DNS look up failures that happened before these NPE started to appear.
+DNS issues is something happening on our side, but I believe client should be able to handle temporary resolution failures.
+
+Logs are provided below:
+```
+2024-05-20 17:28:13,099 WARN           [grpc-default-executor-8397] i.g.i.ManagedChannelImpl: [Channel<17>: (some.internal.host.net:1234)] Failed to resolve name. status=Status{code=UNAVAILABLE, description=Unable to resolve host some.internal.host.net, cause=java.lang.RuntimeException: java.net.UnknownHostException: some.internal.host.net
+ at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:223)
+ at io.grpc.internal.DnsNameResolver.doResolve(DnsNameResolver.java:282)
+ at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:318)
+ at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+ at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+ at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: java.net.UnknownHostException: some.internal.host.net.net
+ at java.base/java.net.InetAddress$CachedLookup.get(InetAddress.java:988)
+ at java.base/java.net.InetAddress.getAllByName0(InetAddress.java:1818)
+ at java.base/java.net.InetAddress.getAllByName(InetAddress.java:1688)
+ at io.grpc.internal.DnsNameResolver$JdkAddressResolver.resolveAddress(DnsNameResolver.java:632)
+ at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:219)
+ ... 5 more
+}
+
+2024-05-20 17:28:18,481 ERROR          [grpc-default-executor-8395] i.g.i.ManagedChannelImpl: [Channel<17>: (some.internal.host.net:1234)] Uncaught exception in the SynchronizationContext. Panic!
+java.lang.NullPointerException: Cannot invoke "io.grpc.internal.PickFirstLeafLoadBalancer$SubchannelData.getSubchannel()" because "subchannelData" is null
+ at io.grpc.internal.PickFirstLeafLoadBalancer.acceptResolvedAddresses(PickFirstLeafLoadBalancer.java:138)
+ at io.grpc.internal.AutoConfiguredLoadBalancerFactory$AutoConfiguredLoadBalancer.tryAcceptResolvedAddresses(AutoConfiguredLoadBalancerFactory.java:142)
+ at io.grpc.internal.ManagedChannelImpl$NameResolverListener$1NamesResolved.run(ManagedChannelImpl.java:1877)
+ at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:94)
+ at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:126)
+ at io.grpc.internal.ManagedChannelImpl$NameResolverListener.onResult(ManagedChannelImpl.java:1891)
+ at io.grpc.internal.RetryingNameResolver$RetryingListener.onResult(RetryingNameResolver.java:98)
+ at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:333)
+ at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+ at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+ at java.base/java.lang.Thread.run(Thread.java:1583)
+ ```
+
+### Steps to reproduce the bug
+I don't have simple steps to reproduce unfortunately, but I think I found the call sequence causing the issue:
+* `io.grpc.internal.DnsNameResolver#resolveAddresses` throws `RuntimeException` with `UnknownHostException` as a cause
+* `io.grpc.internal.DnsNameResolver#doResolve` catches it and returns `result.error =  Status.UNAVAILABLE`
+* `io.grpc.internal.DnsNameResolver.Resolve#run` then calls `savedListener.onError(result.error)`
+  where `savedListener` is `io.grpc.internal.ManagedChannelImpl.NameResolverListener`
+* `io.grpc.internal.ManagedChannelImpl.NameResolverListener#onError` effectively calls `helper.lb.handleNameResolutionError(error)`
+  where `lb` is `io.grpc.internal.PickFirstLeafLoadBalancer`
+* `io.grpc.internal.PickFirstLeafLoadBalancer#handleNameResolutionError` finally calls `subchannels.clear()`, but does nothing with `addressIndex`
+* as a result we have `subchannels` cleared, but `addressIndex` stays intact 
+  so we end up with inconsistent state between `subchannels` and `addressIndex`: `addressIndex.seekTo(previousAddress)` is true, but `subchannels.get(previousAddress)` is false
+  this inconsistency is causing the above NPE

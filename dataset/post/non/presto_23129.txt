@@ -1,0 +1,32 @@
+Iceberg table writer writes space to _x20 in column names in the Parquet file
+Using the IcebergQueryRunner, create table and insert would change the space in the column name to "_x20". For example, "two words" would be written as "two_x20words" in the Parquet file. This doesn't happen in Hive tables, where "two words" would just be written as "two words"
+
+## Your Environment
+N/A
+
+## Expected Behavior
+Iceberg table writer write space  as is. This is in alignment with Hive.
+
+## Current Behavior
+Iceberg table writer replaces space " " to "_x20". This is not desired.
+
+## Possible Solution
+<!--- Not obligatory, but suggest a fix/reason for the bug or a workaround -->
+
+## Steps to Reproduce
+Start IcebergQueryRunner (Java). In presto cli, run the following
+
+create table space2 ("two words" int) with (format='parquet');
+insert into space2 values (1), (2), (3);
+
+Then put a break point at com/facebook/presto/hive/parquet/ParquetPageSourceFactory.java line 207 
+`MessageType fileSchema = fileMetaData.getSchema();` 
+
+
+Repeat the same steps using HiveQueryRunner, and you will see the name is different.
+
+## Screenshots (if appropriate)
+![image](https://github.com/prestodb/presto/assets/33299678/35e20da5-bdc1-4abe-b7d2-0831d0d490df)
+
+## Context
+

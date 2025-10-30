@@ -1,0 +1,40 @@
+Ant supports repeatedly running a unit test multiple times.
+As inspired by this insightful blog [1], consider a scenario where we have a command like:
+{code:java}
+ant test-iteration -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.iters=5{code}
+This command enables running a specific test multiple times using the -Dtest.iters parameter. When combined with "{*}_stress-ng_{*}", reproducing flaky tests becomes significantly easier. However, implementing this feature is challenging due to Ant properties being immutable. Below are three potential solutions:
+ 
+{_}*Solution A*{_}:
+Create a temporary directory to track iterations and sequentially call ant testsome-single via a bash script. The drawback is that it cannot execute all test cases within the same JVM.
+ 
+{code:java}
+<exec executable="mktemp" outputproperty="temp.iter.file">
+        <arg value="-p"/>
+        <arg value="/tmp"/>
+        <arg value="test_iters_XXXXXX"/>
+    </exec>
+    <echo message="Generated temp file: ${temp.iter.file}"/>
+    <echo file="${temp.iter.file}" message="0"/>
+    
+    <exec executable="bash" failonerror="true">
+        <arg value="-c"/>
+        <arg value='
+              while [ $(cat ${temp.iter.file}) -lt ${test.iters} ]; do
+                ant testsome-single -Dtest.name=${test.name} -Dtest.methods=${test.methods};
+                echo $(($(cat ${temp.iter.file}) + 1)) > ${temp.iter.file};
+              done
+         '/>
+    </exec>{code}
+ 
+ 
+{_}*Solution B*{_}:
+Similar to the approach in a particular PR, rely on JavaScript for iteration logic. But this solution is no longer viable since JDK 15 removed the Nashorn engine.
+ 
+{_}*Solution C*{_}:
+Introduce external dependencies such as Ant-Contrib or Groovy scripts. For instance, Apache Lucene utilized Groovy scripts [2] when building with Ant, and this approach is preferred.
+ 
+I welcome insights from others to further advance this work.
+ 
+References:
+[1] https://www.elastic.co/search-labs/blog/lucene-corrupted-index-exception
+[2] https://issues.apache.org/jira/secure/attachment/12660852/LUCENE-5881.patch

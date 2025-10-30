@@ -1,0 +1,290 @@
+[Bug] pulsar-io-hbase-x.x.x.nar file duplicates many of the Pulsar core dependencies resulting in over 200MB file size
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+any released version
+
+### Minimal reproduce step
+
+```
+❯ svn ls -v https://dist.apache.org/repos/dist/release/pulsar/pulsar-3.2.0/connectors/pulsar-io-hbase-3.2.0.nar
+  66888 technoboy    207729385 Jan 27 15:09 pulsar-io-hbase-3.2.0.nar
+❯ echo $((207729385/1000000.0))
+207.72938500000001
+```
+
+### What did you expect to see?
+
+NAR files shouldn't duplicate Pulsar core dependencies
+
+### What did you see instead?
+
+NAR files duplicate core Pulsar dependencies
+```
+❯ unzip -v pulsar-io-hbase-3.2.0.nar 'META-INF/bundled-dependencies/*'
+Archive:  pulsar-io-hbase-3.2.0.nar
+ Length   Method    Size  Cmpr    Date    Time   CRC-32   Name
+--------  ------  ------- ---- ---------- ----- --------  ----
+       0  Stored        0   0% 01-08-2024 14:16 00000000  META-INF/bundled-dependencies/
+  184929  Defl:N   171650   7% 01-08-2024 14:16 2542e48b  META-INF/bundled-dependencies/aircompressor-0.20.jar
+    3348  Defl:N     2095  37% 01-08-2024 14:16 020d7535  META-INF/bundled-dependencies/animal-sniffer-annotations-1.21.jar
+   17536  Defl:N    11687  33% 01-08-2024 14:16 e6dd8e33  META-INF/bundled-dependencies/annotations-13.0.jar
+    3120  Defl:N     2069  34% 01-08-2024 14:16 a70ddcb2  META-INF/bundled-dependencies/annotations-4.1.1.4.jar
+   27006  Defl:N    21930  19% 01-08-2024 14:16 f29a0607  META-INF/bundled-dependencies/aopalliance-repackaged-2.6.1.jar
+   44925  Defl:N    36826  18% 01-08-2024 14:16 d2c2230f  META-INF/bundled-dependencies/apacheds-i18n-2.0.0-M15.jar
+  691479  Defl:N   572365  17% 01-08-2024 14:16 c5f9958c  META-INF/bundled-dependencies/apacheds-kerberos-codec-2.0.0-M15.jar
+   16560  Defl:N    14244  14% 01-08-2024 14:16 b48497ee  META-INF/bundled-dependencies/api-asn1-api-1.0.0-M20.jar
+   79912  Defl:N    71999  10% 01-08-2024 14:16 84b3cb14  META-INF/bundled-dependencies/api-util-1.0.0-M20.jar
+  449146  Defl:N   401680  11% 01-08-2024 14:16 dc5894b1  META-INF/bundled-dependencies/async-http-client-2.12.1.jar
+    9909  Defl:N     8301  16% 01-08-2024 14:16 f2b67d09  META-INF/bundled-dependencies/async-http-client-netty-utils-2.12.1.jar
+   20891  Defl:N    17291  17% 01-08-2024 14:16 57c9d2d5  META-INF/bundled-dependencies/audience-annotations-0.13.0.jar
+    7495  Defl:N     4646  38% 01-08-2024 14:16 c0ae1258  META-INF/bundled-dependencies/auto-value-annotations-1.9.jar
+  644626  Defl:N   580738  10% 01-08-2024 14:16 89b3c166  META-INF/bundled-dependencies/avro-1.11.3.jar
+   25569  Defl:N    22774  11% 01-08-2024 14:16 84db5cdd  META-INF/bundled-dependencies/avro-protobuf-1.11.3.jar
+ 1108940  Defl:N   963062  13% 01-08-2024 14:16 24e10c46  META-INF/bundled-dependencies/bcpkix-jdk18on-1.75.jar
+ 8394003  Defl:N  7375522  12% 01-08-2024 14:16 3dc39ea5  META-INF/bundled-dependencies/bcprov-ext-jdk18on-1.75.jar
+ 8321289  Defl:N  7310649  12% 01-08-2024 14:16 f4393dbc  META-INF/bundled-dependencies/bcprov-jdk18on-1.75.jar
+  676570  Defl:N   579800  14% 01-08-2024 14:16 df084312  META-INF/bundled-dependencies/bcutil-jdk18on-1.75.jar
+  175003  Defl:N   152838  13% 01-08-2024 14:16 d6fc7580  META-INF/bundled-dependencies/bookkeeper-common-4.16.3.jar
+   17494  Defl:N    14243  19% 01-08-2024 14:16 478eadbc  META-INF/bundled-dependencies/bookkeeper-common-allocator-4.16.3.jar
+  444965  Defl:N   414937   7% 01-08-2024 14:16 f4481f3f  META-INF/bundled-dependencies/bookkeeper-proto-4.16.3.jar
+ 2563091  Defl:N  2331502   9% 01-08-2024 14:16 195d41d8  META-INF/bundled-dependencies/bookkeeper-server-4.16.3.jar
+   20240  Defl:N    17161  15% 01-08-2024 14:16 14b62d4f  META-INF/bundled-dependencies/bookkeeper-slogger-api-4.16.3.jar
+   11421  Defl:N     9381  18% 01-08-2024 14:16 fc982bc2  META-INF/bundled-dependencies/bookkeeper-slogger-slf4j-4.16.3.jar
+   22882  Defl:N    18832  18% 01-08-2024 14:16 f0757bfb  META-INF/bundled-dependencies/bookkeeper-stats-api-4.16.3.jar
+   33813  Defl:N    29992  11% 01-08-2024 14:16 9bd62bc8  META-INF/bundled-dependencies/bookkeeper-tools-framework-4.16.3.jar
+16245016  Defl:N 16247247   0% 01-08-2024 14:16 5ccfab41  META-INF/bundled-dependencies/bouncy-castle-bc-3.2.0-pkg.jar
+  924689  Defl:N   752807  19% 01-08-2024 14:16 d41c915b  META-INF/bundled-dependencies/caffeine-2.9.1.jar
+  223979  Defl:N   150051  33% 01-08-2024 14:16 6a175450  META-INF/bundled-dependencies/checker-qual-3.33.0.jar
+   68737  Defl:N    58690  15% 01-08-2024 14:16 b4e8ea0a  META-INF/bundled-dependencies/circe-checksum-4.16.3.jar
+  276366  Defl:N   247710  10% 01-08-2024 14:16 d76aad52  META-INF/bundled-dependencies/client-java-18.0.0.jar
+ 2645817  Defl:N  2246888  15% 01-08-2024 14:16 8ca81141  META-INF/bundled-dependencies/client-java-api-18.0.0.jar
+ 9958497  Defl:N  9422283   5% 01-08-2024 14:16 0b8738e2  META-INF/bundled-dependencies/client-java-proto-18.0.0.jar
+   31808  Defl:N    29254   8% 01-08-2024 14:16 9c56a301  META-INF/bundled-dependencies/collector-0.16.1.jar
+  246918  Defl:N   225318   9% 01-08-2024 14:16 2b623e90  META-INF/bundled-dependencies/commons-beanutils-1.9.4.jar
+   58284  Defl:N    53949   7% 01-08-2024 14:16 51e70063  META-INF/bundled-dependencies/commons-cli-1.5.0.jar
+  353793  Defl:N   295648  16% 01-08-2024 14:16 902132be  META-INF/bundled-dependencies/commons-codec-1.15.jar
+  588337  Defl:N   511550  13% 01-08-2024 14:16 5216b244  META-INF/bundled-dependencies/commons-collections-3.2.2.jar
+  751914  Defl:N   671105  11% 01-08-2024 14:16 6847f0d3  META-INF/bundled-dependencies/commons-collections4-4.4.jar
+ 1018316  Defl:N   924072   9% 01-08-2024 14:16 6ead37e7  META-INF/bundled-dependencies/commons-compress-1.21.jar
+  362679  Defl:N   329809   9% 01-08-2024 14:16 8075b6c0  META-INF/bundled-dependencies/commons-configuration-1.10.jar
+  134595  Defl:N   124038   8% 01-08-2024 14:16 8c8419f7  META-INF/bundled-dependencies/commons-crypto-1.0.0.jar
+  143602  Defl:N   126200  12% 01-08-2024 14:16 ad666a55  META-INF/bundled-dependencies/commons-digester-1.8.jar
+  285424  Defl:N   260275   9% 01-08-2024 14:16 13907547  META-INF/bundled-dependencies/commons-io-2.8.0.jar
+  284220  Defl:N   265620   7% 01-08-2024 14:16 3e87dfad  META-INF/bundled-dependencies/commons-lang-2.6.jar
+  577742  Defl:N   527109   9% 01-08-2024 14:16 4fd4c07c  META-INF/bundled-dependencies/commons-lang3-3.11.jar
+   60686  Defl:N    55987   8% 01-08-2024 14:16 b76bd046  META-INF/bundled-dependencies/commons-logging-1.1.1.jar
+ 1599627  Defl:N  1428479  11% 01-08-2024 14:16 90155410  META-INF/bundled-dependencies/commons-math3-3.1.1.jar
+  273370  Defl:N   249276   9% 01-08-2024 14:16 767280cf  META-INF/bundled-dependencies/commons-net-3.1.jar
+ 4534256  Defl:N  4479412   1% 01-08-2024 14:16 69394ebf  META-INF/bundled-dependencies/conscrypt-openjdk-uber-2.5.2.jar
+   23430  Defl:N    19970  15% 01-08-2024 14:16 6076856b  META-INF/bundled-dependencies/cpu-affinity-4.16.3.jar
+   69500  Defl:N    59564  14% 01-08-2024 14:16 79358df9  META-INF/bundled-dependencies/curator-client-2.7.1.jar
+  186273  Defl:N   155754  16% 01-08-2024 14:16 6db9fd88  META-INF/bundled-dependencies/curator-framework-2.7.1.jar
+  315120  Defl:N   270890  14% 01-08-2024 14:16 758e234d  META-INF/bundled-dependencies/curator-recipes-5.1.0.jar
+   13854  Defl:N     9004  35% 01-08-2024 14:16 3df4be2f  META-INF/bundled-dependencies/error_prone_annotations-2.5.1.jar
+   99841  Defl:N    90683   9% 01-08-2024 14:16 fc214a4a  META-INF/bundled-dependencies/failsafe-2.4.4.jar
+    4617  Defl:N     2768  40% 01-08-2024 14:16 1699ce08  META-INF/bundled-dependencies/failureaccess-1.0.1.jar
+    5680  Defl:N     4140  27% 01-08-2024 14:16 597ebd2b  META-INF/bundled-dependencies/google-auth-library-credentials-1.4.0.jar
+  192927  Defl:N   176506   9% 01-08-2024 14:16 feacd7fd  META-INF/bundled-dependencies/google-auth-library-oauth2-http-1.4.0.jar
+  289181  Defl:N   259505  10% 01-08-2024 14:16 d074f2b3  META-INF/bundled-dependencies/google-http-client-1.41.0.jar
+   10284  Defl:N     8143  21% 01-08-2024 14:16 a6613b7b  META-INF/bundled-dependencies/google-http-client-gson-1.41.0.jar
+     295  Defl:N      169  43% 01-08-2024 14:16 9b9dbdb9  META-INF/bundled-dependencies/grpc-all-1.55.3.jar
+  308887  Defl:N   287275   7% 01-08-2024 14:16 71a4cf6e  META-INF/bundled-dependencies/grpc-alts-1.55.3.jar
+  262867  Defl:N   237563  10% 01-08-2024 14:16 e640b3b7  META-INF/bundled-dependencies/grpc-api-1.55.3.jar
+   14836  Defl:N    13678   8% 01-08-2024 14:16 23bce8b6  META-INF/bundled-dependencies/grpc-auth-1.55.3.jar
+   30588  Defl:N    27599  10% 01-08-2024 14:16 be0219b4  META-INF/bundled-dependencies/grpc-context-1.55.3.jar
+  742278  Defl:N   670829  10% 01-08-2024 14:16 691491f5  META-INF/bundled-dependencies/grpc-core-1.55.3.jar
+  171449  Defl:N   159557   7% 01-08-2024 14:16 69bba60b  META-INF/bundled-dependencies/grpc-grpclb-1.55.3.jar
+  286353  Defl:N   262101   9% 01-08-2024 14:16 86433aa8  META-INF/bundled-dependencies/grpc-netty-1.55.3.jar
+    5107  Defl:N     4231  17% 01-08-2024 14:16 e9e08460  META-INF/bundled-dependencies/grpc-protobuf-1.55.3.jar
+    7557  Defl:N     6656  12% 01-08-2024 14:16 cfff51a7  META-INF/bundled-dependencies/grpc-protobuf-lite-1.55.3.jar
+  250601  Defl:N   232953   7% 01-08-2024 14:16 fd012db5  META-INF/bundled-dependencies/grpc-rls-1.55.3.jar
+  789688  Defl:N   744340   6% 01-08-2024 14:16 6b20a128  META-INF/bundled-dependencies/grpc-services-1.55.3.jar
+   35361  Defl:N    32235   9% 01-08-2024 14:16 25f637d5  META-INF/bundled-dependencies/grpc-servlet-1.55.3.jar
+   36053  Defl:N    32488  10% 01-08-2024 14:16 4abd5b7d  META-INF/bundled-dependencies/grpc-servlet-jakarta-1.55.3.jar
+   50897  Defl:N    44655  12% 01-08-2024 14:16 fad70e6e  META-INF/bundled-dependencies/grpc-stub-1.55.3.jar
+11885253  Defl:N 10991732   8% 01-08-2024 14:16 386f3d70  META-INF/bundled-dependencies/grpc-xds-1.55.3.jar
+  258075  Defl:N   229043  11% 01-08-2024 14:16 75439134  META-INF/bundled-dependencies/gson-2.8.9.jar
+   73724  Defl:N    63195  14% 01-08-2024 14:16 eba3969f  META-INF/bundled-dependencies/gson-fire-1.8.5.jar
+ 3041591  Defl:N  2728421  10% 01-08-2024 14:16 6d3b04c1  META-INF/bundled-dependencies/guava-32.1.2-jre.jar
+   47173  Defl:N    43020   9% 01-08-2024 14:16 b3fcd959  META-INF/bundled-dependencies/hadoop-annotations-2.10.0.jar
+  124815  Defl:N   114137   9% 01-08-2024 14:16 194658ae  META-INF/bundled-dependencies/hadoop-auth-2.10.0.jar
+ 3972867  Defl:N  3615332   9% 01-08-2024 14:16 aa3877ac  META-INF/bundled-dependencies/hadoop-common-2.10.0.jar
+ 1990549  Defl:N  1845155   7% 01-08-2024 14:16 4899083c  META-INF/bundled-dependencies/hbase-client-2.4.16.jar
+  811339  Defl:N   744594   8% 01-08-2024 14:16 879e07db  META-INF/bundled-dependencies/hbase-common-2.4.16.jar
+   69791  Defl:N    57808  17% 01-08-2024 14:16 76e9afd7  META-INF/bundled-dependencies/hbase-hadoop-compat-2.4.16.jar
+  168371  Defl:N   147642  12% 01-08-2024 14:16 40096eb2  META-INF/bundled-dependencies/hbase-hadoop2-compat-2.4.16.jar
+   12982  Defl:N    11125  14% 01-08-2024 14:16 c53eb97a  META-INF/bundled-dependencies/hbase-logging-2.4.16.jar
+   28340  Defl:N    24725  13% 01-08-2024 14:16 b0b3b9b6  META-INF/bundled-dependencies/hbase-metrics-2.4.16.jar
+   21348  Defl:N    17805  17% 01-08-2024 14:16 a3904c2d  META-INF/bundled-dependencies/hbase-metrics-api-2.4.16.jar
+ 3286748  Defl:N  3034767   8% 01-08-2024 14:16 8b986bbe  META-INF/bundled-dependencies/hbase-protocol-2.4.16.jar
+ 6789336  Defl:N  6201553   9% 01-08-2024 14:16 7c61905f  META-INF/bundled-dependencies/hbase-protocol-shaded-2.4.16.jar
+  306945  Defl:N   260163  15% 01-08-2024 14:16 6a9c96ef  META-INF/bundled-dependencies/hbase-shaded-gson-4.1.4.jar
+ 4077269  Defl:N  3513847  14% 01-08-2024 14:16 4a21f1bf  META-INF/bundled-dependencies/hbase-shaded-miscellaneous-4.1.4.jar
+ 4929030  Defl:N  4292106  13% 01-08-2024 14:16 0d701a05  META-INF/bundled-dependencies/hbase-shaded-netty-4.1.4.jar
+ 1773194  Defl:N  1633113   8% 01-08-2024 14:16 1cee28b0  META-INF/bundled-dependencies/hbase-shaded-protobuf-4.1.4.jar
+   19719  Defl:N    17544  11% 01-08-2024 14:16 3632e4f2  META-INF/bundled-dependencies/hbase-unsafe-4.1.4.jar
+  200223  Defl:N   176122  12% 01-08-2024 14:16 fcefde9a  META-INF/bundled-dependencies/hk2-api-2.6.1.jar
+  203358  Defl:N   190176   7% 01-08-2024 14:16 6480a05e  META-INF/bundled-dependencies/hk2-locator-2.6.1.jar
+  131590  Defl:N   117610  11% 01-08-2024 14:16 816b0055  META-INF/bundled-dependencies/hk2-utils-2.6.1.jar
+ 2241295  Defl:N  2008714  10% 01-08-2024 14:16 ffefdf5b  META-INF/bundled-dependencies/hppc-0.9.1.jar
+ 1506370  Defl:N  1344006  11% 01-08-2024 14:16 b06fcefc  META-INF/bundled-dependencies/htrace-core4-4.2.0-incubating.jar
+   23282  Defl:N    19382  17% 01-08-2024 14:16 2b65c85c  META-INF/bundled-dependencies/http-server-4.16.3.jar
+  780321  Defl:N   714301   9% 01-08-2024 14:16 ec26836c  META-INF/bundled-dependencies/httpclient-4.5.13.jar
+  328324  Defl:N   294628  10% 01-08-2024 14:16 5c21bfb2  META-INF/bundled-dependencies/httpcore-4.4.15.jar
+    8781  Defl:N     6065  31% 01-08-2024 14:16 a47dc505  META-INF/bundled-dependencies/j2objc-annotations-1.3.jar
+   76636  Defl:N    62838  18% 01-08-2024 14:16 bd78b530  META-INF/bundled-dependencies/jackson-annotations-2.14.2.jar
+  458834  Defl:N   428175   7% 01-08-2024 14:16 b210761b  META-INF/bundled-dependencies/jackson-core-2.14.2.jar
+  232248  Defl:N   215037   7% 01-08-2024 14:16 09c3ba6e  META-INF/bundled-dependencies/jackson-core-asl-1.9.13.jar
+ 1616844  Defl:N  1473172   9% 01-08-2024 14:16 21927249  META-INF/bundled-dependencies/jackson-databind-2.14.2.jar
+   54353  Defl:N    47888  12% 01-08-2024 14:16 0d6e253e  META-INF/bundled-dependencies/jackson-dataformat-yaml-2.14.2.jar
+   35227  Defl:N    29046  18% 01-08-2024 14:16 6e06d625  META-INF/bundled-dependencies/jackson-datatype-jdk8-2.14.2.jar
+  122020  Defl:N   107820  12% 01-08-2024 14:16 af13446a  META-INF/bundled-dependencies/jackson-datatype-jsr310-2.14.2.jar
+   31656  Defl:N    26283  17% 01-08-2024 14:16 dba13591  META-INF/bundled-dependencies/jackson-jaxrs-base-2.14.2.jar
+   16685  Defl:N    12211  27% 01-08-2024 14:16 a69f315b  META-INF/bundled-dependencies/jackson-jaxrs-json-provider-2.14.2.jar
+  780664  Defl:N   697674  11% 01-08-2024 14:16 c9518831  META-INF/bundled-dependencies/jackson-mapper-asl-1.9.13.jar
+   36827  Defl:N    31838  14% 01-08-2024 14:16 ba10ddad  META-INF/bundled-dependencies/jackson-module-jaxb-annotations-2.14.2.jar
+   79841  Defl:N    63399  21% 01-08-2024 14:16 f5da562d  META-INF/bundled-dependencies/jackson-module-jsonSchema-2.14.2.jar
+    9459  Defl:N     6490  31% 01-08-2024 14:16 f572e875  META-INF/bundled-dependencies/jackson-module-parameter-names-2.14.2.jar
+   46613  Defl:N    42253   9% 01-08-2024 14:16 d4ff05b2  META-INF/bundled-dependencies/jakarta.activation-api-1.2.2.jar
+   25058  Defl:N    21985  12% 01-08-2024 14:16 7f72d91f  META-INF/bundled-dependencies/jakarta.annotation-api-1.3.5.jar
+   18140  Defl:N    16603   9% 01-08-2024 14:16 a167d433  META-INF/bundled-dependencies/jakarta.inject-2.6.1.jar
+  140376  Defl:N   121810  13% 01-08-2024 14:16 d161225a  META-INF/bundled-dependencies/jakarta.ws.rs-api-2.1.6.jar
+  115638  Defl:N    98619  15% 01-08-2024 14:16 942a5d6a  META-INF/bundled-dependencies/jakarta.xml.bind-api-2.3.3.jar
+  780265  Defl:N   725815   7% 01-08-2024 14:16 91f37a80  META-INF/bundled-dependencies/javassist-3.25.0-GA.jar
+   78030  Defl:N    72135   8% 01-08-2024 14:16 54890b2e  META-INF/bundled-dependencies/javax.activation-1.2.0.jar
+   56674  Defl:N    52560   7% 01-08-2024 14:16 59af44ed  META-INF/bundled-dependencies/javax.activation-api-1.2.0.jar
+  127509  Defl:N   109294  14% 01-08-2024 14:16 bb629378  META-INF/bundled-dependencies/javax.ws.rs-api-2.1.jar
+  128076  Defl:N   112237  12% 01-08-2024 14:16 5f109f29  META-INF/bundled-dependencies/jaxb-api-2.3.1.jar
+    4722  Defl:N     3291  30% 01-08-2024 14:16 f509b03c  META-INF/bundled-dependencies/jcip-annotations-1.0-1.jar
+    2254  Defl:N     1496  34% 01-08-2024 14:16 e0d1f4a6  META-INF/bundled-dependencies/jcip-annotations-1.0.jar
+ 1710854  Defl:N  1513579  12% 01-08-2024 14:16 d5ff6305  META-INF/bundled-dependencies/jcodings-1.0.55.jar
+   88407  Defl:N    78585  11% 01-08-2024 14:16 be09a618  META-INF/bundled-dependencies/jcommander-1.82.jar
+  252020  Defl:N   220805  12% 01-08-2024 14:16 9fecb621  META-INF/bundled-dependencies/jctools-core-2.1.2.jar
+  259090  Defl:N   229032  12% 01-08-2024 14:16 79f6a351  META-INF/bundled-dependencies/jersey-client-2.34.jar
+ 1185133  Defl:N  1033068  13% 01-08-2024 14:16 1e2cda62  META-INF/bundled-dependencies/jersey-common-2.34.jar
+   84008  Defl:N    71367  15% 01-08-2024 14:16 aae1f3c8  META-INF/bundled-dependencies/jersey-entity-filtering-2.34.jar
+   76818  Defl:N    66904  13% 01-08-2024 14:16 49346c34  META-INF/bundled-dependencies/jersey-hk2-2.34.jar
+   75890  Defl:N    64736  15% 01-08-2024 14:16 01010517  META-INF/bundled-dependencies/jersey-media-json-jackson-2.34.jar
+   81512  Defl:N    71692  12% 01-08-2024 14:16 23eb7311  META-INF/bundled-dependencies/jersey-media-multipart-2.34.jar
+     261  Defl:N      137  48% 01-08-2024 14:16 2f8dea68  META-INF/bundled-dependencies/jetcd-api-0.7.5.jar
+    8310  Defl:N     6531  21% 01-08-2024 14:16 a87271d7  META-INF/bundled-dependencies/jetcd-common-0.7.5.jar
+  176624  Defl:N   157001  11% 01-08-2024 14:16 a0ecf8b9  META-INF/bundled-dependencies/jetcd-core-0.7.5.jar
+ 1228874  Defl:N  1153946   6% 01-08-2024 14:16 4bbe7148  META-INF/bundled-dependencies/jetcd-grpc-0.7.5.jar
+   18891  Defl:N    17156   9% 01-08-2024 14:16 ae0e9052  META-INF/bundled-dependencies/jetty-sslengine-6.1.26.jar
+  214804  Defl:N   205169   5% 01-08-2024 14:16 5884e47e  META-INF/bundled-dependencies/joni-2.1.31.jar
+  297522  Defl:N   269802   9% 01-08-2024 14:16 4f75dca5  META-INF/bundled-dependencies/jose4j-0.9.3.jar
+  280515  Defl:N   263689   6% 01-08-2024 14:16 0d8113e9  META-INF/bundled-dependencies/jsch-0.1.54.jar
+   19936  Defl:N    14794  26% 01-08-2024 14:16 204031ef  META-INF/bundled-dependencies/jsr305-3.0.2.jar
+ 1670469  Defl:N  1551214   7% 01-08-2024 14:16 033322ba  META-INF/bundled-dependencies/kotlin-stdlib-1.8.20.jar
+  221491  Defl:N   175207  21% 01-08-2024 14:16 ffd8474d  META-INF/bundled-dependencies/kotlin-stdlib-common-1.8.20.jar
+     963  Defl:N      560  42% 01-08-2024 14:16 8003d08f  META-INF/bundled-dependencies/kotlin-stdlib-jdk7-1.8.20.jar
+     969  Defl:N      565  42% 01-08-2024 14:16 8a93f6ce  META-INF/bundled-dependencies/kotlin-stdlib-jdk8-1.8.20.jar
+    2199  Defl:N     1465  33% 01-08-2024 14:16 f36d4890  META-INF/bundled-dependencies/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar
+  315115  Defl:N   283701  10% 01-08-2024 14:16 1851021a  META-INF/bundled-dependencies/log4j-api-2.18.0.jar
+ 1861441  Defl:N  1657966  11% 01-08-2024 14:16 dd82cdca  META-INF/bundled-dependencies/log4j-core-2.18.0.jar
+   24801  Defl:N    21713  13% 01-08-2024 14:16 7affc29a  META-INF/bundled-dependencies/log4j-slf4j-impl-2.18.0.jar
+   15680  Defl:N    14312   9% 01-08-2024 14:16 aa0beced  META-INF/bundled-dependencies/logging-interceptor-4.9.3.jar
+   24995  Defl:N    22976   8% 01-08-2024 14:16 098f95ce  META-INF/bundled-dependencies/memory-0.8.3.jar
+  105355  Defl:N    92469  12% 01-08-2024 14:16 1e6ea5bc  META-INF/bundled-dependencies/metrics-core-4.1.12.1.jar
+   64921  Defl:N    58672  10% 01-08-2024 14:16 466f21b2  META-INF/bundled-dependencies/mimepull-1.9.13.jar
+   17743  Defl:N    14835  16% 01-08-2024 14:16 db2f39ec  META-INF/bundled-dependencies/native-io-4.16.3.jar
+  307707  Defl:N   289209   6% 01-08-2024 14:16 84e64760  META-INF/bundled-dependencies/netty-buffer-4.1.104.Final.jar
+  345299  Defl:N   312853   9% 01-08-2024 14:16 b621aeb3  META-INF/bundled-dependencies/netty-codec-4.1.104.Final.jar
+   66906  Defl:N    58561  13% 01-08-2024 14:16 8bae871c  META-INF/bundled-dependencies/netty-codec-dns-4.1.104.Final.jar
+   37779  Defl:N    32616  14% 01-08-2024 14:16 23450d87  META-INF/bundled-dependencies/netty-codec-haproxy-4.1.104.Final.jar
+  665058  Defl:N   601940  10% 01-08-2024 14:16 eae01de2  META-INF/bundled-dependencies/netty-codec-http-4.1.104.Final.jar
+  487562  Defl:N   436551  11% 01-08-2024 14:16 bd0f2ae4  META-INF/bundled-dependencies/netty-codec-http2-4.1.104.Final.jar
+  120980  Defl:N   100980  17% 01-08-2024 14:16 0fdc1202  META-INF/bundled-dependencies/netty-codec-socks-4.1.104.Final.jar
+  660541  Defl:N   580295  12% 01-08-2024 14:16 d0352552  META-INF/bundled-dependencies/netty-common-4.1.104.Final.jar
+  561477  Defl:N   508883   9% 01-08-2024 14:16 148f9fe1  META-INF/bundled-dependencies/netty-handler-4.1.104.Final.jar
+   25604  Defl:N    21813  15% 01-08-2024 14:16 b05165de  META-INF/bundled-dependencies/netty-handler-proxy-4.1.104.Final.jar
+  103053  Defl:N    95317   8% 01-08-2024 14:16 cf58f03a  META-INF/bundled-dependencies/netty-incubator-transport-classes-io_uring-0.0.24.Final.jar
+   38700  Defl:N    37511   3% 01-08-2024 14:16 c5a713fe  META-INF/bundled-dependencies/netty-incubator-transport-native-io_uring-0.0.24.Final-linux-aarch_64.jar
+   37539  Defl:N    36287   3% 01-08-2024 14:16 23a16706  META-INF/bundled-dependencies/netty-incubator-transport-native-io_uring-0.0.24.Final-linux-x86_64.jar
+   21483  Defl:N    18325  15% 01-08-2024 14:16 97eea854  META-INF/bundled-dependencies/netty-reactive-streams-2.0.6.jar
+   37791  Defl:N    32709  13% 01-08-2024 14:16 6a6b3e27  META-INF/bundled-dependencies/netty-resolver-4.1.104.Final.jar
+  171802  Defl:N   154181  10% 01-08-2024 14:16 b397f96d  META-INF/bundled-dependencies/netty-resolver-dns-4.1.104.Final.jar
+    9091  Defl:N     7248  20% 01-08-2024 14:16 13ff82d0  META-INF/bundled-dependencies/netty-resolver-dns-classes-macos-4.1.104.Final.jar
+   19542  Defl:N    18310   6% 01-08-2024 14:16 da95e8dd  META-INF/bundled-dependencies/netty-resolver-dns-native-macos-4.1.104.Final-osx-aarch_64.jar
+   19278  Defl:N    18027   7% 01-08-2024 14:16 e9f1ed34  META-INF/bundled-dependencies/netty-resolver-dns-native-macos-4.1.104.Final-osx-x86_64.jar
+ 1146952  Defl:N  1139383   1% 01-08-2024 14:16 962e4200  META-INF/bundled-dependencies/netty-tcnative-boringssl-static-2.0.61.Final-linux-aarch_64.jar
+ 1247600  Defl:N  1239790   1% 01-08-2024 14:16 aab855f7  META-INF/bundled-dependencies/netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar
+  998659  Defl:N   988047   1% 01-08-2024 14:16 ac6b5672  META-INF/bundled-dependencies/netty-tcnative-boringssl-static-2.0.61.Final-osx-aarch_64.jar
+ 1116824  Defl:N  1105782   1% 01-08-2024 14:16 fb9bbf69  META-INF/bundled-dependencies/netty-tcnative-boringssl-static-2.0.61.Final-osx-x86_64.jar
+ 1006339  Defl:N  1001229   1% 01-08-2024 14:16 f102f8f9  META-INF/bundled-dependencies/netty-tcnative-boringssl-static-2.0.61.Final-windows-x86_64.jar
+    3228  Defl:N     2412  25% 01-08-2024 14:16 94afdec2  META-INF/bundled-dependencies/netty-tcnative-boringssl-static-2.0.61.Final.jar
+   34873  Defl:N    29743  15% 01-08-2024 14:16 a4a071a8  META-INF/bundled-dependencies/netty-tcnative-classes-2.0.61.Final.jar
+  496582  Defl:N   444926  10% 01-08-2024 14:16 8f92ee61  META-INF/bundled-dependencies/netty-transport-4.1.104.Final.jar
+  147216  Defl:N   135495   8% 01-08-2024 14:16 5ccd2e9e  META-INF/bundled-dependencies/netty-transport-classes-epoll-4.1.104.Final.jar
+   39694  Defl:N    38626   3% 01-08-2024 14:16 d0f811eb  META-INF/bundled-dependencies/netty-transport-native-epoll-4.1.104.Final-linux-x86_64.jar
+   73367  Defl:N    66896   9% 01-08-2024 14:16 d045a3b3  META-INF/bundled-dependencies/netty-transport-native-unix-common-4.1.104.Final-linux-x86_64.jar
+   44038  Defl:N    38591  12% 01-08-2024 14:16 d437d4b8  META-INF/bundled-dependencies/netty-transport-native-unix-common-4.1.104.Final.jar
+  299508  Defl:N   270567  10% 01-08-2024 14:16 7c807b28  META-INF/bundled-dependencies/nimbus-jose-jwt-4.41.1.jar
+  792081  Defl:N   754939   5% 01-08-2024 14:16 cf0c0226  META-INF/bundled-dependencies/okhttp-4.9.3.jar
+   25744  Defl:N    20492  20% 01-08-2024 14:16 50725a9d  META-INF/bundled-dependencies/okio-3.4.0.jar
+  360090  Defl:N   349723   3% 01-08-2024 14:16 48a0ba5c  META-INF/bundled-dependencies/okio-jvm-3.4.0.jar
+  351661  Defl:N   302047  14% 01-08-2024 14:16 02660343  META-INF/bundled-dependencies/opencensus-api-0.28.0.jar
+   23412  Defl:N    21336   9% 01-08-2024 14:16 e6de1662  META-INF/bundled-dependencies/opencensus-contrib-http-util-0.28.0.jar
+  749538  Defl:N   701738   6% 01-08-2024 14:16 908db22f  META-INF/bundled-dependencies/opencensus-proto-0.2.0.jar
+   19479  Defl:N    16443  16% 01-08-2024 14:16 e659df8e  META-INF/bundled-dependencies/osgi-resource-locator-1.0.3.jar
+    6816  Defl:N     6009  12% 01-08-2024 14:16 5cd6f15c  META-INF/bundled-dependencies/perfmark-api-0.26.0.jar
+ 1766980  Defl:N  1695071   4% 01-08-2024 14:16 06345a02  META-INF/bundled-dependencies/proto-google-common-protos-2.9.0.jar
+ 1664824  Defl:N  1564370   6% 01-08-2024 14:16 c3049044  META-INF/bundled-dependencies/protobuf-java-3.19.6.jar
+   73437  Defl:N    64624  12% 01-08-2024 14:16 c00d0827  META-INF/bundled-dependencies/protobuf-java-util-3.19.6.jar
+  299349  Defl:N   254726  15% 01-08-2024 14:16 66abddae  META-INF/bundled-dependencies/pulsar-client-admin-api-3.2.0.jar
+  358035  Defl:N   309083  14% 01-08-2024 14:16 566bb9f5  META-INF/bundled-dependencies/pulsar-client-admin-original-3.2.0.jar
+  164741  Defl:N   134557  18% 01-08-2024 14:16 2d6fce84  META-INF/bundled-dependencies/pulsar-client-api-3.2.0.jar
+   18921  Defl:N    16918  11% 01-08-2024 14:16 2d278d57  META-INF/bundled-dependencies/pulsar-client-messagecrypto-bc-3.2.0.jar
+  852424  Defl:N   800933   6% 01-08-2024 14:16 51af799a  META-INF/bundled-dependencies/pulsar-client-original-3.2.0.jar
+ 1024800  Defl:N   945892   8% 01-08-2024 14:16 f33eb19c  META-INF/bundled-dependencies/pulsar-common-3.2.0.jar
+   39957  Defl:N    32942  18% 01-08-2024 14:16 0ae2c277  META-INF/bundled-dependencies/pulsar-config-validation-3.2.0.jar
+   26391  Defl:N    21851  17% 01-08-2024 14:16 03f971b9  META-INF/bundled-dependencies/pulsar-functions-api-3.2.0.jar
+  251279  Defl:N   231980   8% 01-08-2024 14:16 030afd2e  META-INF/bundled-dependencies/pulsar-functions-instance-3.2.0.jar
+  372023  Defl:N   348581   6% 01-08-2024 14:16 460c14af  META-INF/bundled-dependencies/pulsar-functions-proto-3.2.0.jar
+   26667  Defl:N    21426  20% 01-08-2024 14:16 aa0f2ae5  META-INF/bundled-dependencies/pulsar-functions-secrets-3.2.0.jar
+  123548  Defl:N   114958   7% 01-08-2024 14:16 762f06ad  META-INF/bundled-dependencies/pulsar-functions-utils-3.2.0.jar
+   20340  Defl:N    16565  19% 01-08-2024 14:16 03528e8d  META-INF/bundled-dependencies/pulsar-io-core-3.2.0.jar
+  368379  Defl:N   337864   8% 01-08-2024 14:16 0e2cbd4a  META-INF/bundled-dependencies/pulsar-metadata-3.2.0.jar
+   23875  Defl:N    19921  17% 01-08-2024 14:16 4953dc3c  META-INF/bundled-dependencies/pulsar-package-core-3.2.0.jar
+  113189  Defl:N   108043   5% 01-08-2024 14:16 011c3c90  META-INF/bundled-dependencies/re2j-1.6.jar
+   11369  Defl:N     9316  18% 01-08-2024 14:16 e1cef112  META-INF/bundled-dependencies/reactive-streams-1.0.3.jar
+58000372  Defl:N 57648398   1% 01-08-2024 14:16 aebb62cb  META-INF/bundled-dependencies/rocksdbjni-7.9.2.jar
+ 2636113  Defl:N  2276861  14% 01-08-2024 14:16 0933aad8  META-INF/bundled-dependencies/rxjava-3.0.1.jar
+   90482  Defl:N    80635  11% 01-08-2024 14:16 b45067e4  META-INF/bundled-dependencies/simpleclient-0.16.0.jar
+    8011  Defl:N     6344  21% 01-08-2024 14:16 17432377  META-INF/bundled-dependencies/simpleclient_common-0.16.0.jar
+   24768  Defl:N    21892  12% 01-08-2024 14:16 e71aaf25  META-INF/bundled-dependencies/simpleclient_hotspot-0.16.0.jar
+   14688  Defl:N    12384  16% 01-08-2024 14:16 b64911b4  META-INF/bundled-dependencies/simpleclient_httpserver-0.16.0.jar
+    3405  Defl:N     1633  52% 01-08-2024 14:16 de025aa8  META-INF/bundled-dependencies/simpleclient_tracer_common-0.16.0.jar
+    4338  Defl:N     2601  40% 01-08-2024 14:16 1c36586f  META-INF/bundled-dependencies/simpleclient_tracer_otel-0.16.0.jar
+    4611  Defl:N     2827  39% 01-08-2024 14:16 5c4b38df  META-INF/bundled-dependencies/simpleclient_tracer_otel_agent-0.16.0.jar
+  421509  Defl:N   386348   8% 01-08-2024 14:16 43a935b5  META-INF/bundled-dependencies/sketches-core-0.8.3.jar
+   41513  Defl:N    36794  11% 01-08-2024 14:16 fb2de57c  META-INF/bundled-dependencies/slf4j-api-1.7.32.jar
+  334803  Defl:N   294463  12% 01-08-2024 14:16 9cfcb2e7  META-INF/bundled-dependencies/snakeyaml-2.0.jar
+  161867  Defl:N   141799  12% 01-08-2024 14:16 3e57f7e3  META-INF/bundled-dependencies/stax2-api-3.1.4.jar
+ 1236174  Defl:N  1107209  10% 01-08-2024 14:16 a22b4a13  META-INF/bundled-dependencies/stream-storage-java-client-4.16.3.jar
+   21782  Defl:N    16444  25% 01-08-2024 14:16 4561c4d5  META-INF/bundled-dependencies/swagger-annotations-1.6.2.jar
+   11800  Defl:N    10433  12% 01-08-2024 14:16 87b14150  META-INF/bundled-dependencies/typetools-0.5.0.jar
+   63777  Defl:N    47579  25% 01-08-2024 14:16 b35cb8c4  META-INF/bundled-dependencies/validation-api-1.1.0.Final.jar
+ 1514294  Defl:N  1413402   7% 01-08-2024 14:16 9774a632  META-INF/bundled-dependencies/vertx-core-4.3.8.jar
+   32707  Defl:N    29862   9% 01-08-2024 14:16 012d98ef  META-INF/bundled-dependencies/vertx-grpc-4.3.5.jar
+  522679  Defl:N   496324   5% 01-08-2024 14:16 06ca6616  META-INF/bundled-dependencies/woodstox-core-5.4.0.jar
+   15010  Defl:N    13396  11% 01-08-2024 14:16 82c04277  META-INF/bundled-dependencies/xmlenc-0.52.jar
+ 1352720  Defl:N  1253351   7% 01-08-2024 14:16 399f2a16  META-INF/bundled-dependencies/zookeeper-3.9.1.jar
+  255756  Defl:N   239562   6% 01-08-2024 14:16 6d36e0bf  META-INF/bundled-dependencies/zookeeper-jute-3.9.1.jar
+--------          -------  ---                            -------
+221535221         207651687   6%                            247 files
+```
+Most of the files are completely unnecessary.
+
+### Anything else?
+
+See #9638 for a previously rejected solution. The fix would be to set `<scope>provided</scope>` to the dependencies that shouldn't be included in the NAR file.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

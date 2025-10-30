@@ -1,0 +1,44 @@
+Inconsistent return value for quantile_at_value outside of data range
+Q-Digest and T-Digest appear to have different behavior for `VALUE_AT_QUANTILE(digest, x)` when `x` falls outside of the range of the sketch. Specifically, consider the following query:
+
+```
+WITH numbers AS (
+    -- 1 to 1000
+    SELECT x FROM UNNEST(SEQUENCE(1, 1000)) AS t(x)
+),
+digests AS (
+    SELECT
+        TDIGEST_AGG(CAST(x AS DOUBLE)) AS tdigest,
+        QDIGEST_AGG(x) AS qdigest
+    FROM numbers
+)
+
+SELECT
+    QUANTILE_AT_VALUE(qdigest, -1) AS "qdigest: F(x) = 0",
+    QUANTILE_AT_VALUE(qdigest, 500) AS "qdigest: F(x) ~= 0.5",
+    QUANTILE_AT_VALUE(qdigest, 5000) AS "qdigest: F(x) = 1",
+
+    QUANTILE_AT_VALUE(tdigest, -1) AS "tdigest: F(x) = 0",
+    QUANTILE_AT_VALUE(tdigest, 500) AS "tdigest: F(x) ~= 0.5",
+    QUANTILE_AT_VALUE(tdigest, 5000) AS "tdigest: F(x) = 1"
+FROM digests
+```
+
+This returns the following:
+
+| qdigest: F(x) = 0 | qdigest: F(x) ~= 0.5 | qdigest: F(x) = 1 | tdigest: F(x) = 0 | tdigest: F(x) ~= 0.5 | tdigest: F(x) = 1 |
+| -----| -----| -----| -----| -----| ----- |
+| *NULL* | 0.499 | *NULL* | 0 | 0.4995 | 1 |
+
+The behavior that Q-Digest exhibits here is the documented behavior for both [Q-Digest](https://prestodb.io/docs/current/functions/qdigest.html#quantile_at_value-qdigest-T-T-quantile) and [T-Digest](https://prestodb.io/docs/current/functions/tdigest.html#quantile_at_value-tdigest-double-value-double):
+
+> Null is returned if the quantile digest is empty or the input value is outside of the range of the [...] digest.
+
+## Proposed Solutions
+
+1. **Document the current behavior correctly**  
+Q-Digest's documentation is okay as-is, but T-Digest should say that it returns 0 when `x` is below the range of the data and 1 when `x` is above the range of the data.
+2. **Make everything work like T-Digest (breaking change)**  
+Personally, the behavior that T-Digest exhibits seems preferable to me: the `QUANTILE_AT_VALUE` function is effectively an approximate [CDF](https://en.wikipedia.org/wiki/Cumulative_distribution_function), which I would expect to equal 0 on the left and 1 on the right. There is a comment back in https://github.com/prestodb/presto/pull/14608#issuecomment-639810497 saying that users can coalesce with 0 to get this behavior, but that only works for the left side. Making `QUANTILE_AT_VALUE` use the T-Digest behavior solves this problem more easily.
+3. **Make everything work like Q-Digest (as documented, though also sort of a breaking change)**  
+The other obvious solution is to make everything work as documented. This means changing T-Digest to return null when the data is outside of range.

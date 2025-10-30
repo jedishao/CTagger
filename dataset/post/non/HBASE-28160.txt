@@ -1,0 +1,49 @@
+Build fails with Hadoop 3.3.5 and higher
+https://issues.apache.org/jira/browse/HADOOP-15983 changed dependencies and that makes our {{check-jar-contents-for-stuff-with-hadoop}} check fail:
+
+Excerpt:
+{noformat}
+[INFO] --- exec-maven-plugin:1.6.0:exec (check-jar-contents-for-stuff-with-hadoop) @ hbase-shaded-with-hadoop-check-invariants ---
+[ERROR] Found artifact with unexpected contents: '/home/lars/Downloads/hbase/hbase-2.4.17-src/hbase-shaded/hbase-shaded-client/target/hbase-shaded-client-2.4.17.jar'
+    Please check the following and either correct the build or update
+    the allowed list with reasoning.
+
+    com/
+    com/sun/
+    com/sun/jersey/
+    com/sun/jersey/json/
+    com/sun/jersey/json/impl/
+    com/sun/jersey/json/impl/reader/
+    com/sun/jersey/json/impl/reader/JsonXmlEvent$Attribute.class
+    com/sun/jersey/json/impl/reader/JsonXmlStreamReader$1.class
+    com/sun/jersey/json/impl/reader/XmlEventProvider$1.class
+    com/sun/jersey/json/impl/reader/NaturalNotationEventProvider.class
+    com/sun/jersey/json/impl/reader/XmlEventProvider.class
+    com/sun/jersey/json/impl/reader/XmlEventProvider$ProcessingInfo.class
+    com/sun/jersey/json/impl/reader/StartElementEvent.class
+    com/sun/jersey/json/impl/reader/CharactersEvent.class
+    com/sun/jersey/json/impl/reader/JacksonRootAddingParser$1.class
+    com/sun/jersey/json/impl/reader/EndElementEvent.class
+    com/sun/jersey/json/impl/reader/JsonXmlStreamReader.class
+    com/sun/jersey/json/impl/reader/StaxLocation.class
+    com/sun/jersey/json/impl/reader/JsonNamespaceContext.class
+    com/sun/jersey/json/impl/reader/JsonXmlEvent.class
+    com/sun/jersey/json/impl/reader/JacksonRootAddingParser.class
+    com/sun/jersey/json/impl/reader/StartDocumentEvent.class
+    com/sun/jersey/json/impl/reader/MappedNotationEventProvider.class
+    com/sun/jersey/json/impl/reader/EndDocumentEvent.class
+    com/sun/jersey/json/impl/reader/JsonFormatException.class
+    com/sun/jersey/json/impl/reader/XmlEventProvider$CachedJsonParser.class
+    com/sun/jersey/json/impl/reader/JacksonRootAddingParser$State.class
+    com/sun/jersey/json/impl/JaxbRiXmlStructure.class
+    com/sun/jersey/json/impl/ImplMessages.class
+    com/sun/jersey/json/impl/JSONMarshallerImpl.class
+    com/sun/jersey/json/impl/NameUtil.class
+    com/sun/jersey/json/impl/FilteringInputStream.class
+    com/sun/jersey/json/impl/JaxbProvider.class
+[....]
+{noformat}
+
+I'm afraid I'm a bit at a loss with the current Maven build system as to what the actual fix would be.
+
+I tested it against 2.4.17 as well as master as of today. Master already fails in an earlier step ({{Found Banned Dependency: org.bouncycastle:bcprov-jdk15on:jar:1.52}}) which I assume is a separate issue but I further assume that it would also fail at this step if it were to get this far.

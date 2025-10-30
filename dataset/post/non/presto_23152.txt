@@ -1,0 +1,31 @@
+Implement Jdbc join pushdown capabilities in presto
+<!--- Provide a general summary of the feature request or improvement in the Title above -->
+<!--- Look through existing open and closed feature proposals to see if someone has asked for the feature before -->
+
+## Expected Behavior or Use Case
+
+When presto identifies a join query which is specific to a Jdbc remote datasource, it split the join query into multiple select query based on the number of tables involved in the join query and select all records from each tables using the jdbc connector without passing the join condition. 
+
+If we  "Push down" or send these joins which involves same catalog/remote datasource as part of the  SQL  to the remote data source it increase the performance 3x to 10x.
+
+## Presto Component, Service, or Connector
+<!--- Tell us to which service or component this request is related to -->
+Jdbc Connector and spi module which create presto PlanNode
+
+## Possible Implementation
+<!--- Not obligatory, suggest ideas of how to implement the addition or change -->
+Begin to look at Presto analyze component that breaks down a multi join query into multiple subqueries and do the following actions
+
+- Retain the join for the same catalog (Jdbc connector) tables instead of breaks to multiple select query
+-  Pass predicates that are related to that query before you pass it to JDBC.
+
+## Example Screenshots (if appropriate):
+
+## Context
+This git issue is to address a performance limitation of Presto federation of SQLs of JDBC connector to remote data sources such as DB2, Postgres, Oracle etc.
+
+What is the limitation:
+For a given query that might involve different remote data sources, the query is divided into sub-queries that can be sent to the respective data source, results of these sub-queries are fetched into the presto workers, additional operations such as filters, joins, sorts are applied before sending back to the user.
+
+Operations such as filters, joins involve tables from the same remote data source, it is best to "Push down" or send these joins as part of the SQL query to the remote data source and it can be 10x to 100x faster than fetch all data of the table into presto workers and then apply these operators.
+

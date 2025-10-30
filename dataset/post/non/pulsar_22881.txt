@@ -1,0 +1,51 @@
+Pulsar Standalone: --wipe-data does not work with RocksDB backend in 3.2.3
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+OS="Ubuntu 23.04", Java Version = openjdk version "17.0.9", Pulsar Version(client+broker) = 3.2.3 
+
+### Minimal reproduce step
+
+# Start Pulsar and create topic
+$ apache-pulsar-3.2.3/bin/pulsar standalone
+### in second window
+$ apache-pulsar-3.2.3/bin/pulsar-client produce persistent://public/default/exampleTopic --num-produce 2 --messages "Hello Pulsar"
+$ apache-pulsar-3.2.3/bin/pulsar-admin persistent list public/default
+
+Then I stop 'pulsar standalone' the first window with a ctrl-c.  Then I restart it:
+# Restart Pulsar and attempt to --wipe-data
+$ apache-pulsar-3.2.3/bin/pulsar standalone --wipe-data
+### in second window
+$ apache-pulsar-3.2.3/bin/pulsar-admin persistent list public/default
+
+### What did you expect to see?
+
+Empty output - zero lines outputted indicating no topics exist in public/default.
+
+### What did you see instead?
+
+I saw:
+"persistent://public/default/exampleTopic"
+
+### Anything else?
+
+This issue seems to be related to issue #16741 which is claimed to be fixed.  
+
+I have these two environment variables set:
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export PULSAR_CLIENT_CONF=/home/james/apache-pulsar-3.2.3/conf/client.conf
+
+I installed pulsar by downloading apache-pulsar-3.2.3-bin.tar.gz and unpacking it into /home/james.  When I run 'pulsar standalone' it says "Starting BK with RocksDb metadata store".
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

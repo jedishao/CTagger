@@ -1,0 +1,14 @@
+Vector search tests are failing on recall accuracy
+Vector tests are failing randomly because they do not meet recall assertion values. Currently, the following tests have been reported as failing:
+
+VectorSegmentationTest.testMultipleSegmentsForCompaction
+VectorDistributedTest.rangeRestrictedTest
+VectorDistributedTest.testPartitionRestrictedVectorSearch
+
+Since the vector searches are approximate and the vectors used in the tests are random, it is unlikely that they will always meet a high recall. The recall assertions are looking for recall values of 0.9 and above. Part of this issue is related to the use of random values in the vectors being tested. We have seen, with other tests, that the vector search performs better with non-random generated datasets like the Glove datasets. As such, there are the following available to fix these tests.
+ # Downgrade the assertions to a value that is likely to always pass. The problem is that there is no guarantee that a test will always pass any recall value we give it.
+ # Use generated datasets for these tests to see if that improves the recall results.
+ # Remove the recall assertions unless they are specifically asked for. We could use a system property to enable recall testing for targeted vector testing.
+
+I don't think option 1 is a viable long-term solution as we can never be certain that it will always work. Option 2 has more promise but it could still result in failures because of the approximate nature of the vector searches. As such, option 3 seems the only viable solution here but means that, in most cases, we are only really testing that we are returning results from the search, not how accurate those results are.
+ 

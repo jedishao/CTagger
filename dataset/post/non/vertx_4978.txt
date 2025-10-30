@@ -1,0 +1,17 @@
+Future#fromCompletionStage(CompletionStage) with Context if it exists
+Current version:
+```
+static <T> Future<T> fromCompletionStage(CompletionStage<T> completionStage) {
+  Promise<T> promise = Promise.promise();
+  completionStage.whenComplete((value, err) -> {
+```
+isn't it better to supply Vert.x context if it "exists"
+```
+static <T> Future<T> fromCompletionStage(CompletionStage<T> completionStage) {
+  Context ctx = Vertx.currentContext();
+  Promise<T> promise = (ctx instanceof ContextInternal) // ⇒ ≠ null
+    ? ((ContextInternal)ctx).promise() 
+    : Promise.promise();
+  completionStage.whenComplete((value, err) -> {
+
+```

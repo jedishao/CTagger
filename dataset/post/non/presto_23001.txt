@@ -1,0 +1,32 @@
+Allow C++-defined system session properties
+## Background
+
+With the introduction of the `presto-native-execution` module, Presto now has forked the execution engine into a separate process.  This allows for the execution engine to be written in C++ and to be more efficient than the Java execution engine.  However, this also means that the execution engine code is now entirely separate from the coordinator code, and that session properties which are set on the coordinator are not automatically propagated to the execution engine without a subsequent registration of the session property in the C++ code.  Furthermore, because the code has been forked, there are many session properties which are not supported in the C++ execution engine, and likewise, there are many session properties which are not supported by Java workers.
+
+Ideally, only session properties which are supported by both the coordinator and the execution engine should be settable by the user.  For example, `SHOW SESSION` should only return session properties that are meaningful to the user.  This issues adds a mechanism to allow for session properties to be defined in C++ and to be settable by the user.
+
+## Expected Behavior or Use Case
+Hide session properties for evaluation engines which are not being used.
+
+## Presto Component, Service, or Connector
+Presto SPI, native execution module
+
+## Possible Implementation
+#22829 added a new sidecar process type to Presto.  This sidecar is a separate process which shares the same code as the Presto C++ worker.
+
+A new endpoint will be added to the Presto sidecar which will return the session property mapping for all built-in and externally registered session properties which are implemented in C++.  It will contain a subset of the fields found in `PropertyMetadata`, and it will be serialized as JSON.
+
+To support the introduction of new system session properties, a new SPI will be introduced which will allow for the registration of session properties which are not present in-memory in the Java runtime.  This SPI will be used to register the session properties which are returned by the sidecar process.  This SPI will be similar to the existing `Connector#getSessionProperties` SPI, except it will allow the registration of system session properties which are not connector-specific.
+
+A new module will be developed which has the sole purpose of retrieving C++-defined session properties from the Presto sidecar process and provide them to the Presto coordinator using the new SPI.
+
+In the `presto-native-execution` module, a new class will be developed which will define C++-specific session properties, and will expose them as an endpoint in the sidecar process.  On the worker side, it will be used to validate the session property, and to provide a mapping to a corresponding system property (if it exists), and ultimately to a default in Velox `QueryCtx`.  Each session property will be translated to a value in the `QueryCtx` for Velox, but in the future it may be used for any Presto C++-specific session properties that may exist as well.
+
+A new default implementation will be created for the new SPI which provides all Java-based worker session properties under one module.  At first, this will be added by default, so that there is no change in behavior for users.  Eventually, this Java-based module will not be provided by default, and if users wish to retain that support, they must add the plugin themselves.  Still further out, the module will be deprecated entirely.
+
+Note: For now, connector session properties in C++ are not supported in this issue.  However, as a future enhancement, we can support connector-specific session properties as well.
+
+## Example Screenshots (if appropriate):
+
+## Context
+[RFC-0003](https://github.com/prestodb/rfcs/blob/main/RFC-0003-native-spi.md)

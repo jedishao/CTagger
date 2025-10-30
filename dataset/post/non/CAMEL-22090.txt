@@ -1,0 +1,10 @@
+couchbase - consumer does not work if jackson is on classpath
+When using Couchbase with frameworks that include Jackson (such as Spring Boot, Quarkus, or Camel with camel-jackson), a critical deserialization issue can occur that causes route failures.
+
+Couchbase client performs auto-detection of Jackson on the classpath. If detected, it attempts to use this Jackson implementation to deserialize document keys via readValue().
+The problem occurs when the Jackson version provided by Camel (currently 2.19.0) is present, as this creates a version conflict with Couchbase's expectations. As a result, the Couchbase consumer fails to unmarshal document keys, causing route failures.
+
+The issue stems from Couchbase's auto-detection logic in ClusterEnvironment.java:
+https://github.com/couchbase/couchbase-jvm-clients/blob/master/java-client/src/main/java/com/couchbase/client/java/env/ClusterEnvironment.java#L76
+
+This commit https://github.com/apache/camel/commit/ea69a4cc032d6ebbab9e8bf77c09b32f22009429 temporarily fixes it.

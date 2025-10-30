@@ -1,0 +1,61 @@
+[Iceberg] parquet shading issues with Presto's hive-apache dependency
+There are duplicate classes which get can be loaded by the JVM which leads to JVM `NoSuchMethod` errors on the Iceberg connector.
+
+Parts of the Iceberg library have a dependency on parquet. Some of the parquet library has a dependency on thrift. In presto, the parquet dependencies are provided via shading in the [`prestodb/presto-hive-apache`](https://github.com/prestodb/presto-hive-apache) dependency. This dependency explicitly [skips shading the thrift dependencies](https://github.com/prestodb/presto-hive-apache/blob/fa3bbd1e5ccd8860431986688df9776f222efeec/pom.xml#L680).
+
+
+When tracking classes loaded at runtime, the class file loaded for `LogicalType` can differ. One is from `hive-apache`. The other is from `parquet-format-structures`
+
+```
+[Loaded org.apache.parquet.format.LogicalType$1 from file:~/.m2/repository/com/facebook/presto/hive/hive-apache/3.0.0-10/hive-apache-3.0.0-10.jar]
+```
+
+vs
+
+```
+[Loaded org.apache.parquet.format.LogicalType$1 from file:~/.m2/repository/org/apache/parquet/parquet-format-structures/1.13.1/parquet-format-structures-1.13.1.jar]
+```
+
+Because ParquetMetadataConverter is defined only in hive-apache-3.0.0-10.jar, it should uses LogicalType defined in hive-apache-3.0.0-10.jar which may differs with the one in parquet-format-structures-11.3.1.jar. However we need to find how `parquet-format-structures` gets onto the classpath at runtime.
+
+This may involve some deeper issues related to Maven dependencies, and I am unsure how to handle it. Perhaps this is also the reason why trino has implemented its own version of ParquetMetadataConverter.
+
+## Expected Behavior
+
+JVM should not throw a `NoSuchMethod` exception
+
+## Current Behavior
+
+JVM can throw a `NoSuchMethod` exception if particular methods are called.
+
+## Possible Solution
+
+Remove parquet shading from the `hive-apache` dependency.
+
+## Steps to Reproduce
+
+1. Checkout a branch which uses some of the invalid methods (e.g. https://github.com/prestodb/presto/pull/23388)
+3. Use iceberg to write a single-column table which writes the logical type. e.g. Decimal or timestamp
+4. observe error stacktrace in server logs
+
+java.lang.NoSuchMethodError: org.apache.parquet.format.LogicalType.getSetField()Lcom/facebook/presto/hive/$internal/parquet/org/apache/thrift/TFieldIdEnum;
+	at org.apache.parquet.format.converter.ParquetMetadataConverter.getLogicalTypeAnnotation(ParquetMetadataConverter.java:1084)
+	at org.apache.parquet.format.converter.ParquetMetadataConverter.buildChildren(ParquetMetadataConverter.java:1715)
+	at org.apache.parquet.format.converter.ParquetMetadataConverter.fromParquetSchema(ParquetMetadataConverter.java:1670)
+	at org.apache.parquet.format.converter.ParquetMetadataConverter.fromParquetMetadata(ParquetMetadataConverter.java:1526)
+	at org.apache.parquet.format.converter.ParquetMetadataConverter.readParquetMetadata(ParquetMetadataConverter.java:1490)
+	at org.apache.parquet.hadoop.ParquetFileReader.readFooter(ParquetFileReader.java:591)
+	at org.apache.parquet.hadoop.ParquetFileReader.<init>(ParquetFileReader.java:799)
+	at org.apache.parquet.hadoop.ParquetFileReader.open(ParquetFileReader.java:654)
+	at org.apache.iceberg.parquet.ParquetUtil.fileMetrics(ParquetUtil.java:80)
+	at org.apache.iceberg.parquet.ParquetUtil.fileMetrics(ParquetUtil.java:75)
+	at com.facebook.presto.iceberg.IcebergParquetFileWriter.lambda$getMetrics$0(IcebergParquetFileWriter.java:77)
+	at com.facebook.presto.hive.authentication.NoHdfsAuthentication.doAs(NoHdfsAuthentication.java:23)
+
+
+## Screenshots (if appropriate)
+
+## Context
+
+Prevents properly implementing writing logical types to parquet files.
+

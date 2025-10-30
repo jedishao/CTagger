@@ -1,0 +1,19 @@
+Stale results when executing queries over recreated transactional tables
+SQL queries return stale results from the cache when the tables involved in the queries are dropped and then recreated with the same name.
+
+The problem can be reproduced by executing the following sequence of queries.
+{code:sql}
+CREATE TABLE author (fname STRING) STORED AS ORC TBLPROPERTIES('transactional'='true');
+INSERT INTO author VALUES ('Victor');
+SELECT fname FROM author;
+
+DROP TABLE author;
+
+CREATE TABLE author (fname STRING) STORED AS ORC TBLPROPERTIES('transactional'='true');
+INSERT INTO author VALUES ('Alexander');
+SELECT fname FROM author;
+{code}
+The first execution of the SELECT query correctly returns "Victor" as a result.
+The second execution of the SELECT query incorrectly returns "Victor" while it should return "Alexander".
+
+The problem manifestates only when the hive.query.results.cache.enabled is set to true.

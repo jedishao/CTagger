@@ -1,0 +1,89 @@
+Flaky `TestDeltaLakeLocalConcurrentWritesTest.lambda$testConcurrentInsertsReconciliationForMixedInserts`
+https://github.com/trinodb/trino/actions/runs/12430625724/job/34706456252?pr=24030
+
+```
+Error:  Errors: 
+Error:    TestDeltaLakeLocalConcurrentWritesTest.lambda$testConcurrentInsertsReconciliationForMixedInserts$17:353 » QueryFailed Failed to write Delta Lake transaction log entry
+```
+
+I can only get this to fail locally (sometimes!) by wrapping the test in a `for (int i = 0; i < 1000; i++) { ... }` loop. The flakes are still not guaranteed; I'd say it triggers them about 50% of the time.
+
+Full stack trace on error:
+```
+io.trino.testing.QueryFailedException: Failed to write Delta Lake transaction log entry
+
+	at io.trino.testing.AbstractTestingTrinoClient.execute(AbstractTestingTrinoClient.java:138)
+	at io.trino.testing.DistributedQueryRunner.executeInternal(DistributedQueryRunner.java:565)
+	at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:548)
+	at io.trino.testing.QueryRunner.execute(QueryRunner.java:82)
+	at io.trino.plugin.deltalake.TestDeltaLakeLocalConcurrentWritesTest.lambda$testConcurrentInsertsReconciliationForMixedInserts$16(TestDeltaLakeLocalConcurrentWritesTest.java:348)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1575)
+	Suppressed: java.lang.Exception: SQL: INSERT INTO test_concurrent_mixed_inserts_table_t05g6fmrk4 SELECT COUNT(*) AS a, 10 AS part FROM test_concurrent_mixed_inserts_table_t05g6fmrk4 WHERE part = 10
+		at io.trino.testing.DistributedQueryRunner.executeInternal(DistributedQueryRunner.java:572)
+		... 7 more
+Caused by: io.trino.spi.TrinoException: Failed to write Delta Lake transaction log entry
+	at io.trino.plugin.deltalake.DeltaLakeMetadata.finishInsert(DeltaLakeMetadata.java:2217)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.finishInsert(ClassLoaderSafeConnectorMetadata.java:611)
+	at io.trino.tracing.TracingConnectorMetadata.finishInsert(TracingConnectorMetadata.java:690)
+	at io.trino.metadata.MetadataManager.finishInsert(MetadataManager.java:1223)
+	at io.trino.tracing.TracingMetadata.finishInsert(TracingMetadata.java:708)
+	at io.trino.sql.planner.LocalExecutionPlanner.lambda$createTableFinisher$4(LocalExecutionPlanner.java:4246)
+	at io.trino.operator.TableFinishOperator.getOutput(TableFinishOperator.java:316)
+	at io.trino.operator.Driver.processInternal(Driver.java:403)
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:306)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:709)
+	at io.trino.operator.Driver.process(Driver.java:298)
+	at io.trino.operator.Driver.processForDuration(Driver.java:269)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:890)
+	at io.trino.execution.executor.dedicated.SplitProcessor.run(SplitProcessor.java:77)
+	at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.lambda$run$0(TaskEntry.java:201)
+	at io.trino.$gen.Trino_testversion____20241220_152044_71.run(Unknown Source)
+	at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.run(TaskEntry.java:202)
+	at io.trino.execution.executor.scheduler.FairScheduler.runTask(FairScheduler.java:177)
+	at io.trino.execution.executor.scheduler.FairScheduler.lambda$submit$0(FairScheduler.java:164)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:131)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:75)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:82)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1575)
+Caused by: io.trino.spi.TrinoException: Error reading statistics from cache
+	at io.trino.plugin.deltalake.statistics.CachingExtendedStatisticsAccess.readExtendedStatistics(CachingExtendedStatisticsAccess.java:67)
+	at io.trino.plugin.deltalake.DeltaLakeMetadata.updateTableStatistics(DeltaLakeMetadata.java:3887)
+	at io.trino.plugin.deltalake.DeltaLakeMetadata.finishInsert(DeltaLakeMetadata.java:2199)
+	... 25 more
+Caused by: java.lang.IllegalArgumentException: Invalid JSON bytes for [simple type, class io.trino.plugin.deltalake.statistics.ExtendedStatistics]
+	at io.airlift.json.JsonCodec.fromJson(JsonCodec.java:202)
+	at io.trino.plugin.deltalake.statistics.MetaDirStatisticsAccess.readExtendedStatistics(MetaDirStatisticsAccess.java:75)
+	at io.trino.plugin.deltalake.statistics.MetaDirStatisticsAccess.readExtendedStatistics(MetaDirStatisticsAccess.java:65)
+	at io.trino.plugin.deltalake.statistics.CachingExtendedStatisticsAccess.lambda$readExtendedStatistics$0(CachingExtendedStatisticsAccess.java:63)
+	at com.google.common.cache.LocalCache$LocalManualCache$1.load(LocalCache.java:4903)
+	at com.google.common.cache.LocalCache$LoadingValueReference.loadFuture(LocalCache.java:3574)
+	at com.google.common.cache.LocalCache$Segment.loadSync(LocalCache.java:2316)
+	at com.google.common.cache.LocalCache$Segment.lockedGetOrLoad(LocalCache.java:2190)
+	at com.google.common.cache.LocalCache$Segment.get(LocalCache.java:2080)
+	at com.google.common.cache.LocalCache.get(LocalCache.java:4017)
+	at com.google.common.cache.LocalCache$LocalManualCache.get(LocalCache.java:4898)
+	at io.trino.cache.EvictableCache.get(EvictableCache.java:118)
+	at io.trino.cache.CacheUtils.uncheckedCacheGet(CacheUtils.java:39)
+	at io.trino.plugin.deltalake.statistics.CachingExtendedStatisticsAccess.readExtendedStatistics(CachingExtendedStatisticsAccess.java:63)
+	... 27 more
+Caused by: com.fasterxml.jackson.core.JsonParseException: Unrecognized token 'fw': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')
+ at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 190]
+	at com.fasterxml.jackson.core.JsonParser._constructError(JsonParser.java:2584)
+	at com.fasterxml.jackson.core.JsonParser._constructReadException(JsonParser.java:2610)
+	at com.fasterxml.jackson.core.JsonParser._constructReadException(JsonParser.java:2618)
+	at com.fasterxml.jackson.core.base.ParserMinimalBase._reportError(ParserMinimalBase.java:825)
+	at com.fasterxml.jackson.core.json.UTF8StreamJsonParser._reportInvalidToken(UTF8StreamJsonParser.java:3662)
+	at com.fasterxml.jackson.core.json.UTF8StreamJsonParser._reportInvalidToken(UTF8StreamJsonParser.java:3635)
+	at com.fasterxml.jackson.core.json.UTF8StreamJsonParser._matchToken2(UTF8StreamJsonParser.java:2976)
+	at com.fasterxml.jackson.core.json.UTF8StreamJsonParser._matchFalse(UTF8StreamJsonParser.java:2929)
+	at com.fasterxml.jackson.core.json.UTF8StreamJsonParser._nextTokenNotInObject(UTF8StreamJsonParser.java:841)
+	at com.fasterxml.jackson.core.json.UTF8StreamJsonParser.nextToken(UTF8StreamJsonParser.java:753)
+	at io.airlift.json.JsonCodec.fromJson(JsonCodec.java:198)
+	... 40 more
+```

@@ -1,0 +1,61 @@
+Request Timeout Issue with HttpClient
+### Version
+4.5.4
+
+### Context
+It seems like there is some race condition in some cases when setting a timeout on http request, consider the following example:
+```
+    HttpClient client = vertx.createHttpClient(
+            new HttpClientOptions(options).setProtocolVersion(HttpVersion.HTTP_2));
+    RequestOptions options = new RequestOptions().setTimeout(10);
+    return client
+        .request(options)
+        .onComplete(...);
+```
+
+There are cases in which onCompletion handler will never be called. 
+
+When timeout is set, there is a background thread that checks whether the timeout has exceeded and if it does it sets reset variable to timeOutException:
+```
+  public synchronized HttpClientRequest setTimeout(long timeoutMs) {
+    cancelTimeout();
+    currentTimeoutMs = timeoutMs;
+    currentTimeoutTimerId = context.setTimer(timeoutMs, id -> handleTimeout(timeoutMs));
+    return this;
+  }
+
+  boolean reset(Throwable cause) {
+    synchronized (this) {
+      if (reset != null) {
+        return false;
+      }
+      reset = cause;
+    }
+    stream.reset(cause);
+    return true;
+  }
+```
+If the timeout occurs after this code:
+```
+      try {
+        createStream(request, headers);
+      } catch (Http2Exception ex) {
+        if (handler != null) {
+          handler.handle(context.failedFuture(ex));
+        }
+        handleException(ex);
+        return;
+      }
+
+```
+
+reset variable will be not null and the future will never complete:
+```
+  void handleResponse(HttpClientResponse resp) {
+    if (reset == null) {
+      handleResponse(responsePromise, resp, cancelTimeout());
+    }
+  }
+```
+
+I saw that there are some fixes for it for vert.x 5 release, is it possible to have a fix for 4.5.x as well?

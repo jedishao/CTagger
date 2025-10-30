@@ -1,0 +1,16 @@
+Flush file list cache on dropping the table
+When file list cache is enabled and a table is dropped, the associated cache entry for the table path still exists. If we recreate table with same name, we will retrieve stale file list from the cache. 
+
+## Expected Behavior or Use Case
+After dropping the table, we should delete the associated file list cache entry.
+
+## Presto Component, Service, or Connector
+File List Cache in Hive Connector
+
+## Possible Implementation
+In HiveMetastore's dropTable method, we can invalidate the cache entry by calling the CachingDirectoryLister's existing invalidation method.
+
+## Example Screenshots (if appropriate):
+
+## Context
+Customers are encountering issues where stale cache entries are being read and leading to query errors on file reads.

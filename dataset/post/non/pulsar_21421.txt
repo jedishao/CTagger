@@ -1,0 +1,63 @@
+[Bug] Bookkeeper returns mac mismatch while reading
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.11.3 to 3.1.0
+
+### Minimal reproduce step
+
+N/A
+
+### What did you expect to see?
+
+No error
+
+### What did you see instead?
+
+After bumped I got a lot of exceptions as:
+
+```
+2023-10-23T15:01:29,964+0000 [BookKeeperClientWorker-OrderedExecutor-7-0] INFO  org.apache.bookkeeper.client.PendingReadOp - Mac mismatch while reading L16702 E0 from bookie: yo-bookkeeper-c3-n3
+2023-10-23T15:01:29,965+0000 [BookKeeperClientWorker-OrderedExecutor-7-0] ERROR org.apache.bookkeeper.client.PendingReadOp - Read of ledger entry failed: L16702 E0-E0, Sent to [yo-bookkeeper-c3-n14, yo-bookkeeper-c3-n3, yo-bookkeeper-c3-n7], Heard from [yo-bookkeeper-c3-n14, yo-bookkeeper-c3-n3, yo-bookkeeper-c3-n7] : bitset = {0, 1, 2}, Error = 'Entry digest does not match'. First unread entry is (-1, rc = null)
+2023-10-23T15:01:29,966+0000 [main] ERROR org.apache.bookkeeper.client.BookKeeperAdmin - Error reading entry 0 from ledger 16702
+org.apache.bookkeeper.client.BKException$BKDigestMatchException: Entry digest does not match
+        at org.apache.bookkeeper.client.SyncCallbackUtils.finish(SyncCallbackUtils.java:83) ~[org.apache.bookkeeper-bookkeeper-server-4.16.2.jar:4.16.2]
+        at org.apache.bookkeeper.client.SyncCallbackUtils$SyncReadCallback.readComplete(SyncCallbackUtils.java:229) ~[org.apache.bookkeeper-bookkeeper-server-4.16.2.jar:4.16.2]
+        at org.apache.bookkeeper.client.LedgerHandle$4.onFailure(LedgerHandle.java:818) ~[org.apache.bookkeeper-bookkeeper-server-4.16.2.jar:4.16.2]
+        at org.apache.bookkeeper.common.concurrent.FutureEventListener.accept(FutureEventListener.java:38) ~[org.apache.bookkeeper-bookkeeper-common-4.16.2.jar:4.16.2]
+        at org.apache.bookkeeper.common.concurrent.FutureEventListener.accept(FutureEventListener.java:26) ~[org.apache.bookkeeper-bookkeeper-common-4.16.2.jar:4.16.2]
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863) ~[?:?]
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841) ~[?:?]
+        at java.util.concurrent.CompletableFuture$Completion.run(CompletableFuture.java:482) ~[?:?]
+        at org.apache.bookkeeper.common.util.SingleThreadExecutor.safeRunTask(SingleThreadExecutor.java:137) ~[org.apache.bookkeeper-bookkeeper-common-4.16.2.jar:4.16.2]
+        at org.apache.bookkeeper.common.util.SingleThreadExecutor.run(SingleThreadExecutor.java:107) ~[org.apache.bookkeeper-bookkeeper-common-4.16.2.jar:4.16.2]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.94.Final.jar:4.1.94.Final]
+        at java.lang.Thread.run(Thread.java:833) ~[?:?]
+```
+
+```
+org.apache.pulsar.broker.service.schema.exceptions.SchemaException: Entry digest does not match -  ledger=103622248 - operation=Failed to read entry - entry=0
+        at org.apache.pulsar.broker.service.schema.BookkeeperSchemaStorage.bkException(BookkeeperSchemaStorage.java:711)
+        at org.apache.pulsar.broker.service.schema.BookkeeperSchemaStorage$Functions.lambda$getLedgerEntry$0(BookkeeperSchemaStorage.java:655)
+        at org.apache.bookkeeper.client.LedgerHandle$4.onFailure(LedgerHandle.java:818)
+        at org.apache.bookkeeper.common.concurrent.FutureEventListener.accept(FutureEventListener.java:38)
+        at org.apache.bookkeeper.common.concurrent.FutureEventListener.accept(FutureEventListener.java:26)
+        at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863)
+        at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841)
+        at java.base/java.util.concurrent.CompletableFuture$Completion.run(CompletableFuture.java:482)
+        at org.apache.bookkeeper.common.util.SingleThreadExecutor.safeRunTask(SingleThreadExecutor.java:137)
+        at org.apache.bookkeeper.common.util.SingleThreadExecutor.run(SingleThreadExecutor.java:107)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.base/java.lang.Thread.run(Thread.java:833)
+```
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

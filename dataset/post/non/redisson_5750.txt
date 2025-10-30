@@ -1,0 +1,16 @@
+Incorrect value of currentValue
+if tonumber(currentValue) + released > tonumber(rate) then
+            currentValue = tonumber(rate) - redis.call("zcard", permitsName)
+
+I think the code above is wrong, it should be like this:
+
+if tonumber(currentValue) + released > tonumber(rate) then
+            local usedValues = redis.call("zrange", permitsName, 0, -1)
+            local used = 0
+            for i, v in ipairs(usedValues) do
+                    local random, permits = struct.unpack("Bc0I", v)
+                    used = used + permits
+            end
+            currentValue = tonumber(rate) -used
+
+**3.27.2**

@@ -1,0 +1,14 @@
+Optimize unnecessary type castings in Scan and Get setter methods
+In the setter methods of Scan and Get, we invoke the super class method, type cast and return the object.
+{code:java}
+public Scan setColumnFamilyTimeRange(byte[] cf, long minStamp, long maxStamp) {
+return (Scan) super.setColumnFamilyTimeRange(cf, minStamp, maxStamp);
+}{code}
+ 
+
+In profiler reports it's observed that this typecasting does take some additional cpu cycles. we can optimize this  by adding an explicit return statement with current object. 
+{code:java}
+public Scan setColumnFamilyTimeRange(byte[] cf, long minStamp, long maxStamp) {
+super.setColumnFamilyTimeRange(cf, minStamp, maxStamp);
+return this;
+}{code}

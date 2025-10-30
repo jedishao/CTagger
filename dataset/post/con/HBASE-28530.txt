@@ -1,0 +1,27 @@
+Better not use threads when parallel seek enabled and only one storescanner to seek
+When parallel seek enabled, seeking through the scanners using multiple threads and waiting on the countdown lock to complete the seek on all the scanners. It would be better not to use threads when there is only one scanners to seek. Might not be significant improvement but will be useful when a region has one store file post major compaction.
+
+{code:java}
+  private void parallelSeek(final List<? extends KeyValueScanner> scanners, final Cell kv)
+    throws IOException {
+    if (scanners.isEmpty()) return;
+    int storeFileScannerCount = scanners.size();
+    CountDownLatch latch = new CountDownLatch(storeFileScannerCount);
+    List<ParallelSeekHandler> handlers = new ArrayList<>(storeFileScannerCount);
+    for (KeyValueScanner scanner : scanners) {
+      if (scanner instanceof StoreFileScanner) {
+        ParallelSeekHandler seekHandler = new ParallelSeekHandler(scanner, kv, this.readPt, latch);
+        executor.submit(seekHandler);
+        handlers.add(seekHandler);
+      } else {
+        scanner.seek(kv);
+        latch.countDown();
+      }
+    }
+
+    try {
+      latch.await();
+    } catch (InterruptedException ie) {
+      throw (InterruptedIOException) new InterruptedIOException().initCause(ie);
+    }
+{code}

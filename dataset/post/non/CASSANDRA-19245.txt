@@ -1,0 +1,11 @@
+Upgrade Python driver to 3.29.0
+The version of the Python driver that is used by cqlsh (3.28.0) doesn't correctly support vectors of variable-width types. Wrong deserialization can either fail with an exception or silently provide wrong results. For example:
+{code:java}
+cqlsh:k> CREATE TABLE t (k int PRIMARY KEY, v vector<varint, 2>);
+cqlsh:k> INSERT INTO t(k, v) VALUES (1, [23452352356235654634567437463767365783768, 3]);
+cqlsh:k> SELECT * FROM t;
+ k | v
+---+--------------------------
+ 1 | [289729430, -1001073214]}}
+{code}
+The most recent driver at the moment (3.29.0) still doesn't support this kind of vector, but it always fails with a proper message instead of dangerously providing wrong results, thanks to [PYTHON-1371|https://datastax-oss.atlassian.net/browse/PYTHON-1371].

@@ -1,0 +1,50 @@
+Encryption performance improvement on Java client
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+We found that using [encryption](https://pulsar.apache.org/docs/3.3.x/security-encryption/) will add significant performance overhead and could be the bottleneck especially in high-throughput production/consumption.
+
+[The micro benchmark](https://github.com/ocadaruma/pulsar/blob/bc-bench/microbench/src/main/java/org/apache/pulsar/client/impl/crypto/MessageCryptoBcBenchmark.java#L92-L104) shows that `MessageCryptoBc#encrypt` throughput is only around 2k ops/s in below setting:
+
+## Setting
+- Pulsar version: 3.4.0-SNAPSHOT (commit: https://github.com/apache/pulsar/commit/f3c177e2243e26a7849feb91dbed9fec4c5723c0)
+- JDK version: Temurin JDK21.0.4 x86_64
+- CPU: Xeon Silver 4210 2.20GHz
+- Payload size: 32KB
+
+## Benchmark result
+```
+Benchmark                                Mode  Cnt      Score     Error  Units
+MessageCryptoBcBenchmark.encryptBc      thrpt   10   1972.095 ±  72.436  ops/s
+```
+
+
+### Solution
+
+`MessageCryptoBc` uses `AES-GCM` for the data encryption.
+
+Hotspot JVM has intrinsics to [use hardware AES instruction](https://bugs.openjdk.org/browse/JDK-7184394) from JDK8 and upwards for SunJCE security provider.
+By switching `AES-GCM` cipher to use SunJCE provider instead of BouncyCastle provider, the throughput is improved by x23.
+
+## Benchmark result
+```
+Benchmark                                Mode  Cnt      Score     Error  Units
+MessageCryptoBcBenchmark.encryptBc      thrpt   10   1972.095 ±  72.436  ops/s
+MessageCryptoBcBenchmark.encryptSunJCE  thrpt   10  46490.933 ± 762.167  ops/s
+```
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

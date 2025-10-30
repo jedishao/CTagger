@@ -1,0 +1,31 @@
+Should check if table exists firstly when executing ExpiredMobFileCleaner
+We would get the following error message when specifing an non_existing table whild executing ExpiredMobFileCleaner.
+
+./bin/hbase org.apache.hadoop.hbase.mob.ExpiredMobFileCleaner  t04_mob01 info
+
+Exception in thread "main" org.apache.hadoop.hbase.TableNotFoundException: t04_mob01
+        at java.base/java.lang.Thread.getStackTrace(Thread.java:1610)
+        at org.apache.hadoop.hbase.util.FutureUtils.setStackTrace(FutureUtils.java:144)
+        at org.apache.hadoop.hbase.util.FutureUtils.rethrow(FutureUtils.java:163)
+        at org.apache.hadoop.hbase.util.FutureUtils.get(FutureUtils.java:186)
+        at org.apache.hadoop.hbase.client.AdminOverAsyncAdmin.getDescriptor(AdminOverAsyncAdmin.java:172)
+        at org.apache.hadoop.hbase.mob.ExpiredMobFileCleaner.run(ExpiredMobFileCleaner.java:99)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:82)
+        at org.apache.hadoop.hbase.mob.ExpiredMobFileCleaner.main(ExpiredMobFileCleaner.java:75)
+        at --------Future.get--------(Unknown Source)
+        at org.apache.hadoop.hbase.client.RawAsyncHBaseAdmin.lambda$getDescriptor$24(RawAsyncHBaseAdmin.java:654)
+        at org.apache.hadoop.hbase.util.FutureUtils.lambda$addListener$0(FutureUtils.java:71)
+        at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863)
+        at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841)
+        at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510)
+        at java.base/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147)
+        at org.apache.hadoop.hbase.client.AsyncMasterRequestRpcRetryingCaller.lambda$doCall$4(AsyncMasterRequestRpcRetryingCaller.java:80)
+        at org.apache.hadoop.hbase.util.FutureUtils.lambda$addListener$0(FutureUtils.java:71)
+        at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863)
+        at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841)
+        at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510)
+        at java.base/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147)
+        at org.apache.hadoop.hbase.client.RawAsyncHBaseAdmin$1.run(RawAsyncHBaseAdmin.java:467)
+        at org.apache.hbase.thirdparty.com.google.protobuf.RpcUtil$1.run(RpcUtil.java:56)
+
+Maybe it is better to return concise information when table does not exist by checking table exists firstly.

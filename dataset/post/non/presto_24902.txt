@@ -1,0 +1,10 @@
+Optimize array_agg/set_agg order by to use array_sort
+Lot of times users do:
+
+ARRAY_AGG(v order by k)
+
+but that will eliminate partial agg and also expensive. instead one can do (assuming v is orderable)
+
+TRANSFORM(ARRAY_SORT(ARRAY_AGG(ROW(k, v)), x->x[2])
+
+We can do this in the operator as well for performance.

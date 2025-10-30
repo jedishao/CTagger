@@ -1,0 +1,23 @@
+Add feature to filter streaming source when bootstrapping
+h2. Proposed improvement
+
+Right now, the stream sources for the bootstrap are chosen from the closest nodes of the bootstrapping node.
+
+Add the following system properties so that when bootstrap happens, the node can choose where to stream data from.
+ * {{cassandra.bootstrap.include_dcs}}
+ * {{cassandra.bootstrap.exclude_dcs}}
+ * {{cassandra.bootstrap.include_sources}}
+
+{{cassandra.bootstrap.include_dcs and }}{{cassandra.bootstrap.exclude_dcs can take args like "dc1,dc2" to specify DCs or "dc1:rack1,dc1:rack2,..." to specify DC/Racks.}}
+
+{{cassandra.bootstrap.include_sources is used to specify ip address/port of the specific nodes to stream from.}}
+h2. Motivation
+
+Currently, when the node failure happens in the middle of the major cluster upgrade, general advice given to the user is to complete the upgrade of the cluster until all nodes are in the same version, and replace/remove the failed node. This is because the streaming breaks when there is unsupported SSTable version streamed from newer to the older.
+
+This approach can create availability issue when two nodes (the failed node from different rack and the node currently stopped for the upgrade) are down.
+
+With this improvement, the user can replace the failed node using, for example, specific rack in the same DC or another DC, to eliminate the availability issue described above.
+h2. Note
+
+The user also needs to set "-Dcassandra.skip_schema_check=true" when replacing the node during the major upgrade to complete the replacement.

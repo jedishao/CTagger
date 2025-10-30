@@ -1,0 +1,28 @@
+trino to arrow type conversion for spooling protocol
+in order to support arrow ipc format for spooling, we need to be able to convert trino internal data format to arrow
+
+arrow types to not directly map to all trino types. in general, we can handle mismatches by some combination of
+
+1. perform a lossy conversion. eg. truncate trino picosecond timestamps to arrow nanosecond timestamps
+2. use an arrow extension type. arrow extension types allow a user to define a type and how it should map to underlying arrow types. eg. create a 12 byte integer for picosecond timestamps
+3. fail queries that produce types that cant be converted
+
+the following types are known to have issues
+
+1. time and timestamps. trino can represent picosecond precision times, arrow is limited to nanoseconds. 
+2. timestamp and time with timezone. trino can represent timestamps with a value specific timezone. arrow (like parquet) can only represent timestamps with a file scoped timezone
+3. hyperloglog
+4. user defined types
+
+summarizing a slack discussion on this topic
+
+@dain suggested that there may be some dependency on client protocol 
+"The difficult with Arrow is everyone tries to mix together “what should we do for Trino (java) clients” with “What should we do for Python”. For python, my opinion is you map everything to standard arrow types.  For everything else, my opinion is you use a custom protocol as you can support all types, and be much more efficient."
+
+@wendigo suggested that we can ignore user defined types for now 
+
+"I think that we can narrow the Arrow-support scope only to the Trino-owned types, without the support for custom types at the moment (I’ve never seen a single external type usage)"
+
+@dain suggested that we could support user defined types similarly to how arrow supports extension types
+" think we need to extend types so that they can describe how they are mapped to low level primitive types.  Then if we are in an situation where we don’t understand how to serialize a type (e.g., compatible arrow), the type gives us direction."
+

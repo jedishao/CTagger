@@ -1,0 +1,39 @@
+TestArrowFlightIntegrationSmokeTest.setup is flaky
+Fails due to `java.io.IOException: Failed to bind to address /127.0.0.1:35731` and `Address already in use`.
+
+This test is in the `arrow-flight-java-tests` job of the `arrow-flight-tests.yml` workflow file. I have currently only seen this failure on the Java 17 runs.
+
+```
+Error:  Tests run: 598, Failures: 1, Errors: 0, Skipped: 16, Time elapsed: 343.314 s <<< FAILURE! - in TestSuite
+Error:  com.facebook.plugin.arrow.TestArrowFlightIntegrationSmokeTest.setup  Time elapsed: 15.457 s  <<< FAILURE!
+java.io.IOException: Failed to bind to address /127.0.0.1:35731
+	at io.grpc.netty.NettyServer.start(NettyServer.java:341)
+	at io.grpc.internal.ServerImpl.start(ServerImpl.java:185)
+	at io.grpc.internal.ServerImpl.start(ServerImpl.java:94)
+	at org.apache.arrow.flight.FlightServer.start(FlightServer.java:90)
+	at com.facebook.plugin.arrow.TestArrowFlightIntegrationSmokeTest.setup(TestArrowFlightIntegrationSmokeTest.java:60)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.testng.internal.invokers.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:135)
+	at org.testng.internal.invokers.MethodInvocationHelper.invokeMethodConsideringTimeout(MethodInvocationHelper.java:65)
+	at org.testng.internal.invokers.ConfigInvoker.invokeConfigurationMethod(ConfigInvoker.java:381)
+	at org.testng.internal.invokers.ConfigInvoker.invokeConfigurations(ConfigInvoker.java:319)
+	at org.testng.internal.invokers.TestMethodWorker.invokeBeforeClassMethods(TestMethodWorker.java:178)
+	at org.testng.internal.invokers.TestMethodWorker.run(TestMethodWorker.java:122)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+Caused by: io.netty.channel.unix.Errors$NativeIoException: bind(..) failed: Address already in use
+
+[INFO] 
+[INFO] Results:
+[INFO] 
+Error:  Failures: 
+Error:    TestArrowFlightIntegrationSmokeTest.setup:60 » IO Failed to bind to address /127.0.0.1:35731
+[INFO] 
+Error:  Tests run: 598, Failures: 1, Errors: 0, Skipped: 16
+```
+
+Example of a failed job: https://github.com/prestodb/presto/actions/runs/16451864196/job/46498903238

@@ -1,0 +1,30 @@
+"nodetool bootstrap resume" starts unnecessary streaming session on joining node
+Calling {{nodetool boostrap resume}} triggers a new bootstrap streaming session on a joining node, even if there's a bootstrap streaming session currently running.
+
+Each time this command is called, a new bootstrap streaming session is started, causing the same data to be needlessly streamed from peers.
+
+It should only be possible to call {{nodetool bootstrap resume}} if a previous bootstrap attempt has failed.
+
+An example of multiple invocations of {{nodetool bootstrap resume}} in a joining node is shown below:
+{noformat}
+$ nodetool netstats
+Mode: JOINING
+Bootstrap a1cf3bf0-ab3a-11ee-9fcf-5746a7aee9ca
+    /A.B.C.D
+        Receiving 13 files, 14302312660 bytes total. Already received 2 files, 52389676 bytes total
+            ks1/tbl1 80/80 bytes(100%) received from idx:0/A.B.C.D
+            ks2/tbl2 471/471 bytes(100%) received from idx:0/A.B.C.D
+    /E.F.G.H
+    /I.J.K.L
+Bootstrap 7f1e7000-ab3d-11ee-9fcf-5746a7aee9ca
+    /A.B.C.D
+        Receiving 13 files, 14302312660 bytes total. Already received 0 files, 0 bytes total
+    /E.F.G.H
+    /I.J.K.L
+Bootstrap 9ca42500-ab3a-11ee-9fcf-5746a7aee9ca
+    /A.B.C.D
+    /E.F.G.H
+        Receiving 13 files, 14302312660 bytes total. Already received 2 files, 104838752 bytes total
+            ks1/tbl1 80/80 bytes(100%) received from idx:0/E.F.G.H
+            ks2/tbl2 471/471 bytes(100%) received from idx:0/E.F.G.H
+    /I.J.K.L {noformat}

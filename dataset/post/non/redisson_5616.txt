@@ -1,0 +1,35 @@
+`bitField` implementation missed in `RedissonReactiveStringCommands`
+**Expected behavior**
+bitField operations via `ReactiveStringRedisTemplate#opsForValue#bitField` executed correctly
+
+**Actual behavior**
+```kotlin
+Operator called default onErrorDropped
+reactor.core.Exceptions$ErrorCallbackNotImplemented: java.lang.NullPointerException: Cannot invoke "reactor.core.publisher.Flux.map(java.util.function.Function)" because the return value of "org.springframework.data.redis.connection.ReactiveStringCommands.bitField(org.reactivestreams.Publisher)" is null
+```
+
+**Steps to reproduce or test case**
+```kotlin
+val template: ReactiveStringRedisTemplate = // initialization code
+
+val commands = BitFieldSubCommands.create()
+    .get(BitFieldSubCommands.BitFieldType.UINT_32).valueAt(0)
+    .get(BitFieldSubCommands.BitFieldType.UINT_32).valueAt(1)
+    .get(BitFieldSubCommands.BitFieldType.UINT_32).valueAt(2)
+
+template.opsForValue().bitField("this.is.key", commands)
+    .doOnNext { println("field #0: ${it[0]}, field #1: ${it[1]}, field #2: ${it[2]}") }
+    .subscribe()
+```
+
+Looks like `bitField` method not implemented:
+https://github.com/redisson/redisson/blob/ef8cd19ec1104da5932eed2410ec11ba3bbe6db3/redisson-spring-data/redisson-spring-data-32/src/main/java/org/redisson/spring/data/connection/RedissonReactiveStringCommands.java#L363-L365
+
+**Redis version**
+does not matter
+
+**Redisson version**
+redisson-spring-data-32-3.25.2
+
+**Redisson configuration**
+does not matter

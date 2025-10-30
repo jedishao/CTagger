@@ -1,0 +1,131 @@
+Incorrect error message for query that failed planning stage when hive.query-partition-filter-required is enabled.
+Trino version: **459**
+When having a hive connector with the property 
+
+> hive.query-partition-filter-required=true
+
+And running a query that has the right partitions as filters, if there is an error on the **trino-worker** reading an s3 split. The query fails with the **incorrect error message** of the partition filter not being provided.
+
+
+Having a hive table with partitions such as:
+
+>  CREATE TABLE gc (
+    time timestamp(3) COMMENT 'Time of the log event',
+    commonrequestid varchar COMMENT 'Value of the Common Request ID',
+    event_date varchar COMMENT 'Date of log events (YYYY-MM-DD)',
+    env_type varchar COMMENT 'A grouping type for environments',
+    processed_at_time bigint COMMENT 'Time in epoch milliseconds at which data was processed',
+    schema_hashcode bigint COMMENT 'Hashcode of the underlying schema (not the table schema version)'
+ ) WITH (
+   external_location = 's3a:bucket/gc',
+   format = 'PARQUET',
+   partitioned_by = ARRAY['event_date','env_type','processed_at_time','schema_hashcode']
+ )
+
+And the following query:
+`select count(*) from gc where env_type IN ('PROD', 'IMPL', 'DR') and event_date >'2023-01-01' and event_date <'2024-12-01';`
+
+We get the **incorrect error message**:
+> Query 20250226_075110_00005_5nxs6 failed: Filter required on gc for at least one partition column: event_date, env_type, processed_at_time, schema_hashcode
+
+When the following exception happens in a trino-worker:
+
+> 2025-02-26T07:47:16.194Z	DEBUG	http-worker-115	io.trino.execution.SqlTask	Aborting task 20250226_074632_00003_5nxs6.0.0.0 output 0
+2025-02-26T07:47:16.195Z	DEBUG	task-notification-2	io.trino.execution.TaskStateMachine	Task 20250226_074632_00003_5nxs6.1.0.0 is CANCELING
+2025-02-26T07:47:16.195Z	DEBUG	task-notification-1	io.trino.execution.TaskStateMachine	Task 20250226_074632_00003_5nxs6.0.0.0 is ABORTING
+2025-02-26T07:47:16.197Z	DEBUG	http-worker-113	io.trino.execution.SqlTask	Aborting task 20250226_074632_00003_5nxs6.1.0.0 output 0
+2025-02-26T07:47:16.197Z	ERROR	page-buffer-client-callback-24	io.trino.operator.HttpPageBufferClient	Request to delete http://hostname:8080/v1/task/20250226_074632_00003_5nxs6.1.0.0/results/0 failed java.util.concurrent.CancellationException: Task was cancelled.
+2025-02-26T07:47:16.197Z	DEBUG	http-worker-109	io.trino.execution.SqlTask	Aborting task 20250226_074632_00003_5nxs6.1.0.0 output 0
+2025-02-26T07:47:16.198Z	DEBUG	SplitRunner-70	io.trino.execution.executor.dedicated.SplitProcessor	Driver was interrupted
+io.trino.spi.TrinoException: Driver was interrupted
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:327)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:709)
+	at io.trino.operator.Driver.process(Driver.java:298)
+	at io.trino.operator.Driver.processForDuration(Driver.java:269)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:890)
+	at io.trino.execution.executor.dedicated.SplitProcessor.run(SplitProcessor.java:77)
+	at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.lambda$run$0(TaskEntry.java:201)
+	at io.trino.$gen.Trino_459____20250226_074411_2.run(Unknown Source)
+	at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.run(TaskEntry.java:202)
+	at io.trino.execution.executor.scheduler.FairScheduler.runTask(FairScheduler.java:172)
+	at io.trino.execution.executor.scheduler.FairScheduler.lambda$submit$0(FairScheduler.java:159)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:131)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:76)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:82)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1570)
+	Suppressed: io.trino.spi.TrinoException: Error opening Hive split s3a://bucket/gc/event_date=25-05-2023/env_type=IMPL/processed_at_time=1685005212656/schema_hashcode=6831865379266577995/application_1684701333221_1434_partition_4595_stage_id_15_writer-gc-2023-05-25-IMPL-0def007119951c66583e25f4698b7bc0-0.parquet (offset=0, length=22150870): Failed to open S3 file: s3a://bucket/gc/event_date=25-05-2023/env_type=IMPL/processed_at_time=1685005212656/schema_hashcode=6831865379266577995/application_1684701333221_1434_partition_4595_stage_id_15_writer-gc-2023-05-25-IMPL-0def007119951c66583e25f4698b7bc0-0.parquet
+		at io.trino.plugin.hive.parquet.ParquetPageSourceFactory.createPageSource(ParquetPageSourceFactory.java:308)
+		at io.trino.plugin.hive.parquet.ParquetPageSourceFactory.createPageSource(ParquetPageSourceFactory.java:182)
+		at io.trino.plugin.hive.HivePageSourceProvider.createHivePageSource(HivePageSourceProvider.java:204)
+		at io.trino.plugin.hive.HivePageSourceProvider.createPageSource(HivePageSourceProvider.java:139)
+		at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSourceProvider.createPageSource(ClassLoaderSafeConnectorPageSourceProvider.java:48)
+		at io.trino.split.PageSourceManager$PageSourceProviderInstance.createPageSource(PageSourceManager.java:79)
+		at io.trino.operator.TableScanOperator.getOutput(TableScanOperator.java:265)
+		at io.trino.operator.Driver.processInternal(Driver.java:403)
+		at io.trino.operator.Driver.lambda$process$8(Driver.java:306)
+		... 17 more
+	Caused by: java.io.IOException: Failed to open S3 file: s3a://bucket/gc/event_date=25-05-2023/env_type=IMPL/processed_at_time=1685005212656/schema_hashcode=6831865379266577995/application_1684701333221_1434_partition_4595_stage_id_15_writer-gc-2023-05-25-IMPL-0def007119951c66583e25f4698b7bc0-0.parquet
+		at io.trino.filesystem.s3.S3Input.read(S3Input.java:120)
+		at io.trino.filesystem.s3.S3Input.readTail(S3Input.java:83)
+		at io.trino.filesystem.TrinoInput.readTail(TrinoInput.java:43)
+		at io.trino.filesystem.tracing.TracingInput.lambda$readTail$3(TracingInput.java:81)
+		at io.trino.filesystem.tracing.Tracing.withTracing(Tracing.java:47)
+		at io.trino.filesystem.tracing.TracingInput.readTail(TracingInput.java:81)
+		at io.trino.plugin.hive.parquet.TrinoParquetDataSource.readTailInternal(TrinoParquetDataSource.java:54)
+		at io.trino.parquet.AbstractParquetDataSource.readTail(AbstractParquetDataSource.java:100)
+		at io.trino.parquet.reader.MetadataReader.readFooter(MetadataReader.java:101)
+		at io.trino.plugin.hive.parquet.ParquetPageSourceFactory.createPageSource(ParquetPageSourceFactory.java:228)
+		... 25 more
+	Caused by: software.amazon.awssdk.core.exception.AbortedException: Thread was interrupted
+		at software.amazon.awssdk.core.exception.AbortedException$BuilderImpl.build(AbortedException.java:93)
+		at software.amazon.awssdk.core.exception.AbortedException.create(AbortedException.java:38)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallAttemptTimeoutTrackingStage.handleInterruptedException(ApiCallAttemptTimeoutTrackingStage.java:146)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallAttemptTimeoutTrackingStage.translatePipelineException(ApiCallAttemptTimeoutTrackingStage.java:107)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallAttemptTimeoutTrackingStage.execute(ApiCallAttemptTimeoutTrackingStage.java:91)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallAttemptTimeoutTrackingStage.execute(ApiCallAttemptTimeoutTrackingStage.java:43)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.TimeoutExceptionHandlingStage.execute(TimeoutExceptionHandlingStage.java:79)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.TimeoutExceptionHandlingStage.execute(TimeoutExceptionHandlingStage.java:41)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallAttemptMetricCollectionStage.execute(ApiCallAttemptMetricCollectionStage.java:55)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallAttemptMetricCollectionStage.execute(ApiCallAttemptMetricCollectionStage.java:39)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.RetryableStage2.executeRequest(RetryableStage2.java:93)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.RetryableStage2.execute(RetryableStage2.java:56)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.RetryableStage2.execute(RetryableStage2.java:36)
+		at software.amazon.awssdk.core.internal.http.pipeline.RequestPipelineBuilder$ComposingRequestPipelineStage.execute(RequestPipelineBuilder.java:206)
+		at software.amazon.awssdk.core.internal.http.StreamManagingStage.execute(StreamManagingStage.java:53)
+		at software.amazon.awssdk.core.internal.http.StreamManagingStage.execute(StreamManagingStage.java:35)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallTimeoutTrackingStage.executeWithTimer(ApiCallTimeoutTrackingStage.java:82)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallTimeoutTrackingStage.execute(ApiCallTimeoutTrackingStage.java:62)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallTimeoutTrackingStage.execute(ApiCallTimeoutTrackingStage.java:43)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallMetricCollectionStage.execute(ApiCallMetricCollectionStage.java:50)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ApiCallMetricCollectionStage.execute(ApiCallMetricCollectionStage.java:32)
+		at software.amazon.awssdk.core.internal.http.pipeline.RequestPipelineBuilder$ComposingRequestPipelineStage.execute(RequestPipelineBuilder.java:206)
+		at software.amazon.awssdk.core.internal.http.pipeline.RequestPipelineBuilder$ComposingRequestPipelineStage.execute(RequestPipelineBuilder.java:206)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ExecutionFailureExceptionReportingStage.execute(ExecutionFailureExceptionReportingStage.java:37)
+		at software.amazon.awssdk.core.internal.http.pipeline.stages.ExecutionFailureExceptionReportingStage.execute(ExecutionFailureExceptionReportingStage.java:26)
+		at software.amazon.awssdk.core.internal.http.AmazonSyncHttpClient$RequestExecutionBuilderImpl.execute(AmazonSyncHttpClient.java:210)
+		at software.amazon.awssdk.core.internal.handler.BaseSyncClientHandler.invoke(BaseSyncClientHandler.java:103)
+		at software.amazon.awssdk.core.internal.handler.BaseSyncClientHandler.doExecute(BaseSyncClientHandler.java:173)
+		at software.amazon.awssdk.core.internal.handler.BaseSyncClientHandler.lambda$execute$0(BaseSyncClientHandler.java:66)
+		at software.amazon.awssdk.core.internal.handler.BaseSyncClientHandler.measureApiCallSuccess(BaseSyncClientHandler.java:182)
+		at software.amazon.awssdk.core.internal.handler.BaseSyncClientHandler.execute(BaseSyncClientHandler.java:60)
+		at software.amazon.awssdk.core.client.handler.SdkSyncClientHandler.execute(SdkSyncClientHandler.java:52)
+		at software.amazon.awssdk.awscore.client.handler.AwsSyncClientHandler.execute(AwsSyncClientHandler.java:60)
+		at software.amazon.awssdk.services.s3.DefaultS3Client.getObject(DefaultS3Client.java:5441)
+		at io.trino.filesystem.s3.S3Input.read(S3Input.java:104)
+		... 34 more
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,10 @@
+TestDefaultQuota fails because of pseudo-race condition
+HBASE-28963 changes the QuotaCache logic so that QuotaRefresherChore is not run before returning the Quota object.
+
+This results in the first quota object returned being a default object, which gets updated by the next  QuotaRefresherChore run.
+
+Normally, this shouldn't be a problem, as eventually a QuotaRefresherChore is run, and the Quota gets updated to the real value.
+
+However, in tests the EnvironmentEdgeManager clock is advanced several minutes several times between trying to execute the operations, which results in the Quota entry always getting evicted before it has had a chance to get updated, and the test is always using the default Quota object instead of the real one.
+
+Specifically, this manifests in TestDefaultQuota always failing on my machine (and internal CI hosts).

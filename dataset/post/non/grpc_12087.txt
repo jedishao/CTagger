@@ -1,0 +1,32 @@
+Support for slow start with WRR Load Balancer Policy
+<!-- Please answer these questions before submitting a feature request. -->
+
+### Is your feature request related to a problem?
+https://github.com/grpc/grpc-java/issues/10688
+
+### Describe the solution you'd like
+As per the above issue which was closed earlier, we recently tried WRR load balancing policy and with a few modification we can allow support for slow start. More details are available on the earlier issue.
+
+In WRR conifg we have an option as blackout period which signifies that an endpoint when added to the address list, may be because it is a new endpoint or it has been removed before and added again, blackout period signify that we should wait for this much time before we start using the weights of this endpoint.
+
+So as per the RFC we assign it mean weight of all the endpoints so it receives some amount of traffic, but this itself can be a huge traffic if the pod is just starting. We can may be use the blackout period seconds to clamp down this average weight and hence achieve a slow start result.
+
+In the official envoy [documentation](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/load_balancing/slow_start) we have the formula defined as
+
+```
+new_weight = weight * max(min_weight_percent, time_factor ^ (1/agression))
+time_factor = max(time_start_in_seconds, 1) / slow_start_window_seconds
+```  
+
+Here the `aggression` defines the slope of traffic increase and when it is 1 which is by default it increases traffic linearly.
+
+We can either define and use the same configuration to update our weights or instead we can assume the aggression to be 1 and `slow_start_window_seconds` to be `blackout_period` and min_weight_percent = 0. We can also assume the weight here to be the `mean_weight` or the `max_weight`.
+
+The formula can then be simplified as
+```
+new_weight = mean_weight * max(time_start_in_seconds, 1) / black_out_period
+```
+
+As per the definition of blackout_period it depends on the implementation how it chooses to send traffic, so if we define this logic for GRPC implementation, it should ideally not be an issue and yet we can achieve better results in comparison to the current implementation.
+
+May be at a later stage we can consume the config directly and update weights to provide users more functionality to configure `aggression`  and `min_weight_percentage`.

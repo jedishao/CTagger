@@ -1,0 +1,18 @@
+Make WAL rolling exception clear
+Occasionally we see errors like this that doesn't really give much clue what went wrong.
+
+{noformat}
+2024-04-22 08:08:02,026 ERROR org.apache.hadoop.hbase.master.HMaster: ***** ABORTING master ccycloud-7.ozn-hb973chf3oz.xyz,22001,1713770648404: Log rolling failed *****
+java.lang.RuntimeException
+        at org.apache.hadoop.hbase.regionserver.wal.AsyncProtobufLogWriter.writeWALMetadata(AsyncProtobufLogWriter.java:217)
+        at org.apache.hadoop.hbase.regionserver.wal.AsyncProtobufLogWriter.writeMagicAndWALHeader(AsyncProtobufLogWriter.java:223)
+        at org.apache.hadoop.hbase.regionserver.wal.AbstractProtobufLogWriter.init(AbstractProtobufLogWriter.java:164)
+        at org.apache.hadoop.hbase.wal.AsyncFSWALProvider.createAsyncWriter(AsyncFSWALProvider.java:116)
+        at org.apache.hadoop.hbase.regionserver.wal.AsyncFSWAL.createWriterInstance(AsyncFSWAL.java:726)
+        at org.apache.hadoop.hbase.regionserver.wal.AsyncFSWAL.createWriterInstance(AsyncFSWAL.java:129)
+        at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.rollWriter(AbstractFSWAL.java:886)
+        at org.apache.hadoop.hbase.wal.AbstractWALRoller$RollController.rollWal(AbstractWALRoller.java:304)
+        at org.apache.hadoop.hbase.wal.AbstractWALRoller.run(AbstractWALRoller.java:211)
+{noformat}
+
+In this case, it was due to a time out exception. It would be helpful to make the log message more friendly.

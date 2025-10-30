@@ -1,0 +1,38 @@
+[Bug] [broker]Sometime after reset cursor, unable to reconsume all messages in topic when ttl is less than retention time.
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+ALL
+
+### Minimal reproduce step
+
+1. Create a namespaces, set ttl time to be less than retention time, for example ttl=60s, retention time=60min.
+2. Continuously send a large number of messages to the topic.
+3. Create a new subscription and start consumption from the latest location. At this time, it can be consumed in time without any backlog.
+4.  We adjust the dispatch rate to a smaller threshold(For avoid consuming all backlog messages too quickly). Then we reset cursor to the earliest location.
+5. We found that consumption will start from the earliest position, but after a period of time(in messageExpiryCheckIntervalInMinutes), the intermediate messages will be skipped and go directly to the ttl time position.
+
+### What did you expect to see?
+
+ Reconsume all messages from reset position in topic.
+
+### What did you see instead?
+
+Some messages before ttl cannot be consumed (skip directly)
+
+### Anything else?
+
+The reason for this problem is that ttl checks that the consumption position is before ttl, and resets the consume read position to the position of ttl.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

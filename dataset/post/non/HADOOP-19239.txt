@@ -1,0 +1,23 @@
+Enhance FileSystem.Cache to honor security token and expiration
+We have an online service which uses Hadoop FileSystem to load files from a remote cloud storage.
+
+The current cache in FileSystem is a [HashMap|https://github.com/apache/hadoop/blob/4525c7e35ea22d7a6350b8af10eb8d2ff68376e7/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/fs/FileSystem.java#L3635C1-L3635C62], and its key honors scheme, authority (like [user@host:port|https://en.wikipedia.org/wiki/Uniform_Resource_Identifier#Syntax]), ugi and a unique long for its [hash code|https://github.com/apache/hadoop/blob/4525c7e35ea22d7a6350b8af10eb8d2ff68376e7/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/fs/FileSystem.java#L3891C1-L3894C8]. And among those 4 fields, only "scheme" and "authority" could be controlled externally.
+
+That results in a wrong case like: A FileSystem entry in the cache was created with schemeA + authorityA, and with read + write access, and an expiration. Later, an API to get FileSystem comes still using schemeA + authorityA, but with less access (maybe read only), or it already expires, that FileSystem entry in the cache is hit by mistake, while no new FilleSystem is created. It does not lead to a security issue, but subsequent calls (maybe to read the file) will be rejected with 403 by the remote storage.
+
+Our proposal is like
+ * Short term
+ ** Add a new field in FileSystem.Cache.Key to affect hashCode() and equals(). This field could be specified when contructing a Key.
+ ** Add a simple expiration mechanism in FileSystem.Cache
+ *** Each cache entry is created with a expiration
+ *** When getting a FileSystem, if the cache entry is hit but already expires, close it and remove it from the cache. And return a new created FileSystem.
+ * Long term
+ ** Replace the internal HashMap by a more modern and full functional cache framework, like [https://github.com/ben-manes/caffeine]
+
+ 
+
+ 
+
+ 
+
+ 

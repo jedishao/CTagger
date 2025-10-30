@@ -1,0 +1,8 @@
+AliyunOSS: When using the OSS Connector, special circumstances can lead to deadlocks in IO threads, causing computation tasks to become stuck
+When using {{AliyunOSSBlockOutputStream}} to read data, the threads waiting to read data and the threads accessing OSS to fetch data are coordinated using a condition lock. We have observed that under certain special circumstances, such as incorrect environment configurations or misconfigurations of third-party dependencies, the threads responsible for fetching data can abnormally terminate. After termination, these threads do not release the locks they hold, leading to indefinite waiting by other threads. From the perspective of the computation engine, this tasks being stalled (but not failing).
+
+ 
+
+!https://aone.alibaba-inc.com/v2/api/workitem/adapter/file/url?fileIdentifier=workitem%2Falibaba%2F1026733%2F1733219963897image.png!
+
+We believe that in such situations, it is best for the computation engine to detect the error and exit accordingly, rather than remain indefinitely stuck.

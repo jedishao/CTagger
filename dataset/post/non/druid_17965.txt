@@ -1,0 +1,84 @@
+Failed to sample data: Fail to get protobuf schema because of invalid schema!
+Error when using Proto bytes decoder: Failed to sample data: Fail to get protobuf schema because of invalid schema!
+
+### Affected Version
+
+32.0.1
+
+### Description
+I am trying to ingest kafka protobuf data. 
+
+I have added druid-protobuf-extensions to the druid envirionment loadlist:
+```
+druid_extensions_loadList=["druid-histogram", "druid-datasketches", "druid-lookups-cached-global", "postgresql-metadata-storage", "druid-multi-stage-query", "druid-kafka-indexing-service", "druid-avro-extensions", "druid-protobuf-extensions"]
+```
+
+I have added all the following jar dependencies to /opt/druid/extensions/druid-protobuf-extensions/:
+```
+kafka-protobuf-provider-6.2.12.jar
+kafka-protobuf-types-6.2.12.jar
+kafka-schema-registry-client-6.2.12.jar
+kotlin-stdlib-common-1.4.10.jar
+proto-google-common-protos-2.22.1.jar
+wire-runtime-3.6.0.jar
+wire-schema-3.6.0.jar
+```
+
+My kafka client has AUTO_REGISTER_SCHEMAS enabled and the schema is successfully created in the schema registry as following:
+```
+[
+  {
+    "subject": "metrics-events-value",
+    "version": 1,
+    "id": 1,
+    "schemaType": "PROTOBUF",
+    "schema": "syntax = \"proto3\";\npackage model;\n\noption java_package = \"com.flutter.kafka.proto.producer.model\";\n\nmessage Metrics {\n  string unit = 1;\n  string http_method = 2;\n  int32 value = 3;\n  string timestamp = 4;\n  string http_code = 5;\n  string page = 6;\n  string metricType = 7;\n  string server = 8;\n}\n"
+  }
+]
+```
+
+My spec is configured like this:
+```
+{
+  "type": "kafka",
+  "spec": {
+    "ioConfig": {
+      "type": "kafka",
+      "consumerProperties": {
+        "bootstrap.servers": "kafka:29092"
+      },
+      "topic": "metrics-events",
+      "inputFormat": {
+        "type": "kafka",
+        "keyFormat": {
+          "type": "regex",
+          "pattern": "([\\s\\S]*)",
+          "columns": [
+            "line"
+          ]
+        },
+        "valueFormat": {
+          "type": "protobuf",
+          "protoBytesDecoder": {
+            "type": "schema_registry",
+            "urls": [
+              "http://schema-registry:28081"
+            ],
+            "capacity": 100
+          }
+        }
+      }
+    },
+    "tuningConfig": {
+      "type": "kafka"
+    },
+    "dataSchema": {
+      "dataSource": "metrics-events"
+    }
+  }
+}
+```
+
+Still I get "Failed to sample data: Fail to get protobuf schema because of invalid schema!" error in the UI.
+
+I can't figure out what is missing here.

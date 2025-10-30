@@ -1,0 +1,258 @@
+CAST string to date should return null when format is invalid
+Date conversation gives wrong result. Like:1 row selected (6.403 seconds)
+select to_date('03-08-2024');
+
+Result:
+
++-------------+
+|    _c0    |
+
++-------------+
+|0003-08-20  |
+
++-------------+
+
+or:
+select to_date(last_day(add_months(last_day('03-08-2024'), -1))) ;
+Result:
++-------------+
+|    _c0    |
+
++-------------+
+|0003-07-31  |
+
++-------------
+
+
+
+Here is my comparison with other database systems:
+
++
+
+----------------------------------------------------------------------------------------------------------
+--------------------------------------------PostgreSQL----------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+SELECT TO_DATE('03-08-2024','YYYYMMDD');
+invalid value "03-0" for "YYYY" DETAIL: Field requires 4 characters, but only 2 could be parsed. HINT: If your source string is not fixed-width, try using the "FM" modifier. 
+
+SELECT TO_DATE('03-08-2024','DD-MM-YYYY');
+
+to_date
+Sat, 03 Aug 2024 00:00:00 GMT
+
+
+SELECT CAST('03-08-2024' AS date);
+date
+Fri, 08 Mar 2024 00:00:00 GMT
+
+
+SELECT CAST('2024-08-03' AS date);
+date
+Sat, 03 Aug 2024 00:00:00 GMT
+
+SELECT CAST('2024-08-03 T' AS date);
+invalid input syntax for type date: "2024-08-03 T" LINE 1: SELECT CAST('2024-08-03 T' AS date) ^ 
+
+SELECT CAST('2024-08-03T' AS date);
+invalid input syntax for type date: "2024-08-03T" LINE 1: SELECT CAST('2024-08-03T' AS date) ^ 
+
+SELECT CAST('2024-08-03T12:00:00' AS date);
+date
+Sat, 03 Aug 2024 00:00:00 GMT
+
+SELECT CAST('2024-08-0312:00:00' AS date);
+date/time field value out of range: "2024-08-0312:00:00" LINE 1: SELECT CAST('2024-08-0312:00:00' AS date) ^ HINT: Perhaps you need a different "datestyle" setting. 
+
+----------------------------------------------------------------------------------------------------------
+---------------------------------------------ORACLE-------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+select CAST('2024-08-03 12:00:00' AS date) from dual;
+Output:
+
+select CAST('2024-08-03 12:00:00' AS date) from dual
+            *
+ERROR at line 1:
+ORA-01861: literal does not match format string
+
+
+---------------------
+select CAST('2024-08-03' AS date) from dual;
+Output:
+
+select CAST('2024-08-03' AS date) from dual
+            *
+ERROR at line 1:
+ORA-01861: literal does not match format string
+
+---------------------
+SELECT TO_DATE('08/03/2024', 'MM/DD/YYYY') FROM DUAL;
+Output:
+
+TO_DATE('
+---------
+03-AUG-24
+
+---------------------
+SELECT TO_DATE('2024-08-03', 'YYYY-MM-DD') FROM DUAL;
+Output:
+
+TO_DATE('
+---------
+03-AUG-24
+
+---------------------
+select CAST('03-08-2024' AS date) from dual;
+Output:
+
+select CAST('03-08-2024' AS date) from dual
+            *
+ERROR at line 1:
+ORA-01843: An invalid month was specified.
+
+---------------------
+select CAST('2024-08-0312:00:00' AS date) from dual;
+Output:
+
+select CAST('2024-08-0312:00:00' AS date) from dual
+            *
+ERROR at line 1:
+ORA-01861: literal does not match format string
+
+
+---------------------
+select CAST('10-AUG-24' AS date) from dual;
+Output:
+
+CAST('10-
+---------
+10-AUG-24
+---------------------
+select CAST('10-AUG-2024' AS date) from dual;
+Output:
+
+CAST('10-
+---------
+10-AUG-24
+
+---------------------
+select CAST('03-08-24' AS date) from dual;
+Output:
+
+select CAST('03-08-24' AS date) from dual
+            *
+ERROR at line 1:
+ORA-01843: An invalid month was specified.
+
+ 
+
+--------------------------------------
+select CAST('03-08-2024' AS date) from dual;
+Output:
+
+select CAST('03-08-2024' AS date) from dual
+            *
+ERROR at line 1:
+ORA-01843: An invalid month was specified.
+--------------------------------
+
+SELECT sysdate FROM DUAL;
+Output:
+
+
+SYSDATE
+---------
+10-SEP-24
+
+SYSDATE
+---------
+10-SEP-24
+
+
+----------------------------------------------------------------------------------------------------------
+---------------------------------------------MYSQL-------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+
+SELECT CAST('03-08-2024' AS date);
+Output:
+
++----------------------------+
+| CAST('03-08-2024' AS date) |
++----------------------------+
+| NULL                       |
++----------------------------+
+
+--------------------------------
+SELECT STR_TO_DATE('03-08-2024','%d-%m-%Y');
+Output:
+
++--------------------------------------+
+| STR_TO_DATE('03-08-2024','%d-%m-%Y') |
++--------------------------------------+
+| 2024-08-03                           |
++--------------------------------------+
+
+
+--------------------------------
+
+
+--------------------------------
+SELECT CAST('03-08-2024' AS date);
+Output:
+
++----------------------------+
+| CAST('03-08-2024' AS date) |
++----------------------------+
+| NULL                       |
++----------------------------+
+
+--------------------------------
+SELECT CAST('2024-08-03' AS date);
+Output:
+
++----------------------------+
+| CAST('2024-08-03' AS date) |
++----------------------------+
+| 2024-08-03                 |
++----------------------------+
+
+--------------------------------
+SELECT CAST('2024-08-03 T' AS date);
+Output:
+
++------------------------------+
+| CAST('2024-08-03 T' AS date) |
++------------------------------+
+| 2024-08-03                   |
++------------------------------+
+
+--------------------------------
+SELECT CAST('2024-08-03T' AS date);
+Output:
+
++-----------------------------+
+| CAST('2024-08-03T' AS date) |
++-----------------------------+
+| 2024-08-03                  |
++-----------------------------+
+
+--------------------------------
+SELECT CAST('2024-08-03T12:00:00' AS date);
+Output:
+
++-------------------------------------+
+| CAST('2024-08-03T12:00:00' AS date) |
++-------------------------------------+
+| 2024-08-03                          |
++-------------------------------------+
+
+--------------------------------
+SELECT CAST('2024-08-0312:00:00' AS date);
+Output:
+
++------------------------------------+
+| CAST('2024-08-0312:00:00' AS date) |
++------------------------------------+
+| NULL                               |
++------------------------------------+
+
+ 

@@ -1,0 +1,2 @@
+BucketCache.blocksByHFile may leak on allocationFailure or if we reach io errors tolerated
+We add blocks to BucketCache.blocksByHFile on doDrain before we actually had successfully added the block to the cache. We may still fail to cache the block if it is too big to fit any of the configured bucket sizes, or if we fail to write it in the ioengine and reach the tolerated io errors threshold. In such cases, the related block would remain in the BucketCache.blocksByHFile indefinitely.

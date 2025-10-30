@@ -1,0 +1,25 @@
+Intercept Java DSL is not supported on the route scope
+According to the documentation:
+[https://camel.apache.org/components/4.4.x/eips/intercept.html]
+`.intercept()` could be set on the route scope:
+{code:java}
+ from("jms:queue:order")
+   .intercept().to("log:hello").end() // intercepts only in this route
+  .to("bean:validateOrder")
+  .to("bean:processOrder");
+{code}
+But it causes a compile-time error:
+{code:java}
+cannot find symbol
+[ERROR]   symbol:   method intercept()
+[ERROR]   location: class org.apache.camel.model.RouteDefinition
+{code}
+It is a bug in a documentation or in a Camel itself.
+If it is a bug in a documentation, then it should be explicitly said that `intercept()` on the route scope is not supported.
+
+Note: intercept can be used in AdviceWith with AdviceWithRouteBuilder:
+{code:java}
+AdviceWith.adviceWith(context, "route_id", routeBuilder -> {
+  routeBuilder.intercept().to(...);
+});
+{code}

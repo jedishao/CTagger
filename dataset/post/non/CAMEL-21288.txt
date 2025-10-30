@@ -1,0 +1,94 @@
+Log processor causing memory leak in split for very large data sets
+Given random data generator function:
+
+ 
+{code:java}
+public static List<Map<String, Object>> seed(int numberOfRows, int numberOfColumns) {
+    List<Map<String, Object>> dataList = new ArrayList<>();
+    Random random = new Random();
+    for (int i = 0; i < numberOfRows; i++) {
+        Map<String, Object> row = new HashMap<>();
+        for (int j = 1; j <= numberOfColumns; j++) {
+            String columnName = "col" + j;
+            var value = random.nextInt(1000);
+            row.put(columnName, value);
+        }
+        dataList.add(row);
+    }
+    return dataList;
+} {code}
+And two processors - first generates 20 batches and second would generate 20k rows in each batch (tweak as you want):
+
+ 
+{code:java}
+public class OutsideSplitProcessor implements Processor {
+
+    @Override
+    public void process(Exchange exchange) throws Exception {
+        exchange.getIn().setBody(seed(20, 1));
+    }
+} {code}
+ 
+{code:java}
+public class InsideSplitProcessor implements Processor {
+    
+    @Override
+    public void process(Exchange exchange) throws Exception {
+        exchange.getIn().setBody(seed(20000, 20));
+    }
+} {code}
+And a route:
+
+ 
+{code:java}
+<route>
+ <from uri="direct:test"/>
+ <process ref="outsideSplitProcessor"/> 
+ <split stopOnException="true" parallelProcessing="false" streaming="true">
+  <simple>${body}</simple>
+  <process ref="insideSplitProcessor"/>
+  <log message="Ha, now you fail ${body.size()}"/>
+  <setBody><constant/></setBody>
+ </split>
+ <to uri="mock:test"/>
+</route> {code}
+The processing would fail on OOM when used limited memory setting ( -Xmx512m in my case of macbook m1 pro 16Gb ram).
+
+The problem is on the line:
+
+ 
+{code:java}
+<log message="Ha, now you fail ${body.size()}"/> {code}
+Where upon analysis, the expression evaluation stores the content of the body into memory (ok), but keep it referrenced even after leaving the {*}split{*}. This is happening only when the generated data are objects (Random usage in this case) - when using unboxed *int* values, the problem is not there. Our original case was using *sql* component, that returned database data (boxed in objects).
+
+ 
+
+You can mitigate the problem by using external processor instead of log:
+
+ 
+{code:java}
+<process ref="logProcessor"/> {code}
+{code:java}
+public class LogProcessor implements Processor {
+
+    @Override
+    public void process(Exchange exchange) throws Exception {
+        log.info("Haha, now you will not fail: {}", exchange.getIn().getBody(List.class).size());
+    }
+} {code}
+or using groovy:
+{code:java}
+<groovy>
+    request.headers.bodySize = body.size()
+</groovy> {code}
+In both cases, referrences are cleaned up - not causing OOM.
+
+ 
+
+This behavior seems very unexpected.
+
+ 
+
+ 
+
+ 

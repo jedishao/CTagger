@@ -1,0 +1,52 @@
+camel-bean - Add better support for invoking varargs methods
+{code:java}
+        from("timer:java?period=5000")
+            .setBody()
+                .simple("${bean:type:java.util.Arrays?method=asList(${exchangeProperty.CamelTimerCounter}, \"${exchangeId}\",\"New event ${exchangeId} generated at ${exchangeProperty.CamelTimerFiredTime}\")}")
+            .log("${body}"); {code}
+ 
+
+This ends up invoking asList(...) on Arrays that is a vararg, but is visible as Object[] at runtime. So we need to have some special code in camel-bean to detect this to ensure it invokes the method correctly, creating a single Object[] array of the 3 args
+
+ 
+{code:java}
+2025-02-28 11:46:39.318  WARN 80713 --- [ - timer://java] ache.camel.component.timer.TimerConsumer : Error processing exchange. Exchange[F1744A70B96039E-0000000000000022]. Caused by: [org.apache.camel.language.bean.RuntimeBeanExpressionException - Failed to invoke method: asList(${exchangeProperty.CamelTimerCounter}, "${exchangeId}","New event ${exchangeId} generated at ${exchangeProperty.CamelTimerFiredTime}") on null due to: java.lang.NullPointerException]
+org.apache.camel.language.bean.RuntimeBeanExpressionException: Failed to invoke method: asList(${exchangeProperty.CamelTimerCounter}, "${exchangeId}","New event ${exchangeId} generated at ${exchangeProperty.CamelTimerFiredTime}") on null due to: java.lang.NullPointerException
+    at org.apache.camel.language.bean.BeanExpression.invokeOgnlMethod(BeanExpression.java:474) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.language.bean.BeanExpression.evaluate(BeanExpression.java:218) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.language.bean.BeanExpression.evaluate(BeanExpression.java:232) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.language.simple.ast.SimpleFunctionStart$1.evaluate(SimpleFunctionStart.java:125) ~[camel-core-languages-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.processor.SetBodyProcessor.process(SetBodyProcessor.java:45) ~[camel-core-processor-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.processor.errorhandler.RedeliveryErrorHandler$SimpleTask.handleFirst(RedeliveryErrorHandler.java:440) ~[camel-core-processor-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.processor.errorhandler.RedeliveryErrorHandler$SimpleTask.run(RedeliveryErrorHandler.java:416) ~[camel-core-processor-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.doRun(DefaultReactiveExecutor.java:199) [camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.executeReactiveWork(DefaultReactiveExecutor.java:189) [camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.tryExecuteReactiveWork(DefaultReactiveExecutor.java:166) [camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.schedule(DefaultReactiveExecutor.java:148) [camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor.scheduleMain(DefaultReactiveExecutor.java:59) [camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.processor.Pipeline.process(Pipeline.java:163) [camel-core-processor-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.CamelInternalProcessor.processNonTransacted(CamelInternalProcessor.java:347) [camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.CamelInternalProcessor.process(CamelInternalProcessor.java:323) [camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.timer.TimerConsumer.sendTimerExchange(TimerConsumer.java:293) [camel-timer-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.timer.TimerConsumer$1.doRun(TimerConsumer.java:164) [camel-timer-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.timer.TimerConsumer$1.run(TimerConsumer.java:136) [camel-timer-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at java.base/java.util.TimerThread.mainLoop(Timer.java:566) [?:?]
+    at java.base/java.util.TimerThread.run(Timer.java:516) [?:?]
+Caused by: java.lang.NullPointerException
+    at java.base/java.util.Objects.requireNonNull(Objects.java:209) ~[?:?]
+    at java.base/java.util.Arrays$ArrayList.<init>(Arrays.java:4137) ~[?:?]
+    at java.base/java.util.Arrays.asList(Arrays.java:4122) ~[?:?]
+    at java.base/jdk.internal.reflect.GeneratedMethodAccessor71.invoke(Unknown Source) ~[?:?]
+    at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+    at java.base/java.lang.reflect.Method.invoke(Method.java:568) ~[?:?]
+    at org.apache.camel.support.ObjectHelper.invokeMethodSafe(ObjectHelper.java:485) ~[camel-support-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.bean.MethodInfo.invoke(MethodInfo.java:505) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.bean.MethodInfo$1.doProceed(MethodInfo.java:308) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.bean.MethodInfo$1.proceed(MethodInfo.java:285) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.bean.AbstractBeanProcessor.useMethodInvocation(AbstractBeanProcessor.java:125) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.component.bean.AbstractBeanProcessor.process(AbstractBeanProcessor.java:91) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.impl.engine.DefaultAsyncProcessorAwaitManager.process(DefaultAsyncProcessorAwaitManager.java:82) ~[camel-base-engine-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.support.AsyncProcessorSupport.process(AsyncProcessorSupport.java:32) ~[camel-support-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.language.bean.BeanExpression.invokeBean(BeanExpression.java:368) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    at org.apache.camel.language.bean.BeanExpression.invokeOgnlMethod(BeanExpression.java:470) ~[camel-bean-4.11.0-SNAPSHOT.jar:4.11.0-SNAPSHOT]
+    ... 19 more {code}

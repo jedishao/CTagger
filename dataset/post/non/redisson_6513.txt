@@ -1,0 +1,41 @@
+AsyncIterator CompletionStage is not completed exceptionally, when connection to Redis gets read timeout
+### Redis version
+
+Mock Redis server used, com.github.fppt.jedis-mock:1.1.4
+
+### Redisson version
+
+3.45.0
+
+### Redisson configuration
+
+CONFIG.setNettyThreads(10)
+.useSingleServer().setConnectionPoolSize(10)
+.setConnectionMinimumIdleSize(10)
+.setTimeout(150)
+.setRetryAttempts(0)
+.setAddress("jedis-mock-redis-localhost-address");
+
+### What is the Expected behavior?
+
+The CompletionStage from the AsyncIterator's `hasNext` method to complete exceptionally.
+
+### What is the Actual behavior?
+
+The CompletionStage from the AsyncIterator's `hasNext` method completes normally.
+
+### Additional information
+
+Hello,
+ 
+We're using the AsyncIterator<V> valuesAsync(String keyPattern, int count) method from RMap to retrieve values, based on a certain key pattern.
+ 
+However, we've encountered an issue, that when the connection to the Redis hits a read timeout, the CompletionStage from AsyncIterator's hasNext method isn't completed exceptionally - it completes normally and the result from stage is false. It is not clear when the resulting collection is empty because of the timeout and when it's empty because there are no elements in the Redis.
+ 
+We can see the following relevant log message in the Redisson client logs:
+
+``` 
+25 Mar 25 16:02:39:867  defaultEventExecutor-1-1 DEBUG RedisExecutor:698 - acquired connection for command: (HSCAN), params: [myTestCollection, 0, MATCH, testKey*, COUNT, 100] from slot NodeSource [slot=0, addr=null, redisClient=null, redirect=null, entry=null] using node localhost/127.0.0.1:6379... RedisConnection@733180989 [redisClient=[addr=redis://localhost:6379,localhost/127.0.0.1:6379], channel=[id: 0x2ca86f12, L:/127.0.0.1:62500 - R:localhost/127.0.0.1:6379], currentCommand=null, usage=1]
+...
+25 Mar 25 16:02:40:028        redisson-timer-5-1 DEBUG RedisExecutor:738 - connection released for command: (HSCAN), params: [myTestCollection, 0, MATCH, testKey*, COUNT, 100] from slot NodeSource [slot=0, addr=null, redisClient=null, redirect=null, entry=null] using connection RedisConnection@733180989 [redisClient=[addr=redis://localhost:6379,localhost/127.0.0.1:6379], channel=[id: 0x2ca86f12, L:/127.0.0.1:62500 - R:localhost/127.0.0.1:6379], currentCommand=CommandData [command=(HSCAN), params: [myTestCollection, 0, MATCH, testKey*, COUNT, 100], promise: java.util.concurrent.CompletableFuture@19736f70[Completed exceptionally], codec=org.redisson.codec.CompositeCodec@3e706837], usage=0]
+```

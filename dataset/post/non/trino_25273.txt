@@ -1,0 +1,11 @@
+Support for custom AWS credentials provider on native S3 and Glue v2
+With the deprecation of legacy S3 API, I noticed there is no feature parity in the native S3 support, as we used to be able to supply a custom credentials provider for S3 (documented [here](https://trino.io/docs/468/object-storage/legacy-s3.html#custom-s3-credentials-provider)) which does not exist in the docs of the native S3 support.
+Browsing through the code it does not appear to possible to supply the custom credentials provider:
+- new S3 filesystem: https://github.com/trinodb/trino/blob/472/lib/trino-filesystem-s3/src/main/java/io/trino/filesystem/s3/S3FileSystemLoader.java#L169
+- leagcy S3 filesystem: https://github.com/trinodb/trino/blob/472/lib/trino-hdfs/src/main/java/io/trino/hdfs/s3/TrinoS3FileSystem.java#L1168
+
+Also, the same thing happens with Glue, as we used to be able to pass a custom credentials provider (documented [here](https://trino.io/docs/452/object-storage/metastores.html#aws-glue-catalog-configuration-properties)), but now the configuration option is marked as Defunct (https://github.com/trinodb/trino/blob/472/plugin/trino-hive/src/main/java/io/trino/plugin/hive/metastore/glue/GlueHiveMetastoreConfig.java#L31), and while it is sill possible (as of version 468) to use it when choosing "glue-v1" metastore type, it's is not available in the new implementation.
+
+Are there plans to make these features available?
+
+Thanks

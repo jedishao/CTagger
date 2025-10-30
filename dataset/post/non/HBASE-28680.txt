@@ -1,0 +1,6 @@
+BackupLogCleaner causes HMaster WALs to pile up indefinitely
+We have been trying to setup daily incremental backups for hundreds of clusters at my day job. Recently we discovered that old WALs were piling up across many clusters inline with when we began running incremental backups.
+
+This led to the realization that [the BackupLogCleaner will always skip archived HMaster WALs|https://github.com/HubSpot/hbase/blob/3a170578b04d5947c655319f1b8d8475ccb6bb4e/hbase-backup/src/main/java/org/apache/hadoop/hbase/backup/util/BackupUtils.java#L364-L367]. This is a problem because, if a cleaner is skipping a given file, then [the CleanerChore will never delete it|https://github.com/apache/hbase/blob/fb988373c1cd0184400fe17c4323fbf0de07c951/hbase-server/src/main/java/org/apache/hadoop/hbase/master/cleaner/CleanerChore.java#L312-L332].
+
+This seems like a misunderstanding of what it means to "skip" a WAL in a BaseLogCleanerDelegate, and, instead, we should always return these HMaster WALs as deletable from the perspective of the BackupLogCleaner. We could subject them to the same scrutiny as RegionServer WALs: are they older than the most recent successful  backup? But, if I understand correctly, HMaster WALs do not contain any data relevant to table backups, so that would be unnecessary.

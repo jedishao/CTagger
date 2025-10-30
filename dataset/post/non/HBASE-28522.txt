@@ -1,0 +1,19 @@
+UNASSIGN proc indefinitely stuck on dead rs
+One scenario we noticed in production -
+
+we had DisableTableProc and SCP almost triggered at similar time
+
+2024-03-16 17:59:23,014 INFO [PEWorker-11] procedure.DisableTableProcedure - 
+Set <TABLE_NAME> to state=DISABLING
+
+2024-03-16 17:59:15,243 INFO [PEWorker-26] procedure.ServerCrashProcedure - 
+Start pid=21592440, state=RUNNABLE:SERVER_CRASH_START, locked=true; ServerCrashProcedure 
+<regionserver>, splitWal=true, meta=false
+
+DisabeTableProc creates unassign procs, and at this time ASSIGNs of SCP is not completed
+
+{{2024-03-16 17:59:23,003 DEBUG [PEWorker-40] procedure2.ProcedureExecutor - LOCK_EVENT_WAIT pid=21594220, ppid=21592440, state=RUNNABLE:REGION_STATE_TRANSITION_GET_ASSIGN_CANDIDATE; TransitRegionStateProcedure table=<TABLE_NAME>, region=<regionhash>, ASSIGN}}
+
+UNASSIGN created by DisableTableProc is stuck on the dead regionserver and we had to manually bypass unassign of DisableTableProc and then do ASSIGN.
+
+If we can break the loop for UNASSIGN procedure to not retry if there is scp for that server, we do not need manual intervention?, at least the DisableTableProc can go to a rollback state?

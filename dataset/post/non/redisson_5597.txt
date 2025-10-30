@@ -1,0 +1,37 @@
+org.redisson.misc.RedisURI cannot be cast to java.lang.Comparable
+**Expected behavior**
+connect to the AWS redis serverless cluster
+
+**Actual behavior**
+```
+Caused by: java.lang.ClassCastException: org.redisson.misc.RedisURI cannot be cast to java.lang.Comparable
+at java.util.ComparableTimSort.countRunAndMakeAscending(ComparableTimSort.java:320)
+at java.util.ComparableTimSort.sort(ComparableTimSort.java:188)
+at java.util.Arrays.sort(Arrays.java:1312)
+at java.util.Arrays.sort(Arrays.java:1506)
+at java.util.ArrayList.sort(ArrayList.java:1464)
+at org.redisson.cluster.ClusterConnectionManager.lambda$parsePartitions$47(ClusterConnectionManager.java:850)
+at java.util.concurrent.CompletableFuture.uniAccept(CompletableFuture.java:670)
+at java.util.concurrent.CompletableFuture$UniAccept.tryFire(CompletableFuture.java:646)
+at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488)
+at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:1975)
+at org.redisson.connection.ServiceManager.lambda$resolveAll$1(ServiceManager.java:295)
+```
+I guess this was introduced with the fix of #5589 :
+```
+            CompletableFuture<List<RedisURI>> ipsFuture = serviceManager.resolveAll(clusterNodeInfo.getAddress());
+            CompletableFuture<Void> f = ipsFuture.thenAccept(addresses -> {
+                if (addresses.size() > 1 && clusterNodeInfo.containsFlag(Flag.MASTER)) {
+                    addresses.sort(null);
+                    Collections.shuffle(addresses, new Random(serviceManager.getId().hashCode()));
+                }
+                RedisURI address = addresses.get(0);
+```
+`RedisURI` doesn't implement Comparable, so cannot be called sort on it.
+
+
+**Redisson version**
+3.26.1-SNAPSHOT
+
+
+Thanks

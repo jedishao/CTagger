@@ -1,0 +1,28 @@
+Exeptionhandler not working correctly
+```
+[02:52:02] Unhandled exception in router
+[02:52:03] Unhandled exception in router
+[02:52:03] Unhandled exception in router
+[02:52:08] Unhandled exception in router
+```
+I use:
+```java
+Vertx vertex = Vertx.vertx();
+Router router = Router.router(vertex);
+
+router.route().handler(SessionHandler.create(LocalSessionStore.create(vertex)));
+router.routeWithRegex("/files/.*").handler(this::handleFileRequests);
+router.route().handler(BodyHandler.create()).handler(this::handleRequests);
+router.route().failureHandler(failureContext -> {
+    failureContext.response().setStatusCode(404).end();
+});
+
+HttpServer innerServer = vertex
+        .createHttpServer()
+        .requestHandler(router)
+        .exceptionHandler(error -> {
+        })
+        .listen(port, handler -> {
+        });
+
+```

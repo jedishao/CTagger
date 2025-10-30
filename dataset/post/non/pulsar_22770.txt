@@ -1,0 +1,57 @@
+Enhancement: Clearly define REST API on Open API
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+We provide this link for users to view the definition of REST API: https://pulsar.apache.org/admin-rest-api/?version=3.0.5
+
+However, there are several issues currently:
+
+1. For `POST, PUT, DELETE` requests, we do not have a clear definition of success codes. For example: https://pulsar.apache.org/admin-rest-api/?version=3.0.5#operation/Bookies_deleteBookieRackInfo The code typically returns 204 or 200.
+
+2. For some GET requests, the response structure type is not declared. For example: https://pulsar.apache.org/admin-rest-api/?version=3.0.5#operation/Namespaces_getSubscriptionAuthMode In the code, it returns: [SubscriptionAuthMode](https://github.com/apache/pulsar/blob/17bb3227536f891d4f2ef234da596bdb5bb46bbb/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/Namespaces.java#L1468)
+
+3. There are also some GET requests where the returned structure type is incorrect. For example: https://pulsar.apache.org/admin-rest-api/?version=3.0.5#operation/BrokerStats_getBrokerResourceAvailability Because in the code, we use [interfaces](https://github.com/apache/pulsar/blob/3158fd3550f9e3a0b2c0316c92265318b209f4f5/pulsar-broker/src/main/java/org/apache/pulsar/broker/loadbalance/ResourceUnit.java#L24), and interfaces do not necessarily represent the actual data of entities.
+
+4. There are also some API that return data in the format of `Map<String, List<Object>>`, which Swagger API does not support parsing. For example: https://github.com/apache/pulsar/blob/17bb3227536f891d4f2ef234da596bdb5bb46bbb/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/Namespaces.java#L242
+
+
+### Solution
+
+1. We need to check each interface to ensure that it clearly defines the request parameters and response structure in Swagger.
+2. For the types of interfaces that return data, it's best to convert them into entities and declare them. Alternatively, you can annotate their content for users to refer to in the source code, ensuring that incorrect content is not returned.
+
+4. For the type of `Map<String, List<Object>>`, we need add some information to `note`.
+
+### Alternatives
+
+I've cleaned up the classes that need to be changed.
+
+- [x] [Bookies](https://github.com/apache/pulsar/blob/bafc8277940a827bc7a9f7c7d22f07dfe1b3ef47/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/Bookies.java#L59), [Brokers(BrokersBase)](https://github.com/apache/pulsar/blob/e4553391f96af3bda3d8252b97cac3de1f39a1b5/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/BrokersBase.java#L79), [Clusters(ClustersBase)](https://github.com/apache/pulsar/blob/ab77ca2d380da6f724f45d3ba77d4e2c0d00eb17/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/ClustersBase.java#L76), [BrokerStats](https://github.com/apache/pulsar/blob/master/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/BrokerStats.java): #22774 
+- [x] [Namespaces@V1](https://github.com/apache/pulsar/blob/2b5c199053a5b2d7f849e6604d619bae9197a8c9/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v1/Namespaces.java#L85): #22772
+- [x] [Namespaces@V2](https://github.com/apache/pulsar/blob/17bb3227536f891d4f2ef234da596bdb5bb46bbb/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/Namespaces.java#L771): #22775
+- [x] [PersistentTopics](https://github.com/apache/pulsar/blob/8ca01cd42edfd4efd986f752f6f8538ea5bf4f94/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/PersistentTopics.java#L98), [NonPersistentTopics](https://github.com/apache/pulsar/blob/cd6f53baee7dbe0651e6581cb9bd3570017348c7/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/NonPersistentTopics.java#L74-L73): #22782
+
+This PR cover follow task: #22783
+- [x] [ResourceGroups](https://github.com/apache/pulsar/blob/82237d3684fe506bcb6426b3b23f413422e6e4fb/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/ResourceGroups.java#L41)
+- [x] [ResourceQuotas](https://github.com/apache/pulsar/blob/82237d3684fe506bcb6426b3b23f413422e6e4fb/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/ResourceQuotas.java#L46)
+- [x] [SchemasResource](https://github.com/apache/pulsar/blob/04055fcd79f69b3f50f41acd54e1c121256a34ab/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/SchemasResource.java#L70-L69)
+- [x] [Tenants@TenantsBase](https://github.com/apache/pulsar/blob/bbdc173e80157296ff0475cfdc4e36f5d063a7df/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/TenantsBase.java#L61)
+- [x] [Worker](https://github.com/apache/pulsar/blob/55acbe6cef2a0fbd356ad7d085c87e398b7c69db/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/Worker.java#L45)
+- [x] [WorkerStats](https://github.com/apache/pulsar/blob/55acbe6cef2a0fbd356ad7d085c87e398b7c69db/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v2/WorkerStats.java#L40)
+- [x] [Sinks@SinksBase](https://github.com/apache/pulsar/blob/55acbe6cef2a0fbd356ad7d085c87e398b7c69db/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/SinksBase.java#L58)
+- [x] [Sources@SourcesBase](https://github.com/apache/pulsar/blob/55acbe6cef2a0fbd356ad7d085c87e398b7c69db/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/SourcesBase.java#L60)
+- [x] [Transactions](https://github.com/apache/pulsar/blob/cd6f53baee7dbe0651e6581cb9bd3570017348c7/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v3/Transactions.java#L55-L54)
+- [x] [Packages](https://github.com/apache/pulsar/blob/82237d3684fe506bcb6426b3b23f413422e6e4fb/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/v3/Packages.java#L54)
+- [x] [Functions-V3@FunctionsBase](https://github.com/apache/pulsar/blob/55acbe6cef2a0fbd356ad7d085c87e398b7c69db/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/FunctionsBase.java#L57-L56)
+
+### Anything else?
+
+- https://github.com/apache/pulsar/issues/6962
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

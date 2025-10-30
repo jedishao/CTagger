@@ -1,0 +1,8 @@
+Support partial results in AggregateImplementation and AsyncAggregationClient
+Currently there is a gap in the coverage of HBase's quota-based workload throttling. Requests sent by {{[Async]AggregationClient}} reach {{AggregateImplementation}}. This then executes Scans in a way that bypasses the quota system. We see issues with this at Hubspot where clusters suffer under this load and we don't have a good way to protect them.
+
+In this ticket I'm teaching {{AggregateImplementation}} to optionally stop scanning when a throttle is violated, and send back just the results it has accumulated so far. In addition, it will send back a row key to {{AsyncAggregationClient}}. When the client gets a response with a row key, it will sleep in order to satisfy the throttle, and then send a new request with a scan starting at that row key. This will have the effect of continuing the work where the last request stopped.
+
+This feature will be unconditionally enabled by {{AsyncAggregationClient}} once this ticket is finished. {{AggregateImplementation}} will not assume that clients support partial results, however, so it can keep supporting older clients. For clients that do not support partial results, throttles will not be respecting, and results will always be complete.
+
+This feature was [first proposed on the mailing list|https://lists.apache.org/thread/1vqnxb71z7swq2cogz4qg3cn6b10xp4v]. Builds on work in HBASE-28346.

@@ -1,0 +1,14 @@
+Multi-cluster Stream (Kafka/Kinesis) Druid Ingest Proposal
+### Description
+
+I'm currently building support for ingesting from multiple kafka clusters simultaneously in the same datasource/supervisor (e.g have multiple consumer/broker pairs). This issue is for marking this feature as well as design discussion.
+
+### Motivation
+
+Ingesting from multiple Kafka clusters simultaneously is useful when data is in multiple regions, but Druid is only in a single region. Rather than spending the cost of mirroring the data across to the region-local topic, this would allow tasks to do cross-region reads from multiple Kafka clusters simultaneously.
+
+### Proposal
+
+1. Decouple supervisor ID from datasource. This will allow for multiple supervisors to run concurrently and ingest data into the same datasource.
+  - Update any logic outside of StreamSupervisor, APIs, metrics which rely on there being a 1:1 stream supervisor:datasource relationship.
+  - Add a new API to fetch all the supervisors related to a specific datasource.

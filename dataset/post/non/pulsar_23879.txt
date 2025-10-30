@@ -1,0 +1,40 @@
+[Bug] pulsar-perf outputs values in nanos with values saying "ms"
+### Search before asking
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+2.10+, 3.x
+
+### Minimal reproduce step
+
+run pulsar-perf consume
+
+### What did you expect to see?
+
+latency values in milliseconds, as labels suggest
+
+### What did you see instead?
+
+```
+org.apache.pulsar.testclient.PerformanceConsumer - Throughput received:  332571 msg --- 3002.897  msg/s --- 165.144 Mbit/s  --- Latency: mean: 18740630.690 ms - med: 18640383 - 95pct: 20181503 - 99pct: 20482175 - 99.9pct: 20512767 - 99.99pct: 20512895 - Max: 20512895
+```
+
+value sin nanos with labels "ms"
+
+### Anything else?
+
+I think here https://github.com/apache/pulsar/blob/e5bd77419e91d1602731cd0c1d02a738e1b7ebc7/pulsar-testclient/src/main/java/org/apache/pulsar/testclient/PerformanceConsumer.java#L464-L472 (and possibly in other places) histogram returns latency as it tracked, in nanoseconds. The perf tool should translate these into millis, as labeled.
+
+This is not a blocker/not a priority, logging this as "gotcha" if anyone else wonders about the mismatch between values and labels.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

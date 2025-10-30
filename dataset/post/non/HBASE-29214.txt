@@ -1,0 +1,24 @@
+Typo in AsyncMasterRequestRpcRetryingCaller which makes us fail to clear the master stub cache
+{code}
+  @Override
+  protected void doCall() {
+    addListener(conn.getMasterStub(), (stub, error) -> {
+      if (error != null) {
+        onError(error, () -> "Get async master stub failed", err -> {
+        });
+        return;
+      }
+      resetCallTimeout();
+      addListener(callable.call(controller, stub), (result, error2) -> {
+        if (error2 != null) {
+          onError(error2, () -> "Call to master failed",
+            err -> clearMasterStubCacheOnError(stub, error2)); // <==== this line
+          return;
+        }
+        future.complete(result);
+      });
+    });
+  }
+{code}
+
+It should be err -> clearMasterStubCacheOnError(stub, err), so in clearMasterStubCacheOnError we can get the unwrapped exception, and then we can decide whether to clear the master cache correctly.

@@ -1,0 +1,8 @@
+In SAI, intersecting two indexes doesn't require ALLOW FILTERING
+As explained many years ago in https://issues.apache.org/jira/browse/CASSANDRA-5470, when a query involves intersecting two secondary indexes, e.g., "WHERE x=1 AND y=2" where "x" and "y" are two indexed column, ALLOW FILTERING is required.
+
+I verified that this is still the case today, in Cassandra 5.0-rc1.
+
+But if you use SAI instead of the classic secondary index, suddenly ALLOW FILTERING is not required.
+
+I think this is a regression. Even if SAI has a more efficient way of intersecting the posting list from two indexes (does it?), in the worst case this doesn't help: For example, consider a table with a million rows, half have x=1 and the other half have y=2 and just one row has both. Now, a query for "WHERE x=1 AND y=2" needs to process half a million rows just to produce one result. This is ALLOW FILTERING par excellence.

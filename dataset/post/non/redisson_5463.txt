@@ -1,0 +1,217 @@
+Redisson validates an IP in a Sentinel TLS certificate
+Hello!
+I'm trying to use Redisson (version 3.23.0) to connect to the Sentinel Cluster (3 sentinel nodes + 3 redis nodes) protected by an SSL certificate.
+I use the same SSL certificate for each node. It contains the following Subject Alternative names:
+
+```
+DNS.1   = redis-master
+DNS.2   = redis-slave1
+DNS.3   = redis-slave2
+DNS.4   = redis-slave3
+DNS.5   = redis-sentinel1
+DNS.6   = redis-sentinel2
+DNS.7   = redis-sentinel3
+```
+
+Also, here is a configuration of my Redisson instance (mainly it's default, I've highlighted what I've changed) :
+```
+---
+sentinelServersConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 1500
+  credentialsResolver: !<org.redisson.client.DefaultCredentialsResolver> {}
+  subscriptionsPerConnection: 5
+  sslEnableEndpointIdentification: true
+  sslProvider: "JDK"
+  sslTruststore: "file:/certs/orc/trust-store.p12"  << was configured
+  sslTruststorePassword: "secretPassword" << was configured
+  sslKeystore: "file:/certs/orc/orc.localhost.p12" << was configured
+  sslKeystorePassword: "secretPassword" << was configured
+  sslProtocols: << was configured
+  - "TLSv1.3"
+  pingConnectionInterval: 30000
+  keepAlive: false
+  tcpNoDelay: false
+  nameMapper: !<org.redisson.api.DefaultNameMapper> {}
+  commandMapper: !<org.redisson.config.DefaultCommandMapper> {}
+  loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+  slaveConnectionMinimumIdleSize: 24
+  slaveConnectionPoolSize: 64
+  failedSlaveReconnectionInterval: 3000
+  failedSlaveCheckInterval: 60000
+  masterConnectionMinimumIdleSize: 24
+  masterConnectionPoolSize: 64
+  readMode: "SLAVE"
+  subscriptionMode: "SLAVE"
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  dnsMonitoringInterval: 5000
+  sentinelAddresses:  << was configured
+  - "rediss://redis-sentinel1:5000"
+  - "rediss://redis-sentinel2:5000"
+  - "rediss://redis-sentinel3:5000"
+  natMapper: !<org.redisson.api.DefaultNatMapper> {}
+  masterName: "redis-master" << was configured
+  database: 0
+  scanInterval: 1000
+  checkSentinelsList: true
+  checkSlaveStatusWithSyncing: true
+  sentinelsDiscovery: true
+threads: 16
+nettyThreads: 32
+codec: !<org.redisson.codec.JsonJacksonCodec> {}  << was configured
+referenceEnabled: true
+transportMode: "NIO"
+lockWatchdogTimeout: 60000
+checkLockSyncedSlaves: true
+slavesSyncTimeout: 1000
+reliableTopicWatchdogTimeout: 600000
+keepPubSubOrder: true
+useScriptCache: false
+minCleanUpDelay: 5
+maxCleanUpDelay: 1800
+cleanUpKeysAmount: 100
+nettyHook: !<org.redisson.client.DefaultNettyHook> {}
+useThreadClassLoader: true
+addressResolverGroupFactory: !<org.redisson.connection.DnsAddressResolverGroupFactory> {}
+lazyInitialization: false
+```
+Also I've configured the Sentinel and the Redis instances to work with the hostnames.
+
+So, I expected Redisson would use hostnames to interact with all nodes. But It throws the following exception:
+<details>
+<summary>Exception message</summary>
+
+```
+28.11.2023 11:03:36.511 [redisson-netty-2-15] ERROR org.redisson.connection.SentinelConnectionManager - javax.net.ssl.SSLHandshakeException: No subject alternative names matching IP address 172.18.0.7 found
+java.util.concurrent.CompletionException: javax.net.ssl.SSLHandshakeException: No subject alternative names matching IP address 172.18.0.7 found
+	at java.util.concurrent.CompletableFuture.encodeRelay(Unknown Source) ~[?:?]
+	at java.util.concurrent.CompletableFuture.completeRelay(Unknown Source) ~[?:?]
+	at java.util.concurrent.CompletableFuture$UniRelay.tryFire(Unknown Source) ~[?:?]
+	at java.util.concurrent.CompletableFuture.postComplete(Unknown Source) ~[?:?]
+	at java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source) ~[?:?]
+	at org.redisson.client.RedisClient$1$1.run(RedisClient.java:248) ~[redisson-3.23.0.jar!/:3.23.0]
+	at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:174) ~[netty-common-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:167) ~[netty-common-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:470) ~[netty-common-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.94.Final.jar!/:4.1.94.Final]
+	at java.lang.Thread.run(Unknown Source) [?:?]
+Caused by: javax.net.ssl.SSLHandshakeException: No subject alternative names matching IP address 172.18.0.7 found
+	at sun.security.ssl.Alert.createSSLException(Unknown Source) ~[?:?]
+	at sun.security.ssl.TransportContext.fatal(Unknown Source) ~[?:?]
+	at sun.security.ssl.TransportContext.fatal(Unknown Source) ~[?:?]
+	at sun.security.ssl.TransportContext.fatal(Unknown Source) ~[?:?]
+	at sun.security.ssl.CertificateMessage$T13CertificateConsumer.checkServerCerts(Unknown Source) ~[?:?]
+	at sun.security.ssl.CertificateMessage$T13CertificateConsumer.onConsumeCertificate(Unknown Source) ~[?:?]
+	at sun.security.ssl.CertificateMessage$T13CertificateConsumer.consume(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLHandshake.consume(Unknown Source) ~[?:?]
+	at sun.security.ssl.HandshakeContext.dispatch(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLEngineImpl$DelegatedTask$DelegatedAction.run(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLEngineImpl$DelegatedTask$DelegatedAction.run(Unknown Source) ~[?:?]
+	at java.security.AccessController.doPrivileged(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLEngineImpl$DelegatedTask.run(Unknown Source) ~[?:?]
+	at io.netty.handler.ssl.SslHandler.runDelegatedTasks(SslHandler.java:1559) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1405) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1246) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1295) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529) ~[netty-codec-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:468) ~[netty-codec-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290) ~[netty-codec-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	... 4 more
+Caused by: java.security.cert.CertificateException: No subject alternative names matching IP address 172.18.0.7 found
+	at sun.security.util.HostnameChecker.matchIP(Unknown Source) ~[?:?]
+	at sun.security.util.HostnameChecker.match(Unknown Source) ~[?:?]
+	at sun.security.ssl.X509TrustManagerImpl.checkIdentity(Unknown Source) ~[?:?]
+	at sun.security.ssl.X509TrustManagerImpl.checkIdentity(Unknown Source) ~[?:?]
+	at sun.security.ssl.X509TrustManagerImpl.checkTrusted(Unknown Source) ~[?:?]
+	at sun.security.ssl.X509TrustManagerImpl.checkServerTrusted(Unknown Source) ~[?:?]
+	at sun.security.ssl.CertificateMessage$T13CertificateConsumer.checkServerCerts(Unknown Source) ~[?:?]
+	at sun.security.ssl.CertificateMessage$T13CertificateConsumer.onConsumeCertificate(Unknown Source) ~[?:?]
+	at sun.security.ssl.CertificateMessage$T13CertificateConsumer.consume(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLHandshake.consume(Unknown Source) ~[?:?]
+	at sun.security.ssl.HandshakeContext.dispatch(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLEngineImpl$DelegatedTask$DelegatedAction.run(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLEngineImpl$DelegatedTask$DelegatedAction.run(Unknown Source) ~[?:?]
+	at java.security.AccessController.doPrivileged(Unknown Source) ~[?:?]
+	at sun.security.ssl.SSLEngineImpl$DelegatedTask.run(Unknown Source) ~[?:?]
+	at io.netty.handler.ssl.SslHandler.runDelegatedTasks(SslHandler.java:1559) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1405) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1246) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1295) ~[netty-handler-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529) ~[netty-codec-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:468) ~[netty-codec-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290) ~[netty-codec-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) ~[netty-transport-4.1.94.Final.jar!/:4.1.94.Final]
+	... 4 more
+```
+</details>
+
+And so on and so forth for each Sentinel node. In my case 172.18.0.7 is an IP address of the redis-sentinel2 node.
+
+I've tried to dive into the logic of Redisson and found this:
+
+1. In org.redisson.connection.SentinelConnectionManager#connect Redisson iterates over the specified Sentinel nodes and successful request Sentinel slaves and Sentinel sentinels. At this moment Redisson is using the Sentinels hostnames to interact with them. Also my Sentinels configured to return hostnames of slaves and other Sentinels, not IP addresses.
+<details>
+<summary>Screenshot: Redisson got the Sentinel slaves hostnames</summary>
+<img width="1714" alt="image" src="https://github.com/redisson/redisson/assets/7430049/69392a20-e635-40b4-bfd9-0f2cab7b404d">
+</details>
+<details>
+<summary>Screenshot: Redisson got the Sentinel sentinels hostnames</summary>
+<img width="1688" alt="image" src="https://github.com/redisson/redisson/assets/7430049/9a62cde0-b968-4e0b-95f7-8f0dcc19f2ad">
+</details>
+
+2. After that Redisson resolving the hostname of every Sentinel to IP address:
+<details>
+<summary>Screenshot: Redisson turned hostname into IP</summary>
+<img width="1715" alt="image" src="https://github.com/redisson/redisson/assets/7430049/cc9687ac-da1f-4e4a-b383-f752e8922a0e">
+</details>
+
+4. Redisson trying to invoke org.redisson.connection.SentinelConnectionManager#registerSentinel and passing an IP address there. However I see some logic in this method to work with hostname but IP address has already been passed. And as I understand it falls because of SSL certificate validation failure.
+<details>
+<summary>Screenshot: Redisson invoking registerSentinel with the IP instead of the hostname</summary>
+<img width="1635" alt="image" src="https://github.com/redisson/redisson/assets/7430049/990e2d6c-6721-4ea4-b9e8-0106e63059af">
+</details>
+
+If I set sslEnableEndpointIdentification to false everything works perfect. But I want Redisson to verify a hostname in SSL certificate, not an IP.
+ 
+So, is it expected behaviour? And why is it expected behaviour if so?
+
+If I can provide any information to reproduce this case, let me know.
+
+**Redis version**
+7.2.3
+
+**Redisson version**
+3.23.0
+
+**Redisson configuration**
+Sentinel

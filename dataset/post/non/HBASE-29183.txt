@@ -1,0 +1,12 @@
+Fix flakeyness on TestVerifyBucketCacheFile
+I've noticed some flakeyness in some of the tests from TestVerifyBucketCacheFile. One of the latest intermittent failures I've found on the precommit run for a PR:
+{noformat}
+java.lang.AssertionError: expected:<0> but was:<17408>
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:647)
+	at org.junit.Assert.assertEquals(Assert.java:633)
+	at org.apache.hadoop.hbase.io.hfile.bucket.TestVerifyBucketCacheFile.testModifiedBucketCacheFileData(TestVerifyBucketCacheFile.java:247) {noformat}
+These are quite hard to reproduce locally, but after analysing the test code and the stack trace, I believe this might be related to the changes from HBASE-28900, which allowed BucketAllocator to complete initialisation with a partially recovered cache, requiring the backingMap validation to complete, in order to get rid of entries with inconsistent checksums.
+
+The solution for such tests that deal with persistent cache recover is to put an extra wait for the backingMap validation to be complete, before starting checking on the expected bucket cache size/usage.

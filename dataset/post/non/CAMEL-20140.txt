@@ -1,0 +1,44 @@
+camel-report:route-coverage results in no code coverage 
+After upgrading my application from camel 3.20.4 and spring 2.7.11 to camel 4.1.0 and spring-boot 3.1.4 {{mvn camel-report:route-coverage}} results in no code coverage.
+
+{{mvn test}} generates files under target/camel-route-coverage for both versions
+
+*Camel 3.20.4*
+
+
+{code:java}
+mvn camel-report:route-coverage 
+[INFO] Scanning for projects...
+[INFO]
+[INFO] -----------------< xx.xxx.xxx.xxxx:xxxxxxxx-producer >------------------
+[INFO] Building xxxxxxxx-producer 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO]
+[INFO] --- camel-report:3.20.4:route-coverage (default-cli) @ xxxxxxxx-producer ---
+[INFO] Discovered 1 routes
+[INFO] Route coverage summary:Class:  xx.xxx.xxx.xxxx:xxxxxxxx-producer
+Route:  ExampleRoute  Line #       Count    Route
+  ------       -----    -----
+      33           3    from
+      35           3      setHeader
+      36           3      log
+      37           3      to
+      38           2      choice
+      40           1        setHeader
+      41           1        log
+      43           1        setHeader
+      44           1        log
+      46           2      removeHeaders
+      47           2      to
+      48           2      logCoverage: 12 out of 12 (100.0% / threshold 100.0%)
+Status: Success{code}
+{{ }}
+*Camel 4.1*
+{code:java}
+mvn camel-report:route-coverage
+[WARNING] No route coverage data found for route: ExampleRouteId. Make sure to enable route coverage in your unit tests and assign unique route ids to your routes. Also remember to run unit tests first.{code}
+I found a differance in the output xml-files in target/camel-route-coverage between the versions
+
+
+The attribute *_customId="true"_* is missing from element *_route_* in version 4.1.0 ({{{}<route customId="true" {}}})and if i manually add it {{mvn camel-report:route-coverage}} yields the expected result.

@@ -1,0 +1,31 @@
+jectd used grpc , but in ipv6 mode have a  problem?it used in wrong way?
+Versions
+
+grpc: 1.53.0
+java: 1.8
+the code is
+```
+List<URI> endpoints = Arrays.asList(
+				URI.create("http://[2001:db8::1]:2379"),
+				URI.create("http://[2001:db8::2]:2379")
+		);
+		Client client = Client.builder().endpoints(endpoints).build();
+		KV kvClient = client.getKVClient();
+```
+exception is
+
+```
+Exception in thread "main" java.lang.IllegalArgumentException: cannot find a NameResolver for ip:///[2001:db8::1]:2379,[2001:db8::2]:2379 (Illegal character in path at index 6: ip:///[2001:db8::1]:2379,[2001:db8::2]:2379)
+	at io.grpc.internal.ManagedChannelImpl.getNameResolver(ManagedChannelImpl.java:773)
+	at io.grpc.internal.ManagedChannelImpl.getNameResolver(ManagedChannelImpl.java:782)
+	at io.grpc.internal.ManagedChannelImpl.<init>(ManagedChannelImpl.java:662)
+	at io.grpc.internal.ManagedChannelImplBuilder.build(ManagedChannelImplBuilder.java:631)
+	at io.grpc.internal.AbstractManagedChannelImplBuilder.build(AbstractManagedChannelImplBuilder.java:297)
+	at io.vertx.grpc.VertxChannelBuilder.build(VertxChannelBuilder.java:309)
+	at io.etcd.jetcd.impl.ClientConnectionManager.getChannel(ClientConnectionManager.java:70)
+	at io.etcd.jetcd.impl.ClientConnectionManager.newStub(ClientConnectionManager.java:102)
+	at io.etcd.jetcd.impl.KVImpl.<init>(KVImpl.java:51)
+	at io.etcd.jetcd.impl.ClientImpl.lambda$new$0(ClientImpl.java:48)
+	at io.etcd.jetcd.support.MemorizingClientSupplier.get(MemorizingClientSupplier.java:37)
+	at io.etcd.jetcd.impl.ClientImpl.getKVClient(ClientImpl.java:65)
+```

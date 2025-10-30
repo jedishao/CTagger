@@ -1,0 +1,25 @@
+Support S3 Access Grants
+***AS-IS***
+Currently, Trino supports authorizing access to objects in S3 only through AWS IAM Policies attached to an IAM Role (see [here](https://trino.io/docs/current/object-storage/file-system-s3.html)). While it supports multiple roles, it is very cumbersome to select roles for the right dataset and get an overview which roles have access to which data in S3.
+
+***TO-BE***
+AWS recently introduced [AWS S3 Access Grants](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-grants.html). This allows central management of permissions to S3 buckets as S3 access grants via the API or the AWS Console. The S3 Access Grants should be an additional allowed authorisation mechanism in Trino for AWS S3.
+
+The role that is used by Trino to access data only needs these permissions:
+```
+{
+            "Sid": "S3Grants",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetDataAccess",
+                "s3:GetAccessGrantsInstanceForPrefix"
+            ],
+            "Resource": "arn:aws:s3:<region>:123456789012:access-grants/default"
+}
+```
+
+The access then can be configured independently of the role in the S3 Access Grants Instance.
+
+Within Trino it would require a minor code change: https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-grants-data.html
+
+Essentially you need to request the temporary access key and secret with the desired minimal permissions from the access grant instance: https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-grants-credentials.html

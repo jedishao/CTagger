@@ -1,0 +1,40 @@
+Constant folding fails during case statement with mixed long decimal and integral types
+The following query fails:
+
+```sql
+SELECT CASE 1 WHEN 0.111111111 THEN 2 WHEN 3 THEN 4 END;
+```
+
+And the following query succeeds:
+
+```sql
+SELECT CASE 1 WHEN 0.11111111 THEN 2 WHEN 3 THEN 4 END;
+```
+
+The former fails because `0.111111111` is treated as a LongDecimal type, whereas the second query (which has one less point of precision) is treated as a ShortDecimal type.  `1` and `0.11111111` are cast to decimals, but for some reason, `3` is not, so when we interpret the comparisons to fold out the case statement, it fails with the below error (see gist below).
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used: trunk
+* Storage (HDFS/S3/GCS..): no storage used
+* Data source and connector used: no connector used
+* Deployment (Cloud or On-prem): Mac
+* [Pastebin](https://pastebin.com/) link to the complete debug logs: https://gist.github.com/tdcmeehan/47ae90c943ed1690ecc34083f2b704f4
+
+## Expected Behavior
+Both expressions should be able to be constant folded.
+
+## Current Behavior
+Only the latter expression is constant folded.
+
+## Possible Solution
+Manually cast the types in the expression as a workaround
+
+## Steps to Reproduce
+See above queries.
+
+## Screenshots (if appropriate)
+
+## Context
+Discovered while using [SQLAncer](https://github.com/sqlancer/sqlancer).
+

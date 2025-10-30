@@ -1,0 +1,22 @@
+Improve compact nodetool command to comply with standards by splitting into separate subcommands
+The current compact command violates picocli best practices by mixing different types of arguments in a single command. The command currently accepts three distinct types of input:
+ # Keyspace/Table compaction: [<keyspace> <tables>...] - for forcing major compaction on specific keyspaces and tables
+ # SSTable file compaction: <SSTable file>... - for user-defined compaction on specific SSTable files
+ # Token range compaction: Using --start-token and --end-token options for token-based compaction
+
+Problems with current implementation:
+ * The command handles three completely different compaction scenarios
+ * Users must understand complex conditional logic to determine which mode to use
+ * Other nodetool commands use clear subcommands for different operations
+ * The execute() method contains complex conditional checks that should be handled by picocli's argument validation
+ * The usage description "[<keyspace> <tables>...] or <SSTable file>..." is confusing
+
+h3. Proposed Solution
+
+Split the compact command into three separate subcommands under a main compact command:
+ # compact keyspace - For keyspace/table compaction
+ # compact sstables - For user-defined SSTable compaction
+ # compact range - For token range compaction
+
+
+All the changes must be backward compatible, this mean the compact command must be deprecated first.

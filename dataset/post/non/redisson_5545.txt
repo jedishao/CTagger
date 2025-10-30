@@ -1,0 +1,149 @@
+Tomcat 9.0.84 with Redisson 3.25.2 and Redis 7.2 - com.esotericsoftware.kryo.KryoException: java.lang.UnsupportedOperationException
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+An exception is thrown when a Spring MVC application with Spring Security is deployed in Tomcat 9.0.84 (configured to use the Redisson session manager). Details are added in the following sections. 
+
+**Expected behavior**
+Kryo codec working
+**Actual behavior**
+Kryo codec not working. Trace:
+```
+org.redisson.client.RedisException: Unexpected exception while processing command
+	org.redisson.command.CommandAsyncService.convertException(CommandAsyncService.java:300)
+	org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:117)
+	org.redisson.RedissonObject.get(RedissonObject.java:90)
+	org.redisson.RedissonMap.readAllMap(RedissonMap.java:889)
+	org.redisson.tomcat.RedissonSession.getAttribute(RedissonSession.java:132)
+	org.apache.catalina.session.StandardSessionFacade.getAttribute(StandardSessionFacade.java:101)
+	org.springframework.security.web.context.HttpSessionSecurityContextRepository.readSecurityContextFromSession(HttpSessionSecurityContextRepository.java:160)
+	org.springframework.security.web.context.HttpSessionSecurityContextRepository.loadContext(HttpSessionSecurityContextRepository.java:119)
+	org.springframework.security.web.context.SecurityContextPersistenceFilter.doFilter(SecurityContextPersistenceFilter.java:98)
+	org.springframework.security.web.context.SecurityContextPersistenceFilter.doFilter(SecurityContextPersistenceFilter.java:80)
+	org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:336)
+	org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:55)
+	org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:117)
+	org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:336)
+	org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:211)
+	org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:183)
+	org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:354)
+	org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:267)
+Root Cause
+
+com.esotericsoftware.kryo.KryoException: java.lang.UnsupportedOperationException
+Serialization trace:
+authorities (org.springframework.security.authentication.UsernamePasswordAuthenticationToken)
+authentication (org.springframework.security.core.context.SecurityContextImpl)
+	com.esotericsoftware.kryo.serializers.ReflectField.read(ReflectField.java:146)
+	com.esotericsoftware.kryo.serializers.FieldSerializer.read(FieldSerializer.java:129)
+	com.esotericsoftware.kryo.Kryo.readObject(Kryo.java:799)
+	com.esotericsoftware.kryo.serializers.ReflectField.read(ReflectField.java:124)
+	com.esotericsoftware.kryo.serializers.FieldSerializer.read(FieldSerializer.java:129)
+	com.esotericsoftware.kryo.Kryo.readClassAndObject(Kryo.java:880)
+	org.redisson.codec.Kryo5Codec$4.decode(Kryo5Codec.java:144)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:426)
+	org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:483)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:435)
+	org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:216)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:120)
+	io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+	io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+	io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+	io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+	io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	java.base/java.lang.Thread.run(Thread.java:829)
+Root Cause
+
+java.lang.UnsupportedOperationException
+	java.base/java.util.Collections$UnmodifiableCollection.add(Collections.java:1060)
+	com.esotericsoftware.kryo.serializers.CollectionSerializer.read(CollectionSerializer.java:241)
+	com.esotericsoftware.kryo.serializers.CollectionSerializer.read(CollectionSerializer.java:44)
+	com.esotericsoftware.kryo.Kryo.readObject(Kryo.java:799)
+	com.esotericsoftware.kryo.serializers.ReflectField.read(ReflectField.java:124)
+	com.esotericsoftware.kryo.serializers.FieldSerializer.read(FieldSerializer.java:129)
+	com.esotericsoftware.kryo.Kryo.readObject(Kryo.java:799)
+	com.esotericsoftware.kryo.serializers.ReflectField.read(ReflectField.java:124)
+	com.esotericsoftware.kryo.serializers.FieldSerializer.read(FieldSerializer.java:129)
+	com.esotericsoftware.kryo.Kryo.readClassAndObject(Kryo.java:880)
+	org.redisson.codec.Kryo5Codec$4.decode(Kryo5Codec.java:144)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:426)
+	org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:483)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:435)
+	org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:216)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144)
+	org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:120)
+	io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+	io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+	io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+	io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+	io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+	io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	java.base/java.lang.Thread.run(Thread.java:829)
+```
+
+**Steps to reproduce or test case**
+It seems to happen with Spring MVC apps with Spring Securiy enabled.
+
+_A POC is available to reproduce the problem and play with configurations._ https://github.com/juanmanuelz/tomcat-redisson-issue-poc
+
+**Redis version**
+7.2 (reproduced with 6.x versions as well)
+**Redisson version**
+3.25.2
+**Redisson configuration**
+```
+singleServerConfig:
+    idleConnectionTimeout: 10000
+    connectTimeout: 10000
+    timeout: 3000
+    retryAttempts: 3
+    retryInterval: 1500
+    subscriptionsPerConnection: 5
+    clientName: null
+    address: "redis://redis:6379"
+    subscriptionConnectionMinimumIdleSize: 1
+    subscriptionConnectionPoolSize: 50
+    connectionMinimumIdleSize: 10
+    connectionPoolSize: 64
+    database: 0
+    dnsMonitoringInterval: 5000
+#codec: !<org.redisson.codec.MarshallingCodec> {}
+#codec: !<org.redisson.codec.SerializationCodec> {}
+threads: 0
+nettyThreads: 0
+```
+**Tomcat Configuration**
+```xml
+   <Manager className="org.redisson.tomcat.RedissonSessionManager"
+          configPath="${catalina.base}/redisson.conf"
+          updateMode="AFTER_REQUEST"
+          broadcastSessionEvents="true"
+          keyPrefix="simpleKeyPrefix"
+          readMode="REDIS"/>
+```

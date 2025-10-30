@@ -1,0 +1,39 @@
+[Bug] Pulsar Functions Runtime doesn't properly enable direct byte buffer access for Netty on Java 17+
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+This applies to Pulsar 3.0.0 Pulsar Functions Kubernetes Runtime or Pulsar Functions Process Runtime.
+
+### Minimal reproduce step
+
+enabling DEBUG log for a function will log something like this at DEBUG level:
+```
+i.n.u.i.PlatformDependent0 - direct buffer constructor: unavailable: Unable to make private java.nio.DirectByteBuffer(long,int) accessible: module java.base does not "opens java.nio" to unnamed module @49fc609f {}
+i.n.u.i.PlatformDependent0 - jdk.internal.misc.Unsafe.allocateUninitializedArray(int): unavailable: class io.netty.util.internal.PlatformDependent0$7 cannot access class jdk.internal.misc.Unsafe (in module java.base) because module java.base does not export jdk.internal.misc to unnamed module @49fc609f {}
+i.n.u.i.PlatformDependent0 - java.nio.DirectByteBuffer.<init>(long, {int,long}): unavailable {}
+```
+
+### What did you expect to see?
+
+Netty's direct byte buffer support should be enabled because of performance reasons.
+
+### What did you see instead?
+
+It wasn't enabled.
+
+### Anything else?
+
+Related to #15256
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

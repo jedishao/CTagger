@@ -1,0 +1,52 @@
+Unresponsive node after ingesting large amounts of vectors
+{*}Background{*}:
+
+We have a Cassandra 5.0.2 cluster running on java 17, we've tried with everything from 3 to 23 nodes (running in AWS on r7i.4xlarge instances)
+
+We have a table with an id column of type TEXT and another column of type VECTOR <FLOAT, 256>.
+
+On that table we also have an SAI index on the VECTOR column with the options \{ 'similarity_function': 'EUCLIDEAN' }
+
+*When:*
+
+When we ingest large amounts of embeddings (~200 million) we notice each and every time that before all embeddings are saved a node becomes unresponsive (after >20 million are ingested) and no other node is unable to rejoin the cluster.
+
+If the index is removed before we ingest the data, everything is able to be properly persisted, but once the index is added (and created successfully) the same thing happens again once we continue writing more embeddings to the cluster
+
+*What:*
+
+We saw the following stacktrace in our logs:
+{noformat}
+java.lang.NullPointerException: Cannot invoke "java.lang.Boolean.booleanValue()" because "res" is null
+    at org.apache.cassandra.utils.memory.MemtableCleanerThread$Clean.apply(MemtableCleanerThread.java:97)
+    at org.apache.cassandra.utils.concurrent.ListenerList$CallbackBiConsumerListener.run(ListenerList.java:244)
+    at org.apache.cassandra.concurrent.ImmediateExecutor.execute(ImmediateExecutor.java:140)
+    at org.apache.cassandra.utils.concurrent.ListenerList.safeExecute(ListenerList.java:166)
+    at org.apache.cassandra.utils.concurrent.ListenerList.notifyListener(ListenerList.java:157)
+    at org.apache.cassandra.utils.concurrent.ListenerList$CallbackBiConsumerListener.notifySelf(ListenerList.java:250)
+    at org.apache.cassandra.utils.concurrent.ListenerList.lambda$notifyExclusive$0(ListenerList.java:124)
+    at org.apache.cassandra.utils.concurrent.IntrusiveStack.forEach(IntrusiveStack.java:195)
+    at org.apache.cassandra.utils.concurrent.ListenerList.notifyExclusive(ListenerList.java:124)
+    at org.apache.cassandra.utils.concurrent.ListenerList.notify(ListenerList.java:96)
+    at org.apache.cassandra.utils.concurrent.AsyncFuture.trySet(AsyncFuture.java:104)
+    at org.apache.cassandra.utils.concurrent.AbstractFuture.tryFailure(AbstractFuture.java:148)
+    at org.apache.cassandra.utils.concurrent.AsyncPromise.tryFailure(AsyncPromise.java:139)
+    at org.apache.cassandra.db.memtable.AbstractAllocatorMemtable.lambda$flushLargestMemtable$0(AbstractAllocatorMemtable.java:306)
+    at org.apache.cassandra.concurrent.ImmediateExecutor.execute(ImmediateExecutor.java:140)
+    at org.apache.cassandra.utils.concurrent.ListenerList.safeExecute(ListenerList.java:166)
+    at org.apache.cassandra.utils.concurrent.ListenerList.notifyListener(ListenerList.java:157)
+    at org.apache.cassandra.utils.concurrent.ListenerList$RunnableWithExecutor.notifySelf(ListenerList.java:345)
+    at org.apache.cassandra.utils.concurrent.ListenerList.lambda$notifyExclusive$0(ListenerList.java:124)
+    at org.apache.cassandra.utils.concurrent.IntrusiveStack.forEach(IntrusiveStack.java:195)
+    at org.apache.cassandra.utils.concurrent.ListenerList.notifyExclusive(ListenerList.java:124)
+    at org.apache.cassandra.utils.concurrent.ListenerList.notify(ListenerList.java:96)
+    at org.apache.cassandra.utils.concurrent.AsyncFuture.trySet(AsyncFuture.java:104)
+    at org.apache.cassandra.utils.concurrent.AbstractFuture.tryFailure(AbstractFuture.java:148)
+    at org.apache.cassandra.concurrent.FutureTask.tryFailure(FutureTask.java:87)
+    at org.apache.cassandra.concurrent.FutureTask.run(FutureTask.java:75)
+    at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+    at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+    at java.base/java.lang.Thread.run(Thread.java:840)
+{noformat}
+This leads me to believe the above NPE happens once the Memtables are to be cleaned (persisted as SSTables?) perhaps?

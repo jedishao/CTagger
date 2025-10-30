@@ -1,0 +1,37 @@
+The doc for enabling ZooKeeper Service Discovery on HiveServer2 is missing the requirement statement for `hive.server2.support.dynamic.service.discovery`
+- The doc for enabling ZooKeeper Service Discovery on HiveServer2 is missing the requirement statement for *hive.server2.support.dynamic.service.discovery*. This is a documentation issue I noticed at [https://github.com/dbeaver/dbeaver/issues/22777] , where dbeaver contributors spent 6 months trying to figure out how to start ZooKeeper Service Discovery on HiveServer2.
+
+- https://cwiki.apache.org/confluence/display/Hive/HiveServer2+Clients#HiveServer2Clients-ConnectionURLWhenZooKeeperServiceDiscoveryIsEnabled describes ZooKeeper Service Discovery like this.
+
+{code:bash}
+ZooKeeper-based service discovery introduced in Hive 0.14.0 (HIVE-7935) enables high availability and rolling upgrade for HiveServer2. A JDBC URL that specifies <zookeeper quorum> needs to be used to make use of these features.
+
+With further changes in Hive 2.0.0 and 1.3.0 (unreleased, HIVE-11581), none of the additional configuration parameters such as authentication mode, transport mode, or SSL parameters need to be specified, as they are retrieved from the ZooKeeper entries along with the hostname.
+
+The JDBC connection URL: jdbc:hive2://<zookeeper quorum>/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=hiveserver2 .
+
+The <zookeeper quorum> is the same as the value of hive.zookeeper.quorum configuration parameter in hive-site.xml/hivserver2-site.xml used by HiveServer2.
+{code}
+
+- I did a test at https://github.com/linghengqian/hivesever2-v400-sd-test to verify that setting *hive.zookeeper.quorum* only on HiveServer2 was not enough. I found the *hive.server2.support.dynamic.service.discovery* property defined in the *org.apache.hadoop.hive.conf.HiveConf* class in a stackoverflow discussion. 
+
+- To verify this git, just execute the following shell. Related unit tests occupy *2181*, *10000*, *10002* ports to start Docker Container.
+
+{code:bash}
+sdk install java 22.0.2-graalce
+sdk use java 22.0.2-graalce
+git clone git@github.com:linghengqian/hivesever2-v400-sd-test.git
+cd ./hivesever2-v400-sd-test/
+docker compose -f ./docker-compose-lingh.yml pull
+docker compose -f ./docker-compose-lingh.yml up -d
+
+# ... Wait five seconds for HiveServer2 to finish initializing.
+
+./mvnw clean test
+
+docker compose -f ./docker-compose-lingh.yml down
+{code}
+
+- I also searched for the keyword *hive.server2.support.dynamic.service.discovery* in https://cwiki.apache.org/ , but I could only find this property in the documentation page of the KNOX project https://cwiki.apache.org/confluence/display/KNOX/Dynamic+HA+Provider+Configuration , which doesn't make sense from my perspective.
+
+- From my perspective, it is reasonable to add the description of *hive.server2.support.dynamic.service.discovery* properties to the documentation of apache/hive:4.0.0.

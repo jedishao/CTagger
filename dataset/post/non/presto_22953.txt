@@ -1,0 +1,35 @@
+JDBC DatabaseMetadata.getTables to describe VIEWS as VIEWS and not tables. Duplicates responses in getTables.
+[VIEW_RETURNED_AS TABLE.txt](https://github.com/user-attachments/files/15796402/VIEW_RETURNED_AS.TABLE.txt)
+Views defined in Presto are described by the JDBC driver as of type TABLE.
+
+JDBC driver implementation of DatabaseMetadata.getTables returns result set from the following query, which returns type TABLE for VIEWS which is not expected. 
+
+SELECT 
+	TABLE_CAT, TABLE_SCHEM, TABLE_NAME, TABLE_TYPE, REMARKS,
+	TYPE_CAT, TYPE_SCHEM, TYPE_NAME,
+	SELF_REFERENCING_COL_NAME, REF_GENERATION
+FROM system.jdbc.tables
+ORDER BY TABLE_TYPE, TABLE_CAT, TABLE_SCHEM, TABLE_NAME
+
+
+create or replace view  "hive_data"."dbcert_hive".VIPADDRESS as
+SELECT * FROM (
+    VALUES
+        (cast(0 as integer), null),
+        (cast(1 as integer), IPADDRESS '10.0.0.1'),
+        (cast(2 as integer), IPADDRESS '2001:db8::1')
+) AS t (rnum, c1);
+
+If DatabaseMetadata.getTables is called with the following vector, the views are returned twice one as type table and one as type view which is wrong.
+
+String [] tableTypes = { 
+				"TABLE", "VIEW"
+		};
+		
+		try { 
+			
+		ResultSet rs = dbMeta.getTables( "hive_data" , "dbcert\\_hive", "%", tableTypes);
+		....
+
+![image](https://github.com/prestodb/presto/assets/54872285/e257933b-fe5f-463a-b956-bd32b9831af3)
+

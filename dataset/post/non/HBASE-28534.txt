@@ -1,0 +1,26 @@
+Authentication failure when running hbase-spark in local mode
+h2. Problem
+
+When running Spark in local mode, hbase-spark fails to authenticate to a Kerberos secured HBase cluster. The error message is:
+{quote}No matching SASL authentication provider and supporting token found from providers for user: xxx@XXX.XXX (auth:PROXY)
+{quote}
+That is because {{applyCreds}} changes the authentication method of the current user to {{{}PROXY{}}}, when it should still be {{KERBEROS}} for local mode to run correctly.
+h2. Suggested solution
+
+To fix this, I propose removing {{{}applyCreds{}}}. The function is no longer needed and should be removed:
+
+1. Because we should not change the authentication mode of the current user in local mode
+2. And because the purpose of the function is no longer valid. It is not doing anything meaningful since the broadcasting of the user credentials was removed in this commit:
+[https://github.com/apache/hbase-connectors/commit/75e41365207408f5b47d5925469a49fd60078b5e]
+
+A pull request is on the way.
+h2. Testing
+
+The fix was manually tested against Kerberos secured HBase 2.4.17 + Hadoop 3.3.5 cluster using Spark 3.5.1, both in local mode and with Yarn master, running the following Python code.
+{code:java}
+df = (spark.read.format("org.apache.hadoop.hbase.spark")
+                .option("hbase.columns.mapping", "key STRING :key, state STRING info:state")
+                .option("hbase.table", "hbase:meta").load())
+df.first()
+{code}
+ 

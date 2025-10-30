@@ -1,0 +1,48 @@
+RDelayedQueue cannot get angthing when server run a long time        BUG
+### Redis version
+
+5.0
+
+### Redisson version
+
+3.16.3
+
+### Redisson configuration
+
+@Slf4j
+@Configuration
+@EnableConfigurationProperties(RedisProperties.class)
+public class RedissonConfiguration {
+
+    @Bean(name = "redissonClient")
+    public RedissonClient getRedissonClient(RedisProperties redisProperties) {
+        Config config = new Config();
+        if (redisProperties.getCluster() != null) {
+            List<String> nodes = redisProperties.getCluster().getNodes();
+            nodes = nodes.stream().map(node -> "redis://" + node).collect(Collectors.toList());
+            ClusterServersConfig clusterServersConfig = config.useClusterServers();
+            clusterServersConfig.addNodeAddress(nodes.toArray(new String[nodes.size()]));
+            if (!StringUtils.isEmpty(redisProperties.getPassword())) {
+                clusterServersConfig.setPassword(redisProperties.getPassword());
+            }
+        } else {
+            String address = "redis://" + redisProperties.getHost() + ":" + redisProperties.getPort();
+            SingleServerConfig serverConfig = config.useSingleServer();
+            serverConfig.setAddress(address);
+            serverConfig.setDatabase(redisProperties.getDatabase());
+        }
+        config.setLockWatchdogTimeout(15000);
+        return Redisson.create(config);
+    }
+
+### What is the Expected behavior?
+
+Now the delayed queue cannot get expired tasks，Cannot take after the task expires
+
+### What is the Actual behavior?
+
+Cannot take after the task expires，Tasks in the delayed queue are not transferred to the blocked queue
+
+### Additional information
+
+_No response_

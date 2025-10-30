@@ -1,0 +1,4 @@
+Fix PerfLogger for recursive methods
+Currently PerfLogger stores its {{startTimes}} and {{endTimes}} in a Map, where the key is a String variable called {{{}method{}}}. The method {{perfLogBegin}} simply overwrites the values in the Map. This doesn't work for recursive methods, as there are multiple calls to {{perfLogBegin}} and they all overwrite the same key in the Map. Ideally, for each method, we should log start time of the first {{perfLogBegin}} and end time of the last {{perfLogEnd}} calls.
+
+The issue isn't restricted to just strictly recursive methods like {{{}doPhase1{}}}; we run into the same issue if we try to log {{BaseSemanticAnalyzer.analyze}} method and run an explain cbo. The {{analyze}} method will get called once for {{ExplainSemanticAnalyzer}} and again for {{{}CalcitePlanner{}}}. The second {{perfLogBegin}} call would overwrite the start time and we would get incorrect values.

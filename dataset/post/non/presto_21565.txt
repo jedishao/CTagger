@@ -1,0 +1,117 @@
+TPC-DS SF-10K Q78: VeloxRuntimeError:  allocateNonContiguous failed with 2 pages from Memory Pool
+<details><summary>Click to expand the query:</summary>
+<p>
+
+```sql
+--TPC-DS Q78
+with ws as
+  (select d_year AS ws_sold_year, ws_item_sk,
+    ws_bill_customer_sk ws_customer_sk,
+    sum(ws_quantity) ws_qty,
+    sum(ws_wholesale_cost) ws_wc,
+    sum(ws_sales_price) ws_sp
+   from web_sales
+   left join web_returns on wr_order_number=ws_order_number and ws_item_sk=wr_item_sk
+   join date_dim on ws_sold_date_sk = d_date_sk
+   where wr_order_number is null
+   group by d_year, ws_item_sk, ws_bill_customer_sk
+   ),
+cs as
+  (select d_year AS cs_sold_year, cs_item_sk,
+    cs_bill_customer_sk cs_customer_sk,
+    sum(cs_quantity) cs_qty,
+    sum(cs_wholesale_cost) cs_wc,
+    sum(cs_sales_price) cs_sp
+   from catalog_sales
+   left join catalog_returns on cr_order_number=cs_order_number and cs_item_sk=cr_item_sk
+   join date_dim on cs_sold_date_sk = d_date_sk
+   where cr_order_number is null
+   group by d_year, cs_item_sk, cs_bill_customer_sk
+   ),
+ss as
+  (select d_year AS ss_sold_year, ss_item_sk,
+    ss_customer_sk,
+    sum(ss_quantity) ss_qty,
+    sum(ss_wholesale_cost) ss_wc,
+    sum(ss_sales_price) ss_sp
+   from store_sales
+   left join store_returns on sr_ticket_number=ss_ticket_number and ss_item_sk=sr_item_sk
+   join date_dim on ss_sold_date_sk = d_date_sk
+   where sr_ticket_number is null
+   group by d_year, ss_item_sk, ss_customer_sk
+   )
+ select 
+ss_customer_sk,
+round(cast (ss_qty as decimal(20,0)) /(coalesce(ws_qty,0)+coalesce(cs_qty,0)),2) ratio,
+ss_qty store_qty, ss_wc store_wholesale_cost, ss_sp store_sales_price,
+coalesce(ws_qty,0)+coalesce(cs_qty,0) other_chan_qty,
+coalesce(ws_wc,0)+coalesce(cs_wc,0) other_chan_wholesale_cost,
+coalesce(ws_sp,0)+coalesce(cs_sp,0) other_chan_sales_price
+from ss
+left join ws on (ws_sold_year=ss_sold_year and ws_item_sk=ss_item_sk and ws_customer_sk=ss_customer_sk)
+left join cs on (cs_sold_year=ss_sold_year and cs_item_sk=ss_item_sk and cs_customer_sk=ss_customer_sk)
+where (coalesce(ws_qty,0)>0 or coalesce(cs_qty, 0)>0) and ss_sold_year=2001
+order by 
+  ss_customer_sk,
+  ss_qty desc, ss_wc desc, ss_sp desc,
+  other_chan_qty,
+  other_chan_wholesale_cost,
+  other_chan_sales_price,
+  ratio
+limit 100;
+```
+
+</p>
+</details> 
+
+Query JSON:
+[query_78_no_spilling.json](https://github.com/prestodb/presto/files/13704967/query_78_no_spilling.json)
+
+The query failed with the following error on a 16-node cluster r5.8xlarge (vCPU: 32, Memory: 256 GB) x 16:
+```
+VeloxRuntimeError:  allocateNonContiguous failed with 2 pages from Memory Pool[op.root.0.3.PartitionedOutput LEAF root[20231110_010110_00029_jt2nx] parent[node.root] MMAP track-usage thread-safe]<max capacity 217.00GB unlimited capacity used 4.08MB available 944.00KB reservation [used 4.08MB, reserved 5.00MB, min 0B] counters [allocs 842197, frees 841748, reserves 0, releases 0, collisions 0])> After failing to evict from cache state: AsyncDataCache:
+Cache size: 517.68MB tinySize: 1.64KB large size: 517.68MB
+Cache entries: 112 read pins: 103 write pins: 9 pinned shared: 516.11MB pinned exclusive: 1.57MB
+ num write wait: 12003 empty entries: 57150
+Cache access miss: 305519 hit: 1029689 hit bytes: 3.37TB eviction: 305407 eviction checks: 118377075
+Prefetch entries: 2 bytes: 1.57MB
+Alloc Megaclocks 1457738
+Allocated pages: 56885248 cached pages: 132526
+Backing: Memory Allocator[MMAP capacity 54.25MB allocated pages 56885248 mapped pages 56885248 external mapped pages 56661845
+[size 1: 47(0MB) allocated 47 mapped]
+[size 2: 27422(214MB) allocated 27422 mapped]
+[size 4: 126(1MB) allocated 126 mapped]
+[size 8: 145(4MB) allocated 145 mapped]
+[size 16: 368(23MB) allocated 368 mapped]
+[size 32: 320(40MB) allocated 320 mapped]
+[size 64: 139(34MB) allocated 139 mapped]
+[size 128: 136(68MB) allocated 136 mapped]
+[size 256: 486(486MB) allocated 486 mapped]
+]
+	at Unknown.# 0  _ZN8facebook5velox7process10StackTraceC1Ei(Unknown Source)
+	at Unknown.# 1  _ZN8facebook5velox14VeloxExceptionC2EPKcmS3_St17basic_string_viewIcSt11char_traitsIcEES7_S7_S7_bNS1_4TypeES7_(Unknown Source)
+	at Unknown.# 2  _ZN8facebook5velox6detail14veloxCheckFailINS0_17VeloxRuntimeErrorERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEEvRKNS1_18VeloxCheckFailArgsET0_(Unknown Source)
+	at Unknown.# 3  _ZN8facebook5velox6memory14MemoryPoolImpl21allocateNonContiguousEmRNS1_10AllocationEm(Unknown Source)
+	at Unknown.# 4  _ZN8facebook5velox11StreamArena8newRangeEiPNS0_9ByteRangeE(Unknown Source)
+	at Unknown.# 5  _ZN8facebook5velox10ByteStream6extendEi(Unknown Source)
+	at Unknown.# 6  _ZN8facebook5velox10ByteStream10appendBoolEbi(Unknown Source)
+	at Unknown.# 7  _ZZZN8facebook5velox10serializer6presto12_GLOBAL__N_115serializeColumnEPKNS0_10BaseVectorERKN5folly5RangeIPKNS0_10IndexRangeEEEPNS3_12VectorStreamEENKUlvE_clEvENKUlvE_clEv(Unknown Source)
+	at Unknown.# 8  _ZN8facebook5velox10serializer6presto12_GLOBAL__N_115serializeColumnEPKNS0_10BaseVectorERKN5folly5RangeIPKNS0_10IndexRangeEEEPNS3_12VectorStreamE(Unknown Source)
+	at Unknown.# 9  _ZN8facebook5velox10serializer6presto12_GLOBAL__N_122PrestoVectorSerializer6appendERKSt10shared_ptrINS0_9RowVectorEERKN5folly5RangeIPKNS0_10IndexRangeEEE(Unknown Source)
+	at Unknown.# 10 _ZN8facebook5velox4exec6detail11Destination7advanceEmRKSt6vectorIiSaIiEERKSt10shared_ptrINS0_9RowVectorEERNS1_19OutputBufferManagerERKSt8functionIFvvEEPbPN5folly10SemiFutureINSM_4UnitEEE(Unknown Source)
+	at Unknown.# 11 _ZN8facebook5velox4exec17PartitionedOutput9getOutputEv(Unknown Source)
+	at Unknown.# 12 _ZN8facebook5velox4exec6Driver11runInternalERSt10shared_ptrIS2_ERS3_INS1_13BlockingStateEERS3_INS0_9RowVectorEE(Unknown Source)
+	at Unknown.# 13 _ZN8facebook5velox4exec6Driver3runESt10shared_ptrIS2_E(Unknown Source)
+	at Unknown.# 14 _ZN5folly6detail8function14FunctionTraitsIFvvEE9callSmallIZN8facebook5velox4exec6Driver7enqueueESt10shared_ptrIS9_EEUlvE_EEvRNS1_4DataE(Unknown Source)
+	at Unknown.# 15 _ZN5folly6detail8function14FunctionTraitsIFvvEEclEv(Unknown Source)
+	at Unknown.# 16 _ZN5folly18ThreadPoolExecutor7runTaskERKSt10shared_ptrINS0_6ThreadEEONS0_4TaskE(Unknown Source)
+	at Unknown.# 17 _ZN5folly21CPUThreadPoolExecutor9threadRunESt10shared_ptrINS_18ThreadPoolExecutor6ThreadEE(Unknown Source)
+	at Unknown.# 18 _ZSt13__invoke_implIvRMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEERPS1_JRS4_EET_St21__invoke_memfun_derefOT0_OT1_DpOT2_(Unknown Source)
+	at Unknown.# 19 _ZSt8__invokeIRMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEEJRPS1_RS4_EENSt15__invoke_resultIT_JDpT0_EE4typeEOSC_DpOSD_(Unknown Source)
+	at Unknown.# 20 _ZNSt5_BindIFMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEEPS1_S4_EE6__callIvJEJLm0ELm1EEEET_OSt5tupleIJDpT0_EESt12_Index_tupleIJXspT1_EEE(Unknown Source)
+	at Unknown.# 21 _ZNSt5_BindIFMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEEPS1_S4_EEclIJEvEET0_DpOT_(Unknown Source)
+	at Unknown.# 22 _ZN5folly6detail8function14FunctionTraitsIFvvEE9callSmallISt5_BindIFMNS_18ThreadPoolExecutorEFvSt10shared_ptrINS7_6ThreadEEEPS7_SA_EEEEvRNS1_4DataE(Unknown Source)
+	at Unknown.# 23 0x0000000000000000(Unknown Source)
+	at Unknown.# 24 start_thread(Unknown Source)
+	at Unknown.# 25 clone(Unknown Source)
+```

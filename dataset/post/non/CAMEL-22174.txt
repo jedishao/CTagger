@@ -1,0 +1,52 @@
+camel-smb : doesn't recover from TransportException if smb share disappears from network
+From the user list :
+
+[https://lists.apache.org/thread/69052pqx07brzzscn6dn4kvjgv1vyc40]
+
+ 
+{code:java}
+I'm using a simple route to consume files from an SMB share and store them in a database.
+When the remote server becomes unreachable, the consumer keeps trying to reconnect but seems to reuse a broken connection that wasn’t properly closed.
+The only fix is restarting the whole route.
+It looks like disconnect() in SmbOperations doesn't fully close the connection after an exception:https://github.com/apache/camel/blob/a2fe5b8057d0c990da048a49b380b705ad2237c6/components/camel-smb/src/main/java/org/apache/camel/component/smb/SmbOperations.java#L116-L134
+https://github.com/apache/camel/blob/a2fe5b8057d0c990da048a49b380b705ad2237c6/components/camel-smb/src/main/java/org/apache/camel/component/smb/SmbOperations.java#L116-L134
+ 
+{code}
+trace :  
+{code:java}
+com.hierynomus.smbj.common.SMBRuntimeException: com.hierynomus.protocol.transport.TransportException: java.net.SocketException: Broken pipe
+at com.hierynomus.smbj.connection.SMBSessionBuilder.establish(SMBSessionBuilder.java:124)
+at com.hierynomus.smbj.connection.Connection.authenticate(Connection.java:206)
+at org.apache.camel.component.smb.SmbOperations.connectIfNecessary(SmbOperations.java:91)
+at org.apache.camel.component.smb.SmbConsumer.prePollCheck(SmbConsumer.java:207)
+at org.apache.camel.component.file.GenericFileConsumer.poll(GenericFileConsumer.java:129)
+at org.apache.camel.support.ScheduledPollConsumer.doRun(ScheduledPollConsumer.java:208)
+at org.apache.camel.support.ScheduledPollConsumer.run(ScheduledPollConsumer.java:119)
+at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+at java.base/java.util.concurrent.FutureTask.runAndReset(Unknown Source)
+at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(Unknown Source)
+at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+at io.opentelemetry.context.Context.lambda$wrap$1(Context.java:241)
+at java.base/java.lang.Thread.run(Unknown Source)
+Caused by: com.hierynomus.protocol.transport.TransportException: java.net.SocketException: Broken pipe
+at com.hierynomus.smbj.transport.tcp.direct.DirectTcpTransport.write(DirectTcpTransport.java:86)
+at com.hierynomus.smbj.connection.Connection.send(Connection.java:242)
+at com.hierynomus.smbj.connection.Connection.sendAndReceive(Connection.java:247)
+at com.hierynomus.smbj.connection.SMBSessionBuilder.initiateSessionSetup(SMBSessionBuilder.java:217)
+at com.hierynomus.smbj.connection.SMBSessionBuilder.setupSession(SMBSessionBuilder.java:136)
+at com.hierynomus.smbj.connection.SMBSessionBuilder.establish(SMBSessionBuilder.java:119)
+... 13 more
+Caused by: java.net.SocketException: Broken pipe
+at java.base/sun.nio.ch.SocketDispatcher.write0(Native Method)
+at java.base/sun.nio.ch.SocketDispatcher.write(Unknown Source)
+at java.base/sun.nio.ch.NioSocketImpl.tryWrite(Unknown Source)
+at java.base/sun.nio.ch.NioSocketImpl.implWrite(Unknown Source)
+at java.base/sun.nio.ch.NioSocketImpl.write(Unknown Source)
+at java.base/sun.nio.ch.NioSocketImpl$2.write(Unknown Source)
+at java.base/java.net.Socket$SocketOutputStream.write(Unknown Source)
+at java.base/java.io.BufferedOutputStream.flushBuffer(Unknown Source)
+at java.base/java.io.BufferedOutputStream.implWrite(Unknown Source)
+at java.base/java.io.BufferedOutputStream.write(Unknown Source)
+at com.hierynomus.smbj.transport.tcp.direct.DirectTcpTransport.writeDirectTcpPacketHeader(DirectTcpTransport.java:163)
+at com.hierynomus.smbj.transport.tcp.direct.DirectTcpTransport.write(DirectTcpTransport.java:81) {code}

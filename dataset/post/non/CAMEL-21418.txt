@@ -1,0 +1,15 @@
+camel-rest - Client request validation and multiple values in Accept header
+I have a problem regarding a rest route and a client sending multiple values in the Accept header. The route has the client request validation enabled.
+
+{code:java}
+# succeeds
+$ curl -v -H "Accept: application/json" localhost:8080/api/hello
+{"message":"hello world"}
+
+# fails
+$ curl -v -H "Accept: application/xml, application/json" localhost:8080/api/hello
+Response status is https://http.cat/406
+
+{code}
+
+After a quick debug, I ended up in the [RestUtil |https://github.com/apache/camel/blob/main/core/camel-support/src/main/java/org/apache/camel/support/http/RestUtil.java] class that returns false by default. It considers the accept header like invalid then and gives the 406.

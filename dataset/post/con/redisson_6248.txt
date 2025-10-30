@@ -1,0 +1,114 @@
+IllegalMonitorStateException on unlock() Method After Upgrading Redisson Version
+Hi redisson team
+Our team recently upgraded Redisson in our service from version `3.15.1` to `3.35.0`.
+Since the upgrade, we have observed a significant increase in occurrences of the following error upon calling `unlock()`:
+
+<details>
+<summary>Stack trace</summary>
+
+```java
+java.lang.IllegalMonitorStateException: attempt to unlock lock, not locked by current thread by node id: 0a712830-70bf-4bdc-848c-5dc79e75fe79 thread-id: 122
+	at org.redisson.RedissonBaseLock.lambda$unlockAsync0$2(RedissonBaseLock.java:309) ~[redisson-3.35.0.jar:3.35.0]
+	at java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:836) ~[?:1.8.0_422]
+	at java.util.concurrent.CompletableFuture$UniHandle.tryFire(CompletableFuture.java:811) ~[?:1.8.0_422]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) ~[?:1.8.0_422]
+	at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:1975) ~[?:1.8.0_422]
+	at org.redisson.command.RedisExecutor.handleSuccess(RedisExecutor.java:648) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.command.RedisExecutor.handleResult(RedisExecutor.java:624) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.command.RedisExecutor.checkAttemptPromise(RedisExecutor.java:601) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.command.RedisExecutor.lambda$execute$5(RedisExecutor.java:201) ~[redisson-3.35.0.jar:3.35.0]
+	at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774) ~[?:1.8.0_422]
+	at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750) ~[?:1.8.0_422]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) ~[?:1.8.0_422]
+	at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:1975) ~[?:1.8.0_422]
+	at org.redisson.client.handler.CommandDecoder.completeResponse(CommandDecoder.java:530) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.client.handler.CommandDecoder.handleResult(CommandDecoder.java:524) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:444) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:218) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:146) ~[redisson-3.35.0.jar:3.35.0]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:122) ~[redisson-3.35.0.jar:3.35.0]
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501) ~[netty-codec-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366) ~[netty-codec-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276) ~[netty-codec-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:163) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:714) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493) ~[netty-transport-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989) ~[netty-common-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.51.Final.jar:4.1.51.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.51.Final.jar:4.1.51.Final]
+	at java.lang.Thread.run(Thread.java:750) [?:1.8.0_422]
+```
+</details>
+
+
+**Context and Testing Steps:**
+- We created a unit test that executes many times of lock and unlock operations to replicate the issue.
+- The test uses a custom ForkJoin pool with tasks run in parallel, where each task performs a series of lock/unlock operations.
+- Through testing various versions of Redisson, we found that the issue increased significantly after version 3.16.7.
+
+#### Unit Test Code
+
+<details>
+<summary>Unit Test Code</summary>
+
+```java
+    @Test
+    @SneakyThrows
+    void testLock() {
+
+        AtomicInteger unLockFailedTimes = new AtomicInteger(0);
+        ForkJoinPool forkJoinPool = new ForkJoinPool(20);
+        forkJoinPool.submit(() -> IntStream.range(0, 10000)
+                .parallel()
+                .forEach(i -> {
+                    RLock lock = redissonClient.getLock(UUID.randomUUID().toString());
+                    lock.lock(100, TimeUnit.MILLISECONDS);
+                    // do the task ...
+                    if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+                        try {
+                            lock.unlock();
+                        } catch (IllegalMonitorStateException ex) {
+                            unLockFailedTimes.incrementAndGet();
+                        }
+                    }
+                })).get();
+        Version.logVersion();
+        log.info("unlock failed times : {}", unLockFailedTimes.get());
+    }
+```
+
+</details>
+
+#### Observed Results by Version:
+
+- Versions 3.15.1 to 3.16.6: The error occurs approximately 20-40 times over 10,000 lock/unlock executions.
+- Version 3.16.7 and later: The error count increases to 1500-2000 times over the same number of executions.
+
+#### Questions:
+
+- Were any changes introduced around version 3.16.7 that could explain this increase in `IllegalMonitorStateException` occurrences?
+- Do you have any recommendations on how to mitigate this issue when using Redisson versions post-3.16.7?
+
+#### Redisson config
+
+#### Environment
+
+- JAVA 1.8
+- Redis 6.2.6 (cluster mode)
+
+#### Project for reproduce this issue (minimal reproducible code example)
+And here is the project included the maven dependencies,  redisson config and other config, I hope this will help in reproducing the issue.
+
+https://github.com/fyakghooa/redisson-lock-demo/blob/main/src/test/java/com/example/redisson/lock/demo/RedissonLockTest.java
+
+
+Thank you very much for your time and assistance with this issue!

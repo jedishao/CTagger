@@ -1,0 +1,389 @@
+FairLock don't work with tryLock, but works with lock
+### Redis version
+
+5.0.13
+
+### Redisson version
+
+R3.15.6 R3.32.0
+
+### Redisson configuration
+
+I use threads to lock same key. each thread process data of list one by one, try lock before process and unlock after process. FairLock+tryLock don't work as expected. but FairLock+Lock works.
+```
+for(int i=0;  i<5; i++) {
+    final int idx = i;
+    ListenableFuture future = listeningExecutorService.submit(new Callable<String>() {
+        @Override
+        public String call() {
+            for(int j=0; j<50; j++) {
+                RLock lock = redisson.getFairLock("test");
+                boolean locked = false;
+                try {
+                   // use lock works
+                    //lock.lock(60, TimeUnit.SECONDS);
+                    //System.out.println("getLock:\t" + idx + "\t"+ j);
+                    // use tryLock some threads got locked = false after 60 second
+                    locked = lock.tryLock(60, 60, TimeUnit.SECONDS);
+                    if (locked) {
+                        System.out.println("getLock:\t" + idx + "\t" + j);
+                    } else {
+                        System.err.println("LockErr:\t" + idx + "\t" + j);
+                        System.err.println(new Date().getTime() - date.getTime());
+                    }
+                   // emu data process
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    // uncomment when use tryLock
+                    if (locked)
+                      lock.unlock();
+                }
+            }
+            return "";
+        }
+    });
+ }
+```
+
+### What is the Expected behavior?
+
+thread 0-4 get lock almost fairly till process finish
+```
+getLock:        3        0
+getLock:        4        0
+getLock:        1        0
+getLock:        2        0
+getLock:        0        0
+getLock:        3        1
+getLock:        4        1
+getLock:        1        1
+getLock:        2        1
+getLock:        0        1
+getLock:        3        2
+getLock:        4        2
+getLock:        1        2
+getLock:        2        2
+getLock:        0        2
+getLock:        3        3
+getLock:        4        3
+getLock:        1        3
+getLock:        2        3
+getLock:        0        3
+getLock:        3        4
+getLock:        4        4
+getLock:        1        4
+getLock:        2        4
+getLock:        0        4
+getLock:        3        5
+getLock:        4        5
+getLock:        1        5
+getLock:        2        5
+getLock:        0        5
+getLock:        3        6
+getLock:        4        6
+getLock:        1        6
+getLock:        2        6
+getLock:        0        6
+getLock:        3        7
+getLock:        4        7
+getLock:        1        7
+getLock:        2        7
+getLock:        0        7
+getLock:        3        8
+getLock:        4        8
+getLock:        1        8
+getLock:        2        8
+getLock:        0        8
+getLock:        3        9
+getLock:        4        9
+getLock:        1        9
+getLock:        2        9
+getLock:        0        9
+getLock:        3        10
+getLock:        4        10
+getLock:        1        10
+getLock:        2        10
+getLock:        0        10
+getLock:        3        11
+......
+
+......
+getLock:        3        49
+getLock:        4        49
+getLock:        1        49
+getLock:        2        49
+getLock:        0        49
+```
+
+### What is the Actual behavior?
+
+when process after 1xx seconds, some thread blocked 60 second and fail of timeout on tryLock(and each time the thread always got timeout twice, after that lock went well).
+Example output: thread 3 blocked on tryLock after process item of 23,24
+```
+getLock:	0	0
+getLock:	1	0
+getLock:	2	0
+getLock:	4	0
+getLock:	3	0
+getLock:	0	1
+getLock:	1	1
+getLock:	2	1
+getLock:	4	1
+getLock:	3	1
+getLock:	0	2
+getLock:	1	2
+getLock:	2	2
+getLock:	4	2
+getLock:	3	2
+getLock:	0	3
+getLock:	1	3
+getLock:	2	3
+getLock:	4	3
+getLock:	3	3
+getLock:	0	4
+getLock:	1	4
+getLock:	2	4
+getLock:	4	4
+getLock:	3	4
+getLock:	0	5
+getLock:	1	5
+getLock:	2	5
+getLock:	4	5
+getLock:	3	5
+getLock:	0	6
+getLock:	1	6
+getLock:	2	6
+getLock:	4	6
+getLock:	3	6
+getLock:	0	7
+getLock:	1	7
+getLock:	2	7
+getLock:	4	7
+getLock:	3	7
+getLock:	0	8
+getLock:	1	8
+getLock:	2	8
+getLock:	4	8
+getLock:	3	8
+getLock:	0	9
+getLock:	1	9
+getLock:	2	9
+getLock:	4	9
+getLock:	3	9
+getLock:	0	10
+getLock:	1	10
+getLock:	2	10
+getLock:	4	10
+getLock:	3	10
+getLock:	0	11
+getLock:	1	11
+getLock:	2	11
+getLock:	4	11
+getLock:	3	11
+getLock:	0	12
+getLock:	1	12
+getLock:	2	12
+getLock:	4	12
+getLock:	3	12
+getLock:	0	13
+getLock:	1	13
+getLock:	2	13
+getLock:	4	13
+getLock:	3	13
+getLock:	0	14
+getLock:	1	14
+getLock:	2	14
+getLock:	4	14
+getLock:	3	14
+getLock:	0	15
+getLock:	1	15
+getLock:	2	15
+getLock:	4	15
+getLock:	3	15
+getLock:	0	16
+getLock:	1	16
+getLock:	2	16
+getLock:	4	16
+getLock:	3	16
+getLock:	0	17
+getLock:	1	17
+getLock:	2	17
+getLock:	4	17
+getLock:	3	17
+getLock:	0	18
+getLock:	1	18
+getLock:	2	18
+getLock:	4	18
+getLock:	3	18
+getLock:	0	19
+getLock:	1	19
+getLock:	2	19
+getLock:	4	19
+getLock:	3	19
+getLock:	0	20
+getLock:	1	20
+getLock:	2	20
+getLock:	4	20
+getLock:	3	20
+getLock:	0	21
+getLock:	1	21
+getLock:	2	21
+getLock:	4	21
+getLock:	3	21
+getLock:	0	22
+getLock:	1	22
+getLock:	2	22
+getLock:	4	22
+getLock:	3	22
+// NG: thread 3 blocked here at item 23 till timeout after 60 seconds
+getLock:	0	23
+getLock:	1	23
+getLock:	2	23
+getLock:	4	23
+getLock:	0	24
+getLock:	1	24
+getLock:	2	24
+getLock:	4	24
+getLock:	0	25
+getLock:	1	25
+getLock:	2	25
+getLock:	4	25
+getLock:	0	26
+getLock:	1	26
+getLock:	2	26
+getLock:	4	26
+getLock:	0	27
+getLock:	1	27
+getLock:	2	27
+getLock:	4	27
+getLock:	0	28
+getLock:	1	28
+getLock:	2	28
+getLock:	4	28
+getLock:	0	29
+getLock:	1	29
+getLock:	2	29
+getLock:	4	29
+getLock:	0	30
+getLock:	1	30
+getLock:	2	30
+getLock:	4	30
+getLock:	0	31
+getLock:	1	31
+getLock:	2	31
+getLock:	4	31
+getLock:	0	32
+getLock:	1	32
+getLock:	2	32
+getLock:	4	32
+getLock:	0	33
+getLock:	1	33
+getLock:	2	33
+getLock:	4	33
+getLock:	0	34
+getLock:	1	34
+getLock:	2	34
+getLock:	4	34
+getLock:	0	35
+getLock:	1	35
+getLock:	2	35
+getLock:	4	35
+getLock:	0	36
+getLock:	1	36
+getLock:	2	36
+getLock:	4	36
+getLock:	0	37
+getLock:	1	37
+getLock:	2	37
+getLock:	4	37
+// NG: thread 3 timeout first time after 60s
+LockErr:	3	23
+176011
+getLock:	0	38
+getLock:	1	38
+getLock:	2	38
+getLock:	4	38
+getLock:	0	39
+getLock:	1	39
+getLock:	2	39
+getLock:	4	39
+getLock:	0	40
+getLock:	1	40
+getLock:	2	40
+getLock:	4	40
+getLock:	0	41
+getLock:	1	41
+getLock:	2	41
+getLock:	4	41
+getLock:	0	42
+getLock:	1	42
+getLock:	2	42
+getLock:	4	42
+getLock:	0	43
+getLock:	1	43
+getLock:	2	43
+getLock:	4	43
+getLock:	0	44
+getLock:	1	44
+getLock:	2	44
+getLock:	4	44
+getLock:	0	45
+getLock:	1	45
+getLock:	2	45
+getLock:	4	45
+getLock:	0	46
+getLock:	1	46
+getLock:	2	46
+getLock:	4	46
+getLock:	0	47
+getLock:	1	47
+getLock:	2	47
+getLock:	4	47
+getLock:	0	48
+getLock:	1	48
+getLock:	2	48
+getLock:	4	48
+getLock:	0	49
+getLock:	1	49
+getLock:	2	49
+getLock:	4	49
+// thread 0,1,2,4 process finished here
+
+
+// NG: thread 3 timeout second time after 60s
+LockErr:	3	24
+237046
+// thread 3 recovered and process till end
+getLock:	3	25
+getLock:	3	26
+getLock:	3	27
+getLock:	3	28
+getLock:	3	29
+getLock:	3	30
+getLock:	3	31
+getLock:	3	32
+getLock:	3	33
+getLock:	3	34
+getLock:	3	35
+getLock:	3	36
+getLock:	3	37
+getLock:	3	38
+getLock:	3	39
+getLock:	3	40
+getLock:	3	41
+getLock:	3	42
+getLock:	3	43
+getLock:	3	44
+getLock:	3	45
+getLock:	3	46
+getLock:	3	47
+getLock:	3	48
+getLock:	3	49
+
+```
+
+### Additional information
+
+now I use lock instead of tryLock, but I found fairLock+tryLock Code example on https://redisson.org/docs/data-and-services/locks-and-synchronizers/#fair-lock

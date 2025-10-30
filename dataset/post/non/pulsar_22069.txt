@@ -1,0 +1,43 @@
+[Bug] consumer.pause is not working as expected
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+3.1.1
+
+### Minimal reproduce step
+
+#6965
+
+``` java
+ Consumer<String> consumer = pulsarClient.newConsumer(Schema.STRING)
+                .topic("myTopic")
+                .consumerName(consumerName)
+                .subscriptionType(SubscriptionType.Shared)
+                .subscriptionName("mySub")
+                .messageListener(listener)
+                .subscribe();
+
+        log.info("[consumer pause],topic={}", crawlerInnerParseTopic);
+        consumer.pause();
+        return consumer;```
+
+### What did you expect to see?
+
+consumer stop receive msg
+
+### What did you see instead?
+
+consumer still receive msg.
+
+### Anything else?
+
+
+I tracked the code and found that when the consumer is set to pause, it doesn't report AvailablePermits to the broker. If AvailablePermits reported to the broker before pausing are not fully utilized, the broker will continue to send messages until AvailablePermits are exhausted. Therefore, when pausing is set, AvailablePermits should be reported to the broker once as 0. 
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

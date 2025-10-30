@@ -1,0 +1,39 @@
+Swagger documentation issue when using proto complied Pojo used in rest controller
+### Discussed in https://github.com/grpc/grpc-java/discussions/11009
+
+<div type='discussions-op-text'>
+
+<sup>Originally posted by **dockndev** March 13, 2024</sup>
+Use Case : 
+We are using gRPC in our microservices setup, where gRPC is utilized for internal communication, while REST APIs are employed for external interactions. Additionally, we are using the same POJOs generated after proto file compilation.
+
+Controller is looking like 
+
+```java
+@Slf4j
+@RestController
+@RequestMapping("/test")
+public class TestController {
+    @Autowired
+    private TestService service;
+
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getTest(@RequestBody String payload) {
+        try {
+            GetTestRequest.Builder requestBuilder = GetTestRequest.newBuilder();
+            JsonFormat.parser().ignoringUnknownFields().merge(payload, requestBuilder);
+            GetTestRequest request = requestBuilder.build();
+            GetTestResponse response = service.getTest(request);
+            return ResponseEntity.ok(JsonFormat.printer().print(response));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+}
+```
+
+With this code, we are facing an issue in Swagger documentation. As the GetTestRequest is generated from the proto file and is a public static final class type, we cannot use them directly as a request body.
+
+
+Thanks is advance. 
+</div>

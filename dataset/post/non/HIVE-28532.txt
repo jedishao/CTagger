@@ -1,0 +1,12 @@
+Map Join Reuse cache allows to share hashtables for different join types
+Map Join Reuse cache allows to share hashtables for different join types.
+
+For example lets take Outer join and Inner join. We cannot reuse a hash table for a non-outer join vs outer join. Because outer join cannot accept the hash table kind other than HASHMAP, whereas there are other types like HASHSET and HASH_MULTISET. Below is the exception when we share the hash table for outer join and inner. May be in certain cases we might produce wrong results as we expect the hash table to be one type whereas we get the hashtable of another type.
+{code:java}
+Caused by: java.lang.ClassCastException: class org.apache.hadoop.hive.ql.exec.vector.mapjoin.fast.VectorMapJoinFastStringHashMultiSetContainer cannot be cast to class org.apache.hadoop.hive.ql.exec.vector.mapjoin.hashtable.VectorMapJoinHashMap{code}
+For this the query plan should be of the form below:
+{code:java}
+        Map 11 <- Map 10 (BROADCAST_EDGE)
+        Map 5 <- Map 10 (BROADCAST_EDGE)
+        Map 9 <- Map 10 (BROADCAST_EDGE) {code}
+where Map 10 gets broadcasted to different mappers and at the same time the join type in the Map 11/Map5/Map9 were different. 

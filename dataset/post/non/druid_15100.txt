@@ -1,0 +1,82 @@
+Strange for the results of executing the index_hadoop task with transformSpec including expression for "array dimension"
+### Affected Version
+
+Druid 26.0.0
+not affected at version 0.21.0, but problem founded at version 26.0.0
+
+### Description
+
+- Cluster size
+  - about 100 hosts
+- Configurations in use
+  - not related to configuration
+- The error message or stack traces encountered. Providing more context, such as nearby log messages or even entire logs, can be helpful.
+  - There aren't error message
+
+- Steps to reproduce the problem & Any debugging that you have already done
+
+I tested inline, kafka indexing, and index_hadoop, but only index_hadoop had problems.
+#### Example dataset below
+```json
+{"timestamp": 1696470307397, "dim": ["n", "b", "q", "b"]}
+{"timestamp": 1696470307398, "dim": ["a", "w"]}
+{"timestamp": 1696470307398, "dim": ["d", "m", "a", "o", "e", "i", "c", "d"]}
+{"timestamp": 1696470307399, "dim": ["q", "i", "a", "p", "a", "o"]}
+...
+```
+#### transformSpec
+```json
+"transformSpec": {
+  "transforms": [
+    {
+      "type": "expression",
+      "name": "dim",
+      "expression": "if(array_length(dim) <= 5, dim, array_slice(dim, 0, 5))"
+    }
+  ]
+}
+```
+#### Result (26.0.0)
+<img width="556" alt="스크린샷 2023-10-06 오전 11 43 53" src="https://github.com/apache/druid/assets/71120389/6974276c-bdf5-4076-a062-f4c4df4d7179">  
+
+
+I guess it has something to do with this PR (https://github.com/apache/druid/pull/13947)
+```java
+@Test
+public void testTransformWithExpr()
+{
+  final Transformer transformer = new Transformer(
+      new TransformSpec(
+          null,
+          ImmutableList.of(new ExpressionTransform("dim", "array_slice(dim, 0, 5)", TestExprMacroTable.INSTANCE))
+      )
+  );
+  final InputRow row = new MapBasedInputRow(
+      DateTimes.nowUtc(),
+      ImmutableList.of("dim"),
+      ImmutableMap.of("dim", ImmutableList.of("a", "b", "c", "d", "e", "f", "g"))
+  );
+  System.out.println(row.getDimension("dim"));
+  System.out.println(row.getRaw("dim"));
+
+  final InputRow actual = transformer.transform(row);
+  System.out.println(actual.getDimension("dim"));
+  System.out.println(actual.getRaw("dim"));
+}
+```
+```
+// 26.0.0
+
+[a, b, c, d, e, f, g]
+[a, b, c, d, e, f, g]
+[a, b, c, d, e]
+[Ljava.lang.Object;@147a5d08 <-- here
+```
+```
+// 0.21.0
+
+[a, b, c, d, e, f, g]
+[a, b, c, d, e, f, g]
+[a, b, c, d, e]
+[a, b, c, d, e]
+```

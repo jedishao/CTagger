@@ -1,0 +1,8 @@
+Infinite waiting on lock acquisition by snapshot can result in unresponsive master
+When a region is stuck in transition for significant time, any attempt to take snapshot on the table would keep master handler thread in forever waiting state. As part of the creating snapshot on enabled or disabled table, in order to get the table level lock, LockProcedure is executed but if any region of the table is in transition, LockProcedure could not be executed by the snapshot handler, resulting in forever waiting until the region transition is completed, allowing the table level lock to be acquired by the snapshot handler.
+
+In cases where a region stays in RIT for considerable time, if enough attempts are made by the client to create snapshots on the table, it can easily exhaust all handler threads, leading to potentially unresponsive master. Attached a sample thread dump.
+
+Proposal: The snapshot handler should not stay stuck forever if it cannot take table level lock, it should fail-fast.
+
+!image.png!

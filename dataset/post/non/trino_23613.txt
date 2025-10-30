@@ -1,0 +1,190 @@
+Getting `bad response from userinfo endpoint` error whenever using JWT and OAUTH2 authentications
+Hello all,
+
+I have set up Trino 459 with both JWT and OAUTH2 authentication methods. I want users to authenticate using Google Workspace, and then I want applications to forward their JWT tokens to Trino so that I never use static credentials. Everthing seems to be working fine, except when I perform JWT authentication and get the following error in the coordinator logs:
+```
+2024-09-30T13:33:25.711Z	ERROR	http-worker-136	io.trino.server.security.oauth2.NimbusAirliftHttpClient	Received bad response from userinfo endpoint
+java.io.UncheckedIOException: Failed reading response from server: https://openidconnect.googleapis.com/v1/userinfo
+	at io.airlift.http.client.ResponseHandlerUtils.readResponseBytes(ResponseHandlerUtils.java:34)
+	at io.airlift.http.client.StringResponseHandler.handle(StringResponseHandler.java:56)
+	at io.trino.server.security.oauth2.NimbusAirliftHttpClient$NimbusResponseHandler.handle(NimbusAirliftHttpClient.java:124)
+	at io.airlift.http.client.jetty.JettyHttpClient.doExecute(JettyHttpClient.java:759)
+	at io.airlift.http.client.jetty.JettyHttpClient.execute(JettyHttpClient.java:672)
+	at io.trino.server.security.oauth2.NimbusAirliftHttpClient.execute(NimbusAirliftHttpClient.java:101)
+	at io.trino.server.security.oauth2.NimbusOAuth2Client.queryUserInfo(NimbusOAuth2Client.java:400)
+	at io.trino.server.security.oauth2.NimbusOAuth2Client.getJWTClaimsSet(NimbusOAuth2Client.java:392)
+	at io.trino.server.security.oauth2.NimbusOAuth2Client.getClaims(NimbusOAuth2Client.java:184)
+	at io.trino.server.security.oauth2.OAuth2Authenticator.createIdentity(OAuth2Authenticator.java:77)
+	at io.trino.server.security.AbstractBearerAuthenticator.authenticate(AbstractBearerAuthenticator.java:41)
+	at io.trino.server.security.AbstractBearerAuthenticator.authenticate(AbstractBearerAuthenticator.java:34)
+	at io.trino.server.security.AuthenticationFilter.filter(AuthenticationFilter.java:87)
+	at org.glassfish.jersey.server.ContainerFilteringStage.apply(ContainerFilteringStage.java:108)
+	at org.glassfish.jersey.server.ContainerFilteringStage.apply(ContainerFilteringStage.java:44)
+	at org.glassfish.jersey.process.internal.Stages.process(Stages.java:173)
+	at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:266)
+	at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248)
+	at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244)
+	at org.glassfish.jersey.internal.Errors.process(Errors.java:292)
+	at org.glassfish.jersey.internal.Errors.process(Errors.java:274)
+	at org.glassfish.jersey.internal.Errors.process(Errors.java:244)
+	at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:266)
+	at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:253)
+	at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:696)
+	at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:397)
+	at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:349)
+	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:358)
+	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:312)
+	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205)
+	at org.eclipse.jetty.ee10.servlet.ServletHolder.handle(ServletHolder.java:736)
+	at org.eclipse.jetty.ee10.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1614)
+	at io.airlift.http.server.TraceTokenFilter.doFilter(TraceTokenFilter.java:62)
+	at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+	at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1586)
+	at org.eclipse.jetty.ee10.servlet.ServletHandler$MappedServlet.handle(ServletHandler.java:1547)
+	at org.eclipse.jetty.ee10.servlet.ServletChannel.dispatch(ServletChannel.java:824)
+	at org.eclipse.jetty.ee10.servlet.ServletChannel.handle(ServletChannel.java:436)
+	at org.eclipse.jetty.ee10.servlet.ServletHandler.handle(ServletHandler.java:464)
+	at org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:597)
+	at org.eclipse.jetty.server.handler.ContextHandler.handle(ContextHandler.java:1060)
+	at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:740)
+	at org.eclipse.jetty.server.handler.EventsHandler.handle(EventsHandler.java:81)
+	at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:151)
+	at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:740)
+	at org.eclipse.jetty.server.handler.EventsHandler.handle(EventsHandler.java:81)
+	at org.eclipse.jetty.server.Server.handle(Server.java:181)
+	at org.eclipse.jetty.server.internal.HttpChannelState$HandlerInvoker.run(HttpChannelState.java:661)
+	at org.eclipse.jetty.server.internal.HttpConnection.onFillable(HttpConnection.java:406)
+	at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:322)
+	at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:99)
+	at org.eclipse.jetty.io.SelectableChannelEndPoint$1.run(SelectableChannelEndPoint.java:53)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.runTask(AdaptiveExecutionStrategy.java:478)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.consumeTask(AdaptiveExecutionStrategy.java:441)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:293)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:201)
+	at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:311)
+	at org.eclipse.jetty.util.thread.MonitoredQueuedThreadPool$1.run(MonitoredQueuedThreadPool.java:73)
+	at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:979)
+	at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1209)
+	at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1164)
+	at java.base/java.lang.Thread.run(Thread.java:1575)
+Caused by: java.io.IOException: org.eclipse.jetty.client.HttpResponseException: HTTP protocol violation: Authentication challenge without WWW-Authenticate header
+	at org.eclipse.jetty.client.InputStreamResponseListener$Input.read(InputStreamResponseListener.java:304)
+	at com.google.common.io.CountingInputStream.read(CountingInputStream.java:64)
+	at com.google.common.io.ByteStreams.toByteArrayInternal(ByteStreams.java:195)
+	at com.google.common.io.ByteStreams.toByteArray(ByteStreams.java:244)
+	at io.airlift.http.client.ResponseHandlerUtils.readResponseBytes(ResponseHandlerUtils.java:31)
+	... 61 more
+Caused by: org.eclipse.jetty.client.HttpResponseException: HTTP protocol violation: Authentication challenge without WWW-Authenticate header
+	at org.eclipse.jetty.client.AuthenticationProtocolHandler$AuthenticationListener.onComplete(AuthenticationProtocolHandler.java:164)
+	at org.eclipse.jetty.client.transport.ResponseListeners.notifyComplete(ResponseListeners.java:350)
+	at org.eclipse.jetty.client.transport.ResponseListeners.notifyComplete(ResponseListeners.java:342)
+	at org.eclipse.jetty.client.transport.HttpReceiver.terminateResponse(HttpReceiver.java:436)
+	at org.eclipse.jetty.client.transport.HttpReceiver.terminateResponse(HttpReceiver.java:418)
+	at org.eclipse.jetty.client.transport.HttpReceiver.lambda$responseSuccess$4(HttpReceiver.java:378)
+	at org.eclipse.jetty.util.thread.SerializedInvoker$Link.run(SerializedInvoker.java:245)
+	at org.eclipse.jetty.util.thread.SerializedInvoker.run(SerializedInvoker.java:154)
+	at org.eclipse.jetty.client.transport.HttpReceiver.responseHeaders(HttpReceiver.java:243)
+	at org.eclipse.jetty.client.transport.internal.HttpReceiverOverHTTP.parse(HttpReceiverOverHTTP.java:331)
+	at org.eclipse.jetty.client.transport.internal.HttpReceiverOverHTTP.parseAndFill(HttpReceiverOverHTTP.java:248)
+	at org.eclipse.jetty.client.transport.internal.HttpReceiverOverHTTP.receive(HttpReceiverOverHTTP.java:77)
+	at org.eclipse.jetty.client.transport.internal.HttpChannelOverHTTP.receive(HttpChannelOverHTTP.java:97)
+	at org.eclipse.jetty.client.transport.internal.HttpConnectionOverHTTP.onFillable(HttpConnectionOverHTTP.java:250)
+	at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:322)
+	at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:99)
+	at org.eclipse.jetty.io.ssl.SslConnection$SslEndPoint.onFillable(SslConnection.java:574)
+	at org.eclipse.jetty.io.ssl.SslConnection.onFillable(SslConnection.java:390)
+	at org.eclipse.jetty.io.ssl.SslConnection$2.succeeded(SslConnection.java:150)
+	at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:99)
+	at org.eclipse.jetty.io.SelectableChannelEndPoint$1.run(SelectableChannelEndPoint.java:53)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.runTask(AdaptiveExecutionStrategy.java:478)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.consumeTask(AdaptiveExecutionStrategy.java:441)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:293)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.produce(AdaptiveExecutionStrategy.java:195)
+	... 5 more
+```
+
+It looks as if Trino is using the OAuth2 userinfo endpoint to validate the JWT token. By the way the JWT tokens are validated correctly, expired and invalid tokens are rejected while valid ones allow me to run queries. OAuth2 is also working fine, whenever I use that auth mechanism I see no errors. 
+Also, if I disable the OAUTH2 authentication, this error message is not shown.
+
+Here is my coordinator `config.properties`:
+```
+coordinator=true
+node-scheduler.include-coordinator=false
+http-server.http.port=8080
+query.max-memory=4GB
+query.max-memory-per-node=1GB
+discovery.uri=http://localhost:8080
+http-server.authentication.type=OAUTH2,JWT
+internal-communication.shared-secret=${ENV:SHARED_SECRET}
+query.max-stage-count=200
+catalog.management=dynamic
+shutdown.grace-period=60s
+retry-policy=QUERY
+exchange.deduplication-buffer-size=32MB
+fault-tolerant-execution.exchange-encryption-enabled=true
+query-retry-attempts=4
+retry-initial-delay=2s
+retry-max-delay=30s
+retry-delay-scale-factor=2.0
+spill-enabled=true
+spiller-spill-path=/tmp/trino-spill
+spiller-max-used-space-threshold=0.95
+spiller-threads=4
+aggregation-operator-unspill-memory-limit=4MB
+spill-compression-codec=NONE
+spill-encryption-enabled=false
+http-server.process-forwarded=true
+http-server.authentication.allow-insecure-over-http=true
+internal-communication.https.required=false
+catalog.store=file
+catalog.prune.update-interval=60s
+# OAUTH2 auth properties
+http-server.authentication.oauth2.client-id=${ENV:OAUTH2_CLIENT_ID}
+http-server.authentication.oauth2.client-secret=${ENV:OAUTH2_CLIENT_SECRET}
+http-server.authentication.oauth2.issuer=https://accounts.google.com
+http-server.authentication.oauth2.principal-field=email
+http-server.authentication.oauth2.scopes=openid,https://www.googleapis.com/auth/userinfo.email
+http-server.authentication.oauth2.userinfo-url=https://openidconnect.googleapis.com/v1/userinfo
+# Only required for refresh tokens
+# http-server.authentication.oauth2.auth-url=https://accounts.google.com/o/oauth2/v2/auth?prompt=consent&access_type=offline
+# http-server.authentication.oauth2.refresh-tokens=true
+# http-server.authentication.oauth2.refresh-tokens.issued-token.timeout=24h
+web-ui.authentication.type=OAUTH2
+# JWT auth properties
+http-server.authentication.jwt.key-file=https://www.googleapis.com/oauth2/v3/certs
+http-server.authentication.jwt.required-issuer=https://accounts.google.com
+http-server.authentication.jwt.required-audience=${ENV:OAUTH2_CLIENT_ID}
+http-server.authentication.jwt.principal-field=email
+```
+
+And this is the Python code I'm using to test the connection:
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.sql.expression import text
+from trino.auth import OAuth2Authentication, JWTAuthentication
+
+expired_token = "..."
+invalid_token = "..."
+valid_token = "..."
+
+# auth = OAuth2Authentication()
+auth = JWTAuthentication(valid_token)
+
+def main():
+    engine = create_engine(
+        "trino://trino.example.com:443/system",
+        connect_args={
+            "auth": auth,
+            "http_scheme": "https",
+        }
+    )
+    connection = engine.connect()
+
+    rows = connection.execute(text("SELECT * FROM runtime.nodes")).fetchall()
+    print(rows)
+
+
+if __name__ == "__main__":
+    main()
+```

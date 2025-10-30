@@ -1,0 +1,32 @@
+Connection Leak Issue
+I have recently updated the Redisson library in my production service from version 3.26.1 to 3.27.2. After the update, I have noticed an unusual increase in the number of connections to Redis that are not being closed. The increase is random but consistent, with every instance leading to an additional 25 connections. After 2 days running instance, we notice +3800 connections to redis on 1 host. With 3.26.1 all works as expected.
+
+Upon further investigation, I found that this behavior started to reproduce after updating to Redisson version 3.27.0 and above. I have logs that reproduce this behavior on both 3.27.0 and 3.27.2 versions. It reproduced even when the service is up without any load and without any calls to redis.
+
+To confirm the issue, I used the console command netstat -l -n -t | grep -E '6379' | wc -l. After some of the logs(in attachments), the count of connections increased by 25.
+
+**Expected behavior**
+The number of connections to Redis should remain consistent and connections should be closed appropriately.
+**Actual behavior**
+* execute console command `netstat -l -n -t | grep -E '6379' | wc -l `
+  result =    53
+* redisson reconnected to redis cluster(logs in attachments)
+* The number of connections to Redis increases randomly by 25 and these connections are not being closed.
+* execute console command `netstat -l -n -t | grep -E '6379' | wc -l `
+  result =    78
+**Steps to reproduce or test case**
+Update Redisson library to version 3.27.0 or 3.27.2.
+Monitor the number of connections to Redis.
+Observe an increase in the number of connections that are not being closed.
+**Redis version**
+redis cluster without sharding with enabled tls
+version 6.2.6
+**Redisson version**
+3.27.0/3.27.2
+**Redisson configuration**
+<img width="903" alt="image" src="https://github.com/redisson/redisson/assets/110694013/f1e57f2e-cb1b-41da-8f9e-152069c87f1f">
+
+**Logs**
+[connection_leak_issue_3.27.2.txt](https://github.com/redisson/redisson/files/14851262/connection_leak_issue_3.27.2.txt)
+
+[connection_leak_issue_3.27.0.txt](https://github.com/redisson/redisson/files/14851266/connection_leak_issue_3.27.0.txt)

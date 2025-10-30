@@ -1,0 +1,73 @@
+[Bug] Unexpected Package Manager Behavior in Pulsar 3.3.0 Standalone Mode
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+OS: Arch Linux x86_64
+Kernel: 6.6.35-2-lts
+Java:
+  - openjdk 17.0.11 2024-04-16
+  - OpenJDK Runtime Environment (build 17.0.11+9)
+  - OpenJDK 64-Bit Server VM (build 17.0.11+9, mixed mode, sharing)
+
+Apache Pulsar: 3.3.0 (using apachepulsar/pulsar:3.3.0 Docker image)
+
+Java Client Libraries:
+org.apache.pulsar:pulsar-client-original:3.3.0
+org.apache.pulsar:pulsar-client-admin-original:3.3.0
+
+### Minimal reproduce step
+
+I'm experiencing an unexpected issue with function creation in Apache Pulsar 3.3.0 standalone mode. Here's my setup and the steps I've taken:
+
+1. Spun up a standalone Pulsar instance using Docker Compose:
+
+```
+version: '3.9'
+services:
+  pulsar:
+    container_name: pulsar
+    image: apachepulsar/pulsar:3.3.0
+    ports:
+      - 6650:6650
+      - 8080:8080
+      - 8081:8081
+    command: ["bin/pulsar", "standalone"]
+```
+2. Created a function using the Java Client Library `admin.functions.createFunction(...)`.
+3. Deleted the function using the Java Client Library `admin.functions.deleteFunction(...)`.
+4. Attempted to upload the same function again.
+
+### What did you expect to see?
+
+Normal function (re-)creation, similar to the initial upload.
+
+
+### What did you see instead?
+
+Received the following error:
+
+org.apache.pulsar.client.admin.PulsarAdminException$ServerSideErrorException: Package 'function://test-tenant/test-namespace/TestFunction@0' metadata already exists
+
+
+### Anything else?
+
+I'm aware that this issue seems similar to #20930, but my concern is specifically about the unexpected involvement of the package manager, which **I thought was disabled**.
+
+To verify the configuration, I checked the `broker.conf` file in `/pulsar/conf` within the Docker container. Surprisingly, I found `enablePackagesManagement=false`.
+
+Questions:
+ - Does the Docker standalone mode use a different configuration than what's shown in the broker.conf file?
+ - Is the package manager now a central, always-active component for function deployment, regardless of the enablePackagesManagement setting?
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

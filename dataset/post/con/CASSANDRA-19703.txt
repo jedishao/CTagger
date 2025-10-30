@@ -1,0 +1,35 @@
+Newly inserted prepared statements got evicted too early from cache that leads to race condition
+We're upgrading from Cassandra 4.0 to Cassandra 4.1.3 and system.prepared_statements table size start growing to GB size after upgrade. This slows down node startup significantly when it's doing preloadPreparedStatements
+
+I can't share the exact log but it's a race condition like this:
+ # [Thread 1] Receives a prepared request for S1. Attempts to get S1 in cache
+ # [Thread 1] Cache miss, put this S1 into cache
+ # [Thread 1] Attempts to write S1 into local table
+ # [Thread 2] Receives a prepared request for S2. Attempts to get S2 in cache
+ # [Thread 2] Cache miss, put this S2 into cache
+ # [Thread 2] Cache is full, evicting S1 from cache
+ # [Thread 2] Attempts to delete S1 from local table
+ # [Thread 2] Tombstone inserted for S1, delete finished
+ # [Thread 1] Record inserted for S1, write finished
+
+Thread 2 inserted a tombstone for S1 earlier than Thread 1 was able to insert the record in the table. Hence the data will not be removed because the later insert has newer write time than the tombstone.
+
+Whether this would happen or not depends on how the cache decides what’s the next entry to evict when it’s full. We noticed that in 4.1.3 Caffeine was upgraded to 2.9.2 CASSANDRA-15153
+
+ 
+
+I did a small research in Caffeine commits. It seems this commit was causing the entry got evicted to early: Eagerly evict an entry if it too large to fit in the cache(Feb 2021), available after 2.9.0: [https://github.com/ben-manes/caffeine/commit/464bc1914368c47a0203517fda2151fbedaf568b]
+
+And later fixed in: Improve eviction when overflow or the weight is oversized(Aug 2022), available after 3.1.2: [https://github.com/ben-manes/caffeine/commit/25b7d17b1a246a63e4991d4902a2ecf24e86d234]
+{quote}Previously an attempt to centralize evictions into one code path led to a suboptimal approach ([{{464bc19}}|https://github.com/ben-manes/caffeine/commit/464bc1914368c47a0203517fda2151fbedaf568b]
+). This tried to move those entries into the LRU position for early eviction, but was confusing and could too aggressively evict something that is desirable to keep.
+{quote}
+ 
+
+I upgrade the Caffeine to 3.1.8 (same as 5.0 trunk) and this issue is gone. But I think this version is not compatible with Java 8.
+
+I'm not 100% sure if this is the root cause and what's the correct fix here. Would appreciate if anyone can have a look, thanks
+
+ 
+
+ 

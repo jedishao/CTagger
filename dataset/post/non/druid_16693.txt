@@ -1,0 +1,9 @@
+Auto-compaction tasks are not submitted when single compact task runs for longtime
+
+Druid is on 25.0.0 running on kubernetes.
+
+No new auto-compaction tasks have been created by the coordinator in the last ~40 hours. This leads to segment count increase substantially.
+
+After debugging found that there is a long running compaction task in running state. Needed to kill it manually for auto-compaction to resume. The coordinator process is waiting for long-running compaction tasks to complete [before submitting new compaction tasks](https://druid.apache.org/docs/latest/data-management/automatic-compaction/#how-druid-manages-automatic-compaction).
+
+Even when taskSlots are empty this issue was seem. We are running compaction task in separate tier.

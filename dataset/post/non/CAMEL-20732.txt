@@ -1,0 +1,55 @@
+RestDefinition does not properly handle array of primitives for` in/out types
+This is likely a regression from CAMEL-15199 (since 3.5.0).
+
+Using primitive array types as in/out type in REST route definition results in invalid string representation of the actual type.
+
+ 
+
+*History*
+
+Noticed on a project with Camel 4.4 including SpringDoc and a route with outType "byte[]".
+OpenAPI/Swagger output is completely broken (i.e. empty), apparently because the type "null[]" is not resolvable.
+
+The issue is still present in latest 4.6.0-SNAPSHOT and most likely since 3.5.0
+
+ 
+
+*Analysis*
+
+The workaround code introduced in the referenced issue contains this branch:
+{code:java}
+if (!classType.isPrimitive()) {
+    if (classType.isArray()) {
+        type = StringHelper.between(classType.getName(), "[L", ";") + "[]";
+    } else {
+/* ...*/{code}
+Because byte[].class.getName() returns "[B" there is nothing betwen "[L" and ";", so the output is "null[]".
+
+ 
+
+*Example*
+{code:java}
+package my.example;
+
+public class MyRoutes extends org.apache.camel.builder.RouteBuilder {
+    @Override
+    public void configure() throws Exception {
+        rest()
+            .get("/test")
+                .outType(byte[].class)
+                .produces("application/octet-stream")
+                .route()
+                    .log("test me");
+    }
+} {code}
+ 
+
+*Workarounds*
+
+Use boxed type, e.g. Byte[] (which correctly results in "java.lang.Byte[]") or specify the type as String "byte[]" directly.
+
+ 
+
+*Solution*
+
+The solution seems pretty straight forward here. I will submit a proposal

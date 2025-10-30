@@ -1,0 +1,35 @@
+Druid 28.0.0: DruidSQL Bug with '/' in WHERE clause? (Division undefined)
+It seems, that using a column in the WHERE clause with a division causes an: Division undefined (java.lang.ArithmeticException)
+
+### Affected Version
+
+28.0.0
+
+### Description
+
+Just rolled out Druid 28.0.0 on our TST cluster. After all services startet I tried out 'Druid Doctor' from WebUI and got an error with one of the last checks where Historical SegmentCache size is checked. In PROD we are running Druid 27.0.0 and there everything works fine. The configuration of 28.0.0 depending the new SQL features is 'legacy', it should work like 27.0.0. On the other hand, I do not think it has something to do with the new 'SQL Compatibility' Features.
+
+Query looks something like that:
+``````
+SELECT
+  "server" AS "service",
+  "curr_size",
+  "max_size",
+  "curr_size" * 1.0 / "max_size" AS "fill"
+FROM sys.servers
+WHERE "server_type" = 'historical' AND "curr_size" * 1.0 / "max_size" > 0.2
+ORDER BY "server" DESC
+``````
+
+I tested a little bit in the query editor tab and found out:
+- Division works in SELECT for the 'fill' alias
+- If I exchange the column 'max_size' in the WHERE clause with the real value (in our case 60000000000) the query works
+- If I do not use '/' but eg '+' the query works (but make no sense =)
+
+
+![grafik](https://github.com/apache/druid/assets/37665177/7c367c5c-9097-4bf1-8002-59bbb571cc26)
+
+![grafik](https://github.com/apache/druid/assets/37665177/c9d793c0-1642-41c5-8758-3f3b09cf2e35)
+
+Original Query from Druid Doctor:
+![grafik](https://github.com/apache/druid/assets/37665177/82f17c74-a7e0-4223-a94c-49b5781329d4)

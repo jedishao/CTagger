@@ -1,0 +1,82 @@
+Trino Fails to Create Table with abfss External Location on Azure Data Lake Gen2
+I'm trying to create an external table in Trino backed by Azure Data Lake Storage Gen2 using the abfss scheme, but encountering the following error:
+```
+trino:default> SHOW SCHEMAS FROM hive;
+Query 20250603_162752_00002_6s5hq failed: Catalog 'hive' not found
+
+trino:default> SHOW SCHEMAS FROM azure;
+       Schema
+--------------------
+ default
+ information_schema
+(2 rows)
+
+Query 20250603_162757_00003_6s5hq, FINISHED, 1 node
+Splits: 5 total, 5 done (100.00%)
+0.64 [2 rows, 35B] [3 rows/s, 55B/s]
+
+trino:default> CREATE TABLE azure.default.existing_customer_data (
+            ->     id bigint,
+            ->     name varchar(100),
+            ->     email varchar(255),
+            ->     created_date date
+            -> ) WITH (
+            ->     format = 'PARQUET',
+            ->     external_location = 'abfss://trino-data@trinostorage1748920590.dfs.core.windows.net/tables/customer_data'
+            -> );
+Query 20250603_162812_00004_6s5hq failed: External location is not a valid file system URI: abfss://trino-data@trinostorage1748920590.dfs.core.windows.net/tables/customer_data
+
+trino:default> CREATE TABLE azure.default.existing_customer_data (
+            ->     id bigint,
+            ->     name varchar(100),
+            ->     email varchar(255),
+            ->     created_date date
+            -> ) WITH (
+            ->     format = 'PARQUET',
+            ->     external_location = 'abfs://trino-data@trinostorage1748920590.dfs.core.windows.net/tables/customer_data'
+            -> );
+Query 20250603_162901_00005_6s5hq failed: External location is not a valid file system URI: abfs://trino-data@trinostorage1748920590.dfs.core.windows.net/tables/customer_data
+
+trino:default>
+```
+Configuration Details:
+catalog/azure.properties
+```
+connector.name=hive
+hive.metastore=thrift
+hive.metastore.uri=thrift://hive-metastore:9083
+hive.non-managed-table-writes-enabled=true
+azure.auth-type=ACCESS_KEY
+azure.access-key=<acceess-key>
+fs.native-azure.enabled=true
+```
+
+
+Docker Compose (Partial)
+```
+version: '3.8'
+services:
+  trino:
+    image: trinodb/trino:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./trino-config:/etc/trino
+    environment:
+      - JAVA_TOOL_OPTIONS=-Xmx4G
+      - HADOOP_CONF_DIR=/etc/hadoop/conf
+    depends_on:
+      - hive-metastore
+    
+  hive-metastore:
+    image: apache/hive:3.1.3
+    ...
+```
+
+Notes
+Tried with the latest version ~ 475.
+
+Is this a bug in Trino, or am I missing something in the configuration?
+Similar bug reported here - https://github.com/trinodb/trino/issues/25863
+
+I have tried a similar configuration with OUTH, and that is not working as well. Will add its details here or create a separate bug report for it.

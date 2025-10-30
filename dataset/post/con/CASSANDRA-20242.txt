@@ -1,0 +1,36 @@
+ Fix race condition in AccordExecutor#cancelExclusive
+We are cancelling the task that is being cancelled:
+{code:java}
+ERROR [AccordScheduled:1] node5 2025-01-21 15:51:20,093 JVMStabilityInspector.java:71 - Exception in thread Thread[AccordScheduled:1,5,node5]
+java.util.concurrent.CancellationException: Cancelled AccordTask{CANCELLED}-0xa98ec1a3: unqueued, primaryTxnId: [15,1577851220321002,66(KW),5], waitingToLoad: null, loading:null, cfks:null, txns:null
+	at org.apache.cassandra.service.accord.AccordTask.cancelExclusive(AccordTask.java:788)
+	at org.apache.cassandra.service.accord.AccordExecutor.cancelExclusive(AccordExecutor.java:505)
+	at org.apache.cassandra.service.accord.AccordExecutor.lambda$submit$7(AccordExecutor.java:441)
+	at org.apache.cassandra.service.accord.AccordExecutorAbstractLockLoop.submitExternalExclusive(AccordExecutorAbstractLockLoop.java:70)
+	at org.apache.cassandra.service.accord.AccordExecutorSyncSubmit.submitExternal(AccordExecutorSyncSubmit.java:90)
+	at org.apache.cassandra.service.accord.AccordExecutorAbstractLockLoop.submit(AccordExecutorAbstractLockLoop.java:53)
+	at org.apache.cassandra.service.accord.AccordExecutor.submit(AccordExecutor.java:441)
+	at org.apache.cassandra.service.accord.AccordExecutor.cancel(AccordExecutor.java:415)
+	at org.apache.cassandra.service.accord.AccordTask.cancel(AccordTask.java:778)
+	at accord.messages.AbstractRequest.cleanup(AbstractRequest.java:191)
+	at accord.messages.AbstractRequest.timeout(AbstractRequest.java:118)
+	at accord.impl.AbstractTimeouts$Stripe$Registered.onExpire(AbstractTimeouts.java:74)
+	at accord.impl.AbstractTimeouts$Stripe.unlock(AbstractTimeouts.java:166)
+	at accord.impl.AbstractTimeouts.maybeNotify(AbstractTimeouts.java:247)
+	at org.apache.cassandra.simulator.systems.InterceptingExecutor$InterceptingSequentialExecutor$1.call(InterceptingExecutor.java:821)
+	at org.apache.cassandra.concurrent.SyncFutureTask.run(SyncFutureTask.java:68)
+	at org.apache.cassandra.simulator.systems.InterceptingExecutor$AbstractSingleThreadedExecutorPlus.lambda$new$0(InterceptingExecutor.java:585)
+{code}
+At some point later, we throw {{RUNNING}} forbidden exception. I have added some debug information which shows where the task was right before it got cancelled, and in all cases it is in {{WAITING_TO_RUN}}
+{code:java}
+ERROR [AccordExecutor[1,2]:1] node5 2025-01-21 15:51:20,128 JVMStabilityInspector.java:71 - Exception in thread Thread[AccordExecutor[1,2]:1,5,node5] org.apache.cassandra.service.accord.AccordExecutorAbstractLockLoop$$Lambda$8218/0x00000008023c1040@1ed08f3d
+java.lang.IllegalStateException: RUNNING forbidden from AccordTask{CANCELLED}-0xa98ec1a3: unqueued, primaryTxnId: [15,1577851220321002,66(KW),5], waitingToLoad: null, loading:null, cfks:null, txns:null WAITING_TO_RUN
+	at accord.utils.Invariants.createIllegalState(Invariants.java:68)
+	at accord.utils.Invariants.illegalState(Invariants.java:73)
+	at accord.utils.Invariants.checkState(Invariants.java:189)
+	at org.apache.cassandra.service.accord.AccordTask.state(AccordTask.java:290)
+	at org.apache.cassandra.service.accord.AccordTask.preRunExclusive(AccordTask.java:637)
+	at org.apache.cassandra.service.accord.AccordExecutor$CommandStoreQueue.preRunExclusive(AccordExecutor.java:720)
+	at org.apache.cassandra.service.accord.AccordExecutorAbstractLockLoop.runWithoutLock(AccordExecutorAbstractLockLoop.java:228)
+	at org.apache.cassandra.concurrent.InfiniteLoopExecutor.loop(InfiniteLoopExecutor.java:125)
+{code}

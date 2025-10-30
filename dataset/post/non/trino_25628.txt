@@ -1,0 +1,89 @@
+Open Policy Agent: Max requests queued per destination 1024 exceeded for HttpDestination
+Trino 451
+
+Relatively simple query sparks exception:
+
+```sql
+SELECT table_schema, table_name, column_name FROM icebergnessie.information_schema.columns WHERE table_schema NOT IN ('pg_catalog', 'information_schema');
+```
+
+Exception:
+
+```shell
+Caused by: java.util.concurrent.ExecutionException: java.util.concurrent.RejectedExecutionException: Max requests queued per destination 1024 exceeded for HttpDestination[Origin@ad44f284[http://opa.opa.svc.cluster.local:8081,tag=null,protocol=Protocol@7f4624a[proto=[http/1.1],nego=false],transport=TCPIP@4da3e6ac]]@167d333,state=STARTED,queue=1024,pool=MultiplexConnectionPool@31f09f72[s=STARTED,c=0/20/20,a=20,i=0,q=1024,p=ConcurrentPool@114bd075[strategy=FIRST,inUse=20,size=20,max=20,leaked=0,terminated=false]],stale=false,idle=-1
+        at com.google.common.util.concurrent.AbstractFuture.getDoneValue(AbstractFuture.java:594)
+        at com.google.common.util.concurrent.AbstractFuture.get(AbstractFuture.java:553)
+        at com.google.common.util.concurrent.FluentFuture$TrustedFuture.get(FluentFuture.java:91)
+        at io.trino.plugin.opa.OpaHttpClient.consumeOpaResponse(OpaHttpClient.java:110)
+        ... 15 more
+Caused by: java.util.concurrent.RejectedExecutionException: Max requests queued per destination 1024 exceeded for HttpDestination[Origin@ad44f284[http://opa.opa.svc.cluster.local:8081,tag=null,protocol=Protocol@7f4624a[proto=[http/1.1],nego=false],transport=TCPIP@4da3e6ac]]@167d333,state=STARTED,queue=1024,pool=MultiplexConnectionPool@31f09f72[s=STARTED,c=0/20/20,a=20,i=0,q=1024,p=ConcurrentPool@114bd075[strategy=FIRST,inUse=20,size=20,max=20,leaked=0,terminated=false]],stale=false,idle=-1
+        at org.eclipse.jetty.client.transport.HttpDestination.send(HttpDestination.java:336)
+        at org.eclipse.jetty.client.transport.HttpDestination.send(HttpDestination.java:308)
+        at org.eclipse.jetty.client.transport.HttpRequest.sendAsync(HttpRequest.java:751)
+        at org.eclipse.jetty.client.transport.HttpDestination.send(HttpDestination.java:303)
+        at org.eclipse.jetty.client.transport.HttpRequest.send(HttpRequest.java:744)
+        at io.airlift.http.client.jetty.JettyHttpClient.executeAsync(JettyHttpClient.java:834)
+        at io.trino.plugin.opa.OpaHttpClient.submitOpaRequest(OpaHttpClient.java:103)
+        at io.trino.plugin.opa.OpaHttpClient.parallelBatchFilterFromOpa(OpaHttpClient.java:164)
+        at io.trino.plugin.opa.OpaBatchAccessControl.filterColumns(OpaBatchAccessControl.java:122)
+        at io.trino.security.AccessControlManager.filterColumns(AccessControlManager.java:667)
+        at io.trino.security.ForwardingAccessControl.filterColumns(ForwardingAccessControl.java:242)
+        at io.trino.tracing.TracingAccessControl.filterColumns(TracingAccessControl.java:331)
+        at io.trino.metadata.MetadataListing.doListTableColumns(MetadataListing.java:286)
+        at io.trino.metadata.MetadataListing.listTableColumns(MetadataListing.java:251)
+        at io.trino.connector.informationschema.InformationSchemaPageSource.addColumnsRecords(InformationSchemaPageSource.java:250)
+        at io.trino.connector.informationschema.InformationSchemaPageSource.buildPages(InformationSchemaPageSource.java:218)
+        at io.trino.connector.informationschema.InformationSchemaPageSource.getNextPage(InformationSchemaPageSource.java:185)
+        at io.trino.operator.ScanFilterAndProjectOperator$ConnectorPageSourceToPages.process(ScanFilterAndProjectOperator.java:380)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils.getNextState(WorkProcessorUtils.java:261)
+        at io.trino.operator.WorkProcessorUtils$YieldingProcess.process(WorkProcessorUtils.java:181)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:346)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:346)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:346)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils.getNextState(WorkProcessorUtils.java:261)
+        at io.trino.operator.WorkProcessorUtils$BlockingProcess.process(WorkProcessorUtils.java:207)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils.lambda$flatten$6(WorkProcessorUtils.java:317)
+        at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:359)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:346)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils.getNextState(WorkProcessorUtils.java:261)
+        at io.trino.operator.WorkProcessorUtils.lambda$processStateMonitor$2(WorkProcessorUtils.java:240)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorUtils.getNextState(WorkProcessorUtils.java:261)
+        at io.trino.operator.WorkProcessorUtils.lambda$finishWhen$3(WorkProcessorUtils.java:255)
+        at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:412)
+        at io.trino.operator.WorkProcessorSourceOperatorAdapter.getOutput(WorkProcessorSourceOperatorAdapter.java:133)
+        at io.trino.operator.Driver.processInternal(Driver.java:403)
+        at io.trino.operator.Driver.lambda$process$8(Driver.java:306)
+        at io.trino.operator.Driver.tryWithLock(Driver.java:709)
+        at io.trino.operator.Driver.process(Driver.java:298)
+        at io.trino.operator.Driver.processForDuration(Driver.java:269)
+        at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:890)
+        at io.trino.execution.executor.dedicated.SplitProcessor.run(SplitProcessor.java:77)
+        at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.lambda$run$0(TaskEntry.java:191)
+        at io.trino.$gen.Trino_____20250418_173952_2.run(Unknown Source)
+        at io.trino.execution.executor.dedicated.TaskEntry$VersionEmbedderBridge.run(TaskEntry.java:192)
+        at io.trino.execution.executor.scheduler.FairScheduler.runTask(FairScheduler.java:168)
+        at io.trino.execution.executor.scheduler.FairScheduler.lambda$submit$0(FairScheduler.java:155)
+        at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+        at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:131)
+        at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:76)
+        at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:82)
+        ... 3 more
+
+``` 
+
+I see in https://github.com/trinodb/trino/issues/12902 settings for scheduler and discovery, but not for opa http client. Tried to set it explicitly, but no luck:
+
+```shell
+1) Configuration property 'opa.http-client.max-requests-queued-per-destination' was not used
+```
+
+What can solve this problem before opa.http-client.max-requests-queued-per-destination option will be implemented ?

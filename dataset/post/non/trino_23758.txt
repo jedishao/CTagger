@@ -1,0 +1,61 @@
+Opensearch embedded row data loses column titles in superset
+So I have a very specific situation and I don't know if the issue is with trino, the trino python connector, or superset.
+
+Because Superset does not yet have a connector to Opensearch (in our case, Wazuh), I am using Trino as an intermediary.  
+
+In the superset configuration, I have 'Enable row expansion in schemas' enabled, which allows me to address nested fields (eg: data.rule.id).  As per the Trino OpenSearch docs, I have also applied _meta data to the various indexes so that trino can interpret them correctly.  I have tried using both isArray as well as asRawJSON, and the results appear the same in both cases.
+
+Using the following query:
+`SELECT * FROM "wazuh-alerts-4.x-2024.10.10" WHERE data.win.system.eventid='4634' AND "@timestamp" > date '2024-10-10' limit 1`
+
+If I run the query using the Trino CLI (with vertical output), I get the following result.  It gets cut off by the screen width but there's enough to get the point.
+```
+trino> use wazuh.default;SELECT * FROM "wazuh-alerts-4.x-2024.10.10" WHERE data.win.system.eventid='4634' AND "@timestamp" > date '2024-10-10' limit 1;
+USE
+-[ RECORD 1 ]---+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------->
+@timestamp      | 2024-10-10 23:59:57.582
+@version        | NULL
+geolocation     | NULL
+agent           | {id=190, ip=<myip>, name=<my_agent>}
+cluster         | {name=wazuh_cluster, node=<my_cluster_node>}
+command         | NULL
+data            | {AADOperationType=NULL, AADTenantId=NULL, ActivityDateTime=NULL, ActivityDisplayName=NULL, AdditionalDetails=NULL, Category=NULL, CorrelationId=NULL, DurationMs=NULL, Id=NULL, Identity=NULL, InitiatedBy=NULL, Level=NULL, LoggedByService=NULL, OperationName=NULL, OperationVersion=NULL, Resource=NULL, Resour>
+                |
+                | Subject:
+                |       Security ID:            S-1-5-21-1318347784-130420028-829490212-45260
+                |       Account Name:           wmi.monitor
+                |       Account Domain:         <MY_DOMAIN>
+                |       Logon ID:               0x38EC8DE
+                |
+                | Logon Type:                   3
+                |
+                | This event is generated when a logon session is destroyed. It may be positively correlated with a logon event using the Logon ID value. Logon IDs are only unique between reboots on the same computer.", opcode=0, processID=924, providerGuid={54849625-5478-4994-a5ba-3e3b0328c30d}, providerName=Microsoft-Wind>
+decoder         | {accumulate=NULL, fts=NULL, ftscomment=NULL, name=windows_eventchannel, parent=NULL}
+full_log        | NULL
+host            | NULL
+id              | 1728604797.3290998072
+input           | {type=log}
+location        | EventChannel
+manager         | {name=<my_worker>}
+message         | NULL
+offset          | NULL
+predecoder      | NULL
+previous_log    | NULL
+previous_output | NULL
+program_name    | NULL
+rule            | {cis=NULL, cis_csc=NULL, cis_csc_v7=NULL, cve=NULL, description=Windows User Logoff., firedtimes=11604, frequency=NULL, gdpr=["IV_32.2"], gdpr_IV=NULL, gpg13=NULL, gpg_13=NULL, groups=["windows","windows_security"], hipaa=["164.312.b"], id=60137, info=NULL, iso_27001-2013=NULL, level=3, mail=false, mitre=N>
+syscheck        | NULL
+title           | NULL
+type            | NULL
+```
+We see the top level fields, and nested fields are returned as nested row data.
+
+If we run the same query in superset sqllab, this is the result:
+![image](https://github.com/user-attachments/assets/cb01ff0b-a7c0-4095-836b-79c0b242b011)
+
+If we expand the data column, we get:
+<img width="598" alt="image" src="https://github.com/user-attachments/assets/c0edef64-632d-4e0c-9a47-dae1d71b4541">
+
+The column name information is gone, making the data unidentifiable. Not being able to see the column names makes it much harder to develop queries.
+
+

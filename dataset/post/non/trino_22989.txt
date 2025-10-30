@@ -1,0 +1,34 @@
+Curious Trino retry behaviour
+(This is a repost of [a question on SO](https://stackoverflow.com/questions/78844640/curious-trino-retry-behaviour).)
+
+**Short version**
+
+After retrying, queries hang on status FINISHING for five minutes.
+
+**Long version**
+
+The following is an extract from the `values.yaml` that we are using for [version 0.17.0][1] of the [Trino chart][2] (see [fault-tolerant execution][3]):
+
+```yaml
+image:
+  tag: 423
+additionalConfigProperties:
+  - retry-policy=QUERY
+  - query.remote-task.max-error-duration=1s
+```
+
+As the value of `tag` indicates, we are using [release 423][4] of [Trino][5].
+
+I start some queries and then manually delete some pods. After the amount of time set by `query.remote-task.max-error-duration` (in this case one second, but I have tried different values), the statuses of queries change to BLOCKED, a few seconds pass, the queries resume (status is RUNNING), some more time passes and then the statuses reach FINISHING. So far so good. But this is where it gets a little strange: The statuses stay on FINISHING until five minutes (300 seconds) after the statuses changed to BLOCKED. I've tried it several times with lots of different queries and it consistently follows this behaviour, so it must be a config setting, but I don't know which one. I have tried changing the value of `query.client.timeout` ([see docs][6]), since this is the only one I could find with a default value of 5 minutes, but it made no difference.
+
+The time spent on status FINISHING just seems like wasted time to me and so I would like to get to the bottom of this issue.
+
+  [1]: https://github.com/trinodb/charts/releases/tag/trino-0.17.0
+  [2]: https://github.com/trinodb/charts/tree/main/charts/trino
+  [3]: https://trino.io/docs/current/admin/fault-tolerant-execution.html#retry-limits
+  [4]: https://trino.io/docs/current/release/release-423.html
+  [5]: https://github.com/trinodb/trino
+  [6]: https://trino.io/docs/current/admin/properties-query-management.html#query-client-timeout
+
+
+

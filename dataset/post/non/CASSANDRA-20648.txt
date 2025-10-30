@@ -1,0 +1,14 @@
+Improves check for sensitive credentials in cqlsh config
+In CASSANDRA-16456 plugin support was added for cqlsh. In this implementation, a check was added to verify if the config file where we have stored the password for plain-text authentication is secure. A warning is printed if the config file is owned or readable by others in the system. See [https://github.com/apache/cassandra/blob/d4fb51347ca44386a0307bbfe1860d7ef16859e5/pylib/cqlshlib/authproviderhandling.py#L34] 
+
+This verification addresses only the scenario where the auth provider is the PlainTextAuthProvider. However, if anyone implements it's own provider storing sensitive credentials in the config, this check would not warn the user of it.
+
+One way to improve this checks would be to check for known keys used to store credentials (e.g. `password`, `secret`, `basicauth`).
+
+Another way, would be to provide a method that could be overwritten by plugins with the keys used for sensitive keywords, and use it.
+
+ 
+
+ 
+
+ 

@@ -1,0 +1,30 @@
+Fix issues in JSON SerDe implementations related to Decimal
+Decimal values that are inserted by user are not interpreted correctly. This can lead to data issues for users needing decimal precision to a certain point.
+
++*Steps to reproduce:*+
+{code:java}
+// json text value for some reference {"decimalcol1" : -9999999999999999.99, "decimalcol2" : 9999999999999999.99, "decimalcol3" : 1000000000000000000000000000000000000.00, "decimalcol4" : 99.999 , "decimalcol5" : 1e39} 
+
+create table json_serde (
+    decimalcol1 decimal(18,2),
+    decimalcol2 decimal(38,2),
+    decimalcol3 decimal(38,2),
+    decimalcol4 decimal(18,2),
+    decimalcol5 decimal(38,2))
+  row format serde 'org.apache.hadoop.hive.serde2.JsonSerDe';
+
+INSERT INTO TABLE json_serde VALUES (-9999999999999999.99, 9999999999999999.99, 1000000000000000000000000000000000000.00, 99.999, 1e39);
+
+OR 
+
+LOAD DATA LOCAL INPATH 'path/to/json.txt' into table json_serde;
+
+select * from json_serde;{code}
++*Output:*+
+{noformat}
++--------------+-----------------------+--------------+--------------+--------------+
+| decimalcol1  |      decimalcol2      | decimalcol3  | decimalcol4  | decimalcol5  |
++--------------+-----------------------+--------------+--------------+--------------+
+| NULL         | 10000000000000000.00  | NULL         | 100.00       | NULL         |
++--------------+-----------------------+--------------+--------------+--------------+{noformat}
+The above behaviour should not happen.

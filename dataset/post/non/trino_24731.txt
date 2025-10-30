@@ -1,0 +1,50 @@
+Support Partial Aggregation Pushdown with Computed Expressions in Grouping Keys
+**Issue Description**
+
+I've noticed an issue with the Trino optimizer, specifically with the `PushPartialAggregationThroughJoin` rule. Currently, this rule doesn't push down partial aggregations when the grouping keys include computed expressions like casts or simple truncations. This limitation prevents potential improvements in query performance, especially in common scenarios where grouping keys involve straightforward, deterministic computations.
+
+For instance, when a query groups by an expression that could be evaluated before a join—such as using `CAST` or `DATE_TRUNC` —the optimizer doesn't push the partial aggregation below the join. As a result, it misses the chance to reduce data size early, which could otherwise enhance performance.
+
+**Sample Queries**
+
+To illustrate the issue, let's look at two queries:
+
+**Query 1:** Partial aggregation is pushed down.
+
+```sql
+SELECT
+  orders.created_date,
+  users.country,
+  SUM(orders.revenue)
+FROM
+  orders
+  JOIN users ON users._id = orders._id
+GROUP BY
+  1, 2;
+```
+
+**Query 2:** Partial aggregation is not pushed down.
+
+```sql
+SELECT
+  DATE_TRUNC('month', orders.created_date) AS created_month,
+  users.country,
+  SUM(orders.revenue)
+FROM
+  orders
+  JOIN users ON users._id = orders._id
+GROUP BY
+  1, 2;
+```
+
+In **Query 2**, the grouping key includes a computed expression: `DATE_TRUNC('month', orders.created_date)`. Because of this, the optimizer doesn't push down the partial aggregation. This is due to its inability to handle expressions in grouping keys when applying the `PushPartialAggregationThroughJoin` optimization.
+
+This means that, for queries where grouping expressions could be safely computed before the join, the optimizer misses an opportunity to perform partial aggregation earlier in the execution plan. Consequently, more data might be processed during the join than necessary, leading to less optimal query performance.
+
+**Proposed Solution**
+
+I propose enhancing the `PushPartialAggregationThroughJoin` optimization rule to support computed expressions in grouping keys. This change would enable partial aggregation pushdown when it's safe and beneficial.
+
+Thank you for considering this enhancement. I'm happy to provide further details or assist with implementation as needed.
+
+Related to PR #23812 

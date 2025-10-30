@@ -1,0 +1,51 @@
+Trino not honouring path-style-access with Iceberg REST
+Setup Trino on my local laptop using Kubernetes Helm with values
+
+```yaml
+server:
+  workers: 1
+additionalProperties:
+  log.level: INFO
+  logger.io.trino.plugin.iceberg: DEBUG
+  logger.io.trino.plugin.iceberg.catalog.rest: DEBUG
+  logger.io.trino.filesystem.s3.debug: true
+  logger.io.trino.s3.debug: true
+catalogs:
+  iceberg: |
+    connector.name=iceberg
+    iceberg.catalog.type=rest
+    iceberg.rest-catalog.uri=http://polaris.polaris:8181/api/catalog
+    iceberg.rest-catalog.warehouse=balloon-game
+    iceberg.rest-catalog.vended-credentials-enabled=true
+    iceberg.rest-catalog.security=oauth2
+    iceberg.rest-catalog.oauth2.credential=${env:CLIENT_ID}:${env:CLIENT_SECRET}
+    iceberg.rest-catalog.oauth2.scope=${env:OAUTH2_SCOPE}
+    iceberg.rest-catalog.oauth2.server-uri=http://polaris.polaris:8181/api/catalog/v1/oauth/tokens
+    fs.native-s3.enabled=true
+    s3.endpoint=http://localstack.localstack:4566
+    s3.path-style-access=true
+    s3.region=us-east-1
+service:
+    type: NodePort
+    nodePort: 30080
+envFrom:
+ - secretRef:
+    name: polaris-principal
+```
+
+When I try to create a table 
+
+```sql
+CREATE TABLE iceberg.demo_db.fruits (
+  id bigint,
+  name varchar,
+  season varchar
+);
+```
+
+I get an exception like  
+```
+Query 20250228_052808_00000_s53w9 failed: Server error: SdkClientException: Unable to execute HTTP request: Connect to balloon-game.localstack.localstack:4566 [balloon-game.localstack.localstack/127.0.0.1] failed: Connection refused
+```
+
+Since I have setup `s3.path-style-access=true` I was expecting  s3 access will be done via path-style but form the error I see its doing `Virtual-Host Style` which will not work in kubernetes.

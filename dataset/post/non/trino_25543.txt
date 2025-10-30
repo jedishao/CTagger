@@ -1,0 +1,58 @@
+Query failure due to GC time increase
+Hello folks, 
+We are on trino 466, since last few weeks one of our etl query started failing with the error. However, when we split this query into two parts(50% data in each part), it is finishing. 
+
+`io.trino.spi.TrinoException: Expected response code from http://10.205.32.4:8080/v1/task/20250409_025418_00147_45wcu.3.76.0/status to be 200, but was 408
+Error 408 Timeout: Timed out (timeout delayed by 349 ms after scheduled time): AsyncCatchingFuture@155e778e[status=SUCCESS, result=[io.trino.execution.TaskStatus@44f967b8]]
+	at io.trino.server.remotetask.SimpleHttpResponseHandler.onSuccess(SimpleHttpResponseHandler.java:62)
+	at io.trino.server.remotetask.SimpleHttpResponseHandler.onSuccess(SimpleHttpResponseHandler.java:27)
+	at com.google.common.util.concurrent.Futures$CallbackListener.run(Futures.java:1137)
+	at io.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:79)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1575) `
+
+After reviewing the metrics, we observed that G1 Old Generation GC pauses became significantly longer while that specific query was running. 
+
+<img width="954" alt="Image" src="https://github.com/user-attachments/assets/bc0f78e4-76ea-49f3-821c-b664400ff2de" />
+
+Below are our configs. Please check the details and help us identifying the cause and possible fix for this problem.
+
+```
+  resourcesWorker:
+  limits:
+    cpu: "15"
+    memory: 115Gi
+  requests:
+    cpu: "15"
+    memory: 115Gi
+
+jvmConfig: |-
+  -server
+  -Xmx105G
+  -XX:+UseG1GC
+  -XX:G1HeapRegionSize=32M
+  -XX:+UseGCOverheadLimit
+  -XX:+ExplicitGCInvokesConcurrent
+  -XX:+HeapDumpOnOutOfMemoryError
+  -XX:+ExitOnOutOfMemoryError
+  -XX:+UnlockDiagnosticVMOptions
+  -XX:G1NumCollectionsKeepPinned=10000000
+  --add-opens=java.base/java.nio=ALL-UNNAMED
+  -Djdk.attach.allowAttachSelf=true
+
+configProperties: |-
+  coordinator=false
+  iterative-optimizer-timeout=10m
+  http-server.http.port=8080
+  query.max-memory=10000GB
+  query.max-memory-per-node=85GB
+  memory.heap-headroom-per-node=20GB
+  discovery.uri=http://ocd-trino-engg:8080
+  spill-enabled=true
+  spiller-spill-path=/usr/lib/trino/plugin/trino-udfs
+  spill-compression-codec=ZSTD
+  spiller-max-used-space-threshold=0.95
+  query-max-spill-per-node=10000GB
+  max-spill-per-node=10000GB
+```

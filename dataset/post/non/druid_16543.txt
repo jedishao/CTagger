@@ -1,0 +1,26 @@
+Problem with array, UNNEST and JSON_PARSE
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+Druid version 29.0.1
+
+### Description
+
+Step 1: Create a datasource using this query (select array ingest mode: array)
+```
+INSERT INTO "jsondatasource"
+SELECT ARRAY['{"key": "value1"}'] as "jsonarray"
+PARTITIONED BY ALL
+```
+Step 2: Query your datasource
+`SELECT PARSE_JSON("json") FROM "jsondatasource" CROSS JOIN UNNEST("jsonarray") AS "json"`
+
+I get the following error:
+```
+Error: RUNTIME_FAILURE (OPERATOR)
+
+Selector must have a dictionary
+
+org.apache.druid.java.util.common.ISE
+```

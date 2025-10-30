@@ -1,0 +1,98 @@
+NPE in websocket metrics
+### Version
+
+5.0.0
+
+### Context
+
+A simple http server that accepts websockets with metrics enabled (Micrometer) throws NPE when the client closes the socket.
+
+### Do you have a reproducer?
+
+```java
+package test;
+
+import io.micrometer.core.instrument.Metrics;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
+import io.vertx.micrometer.MicrometerMetricsFactory;
+import io.vertx.micrometer.MicrometerMetricsOptions;
+import java.util.concurrent.CountDownLatch;
+
+public class Server2 {
+  public static void main(String[] args) throws InterruptedException {
+    var cdl = new CountDownLatch(3);
+    var vertx =
+        Vertx.builder()
+            .withMetrics(new MicrometerMetricsFactory(Metrics.globalRegistry))
+            .with(
+                new VertxOptions()
+                    .setMetricsOptions(new MicrometerMetricsOptions().setEnabled(true)))
+            .build();
+
+    vertx
+        .createHttpServer()
+        .requestHandler(
+            r ->
+                r.toWebSocket()
+                    .onSuccess(
+                        ss -> {
+                          ss.exceptionHandler(
+                              e -> {
+                                System.err.println("ss.exceptionHandler: " + e);
+                                cdl.countDown();
+                              });
+                          ss.textMessageHandler(
+                              msg -> {
+                                System.out.println("server: received " + msg);
+                                cdl.countDown();
+                              });
+                          ss.writeTextMessage("hello from server");
+                        })
+                    .onFailure(e -> System.err.println("toWebSocket: " + e)))
+        .listen(0, "localhost")
+        .onSuccess(
+            server -> {
+              for (var i = 0; i < 2; i++) {
+                var client = vertx.createWebSocketClient();
+                client
+                    .connect(server.actualPort(), "localhost", "/")
+                    .onSuccess(
+                        socket -> {
+                          socket.writeTextMessage("hello from client");
+                          socket.textMessageHandler(
+                              msg -> {
+                                System.out.println("client: received " + msg);
+                                socket.close();
+                                cdl.countDown();
+                                // Prevent the cleaner from kicking in and destroying the client
+                                // socket immediately
+                                System.out.println(client);
+                              });
+                        })
+                    .onFailure(e -> System.err.println("connect failed: " + e));
+              }
+            });
+    cdl.await();
+    vertx.close();
+  }
+}
+
+```
+
+### Steps to reproduce
+
+1. Create a minimal project
+2. Add dependencies to `io.vertx:vertx-core` and `io.vertx:vertx-micrometer-metrics`
+3. Run the example above
+4. Note the output of `java.lang.NullPointerException: Cannot read field "bytesReceived" because "socketMetric" is null`
+
+### Extra
+
+- The example runs fine on 4.5.15
+- I _think_ this can be fixed by changing https://github.com/eclipse-vertx/vert.x/blob/30c0bf216432183eccbd983ce2d7012ce1bbbacf/vertx-core/src/main/java/io/vertx/core/http/impl/ServerWebSocketHandshaker.java#L190
+to `webSocketConn.metric(httpConn.metric());`. The current code is a no-op and sets a null field to null again.
+
+
+OS: Linux
+JDK: Temurin 21.0.7

@@ -1,0 +1,21 @@
+Camel-AS2 Receiver Application Fails for LF-Terminated Line Separator
+Hi Team,
+
+We are working on a POC using the Camel-AS2 project (version 4.5.0) to establish communication with OpenText/Boomi, as both tools utilize the AS2 protocol. Our goal is to eventually extend this setup for communication with trading partners.
+
+In our scenario, we have an application acting as a Camel-AS2 receiver that listens for incoming messages and uses Camel-AS2 for decryption, verification, and MDN handling. On the other side, Boomi/OpenText acts as the AS2 sender.
+
+When our Camel-AS2 receiver processes incoming messages, it successfully decrypts them but encounters a failure during verification with the error: "message-digest attribute value does not match the calculated value." After debugging the code, we observed that the "writeTo" method in the {{ApplicationEntity}} class utilizes the {{{}CanonicalOutputStream{}}}, which forces CRLF line endings as defined here:
+ 
+java
+Copy code
+{{static {
+    newline = new byte[2];
+    newline[0] = (byte) '\r';
+    newline[1] = (byte) '\n';
+}}}
+While this works fine for messages terminated with CRLF from OpenText, we encounter digest calculation errors when handling LF-terminated messages. After adjusting the code to accommodate both CRLF and LF line endings, the issue was resolved, and we can now process both types of messages successfully.
+
+However, we would prefer not to customize the Camel-AS2 code. Could you provide insights or suggest an alternative approach? We’ve noticed that the same line-ending standardization exists in the latest version within the {{CanonicalOutputStream}} class.
+
+Thank you for your help.

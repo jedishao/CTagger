@@ -1,0 +1,29 @@
+System "table_changes" function stops working for some tables after data removal
+In my team we have a problem with "system.table_changes" function while performing queries based on snapshots diffs (tested on Trino 450 and 474). Example query looks like this:
+
+```
+SELECT
+  *
+FROM
+  TABLE(
+    system.table_changes(
+      schema_name => 'schema_name',
+      table_name => 'table_name',
+      start_snapshot_id => 6461050951418036780,
+      end_snapshot_id => 6797968091395238946
+    )
+  );
+```
+Query stops working when we remove any data from the table, throws error "Table uses features which are not yet supported by the table_changes function". Any data after deletion is unavailable for querying until we perform "optimize" on the table, then query works again but only on snapshots after optimize.
+
+In addition, we had some legacy tables created using Apache Spark and on those tables problem does't occur, we can remove data and still use this snapshots differential queries. We've noticed tables have different properties which can be seen on attached screenshots. I'll add that "show create table ..." command gives the exact same result for both tables, there are no differences.
+
+These are properties of a table creating using Trino and for which described problem occurs:
+![Image](https://github.com/user-attachments/assets/2a95b55a-13cd-4726-9e89-de7e9b0fd9cb)
+
+These are properties of legacy table created using Spark and for this table problem doesn't occur:
+![Image](https://github.com/user-attachments/assets/015aaa12-a7d9-44be-b47e-f1c38fc4aa17)
+
+Unfortunately it is impossible to modify table properties using Trino, but we're not even sure if this would fix the problem.
+
+Could someone explain in detail what is the cause of this issue, why problem occurs for one type of tables and doesn't occur for others and is there any way to use snapshot differential queries and remove data from tables at the same time?

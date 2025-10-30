@@ -1,0 +1,30 @@
+getendpoints support to query by token
+When working with a table whose partition key consists of multiple columns, it's not straightforward to determine the replica layout using the current *_nodetool getendpoints_* command.
+
+A better approach is to first retrieve the token using the *_token()_* function in CQL:
+{code:java}
+CREATE TABLE my_users (
+  country text,
+  user_id text,
+  name text,
+  age int,
+  PRIMARY KEY ((country, user_id))
+);
+INSERT INTO my_users (country, user_id, name, age) VALUES ('us', 'jsmith', 'John Smith', 42);
+
+
+SELECT token(country, user_id), country, user_id FROM my_users WHERE country = 'us' AND user_id = 'jsmith';{code}
+Then, you can use the token value with:
+*_./nodetool getendpoints -t schema2 my_users 84293051238921857_*
+
+The commonly suggested command, such as: *_nodetool getendpoints cycling rank_by_year_and_name "2014:4th Tour of Beijing"_*
+from DataStax documentation([1]) is problematic when the partition key contains special characters like spaces or colons (:), which can break the command syntax or lead to incorrect parsing.
+
+Alternatively, enabling query tracing with *_TRACING ON_* is also a reliable way to observe which replicas are involved in serving the request.
+
+ 
+
+References:
+[1] https://docs.datastax.com/en/dse/6.9/managing/tools/nodetool/get-end-points.html
+[2] https://stackoverflow.com/questions/42903926/cassandra-getendpoints-with-partition-key-has-space
+[3] https://stackoverflow.com/questions/30514237/what-node-does-cassandra-store-data-on

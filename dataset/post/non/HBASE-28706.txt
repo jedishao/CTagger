@@ -1,0 +1,77 @@
+Tracking of bulk-loads for backup does not work for multi-root backups
+Haven't been able to test this yet, but I highly suspect that IncrementalTableBackupClient#handleBulkLoad will delete records of the files that were bulk loaded, even if those records are still needed for backups in other backuproots.
+
+I base this on the observation that the code for tracking which WALs should be kept around, and backup metadata in general, are all tracked per individual backuproot. But for the tracking of bulk uploads, this is not the case.
+
+The result would be data loss (i.e. the bulk loaded data) when taking backups across different backuproots.
+
+Edit: This is minimal test to reproduce the issue from the master branch:
+
+First, enable backups by adding this to hbase-site.xml
+{code:java}
+<property>
+  <name>hbase.backup.enable</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hbase.master.logcleaner.plugins</name>
+  <value>org.apache.hadoop.hbase.master.cleaner.TimeToLiveLogCleaner,org.apache.hadoop.hbase.master.cleaner.TimeToLiveProcedureWALCleaner,org.apache.hadoop.hbase.master.cleaner.TimeToLiveMasterLocalStoreWALCleaner,org.apache.hadoop.hbase.backup.master.BackupLogCleaner</value>
+</property>
+<property>
+  <name>hbase.procedure.master.classes</name>
+  <value>org.apache.hadoop.hbase.backup.master.LogRollMasterProcedureManager</value>
+</property>
+<property>
+  <name>hbase.procedure.regionserver.classes</name>
+  <value>org.apache.hadoop.hbase.backup.regionserver.LogRollRegionServerProcedureManager</value>
+</property>
+<property>
+  <name>hbase.coprocessor.region.classes</name>
+  <value>org.apache.hadoop.hbase.backup.BackupObserver</value>
+</property>
+<property>
+  <name>hbase.fs.tmp.dir</name>
+  <value>file:/tmp/hbase-tmp</value>
+</property> {code}
+Next, execute:
+{code:java}
+# Create an hfile (to local storage)
+echo -e 'row1\tvalue1' > /tmp/hfile_data
+bin/hbase org.apache.hadoop.hbase.mapreduce.ImportTsv -Dimporttsv.columns=HBASE_ROW_KEY,cf:q1 -Dimporttsv.bulk.output=/tmp/bulk-output table1 /tmp/hfile_data
+
+# Create a table, and 2 full backups (using different roots) of the empty table
+echo "create 'table1', 'cf'" | bin/hbase shell -n
+bin/hbase backup create full file:/tmp/backup1 -t table1
+bin/hbase backup create full file:/tmp/backup2 -t table1
+
+# Bulk load the HFile into the table, scan confirms it is loaded
+bin/hbase completebulkload /tmp/bulk-output table1
+echo "scan 'table1'" | bin/hbase shell
+
+# Take an incremental backup for each backup root
+bin/hbase backup create incremental file:/tmp/backup1 -t table1
+export BACKUP_ID1=$(bin/hbase backup history | head -n1  | tail -n -1 | grep -o -P "backup_\d+")
+bin/hbase backup create incremental file:/tmp/backup2 -t table1
+export BACKUP_ID2=$(bin/hbase backup history | head -n1  | tail -n -1 | grep -o -P "backup_\d+")
+
+# Restore root 1: bulk loaded data is present
+bin/hbase restore file:/tmp/backup1 $BACKUP_ID1 -t "table1" -m "table1-backup1"
+echo "scan 'table1-backup1'" | bin/hbase shell
+
+# Restore root 2: bulk loaded data is missing
+bin/hbase restore file:/tmp/backup2 $BACKUP_ID2 -t "table1" -m "table1-backup2"
+echo "scan 'table1-backup2'" | bin/hbase shell
+{code}
+Output of the final commands for reference:
+{code:java}
+hbase:001:0> scan 'table1-backup1'
+ROW                                              COLUMN+CELL                                                                                                                                 
+ row1                                            column=cf:q1, timestamp=2024-08-02T14:43:24.403, value=value1                                                                               
+1 row(s)
+
+
+
+hbase:001:0> scan 'table1-backup2'
+ROW                                              COLUMN+CELL                                                                                                                                 
+0 row(s)
+ {code}

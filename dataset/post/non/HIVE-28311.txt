@@ -1,0 +1,26 @@
+Backward compatibility of java.sql.Date and java.sql.Timestamp in hive-serde
+HIVE-20007 introduced {{org.apache.hadoop.hive.common.type.Date}} and {{org.apache.hadoop.hive.common.type.Timestamp}} to replace {{java.sql.Date}} and {{{}java.sql.Timestamp{}}}.
+
+It's a huge improvements but it also produce incompatibility issues for clients without this update.
+{code:bash}
+Caused by: java.lang.ClassCastException: java.sql.Timestamp cannot be cast to org.apache.hadoop.hive.common.type.Timestamp
+        at org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaTimestampObjectInspector.getPrimitiveWritableObject(JavaTimestampObjectInspector.java:33)
+        at org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.getTimestamp(PrimitiveObjectInspectorUtils.java:1232)
+        at org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter$TimestampConverter.convert(PrimitiveObjectInspectorConverter.java:291)
+        at org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.getConstantObjectInspector(ObjectInspectorUtils.java:1397)
+        at org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc.getWritableObjectInspector(ExprNodeConstantDesc.java:93)
+        at org.apache.hadoop.hive.ql.exec.ExprNodeConstantEvaluator.<init>(ExprNodeConstantEvaluator.java:41)
+        at org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory.get(ExprNodeEvaluatorFactory.java:49)
+        at org.apache.hadoop.hive.ql.exec.ExprNodeGenericFuncEvaluator.<init>(ExprNodeGenericFuncEvaluator.java:101)
+        at org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory.get(ExprNodeEvaluatorFactory.java:58)
+        at org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory.get(ExprNodeEvaluatorFactory.java:43)
+        at org.apache.hadoop.hive.ql.optimizer.ppr.PartExprEvalUtils.prepareExpr(PartExprEvalUtils.java:118)
+        at org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner.prunePartitionNames(PartitionPruner.java:551)
+        at org.apache.hadoop.hive.ql.optimizer.ppr.PartitionExpressionForMetastore.filterPartitionsByExpr(PartitionExpressionForMetastore.java:73)
+        at org.apache.hadoop.hive.metastore.ObjectStore.getPartitionNamesPrunedByExprNoTxn(ObjectStore.java:3606)
+        at org.apache.hadoop.hive.metastore.ObjectStore.access$1000(ObjectStore.java:241)
+        at org.apache.hadoop.hive.metastore.ObjectStore$16.getJdoResult(ObjectStore.java:4157)
+        at org.apache.hadoop.hive.metastore.ObjectStore$16.getJdoResult(ObjectStore.java:4124)
+        at org.apache.hadoop.hive.metastore.ObjectStore$GetHelper.run(ObjectStore.java:3913)
+        ... 30 more
+{code}

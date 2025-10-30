@@ -1,0 +1,51 @@
+ArrayIndexOutOfBoundsException Issue
+# ArrayIndexOutOfBoundsException Issue
+
+I am currently facing error
+
+
+```bash
+java.lang.ArrayIndexOutOfBoundsException: arraycopy: last destination index 2147483812 out of bounds for byte[2147483637]
+```
+
+* When running a large `ARRAY_AGG` with delta connector, any ideas how to resolve this?
+
+* Non distinct values `25398768`.
+* Distinct values `18637528` to aggregate.
+
+Actual SQL
+
+
+```sql
+WITH
+
+_int__list_attributes AS (
+    SELECT
+        'value' AS attribute_type,
+        ARRAY_AGG(DISTINCT value) AS distinct_attributes
+    FROM int__distinct_attributes
+),
+
+final AS (
+    SELECT
+        distinct_attributes,
+        attribute_type,
+        FROM_BIG_ENDIAN_64(
+            XXHASH64(
+                CAST(
+                    ARRAY_JOIN(
+                        distinct_attributes, ','
+                    ) AS VARBINARY
+                )
+            )
+        ) AS id
+    FROM _int__list_attributes
+)
+
+SELECT * FROM final
+
+```
+
+
+
+* Trino version 450

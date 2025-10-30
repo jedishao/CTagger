@@ -1,0 +1,13 @@
+camel-jbang: unreliable export to Quarkus without lazy binding
+Trying to export a java file with beans annotated with {{@BindToRegistry}} to a CEQ project, causes it to fail with: 
+
+{{Caused by: org.apache.camel.NoSuchBeanException: No bean could be found in the registry for: createChatMessage of type: org.apache.camel.Processor}}
+
+This error is sporadic and doesn't happen 100% of the time (it seems to be more reproducible on shared cloud environments). 
+
+To reproduce: save the model.java and the route-main.yaml files and run: 
+
+{{camel export * --runtime=quarkus --gav=org.demo:agent:1.0.0 --dep=io.quarkiverse.langchain4j:quarkus-langchain4j-core:0.17.2,io.quarkiverse.langchain4j:quarkus-langchain4j-openai:0.17.2 --ignore-loading-error}}
+
+
+Adding {{@BindToRegistry(lazy=true)}} makes the export work reliably, but that generates a project that is non-buildable.

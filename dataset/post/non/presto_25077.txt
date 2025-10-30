@@ -1,0 +1,32 @@
+switch: Behavior mismatch when executed with derived value
+switch case has a behavior mismatch when executed with derived value vs literal value. The behavior for the latter appears correct, correctly navigating the switch case, while the latter appears incorrect. Here is an example:
+
+```
+presto> SELECT case when boolean 'false' then TINYINT '65' when BOOLEAN 'true' then cast(null as TINYINT) else TINYINT '83' end;
+ _col0 
+-------
+ NULL  
+...
+presto> SELECT case when c0 then TINYINT '65' when BOOLEAN 'true' then cast(null as TINYINT) else TINYINT '83' end from (values boolean 'false') t(c0);
+ _col0 
+-------
+    83 
+(1 row)
+```
+The first case is still false and should trigger the second true case, but instead goes to the else case when we use a field.
+
+## Your Environment
+* Presto version used: 0.289
+
+## Possible Solution
+When executed with a field, the query plan seems to generate an inaccurate expression, dropping information:
+```
+expr_2 := SWITCH(BOOLEAN'true', WHEN(field, TINYINT'65'), TINYINT'83') (1:47)
+```
+It *should* be: 
+```
+SWITCH(WHEN(field, TINYINT'65'), WHEN(BOOLEAN'true', TINYINT 'NULL'), TINYINT'83') 
+or
+SWITCH(field,  TINYINT'65', BOOLEAN 'true', TINYINT 'NULL', TINYINT'83')
+```
+The query plan for literal values does not generate such an expression (or invoke `switch` at all)

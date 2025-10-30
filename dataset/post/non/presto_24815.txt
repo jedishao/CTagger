@@ -1,0 +1,15 @@
+[native] Aggregate function `approx_distinct` does not support `TIMESTAMP WITH TIME ZONE` arguments
+The aggregate function `approx_distinct` does not support arguments of type `TIMESTAMP WITH TIME ZONE`. Queries such as the following (from testcase [`testApproximateCountDistinct`](https://github.com/prestodb/presto/blob/718cd5d704d428aa5cbaa133417e0e42a9611cd6/presto-tests/src/main/java/com/facebook/presto/tests/AbstractTestAggregations.java#L695) in `presto-native-tests`) fail:
+```
+SELECT approx_distinct(CAST(orderdate AS TIMESTAMP WITH TIME ZONE)) FROM orders;
+```
+
+## Error
+```
+VeloxUserError:  Aggregate function signature is not supported: presto.default.approx_distinct(TIMESTAMP WITH TIME ZONE). Supported signatures: (tinyint) -> varbinary -> bigint, (tinyint,double) -> varbinary -> bigint, (smallint) -> varbinary -> bigint, (smallint,double) -> varbinary -> bigint, (integer) -> varbinary -> bigint, (integer,double) -> varbinary -> bigint, (bigint) -> varbinary -> bigint, (bigint,double) -> varbinary -> bigint, (hugeint) -> varbinary -> bigint, (hugeint,double) -> varbinary -> bigint, (real) -> varbinary -> bigint, (real,double) -> varbinary -> bigint, (double) -> varbinary -> bigint, (double,double) -> varbinary -> bigint, (varchar) -> varbinary -> bigint, (varchar,double) -> varbinary -> bigint, (varbinary) -> varbinary -> bigint, (varbinary,double) -> varbinary -> bigint, (timestamp) -> varbinary -> bigint, (timestamp,double) -> varbinary -> bigint, (date) -> varbinary -> bigint, (date,double) -> varbinary -> bigint, (unknown) -> varbinary -> bigint, (unknown,double) -> varbinary -> bigint, (boolean) -> tinyint -> bigint, (DECIMAL(a_precision,a_scale)) -> varbinary -> bigint, (DECIMAL(a_precision,a_scale),double) -> varbinary -> bigint.
+```
+
+## Expected Value
+```
+2347
+```

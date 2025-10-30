@@ -1,0 +1,4 @@
+binder: ManagedClientTransport.Listener invocations are not properly synchronized
+Impls of ManagedClientTransport.Listener "do not need to be thread-safe so notifications must be properly synchronized externally." BinderClientTransport mostly seems to achieve this by holding its "this" lock, except for `unregisterInbound()` which makes a naked call to `transportInUse(false)`.
+
+The use of `AtomicInteger numInUseStreams` is questionable here too: an unregisterInbound() call could cause that counter to go to zero and that thread could decide to invoke `transportInUse(false)`. Before it can do so, a newStream() call could cause numInUseStreams to go positive and that thread could decide to call `transportInUse(true)`. These two threads would now race and if the `false` one wins, the Listener's idea of in use would become out of sync with reality.

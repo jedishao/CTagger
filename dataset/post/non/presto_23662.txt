@@ -1,0 +1,92 @@
+TPC-DS Query 39 Results mismatch between Java vs Native Runs on Hive Table
+TPC-DS Query 39 Results mismatch between Java vs Native Runs on Hive Table
+
+## Your Environment
+* Presto version used: 0.289
+* Storage (HDFS/S3/GCS..): s3
+* Data source and connector used: hive connector
+* Deployment (Cloud or On-prem): Cloud
+
+## Expected Behavior
+Native run should return the same results as Presto Java runs
+
+## Current Behavior
+Output of a few rows from the tpc-ds Q39 Query is different from both Native & Java Runs for hive tables.
+I matched the last column output which is different, there is the possibility of other columns output mismatch as well.
+
+**Query, Data Set & Schema Details -**
+
+Data Set - TPC-DS sf-1k
+Tables - Un-partitioned
+
+**Sample Java output Hive Tables -**
+
+`[1,102375,1,300.25,1.284163305742586,1,102375,2,151.25,1.3796534904975057]`
+
+**Sample Native output Hive Tables -**
+
+`"1","102375","1","300.25","1.284163305742586","1","102375","2","151.25","1.3796534904975055"`
+
+Query -
+```
+--TPC-DS Q39
+with inv as
+         (select w_warehouse_name
+               , w_warehouse_sk
+               , i_item_sk
+               , d_moy
+               , stdev
+               , mean
+               , case mean when 0 then null else stdev / mean end cov
+          from (select w_warehouse_name
+                     , w_warehouse_sk
+                     , i_item_sk
+                     , d_moy
+                     , stddev_samp(inv_quantity_on_hand) stdev
+                     , avg(inv_quantity_on_hand)         mean
+                from inventory
+                   , item
+                   , warehouse
+                   , date_dim
+                where inv_item_sk = i_item_sk
+                  and inv_warehouse_sk = w_warehouse_sk
+                  and inv_date_sk = d_date_sk
+                  and d_year = 2001
+                group by w_warehouse_name, w_warehouse_sk, i_item_sk, d_moy) foo
+          where case mean when 0 then 0 else stdev / mean end > 1)
+select inv1.w_warehouse_sk as "inv1 w_warehouse_sk"
+     , inv1.i_item_sk      as "inv1.i_item_sk"
+     , inv1.d_moy          as "inv1.d_moy"
+     , inv1.mean           as "inv1.mean"
+     , inv1.cov               "inv1.cov"
+     , inv2.w_warehouse_sk as "inv2.w_warehouse_sk"
+     , inv2.i_item_sk         "inv2.i_item_sk"
+     , inv2.d_moy             "inv2.d_moy"
+     , inv2.mean              "inv2.mean"
+     , inv2.cov               "inv2.cov"
+from inv inv1,
+     inv inv2
+where inv1.i_item_sk = inv2.i_item_sk
+  and inv1.w_warehouse_sk = inv2.w_warehouse_sk
+  and inv1.d_moy = 1
+  and inv2.d_moy = 1 + 1
+order by inv1.w_warehouse_sk, inv1.i_item_sk, inv1.d_moy, inv1.mean, inv1.cov
+       , inv2.d_moy, inv2.mean, inv2.cov;
+```
+
+Here `inv_quantity_on_hand` is of type `INT`
+
+## Possible Solution
+<!--- Not obligatory, but suggest a fix/reason for the bug or a workaround -->
+
+## Steps to Reproduce
+1. Run TPC-DS Query on Presto Java cluster
+2. Run TPC-DS Query on Presto Native cluster
+3. Compare the results b/w both
+
+## Screenshots (if appropriate)
+
+## Context
+<!--- How has this issue affected you? -->
+<!--- Providing context helps us come up with a solution that is most useful in the real world -->
+

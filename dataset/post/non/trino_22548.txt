@@ -1,0 +1,14 @@
+Performance regression in native FS on Azure
+I'm executing:
+* [query 09](https://github.com/trinodb/trino/blob/b983eeeac122391bfbe295af80b4558daf415495/testing/trino-benchmark-queries/src/main/resources/sql/trino/tpcds/q09.sql#L4) from the TPCDS benchmark
+* on the sf1000 schema in an Iceberg catalog, with data stored in Azure,
+* using HMS,
+* using a 16 node cluster and Trino 449, running on Azure.
+
+Using the legacy FS, after some initial warm up, the query executes in about 11s. After switching to native FS, the query takes over 60s.
+
+Comparing the query plans, the only noticeable difference is in the `Physical input time` value, which is much higher when using native FS.
+
+I tried running a similar query on AWS, using Glue, and there was no significant difference in query run time (after warm up).
+
+I'll keep investigating and will post more details later.

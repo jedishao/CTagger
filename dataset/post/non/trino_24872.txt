@@ -1,0 +1,25 @@
+VACUUM procedure deletes unexpected files when the path contains special characters in Delta Lake
+I have a Trino Deltalake table(Version 459) with the following create table statement, where the partition columns are date/timestamp:
+CREATE TABLE mycatalog.myschema.my_table_hourly (
+    datetime timestamp(6),
+    col1 varchar,
+    col2 varchar,
+    namespace varchar,
+    partition_monthly date,
+    partition_daily date,
+    partition_hourly timestamp(6)
+)
+WITH (
+    location = 's3a://mybucket/metastore/mycatalog/schemas/myschema.db/my_table_hourly-b96276d9328b4d3d8e988ec2d036db75',
+    partitioned_by = ARRAY['partition_monthly','partition_daily','partition_hourly']
+)
+Sample values for partition columns when queried:
+SELECT partition_monthly, partition_daily, partition_hourly FROM my_table_hourly LIMIT 2;
+
+partition_monthly | partition_daily | partition_hourly
+------------------+-----------------+----------------------------
+2024-12-01        | 2024-12-13      | 2024-12-13 11:00:00.000000
+2024-12-01        | 2024-12-13      | 2024-12-13 11:00:00.000000
+The S3 location for an hourly parquet file looks like this:
+s3://mybucket/metastore/mycatalog/schemas/myschema.db/my_table_hourly-b96276d9328b4d3d8e988ec2d036db75/partition_monthly=2024-12-01/partition_daily=2024-12-13/partition_hourly=2024-12-13 00%3A00%3A00/
+I noticed that the S3 location folder (object key) has %3A in it (e.g., partition_hourly=2024-12-13 00%3A00%3A00). Due to this, while performing a vacuum on this table, all data outside of the retention period is getting deleted.

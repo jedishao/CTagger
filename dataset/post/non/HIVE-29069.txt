@@ -1,0 +1,90 @@
+Query Failure while computing Range Partition Column stats on Numeric partition column types
+Steps to reproduce:
+
+ 
+drop table if exists store_sales;
+create external table store_sales(ss_quantity int, ss_sales_price decimal(7,2)) partitioned by (ss_sold_date_sk bigint) stored as orc;
+INSERT INTO store_sales VALUES ( 14, 46.16, 2451865),(14, 46.16,null);
+ 
+drop table if exists date_dim;
+create external table date_dim(d_date_sk bigint,d_date date,d_year int) stored as orc;
+INSERT INTO date_dim VALUES(2451865,'2000-11-16',2000),(2451865, '2000-11-16',2000),(2451865,'2000-11-16',2000);
+
+-- reset hive.exec.default.partition.name 
+*set hive.exec.default.partition.name=abc;*
+ 
+select d_date from store_sales,date_dim where ss_sold_date_sk = d_date_sk and d_year=2000 group by d_date;
+ 
+Issue:
+1. In some cases, the testcase will fail
+2. In some cases, it will fallback to NON-CBO Mode
+ 
+Exception stacktrace:
+```
+ java.lang.NumberFormatException: For input string: "_{_}HIVE_DEFAULT_PARTITION{_}_"
+at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67)
+at java.base/java.lang.Long.parseLong(Long.java:711)
+at java.base/java.lang.Long.parseLong(Long.java:836)
+at org.apache.hadoop.hive.ql.stats.StatsUtils.getRangePartitionColumn(StatsUtils.java:638)
+at org.apache.hadoop.hive.ql.stats.StatsUtils.getColStatsForPartCol(StatsUtils.java:608)
+at org.apache.hadoop.hive.ql.optimizer.calcite.RelOptHiveTable.updateColStats(RelOptHiveTable.java:644)
+at org.apache.hadoop.hive.ql.optimizer.calcite.RelOptHiveTable.getColStat(RelOptHiveTable.java:697)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.fetchColStats(HiveRelFieldTrimmer.java:801)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimFields(HiveRelFieldTrimmer.java:772)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$VarArgsFunc4.apply(HiveReflectUtil.java:322)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$HiveMethodDispatcher.invoke(HiveReflectUtil.java:221)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:286)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimChild(HiveRelFieldTrimmer.java:203)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.trimFields(RelFieldTrimmer.java:562)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$VarArgsFunc4.apply(HiveReflectUtil.java:322)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$HiveMethodDispatcher.invoke(HiveReflectUtil.java:221)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:286)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimChild(HiveRelFieldTrimmer.java:203)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.trimFields(RelFieldTrimmer.java:447)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimFields(HiveRelFieldTrimmer.java:747)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$VarArgsFunc4.apply(HiveReflectUtil.java:322)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$HiveMethodDispatcher.invoke(HiveReflectUtil.java:221)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:286)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimChild(HiveRelFieldTrimmer.java:203)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.trimFields(RelFieldTrimmer.java:736)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$VarArgsFunc4.apply(HiveReflectUtil.java:322)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$HiveMethodDispatcher.invoke(HiveReflectUtil.java:221)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:286)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimChild(HiveRelFieldTrimmer.java:203)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.trimFields(RelFieldTrimmer.java:447)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimFields(HiveRelFieldTrimmer.java:747)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$VarArgsFunc4.apply(HiveReflectUtil.java:322)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$HiveMethodDispatcher.invoke(HiveReflectUtil.java:221)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:286)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimChild(HiveRelFieldTrimmer.java:203)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimFields(HiveRelFieldTrimmer.java:624)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$VarArgsFunc4.apply(HiveReflectUtil.java:322)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$HiveMethodDispatcher.invoke(HiveReflectUtil.java:221)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:286)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimChild(HiveRelFieldTrimmer.java:203)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.trimFields(RelFieldTrimmer.java:447)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trimFields(HiveRelFieldTrimmer.java:747)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$VarArgsFunc4.apply(HiveReflectUtil.java:322)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveReflectUtil$HiveMethodDispatcher.invoke(HiveReflectUtil.java:221)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:286)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.RelFieldTrimmer.trim(RelFieldTrimmer.java:170)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trim(HiveRelFieldTrimmer.java:164)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveRelFieldTrimmer.trim(HiveRelFieldTrimmer.java:154)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveFieldTrimmerRule.trim(HiveFieldTrimmerRule.java:66)
+at org.apache.hadoop.hive.ql.optimizer.calcite.rules.HiveFieldTrimmerRule.onMatch(HiveFieldTrimmerRule.java:61)
+at org.apache.calcite.plan.AbstractRelOptPlanner.fireRule(AbstractRelOptPlanner.java:337)
+at org.apache.calcite.plan.hep.HepPlanner.applyRule(HepPlanner.java:556)
+at org.apache.calcite.plan.hep.HepPlanner.applyRules(HepPlanner.java:420)
+at org.apache.calcite.plan.hep.HepPlanner.executeRuleInstance(HepPlanner.java:243)
+at org.apache.calcite.plan.hep.HepInstruction$RuleInstance$State.execute(HepInstruction.java:178)
+at org.apache.calcite.plan.hep.HepPlanner.lambda$executeProgram$0(HepPlanner.java:211)
+at org.apache.hive.com.google.common.collect.ImmutableList.forEach(ImmutableList.java:422)
+at org.apache.calcite.plan.hep.HepPlanner.executeProgram(HepPlanner.java:210)
+at org.apache.calcite.plan.hep.HepProgram$State.execute(HepProgram.java:118)
+at org.apache.calcite.plan.hep.HepPlanner.executeProgram(HepPlanner.java:205)
+at org.apache.calcite.plan.hep.HepPlanner.findBestExp(HepPlanner.java:191)
+at org.apache.hadoop.hive.ql.parse.CalcitePlanner$CalcitePlannerAction.executeProgram(CalcitePlanner.java:2587)
+at org.apache.hadoop.hive.ql.parse.CalcitePlanner$CalcitePlannerAction.executeProgram(CalcitePlanner.java:2547)
+at org.apache.hadoop.hive.ql.parse.CalcitePlanner$CalcitePlannerAction.executeProgram(CalcitePlanner.java:2541)
+at org.apache.hadoop.hive.ql.parse.CalcitePlanner$CalcitePlannerAction.applyPreJoinOrderingTransforms(CalcitePlanner.java:1995)
+```

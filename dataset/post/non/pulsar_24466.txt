@@ -1,0 +1,60 @@
+[Bug] The TopicName cache will not shrink if a topic is created and deleted
+### Search before reporting
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that [unsupported versions](https://pulsar.apache.org/contribute/release-policy/#supported-versions) don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### User environment
+
+4.0.5
+
+### Issue Description
+
+See https://github.com/apache/pulsar/pull/24458#pullrequestreview-2960419620
+
+### Error messages
+
+```text
+N/A
+```
+
+### Reproducing the issue
+
+Run the standalone.
+
+Run the following application a few times:
+
+```java
+        final var admin = PulsarAdmin.builder().serviceHttpUrl("http://localhost:8080").build();
+        final var random = new Random();
+        for (int i = 0; i < 100000; i++) {
+            final var topic = "new-test-" + random.nextInt(10000000);
+            admin.topics().createNonPartitionedTopic(topic);
+            admin.topics().delete(topic);
+        }
+```
+
+Even though there is no traffic, the `TopicName`'s cache kept growing.
+
+<img width="1063" alt="Image" src="https://github.com/user-attachments/assets/019ab1ae-3545-4890-ab65-59085fcc933c" />
+
+<img width="711" alt="Image" src="https://github.com/user-attachments/assets/7030dce6-207d-4cdd-a6d4-3a61cc13d70e" />
+
+There were only 3 active topics but 20.3k `TopicName` cache entries.
+
+### Additional information
+
+It's caused by the design of https://github.com/apache/pulsar/pull/23052, which has no limits to the `TopicName`'s cache. It relies on the scheduled task to clear the whole cache if the size has reached 200000, the task is scheduled every 2 hours.
+
+P.S. The proxy side didn't schedule the task before, so it caused an OOM here https://github.com/apache/pulsar/issues/24445
+
+From the benchmark shown [here](https://github.com/apache/pulsar/pull/24465#discussion_r2168017302), the performance of the cache will be downgraded if there are many keys.
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

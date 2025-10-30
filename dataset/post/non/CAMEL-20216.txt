@@ -1,0 +1,48 @@
+Provide documentation on option to create a kamelet file through Camel Jbang init
+it would be convenient to provide an option of Camel Jbang init to create a kamelet file.
+
+There is currently an option --integration to create a Camel K Integration. So maybe providing a --kamelet which is exclusive with --integration can be nice.
+
+What would be the content for this file?
+Starting from https://github.com/apache/camel-kamelets#general-format example, maybe something like:
+
+{noformat}
+apiVersion: camel.apache.org/v1
+kind: Kamelet
+metadata:
+  name: timer-source
+  annotations:
+    camel.apache.org/kamelet.icon: data:image/svg+xml;base64,PD94...
+    camel.apache.org/provider: "My organization"
+  labels:
+    camel.apache.org/kamelet.type: source
+spec:
+  definition:
+    title: Timer Source
+    description: Produces periodic events with a custom payload
+    required:
+      - message
+    properties:
+      period:
+        title: Period
+        description: The interval between two events in milliseconds
+        type: integer
+        default: 1000
+      message:
+        title: Message
+        description: The message to generate
+        type: string
+        example: hello world
+  types:
+    out:
+      mediaType: text/plain
+  template:
+    from:
+      uri: timer:tick
+      parameters:
+        period: "{{period}}"
+      steps:
+        - set-body:
+            constant: "{{message}}"
+        - to: kamelet:sink
+{noformat}

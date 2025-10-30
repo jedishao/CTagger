@@ -1,0 +1,62 @@
+Issues with using native GSS on Windows with JDBC client
+Hello,
+
+I am successfully using the Trino JDBC Client with Kerberos tickets on Windows 11. So far so good. This uses kinit, krb5 & JAAS.
+
+However, I would like to use the existing Windows Tickets. This can be done using Native GSS through SSPI. 
+
+For example, this will get me the currently logged-in Windows User.
+
+```
+GSSManager manager = GSSManager.getInstance();
+GSSCredential credentials = manager.createCredential(GSSCredential.INITIATE_ONLY);
+```
+
+Now, I was expecting this Trino JDBC code to work:
+
+```
+Properties props = new Properties();
+props.setProperty("KerberosDelegation", "true");
+props.setProperty("KerberosRemoteServiceName", "HTTP");
+props.setProperty("KerberosUseCanonicalHostname", "false");
+props.setProperty("SSL", "true");
+
+String url = "jdbc:trino://trino.domain.info:443";
+Connection conn = DriverManager.getConnection(url, props);
+
+Statement stmt = conn.createStatement();
+ResultSet rs = stmt.executeQuery("show catalogs;");
+```
+The code is run with `-Dsun.security.jgss.native=true -Djavax.security.auth.useSubjectCredsOnly=false`
+
+From digging through the Trino source, this should be supported using [DelegatedConstrainedContextProvider](https://github.com/trinodb/trino/blob/781d3a19f7fab8126c1197700e6021faae0c067c/client/trino-client/src/main/java/io/trino/client/auth/kerberos/DelegatedConstrainedContextProvider.java#L25C1-L44C1) by setting KerberosDelegation=true. However, setting the required GSSCredential parameter isnt possible through JDBC. You can only set string parameters. The [HttpClientFactory setupKerberos Call](https://github.com/trinodb/trino/blob/4a704c1738753ef5bb325cb844b16acfe0d5db9c/client/trino-client/src/main/java/io/trino/client/uri/HttpClientFactory.java#L100C1-L101C1) uses `uri.getKerberosConstrainedDelegation()` which cant be set to an existing `GSSCredential ` anywhere.
+
+**Small bug in OkHttpUtil**
+I believe there is a bug in [OkHttpUtil](https://github.com/trinodb/trino/blob/781d3a19f7fab8126c1197700e6021faae0c067c/client/trino-client/src/main/java/io/trino/client/OkHttpUtil.java#L394C1-L395C1). It always calls the DelegatedUnconstrainedContextProvider constructor even if DelegatedConstrainedContextProvider should be used. This leads to
+
+`Error executing query: Cannot invoke "javax.security.auth.Subject.getPrivateCredentials(java.lang.Class)" because "this.subject" is null`
+Subject and AccessController are also deprecated. This also uses JAAS and not GSS.
+
+```  
+return gssCredential.map(DelegatedConstrainedContextProvider::new)
+                .map(gssCred -> (GSSContextProvider) gssCred)
+                .orElse(new DelegatedUnconstrainedContextProvider());
+```
+
+I think a Lambda expression should be used here:
+
+```  
+return gssCredential.map(DelegatedConstrainedContextProvider::new)
+                .map(gssCred -> (GSSContextProvider) gssCred)
+                .orElse(DelegatedUnconstrainedContextProvider::new);
+```
+
+**Bug related to Native GSS**
+
+Documentation on this is missing, general Kerberos documentation is not detailed and really hard to get to work. I am happy to help with documenting it if someone can point me in the right direction.
+
+Is **DelegatedConstrainedContextProvider** even the correct provider to use? Technically what I am trying to do it call trino with the logged-in users credentials. This isnt _really delegation_ but just a regular Service Ticket.
+
+Am I missing something here? Can the JDBC driver or Trino-Client be used with the current user coming from GSSManager? Would we need another Kerberos ContextProvider?
+
+Getting Native GSS on windows to work would be a game-changer.

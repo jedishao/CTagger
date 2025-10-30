@@ -1,0 +1,30 @@
+Cannot use Google Cloud Logging and Google Cloud Observability together (`IllegalStateException: Set cannot be called after any get call`)
+### What version of gRPC-Java are you using?
+1.62.2
+
+### What is your environment?
+Ubuntu 20.04.6 LTS, openjdk 17.0.10
+
+### What did you expect to see?
+Be able to successfully run an application with Google Cloud Logging + Google Cloud Observability
+
+### What did you see instead?
+An exception is thrown when running the application:
+```
+Exception in thread "main" java.lang.IllegalStateException: Set cannot be called after any get call
+	at io.grpc.GlobalInterceptors.setInterceptorsTracers(GlobalInterceptors.java:61)
+	at io.grpc.InternalGlobalInterceptors.setInterceptorsTracers(InternalGlobalInterceptors.java:29)
+	at io.grpc.gcp.observability.GcpObservability.setProducer(GcpObservability.java:164)
+	at io.grpc.gcp.observability.GcpObservability.grpcInit(GcpObservability.java:116)
+	at io.grpc.gcp.observability.GcpObservability.grpcInit(GcpObservability.java:98)
+```
+
+### Steps to reproduce the bug
+
+Minimal app showing issue: https://github.com/pkbriggs/gcp-logging-observability-issue
+
+1. Create new Java app that uses both Google Cloud Logging (https://cloud.google.com/logging/docs/setup/java) and Google Cloud Observability (https://cloud.google.com/stackdriver/docs/solutions/grpc/set-up-observability)
+2. Add a logback.xml as described in the [GCP Logging docs](https://cloud.google.com/logging/docs/setup/java#logback_configuration)
+3. Run app (`GRPC_GCP_OBSERVABILITY_CONFIG="{}" ./gradlew run`) and observe that an exception is thrown when `GcpObservability.grpcInit()` is called
+
+If you delete/rename `src/main/resources/logback.xml` and run the app, it will run successfully. This seems to indicate there is some issue with `com.google.cloud.logging.logback.LoggingAppender` and `io.grpc.gcp.observability.GcpObservability`.

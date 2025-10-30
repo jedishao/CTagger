@@ -1,0 +1,55 @@
+[Bug] Producer publishing via REST API triggers DirectMemoryOOM
+### Search before asking
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+pulsar-broker-0:/pulsar$ uname -a
+Linux pulsar-broker-0 6.10.14-linuxkit #1 SMP Thu Oct 24 19:28:55 UTC 2024 aarch64 GNU/Linux
+pulsar-broker-0:/pulsar$ bin/pulsar-admin --version
+Current version of pulsar admin client is: 4.0.3
+pulsar-broker-0:/pulsar$ java --version
+openjdk 21.0.6 2025-01-21 LTS
+OpenJDK Runtime Environment Corretto-21.0.6.7.1 (build 21.0.6+7-LTS)
+OpenJDK 64-Bit Server VM Corretto-21.0.6.7.1 (build 21.0.6+7-LTS, mixed mode)
+
+Clients:
+Any HTTP Client seems to trigger. For my reproduction I used:
+https://pkg.go.dev/net/http from Go 1.22.5
+
+
+### Minimal reproduce step
+
+Create a topic (I'm using a 300s TTL) and publish messages to it using the REST API.
+
+### What did you expect to see?
+
+I expected the broker service to run without issue, similar to the behavior seen with the native language pulsar clients.
+
+### What did you see instead?
+
+After some time, the broker process crashes with a DirectMemory OOM.
+
+### Anything else?
+
+Attached is the netty leakdetection trace and the stack traces from the OOM. I did filter the output to remove a pile of spam when capturing:
+`kubectl logs pod/pulsar-broker-0 -f | grep -v RestMessage | grep -v RequestLog`
+
+If you'd like me to remove those filters I can certainly do so and re-upload.
+
+[broker.service-DirectMemoryOOM-v4.0.3.log](https://github.com/user-attachments/files/19947544/broker.service-DirectMemoryOOM-v4.0.3.log)
+[Netty_leakDetection_traces-v4.0.3.log](https://github.com/user-attachments/files/19947543/Netty_leakDetection_traces-v4.0.3.log)
+
+Attached is a screenshot of the helm-chart builtin Grafana dashboard for the JVM. broker-0 was the brokerLeader for the topic.  Frequency of the OOM depends on the number of messages published.
+![Image](https://github.com/user-attachments/assets/e2019886-ef5d-419e-83e4-9797fd555743)
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,50 @@
+[Bug] "Topic does not have schema to check" on topic-level geo replication
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+pulsar 3.0.1
+jdk 8
+
+### Minimal reproduce step
+
+1. create 2 clusters with local zk.
+2. create tenant, namespace, topic on each cluster.
+3. pulsar-admin topics set-replication-clusters --clusters cluster-A,cluster-B to setup topic-level geo replication
+4. create consumer with Schema.STRING.
+client.newConsumer(Schema.STRING).consumerName("a1")
+                        .subscriptionName("ca1")
+                        .topic("persistent://aa/bb/cc")
+                        .replicateSubscriptionState(true)
+                        .messageListener((c, m) -> {
+                            System.out.println("message: " + m.getValue());
+                            try {
+                                c.acknowledge(m);
+                            } catch (ClientException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }).subscribe();
+
+### What did you expect to see?
+
+consumer can be registered succesfully.
+
+### What did you see instead?
+
+Topic does not have schema to check
+
+### Anything else?
+
+btw, namespace-level geo replication works well.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

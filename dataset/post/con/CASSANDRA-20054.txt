@@ -1,0 +1,16 @@
+Get Harry working on top of Accord and fix various issues found by TopologyMixupTestBase
+TopologyMixupTestBase has been useful at finding a lot of unexpected issues, and adding Harry on top of Accord at this layer should help validate Accord correctness while also testing stability.
+
+In running these tests several bugs were found
+
+1) vtable showing what txn are blocking the queried table would throw error when txn isn’t known, which is valid (report historic transaction…)
+2) AccordCommandStore submitted sync requests in a blocking manner, but did this on a CommandStore… this lead to a 5 minute deadlock
+3) MajorityDepsFetcher would have a deadlock as it triggers waiting notifications while holding the lock, and the waiting callers then access more locks, such as the config service lock
+4) when restarting and learning about removed nodes, AccordService is not setup yet, so need to pass this through to avoid startup issues
+5) When accord asks TCM for the epoch history, there were no retries which would cause stability issues during startup
+6) when learning about min epochs needed for startup, purge all starting epochs that are empty as it isn’t needed and only adds costs for startup
+7) when nodes leave the cluster we did not start durability sync (this isn’t working, but thats a different issue… durability sync requires ALL which isn’t possible)
+8) TCM’s getLogEntries method hit an edge case with snapshots where it assumed the API was inclusive, but its exclusive; this caused a gap in epochs
+9) JVM Dtest now supports startup timeouts, this is to avoid issues where startup will take infinity (due to bugs) causing CI to throw away the logs.
+10) fixed a race condition bug in Harry where the TokenPlacementModel could see a partial row causing NPEs down the line
+11) Fixed a bug in Harry where Accord timeouts would not retry as they don’t have the expected message

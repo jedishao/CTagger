@@ -1,0 +1,51 @@
+interceptFrom with pattern specified are not executed with rest-dsl
+In our application we have a base rout builder class in which we would like to intercept all REST routes executions (REST requests)
+
+ 
+{code:java}
+public abstract class BaseRouteBuilder extends RouteBuilder {
+@Autowired
+protected RestInterceptorProcessor restInterceptorProcessor;
+
+@Override
+public void configure() throws Exception {
+    interceptFrom("rest:.*")
+            .process(restInterceptorProcessor);
+} {code}
+All our routes extend this class and are constructed like the code below:
+
+ 
+
+ 
+{code:java}
+@Component
+public class MySampleRestCamelRestComponent extends BaseRouteBuilder { 
+@Override
+public void configure() throws Exception {
+    super.configure();
+
+    rest("/api/v1/some-endpoint")
+                .consumes(MediaType.APPLICATION_JSON_VALUE)
+                .produces(MediaType.APPLICATION_JSON_VALUE)
+                .get("/objects")
+                    .id("getObjects")
+                    .to("direct:rest-fetch-objects")
+}{code}
+This approach worked fine in Camel 3.*, but in Camel 4.* my processor is not executed.
+
+I've made some investigation and:
+ * when we skip the pattern and just use interceptFrom().process(restInterceptorProcessor) - the processor is executed on REST request, but also for other requests like f.e. seda:
+ * when I've debugged Camel source code while using the rest:* or rest:.* patterns, the URI matcher returns true (URI start with "rest://get://api/v1/some-endpoint" etc.) within the class org.apache.camel.model.RouteDefinitionHelper / method 
+
+{code:java}
+private static void doInitInterceptors(
+            CamelContext context, RouteDefinition route, List<ProcessorDefinition<?>> upper,
+            List<InterceptDefinition> intercepts,
+            List<InterceptFromDefinition> interceptFromDefinitions,
+            List<InterceptSendToEndpointDefinition> interceptSendToEndpointDefinitions)
+ {code}
+, but still my processor is not executed after REST request.
+
+Could you please check this issue?
+
+ 

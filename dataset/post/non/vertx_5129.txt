@@ -1,0 +1,38 @@
+WebClient through kerberos secured proxy is not working
+### Questions
+
+I am trying to access a website using the vert.x WebClient but it seems that the WebClient is not able to make the connection.
+
+Checked the "httpclient" inside org.apache.httpcomponents, and I can go through the proxy without issues, but I am using vert.x so need the WebClient to work.
+
+Looked into the org.apache.httpcomponents code and found this is what its doing:
+1. Create a socket connection to the secure proxy.
+2. Issue a connect request to the proxy server over the socket.
+3. The proxy server challenge the connect request and returns back headers that includes "Negotiate".
+4. Generate a kerberos token from the KDC for the proxy server.
+5. Send over the socket the connect request again with the header:
+"Proxy-Authorization: Negotiate <token>"
+6. The connection is then successful.
+7. The socket is then upgraded to TLS.
+
+WebClient is not able to do that, I tried to do the bits of obtaining the Token and passing it in the "Proxy-Authorization" header in a connect request, but its not working, Still getting "407 Proxy Authentication Required".
+
+
+### Version
+
+Same issue on 4.4.3 and 4.5.3
+
+### Context
+
+I encountered an exception which looks suspicious while ...
+
+### Do you have a reproducer?
+
+No
+
+
+### Steps to reproduce
+
+Just a simple WebClient.getAbs(...) request where ProxyOptions are specified.
+
+

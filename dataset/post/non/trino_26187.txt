@@ -1,0 +1,22 @@
+HTTP Event Listener - http-event-listener.connect-http-headers is not escaping values correctly
+
+The `http-event-listener.connect-http-headers` configuration does not correctly handle escaped characters in its value.
+
+For example, when setting:
+
+```
+http-event-listener.connect-http-headers=header1: a\,b,header2: 1
+```
+
+The `setHttpHeaders` method receives three values:
+
+```
+header1: a\
+b
+header2: 1
+```
+
+The comma is not being escaped properly, and this causes a split error when parsing the headers using `:`. As a result, an exception is thrown because `header1`'s value is malformed.
+
+Expected behavior: Escaped commas (e.g., `\,`) should be treated as part of the header value and not as a separator.
+

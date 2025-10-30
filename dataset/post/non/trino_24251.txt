@@ -1,0 +1,88 @@
+PostgreSQL seems broken in 465
+I observe the following error on initialization:
+
+
+2024-11-25T19:35:08.138Z        ERROR   main    io.trino.server.Server  Unable to create injector, see the following errors:
+
+1) [Guice/ErrorInjectingConstructor]: TypeNotFoundException: Unknown type: Geometry
+  at PostgreSqlClient.<init>(Unknown Source)
+  while locating PostgreSqlClient
+  at java.base/DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+      \_ installed by: ConfigurationAwareModule$1 -> ConfigurationAwareModule$1 -> PostgreSqlClientModule
+  at JdbcDiagnosticModule.createStatisticsAwareJdbcClient(Unknown Source)
+      \_ for 1st parameter client
+  at JdbcDiagnosticModule.createStatisticsAwareJdbcClient(Unknown Source)
+      \_ installed by: JdbcModule -> JdbcDiagnosticModule
+  while locating StatisticsAwareJdbcClient
+
+Learn more:
+  https://github.com/google/guice/wiki/ERROR_INJECTING_CONSTRUCTOR
+Caused by: TypeNotFoundException: Unknown type: Geometry
+        at TypeRegistry.instantiateParametricType(TypeRegistry.java:219)
+        at TypeRegistry.lambda$getType$0(TypeRegistry.java:182)
+        at LocalCache$LocalManualCache$1.load(LocalCache.java:4903)
+        at LocalCache$LoadingValueReference.loadFuture(LocalCache.java:3574)
+        at LocalCache$Segment.loadSync(LocalCache.java:2316)
+        at LocalCache$Segment.lockedGetOrLoad(LocalCache.java:2189)
+        at LocalCache$Segment.get(LocalCache.java:2079)
+        at LocalCache.get(LocalCache.java:4017)
+        at LocalCache$LocalManualCache.get(LocalCache.java:4898)
+        at ForwardingCache.get(ForwardingCache.java:55)
+        at CacheUtils.uncheckedCacheGet(CacheUtils.java:39)
+        at TypeRegistry.getType(TypeRegistry.java:182)
+        at InternalTypeManager.getType(InternalTypeManager.java:41)
+        at PostgreSqlClient.<init>(PostgreSqlClient.java:308)
+        at PostgreSqlClient$$FastClassByGuice$$21ae691.GUICE$TRAMPOLINE(<generated>)
+        at PostgreSqlClient$$FastClassByGuice$$21ae691.apply(<generated>)
+        at DefaultConstructionProxyFactory$FastClassProxy.newInstance(DefaultConstructionProxyFactory.java:82)
+        at ConstructorInjector.provision(ConstructorInjector.java:114)
+        at ConstructorInjector.access$000(ConstructorInjector.java:33)
+        at ConstructorInjector$1.call(ConstructorInjector.java:98)
+        at ProvisionListenerStackCallback$Provision.provision(ProvisionListenerStackCallback.java:109)
+        at LifeCycleModule.provision(LifeCycleModule.java:53)
+        at ProvisionListenerStackCallback$Provision.provision(ProvisionListenerStackCallback.java:117)
+        at ProvisionListenerStackCallback.provision(ProvisionListenerStackCallback.java:66)
+        at ConstructorInjector.construct(ConstructorInjector.java:93)
+        at ConstructorBindingImpl$Factory.get(ConstructorBindingImpl.java:300)
+        at FactoryProxy.get(FactoryProxy.java:60)
+        at ProviderToInternalFactoryAdapter.get(ProviderToInternalFactoryAdapter.java:40)
+        at SingletonScope$1.get(SingletonScope.java:169)
+        at InternalFactoryToProviderAdapter.get(InternalFactoryToProviderAdapter.java:45)
+        at SingleParameterInjector.inject(SingleParameterInjector.java:40)
+        at SingleParameterInjector.getAll(SingleParameterInjector.java:60)
+        at ProviderMethod.doProvision(ProviderMethod.java:171)
+        at InternalProviderInstanceBindingImpl$CyclicFactory.provision(InternalProviderInstanceBindingImpl.java:185)
+        at InternalProviderInstanceBindingImpl$CyclicFactory.access$300(InternalProviderInstanceBindingImpl.java:139)
+        at InternalProviderInstanceBindingImpl$CyclicFactory$1.call(InternalProviderInstanceBindingImpl.java:169)
+        at ProvisionListenerStackCallback$Provision.provision(ProvisionListenerStackCallback.java:109)
+        at LifeCycleModule.provision(LifeCycleModule.java:53)
+        at ProvisionListenerStackCallback$Provision.provision(ProvisionListenerStackCallback.java:117)
+        at ProvisionListenerStackCallback.provision(ProvisionListenerStackCallback.java:66)
+        at InternalProviderInstanceBindingImpl$CyclicFactory.get(InternalProviderInstanceBindingImpl.java:164)
+        at ProviderToInternalFactoryAdapter.get(ProviderToInternalFactoryAdapter.java:40)
+        at SingletonScope$1.get(SingletonScope.java:169)
+        at InternalFactoryToProviderAdapter.get(InternalFactoryToProviderAdapter.java:45)
+        at InternalInjectorCreator.loadEagerSingletons(InternalInjectorCreator.java:213)
+        at InternalInjectorCreator.injectDynamically(InternalInjectorCreator.java:186)
+        at InternalInjectorCreator.build(InternalInjectorCreator.java:113)
+        at Guice.createInjector(Guice.java:87)
+        at Bootstrap.initialize(Bootstrap.java:288)
+        at JdbcConnectorFactory.create(JdbcConnectorFactory.java:73)
+        at DefaultCatalogFactory.createConnector(DefaultCatalogFactory.java:211)
+        at DefaultCatalogFactory.createCatalog(DefaultCatalogFactory.java:128)
+        at LazyCatalogFactory.createCatalog(LazyCatalogFactory.java:45)
+        at StaticCatalogManager.lambda$loadInitialCatalogs$1(StaticCatalogManager.java:161)
+        at java.base/FutureTask.run(FutureTask.java:317)
+        at java.base/Executors$RunnableAdapter.call(Executors.java:572)
+        at java.base/FutureTask.run(FutureTask.java:317)
+        at DirectExecutor.execute(DirectExecutor.java:31)
+        at java.base/ExecutorCompletionService.submit(ExecutorCompletionService.java:186)
+        at Executors.executeUntilFailure(Executors.java:46)
+        at StaticCatalogManager.loadInitialCatalogs(StaticCatalogManager.java:155)
+        at Server.doStart(Server.java:156)
+        at Server.lambda$start$0(Server.java:94)
+        at io.trino.$gen.Trino_465____20241125_193447_1.run(Unknown Source)
+        at Server.start(Server.java:94)
+        at TrinoServer.main(TrinoServer.java:37)
+
+Probably related to #5580

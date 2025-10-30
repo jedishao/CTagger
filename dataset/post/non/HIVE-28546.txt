@@ -1,0 +1,5 @@
+Optimize fire_listener_event API
+The client can use the fire_listener_event to notify the change event to downstream consumer, the event needs to be sequential, this is implemented by locking the row in
+NOTIFICATION_SEQUENCE when serializing the event to database, so this could be a bottleneck in concurrent workloads. Currently the Hive client sends this event per partition for loading dynamic partitions, and the HMS processes them one by one. It would be way more efficient when sending or processing them in bulk.
+ 
+This fix will be incompatible with the older consumer that expect single partition per InsertEvent.

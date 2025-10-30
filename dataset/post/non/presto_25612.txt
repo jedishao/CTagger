@@ -1,0 +1,122 @@
+[Prestissimo] [Iceberg] Incorrect data returned during schema evolution
+<!--- Provide a general summary of the issue in the Title above -->
+<!--- Look through existing open and closed issues to see if someone has reported the issue before -->
+
+
+presto:iceberg> create table identity_t4(c_int int, c_bigint bigint, c_decimal decimal(18, 3), c_varchar varchar, c_varbinary varbinary) with (format='PARQUET', partitioning=ARRAY['c_decimal', 'c_varchar', 'c_varbinary']);
+CREATE TABLE
+presto:iceberg>
+presto:iceberg>
+presto:iceberg>
+presto:iceberg>
+presto:iceberg> insert into identity_t4 values (1, -123, cast('123456789.992' AS decimal(18,3)), 'JAVA', x'455843454C4C454E54');
+INSERT: 1 row
+
+Query 20250724_083226_00010_hgx3w, FINISHED, 2 nodes
+Splits: 2 total, 2 done (100.00%)
+[Latency: client-side: 122ms, server-side: 113ms] [0 rows, 0B] [0 rows/s, 0B/s]
+
+presto:iceberg> alter table identity_t4 add column c_new1 varchar;
+ADD COLUMN
+presto:iceberg> insert into identity_t4 values (1, -123, cast('123456789.992' AS decimal(18,3)), 'JAVA', x'455843454C4C454E54', 'new1');
+INSERT: 1 row
+
+Query 20250724_083245_00012_hgx3w, FINISHED, 2 nodes
+Splits: 2 total, 2 done (100.00%)
+[Latency: client-side: 129ms, server-side: 123ms] [0 rows, 0B] [0 rows/s, 0B/s]
+
+presto:iceberg> select * from identity_t4;
+ c_int | c_bigint |   c_decimal   | c_varchar |        c_varbinary         | c_new1
+-------+----------+---------------+-----------+----------------------------+--------
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | new1
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | NULL
+(2 rows)
+
+Query 20250724_083248_00013_hgx3w, FINISHED, 1 node
+Splits: 3 total, 3 done (100.00%)
+[Latency: client-side: 129ms, server-side: 104ms] [2 rows, 4.78KB] [19 rows/s, 45.9KB/s]
+
+presto:iceberg> alter table identity_t4 add column c_new2 varchar;
+ADD COLUMN
+presto:iceberg> select * from identity_t4;
+ c_int | c_bigint |   c_decimal   | c_varchar |        c_varbinary         | c_new1 | c_new2
+-------+----------+---------------+-----------+----------------------------+--------+--------
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | NULL   | NULL
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | new1   | NULL
+(2 rows)
+
+Query 20250724_083258_00015_hgx3w, FINISHED, 1 node
+Splits: 3 total, 3 done (100.00%)
+[Latency: client-side: 124ms, server-side: 100ms] [2 rows, 4.78KB] [20 rows/s, 47.8KB/s]
+
+presto:iceberg> insert into identity_t4 values (1, -123, cast('123456789.992' AS decimal(18,3)), 'JAVA', x'455843454C4C454E54', 'new1', 'new2');
+INSERT: 1 row
+
+Query 20250724_083305_00016_hgx3w, FINISHED, 2 nodes
+Splits: 2 total, 2 done (100.00%)
+[Latency: client-side: 154ms, server-side: 146ms] [0 rows, 0B] [0 rows/s, 0B/s]
+
+presto:iceberg> select * from identity_t4;
+ c_int | c_bigint |   c_decimal   | c_varchar |        c_varbinary         | c_new1 | c_new2
+-------+----------+---------------+-----------+----------------------------+--------+--------
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | new1   | NULL
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | new1   | new2
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | NULL   | NULL
+(3 rows)
+
+Query 20250724_083307_00017_hgx3w, FINISHED, 1 node
+Splits: 4 total, 4 done (100.00%)
+[Latency: client-side: 123ms, server-side: 100ms] [3 rows, 7.71KB] [30 rows/s, 77.1KB/s]
+
+presto:iceberg> alter table identity_t4 drop column c_new1;
+DROP COLUMN
+presto:iceberg> select * from identity_t4;
+ c_int | c_bigint |   c_decimal   | c_varchar |        c_varbinary         | c_new2
+-------+----------+---------------+-----------+----------------------------+--------
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | new1
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | new1
+     1 |     -123 | 123456789.992 | JAVA      | 45 58 43 45 4c 4c 45 4e 54 | NULL
+(3 rows)
+
+Query 20250724_083327_00019_hgx3w, FINISHED, 1 node
+Splits: 4 total, 4 done (100.00%)
+[Latency: client-side: 117ms, server-side: 101ms] [3 rows, 7.6KB] [29 rows/s, 75.3KB/s]
+
+
+
+Here, the value of c_new2 is incorrectly populated by data from c_new1
+
+This is similar issue with https://github.com/prestodb/presto/issues/25378.
+
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used:
+* Storage (HDFS/S3/GCS..):
+* Data source and connector used:
+* Deployment (Cloud or On-prem):
+* [Pastebin](https://pastebin.com/) link to the complete debug logs:
+
+## Expected Behavior
+<!--- Tell us what should happen -->
+
+## Current Behavior
+<!--- Tell us what happens instead of the expected behavior -->
+
+## Possible Solution
+<!--- Not obligatory, but suggest a fix/reason for the bug or a workaround -->
+
+## Steps to Reproduce
+<!--- Provide a link to a live example, or an unambiguous set of steps to -->
+<!--- reproduce this bug. Include code to reproduce, if relevant -->
+1.
+2.
+3.
+4.
+
+## Screenshots (if appropriate)
+
+## Context
+<!--- How has this issue affected you? -->
+<!--- Providing context helps us come up with a solution that is most useful in the real world -->
+

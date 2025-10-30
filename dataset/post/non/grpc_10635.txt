@@ -1,0 +1,75 @@
+ClassNotFoundException: org.bouncycastle.jce.provider.BouncyCastleProvide when upgrade to grpc 1.59.0
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+# Env
+Ubuntu 22.04.1 LTS x64; OpenJDK 17.0.2
+# Issue
+When I upgrade grpc-java version from **1.53 to 1.59.0**, exception shows below when I re-compile and boot my app:
+
+```bash
+10-27 17:58:39.313 [main] DEBUG i.g.n.s.io.netty.buffer.ByteBufUtil [<clinit>] [98] - -Dio.netty.threadLocalDirectBufferSize: 0
+10-27 17:58:39.313 [main] DEBUG i.g.n.s.io.netty.buffer.ByteBufUtil [<clinit>] [101] - -Dio.netty.maxThreadLocalCharBufferSize: 16384
+10-27 17:58:39.337 [main] DEBUG i.g.n.s.i.n.h.s.BouncyCastlePemReader [run] [87] - Cannot load Bouncy Castle provider
+java.lang.ClassNotFoundException: org.bouncycastle.jce.provider.BouncyCastleProvider
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:520)
+	at java.base/java.lang.Class.forName0(Native Method)
+	at java.base/java.lang.Class.forName(Class.java:467)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.BouncyCastlePemReader$1.run(BouncyCastlePemReader.java:80)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.BouncyCastlePemReader$1.run(BouncyCastlePemReader.java:73)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:318)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.BouncyCastlePemReader.tryLoading(BouncyCastlePemReader.java:73)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.BouncyCastlePemReader.isAvailable(BouncyCastlePemReader.java:60)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.SslContext.toPrivateKey(SslContext.java:1160)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.SslContext.toPrivateKey(SslContext.java:1148)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.keyManager(SslContextBuilder.java:388)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.keyManager(SslContextBuilder.java:330)
+	at io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.forServer(SslContextBuilder.java:68)
+	at io.ids.argus.center.startup.ArgusCenterServer.getSslContext(ArgusCenterServer.java:45)
+	at io.ids.argus.center.startup.ArgusCenterServer.<init>(ArgusCenterServer.java:24)
+	at io.ids.argus.center.startup.Argus.<init>(Argus.java:14)
+	at io.ids.argus.center.startup.Argus.<clinit>(Argus.java:10)
+	at io.ids.argus.entry.Application.main(Application.java:18)
+10-27 17:58:39.365 [main] DEBUG i.g.n.s.i.n.u.i.NativeLibraryLoader [<clinit>] [78] - -Dio.netty.native.workdir: /tmp (io.netty.tmpdir)
+10-27 17:58:39.366 [main] DEBUG i.g.n.s.i.n.u.i.NativeLibraryLoader [<clinit>] [83] - -Dio.netty.native.deleteLibAfterLoading: true
+```
+This's my dependencies list:
+
+```xml
+    <dependencies>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.bouncycastle</groupId>-->
+<!--            <artifactId>bcpkix-jdk18on</artifactId>-->
+<!--            <version>1.76</version>-->
+<!--        </dependency>-->
+    </dependencies>
+```
+
+As you see in dependencies, when I add bcpkix-jdk18on dependency and re-compile my app, the `ClassNotFoundException: org.bouncycastle.jce.provider.BouncyCastleProvider` exception disappeared when boot.
+
+# Question
+Is there any dependencies issues in my project? 
+
+Is `bcpkix-jdk18on`  necessary dependency in grpc-java?
+ 

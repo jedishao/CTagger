@@ -1,0 +1,109 @@
+Global Error Handler does not take effect when a source Kamelet fails
+I found a faulty behavior when configuring a global error handler and the failure is caused by the execution of a Kamelet.
+
+The following route works correctly:
+{code}
+- route:
+    errorHandler:
+      deadLetterChannel:
+        deadLetterUri: kamelet:log-sink/errorHandler
+    from:
+      uri: timer:tick
+      steps:
+        - setBody:
+            constant: "fail!"
+        - setBody:
+            simple: "${mandatoryBodyAs(Boolean)}"
+        - log: "${body}"
+{code}
+
+It intercept the failing execution and forward the failure to the DLC. However, if the producer URI contains a failing Kamelet, then, the global error handler is not working. Wrapping the same failing logic in a local Kamelet like:
+
+{code}
+apiVersion: camel.apache.org/v1
+kind: Kamelet
+metadata:
+  name: my-err-source
+  labels:
+    camel.apache.org/kamelet.type: "source"
+spec:
+  definition:
+    title: "Timer Example"
+    description: "Produces periodic events with a custom payload"
+    required:
+      - message
+    properties:
+      period:
+        title: Period
+        description: The time interval between two events
+        type: integer
+        default: 1000
+      message:
+        title: Message
+        description: The message to generate
+        type: string
+  types:
+    out:
+      mediaType: text/plain
+  template:
+    from:
+      uri: timer:tick
+      parameters:
+        period: "{{period}}"
+      steps:
+        - setBody:
+            constant: "{{message}}"
+        - setBody:
+            simple: "${mandatoryBodyAs(Boolean)}"
+        - setHeader:
+            name: "Content-Type"
+            constant: "text/plain"
+        - to: "kamelet:sink"
+{code}
+
+And executing a new route as:
+
+{code}
+- route:
+    errorHandler:
+      deadLetterChannel:
+        deadLetterUri: kamelet:log-sink/errorHandler
+    from:
+      uri: "kamelet:my-err-source/source"
+      parameters:
+        message: "fail!"
+      steps:
+        - log: "${body}"
+{code}
+
+Will act as no error handler is set at all, logging a Warn:
+
+{code}
+$ camel run * 
+2025-01-07 15:36:45.452  INFO 611589 --- [           main] org.apache.camel.main.MainSupport        : Apache Camel (JBang) 4.9.0 is starting
+...
+2025-01-07 15:36:47.543  WARN 611589 --- [ - timer://tick] ache.camel.component.timer.TimerConsumer : Error processing exchange. Exchange[FE1CC7B02A4822F-0000000000000000]. Caused by: [org.apache.camel.CamelExecutionException - Exception occurred during execution on the exchange: Exchange[FE1CC7B02A4822F-0000000000000000]]
+org.apache.camel.CamelExecutionException: Exception occurred during execution on the exchange: Exchange[FE1CC7B02A4822F-0000000000000000]
+	at org.apache.camel.CamelExecutionException.wrapCamelExecutionException(CamelExecutionException.java:45) ~[camel-api-4.9.0.jar:4.9.0]
+	at org.apache.camel.language.simple.SimpleExpressionBuilder$31.evaluate(SimpleExpressionBuilder.java:838) ~[camel-core-languages-4.9.0.jar:4.9.0]
+	at org.apache.camel.support.ExpressionAdapter.evaluate(ExpressionAdapter.java:45) ~[camel-support-4.9.0.jar:4.9.0]
+	at org.apache.camel.processor.SetBodyProcessor.process(SetBodyProcessor.java:45) ~[camel-core-processor-4.9.0.jar:4.9.0]
+	at org.apache.camel.processor.errorhandler.NoErrorHandler.process(NoErrorHandler.java:46) ~[camel-core-processor-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.CamelInternalProcessor.processNonTransacted(CamelInternalProcessor.java:347) ~[camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.CamelInternalProcessor.process(CamelInternalProcessor.java:323) ~[camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.processor.Pipeline$PipelineTask.run(Pipeline.java:102) ~[camel-core-processor-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.doRun(DefaultReactiveExecutor.java:199) [camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.executeReactiveWork(DefaultReactiveExecutor.java:189) [camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.tryExecuteReactiveWork(DefaultReactiveExecutor.java:166) [camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.schedule(DefaultReactiveExecutor.java:148) [camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.DefaultReactiveExecutor.scheduleMain(DefaultReactiveExecutor.java:59) [camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.processor.Pipeline.process(Pipeline.java:163) [camel-core-processor-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.CamelInternalProcessor.processNonTransacted(CamelInternalProcessor.java:347) [camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.impl.engine.CamelInternalProcessor.process(CamelInternalProcessor.java:323) [camel-base-engine-4.9.0.jar:4.9.0]
+	at org.apache.camel.component.timer.TimerConsumer.sendTimerExchange(TimerConsumer.java:293) [camel-timer-4.9.0.jar:4.9.0]
+	at org.apache.camel.component.timer.TimerConsumer$1.doRun(TimerConsumer.java:164) [camel-timer-4.9.0.jar:4.9.0]
+	at org.apache.camel.component.timer.TimerConsumer$1.run(TimerConsumer.java:136) [camel-timer-4.9.0.jar:4.9.0]
+	at java.base/java.util.TimerThread.mainLoop(Timer.java:566) [?:?]
+	at java.base/java.util.TimerThread.run(Timer.java:516) [?:?]
+
+{code}

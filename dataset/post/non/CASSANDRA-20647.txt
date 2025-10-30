@@ -1,0 +1,38 @@
+DiskSpaceUsed metrics for tables with SASI Index is corrupt
+The reported values for LiveDiskSpaceUsed and TotalDiskSpaceUsed metrics are incorrect for tables with SASI Index.
+
+The initial values seem to be correct, however, they get corrupted after each compaction and eventually drop to below zero (negative value).
+
+Restarting Cassandra resolves the issue.
+
+*Steps taken to reproduce the issue:*
+ * Created a table with SASIIndex and inserted a few rows:
+
+ * 
+ ** 
+{code:java}
+CREATE KEYSPACE cycling WITH REPLICATION = { 'class' : 'NetworkTopologyStrategy', 'DC1' : 3 }; 
+CREATE TABLE cycling.cyclist_name ( id UUID PRIMARY KEY, lastname text, firstname text ); 
+CREATE CUSTOM INDEX fn_contains ON cycling.cyclist_name (firstname) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = { 'mode': 'CONTAINS' };
+INSERT INTO cycling.cyclist_name (id, lastname, firstname)   VALUES (6ab09bec-e68e-48d9-a5f8-97e6fa4c9b40, 'Doe','John');
+INSERT INTO cycling.cyclist_name (id, lastname, firstname)   VALUES (6ab09bec-e68e-48d9-a5f8-97e6fa4c9b41, 'Doe','John');
+INSERT INTO cycling.cyclist_name (id, lastname, firstname)   VALUES (6ab09bec-e68e-48d9-a5f8-97e6fa4c9b42, 'Doe','John'); {code}
+
+ * nodetool flush
+ * Checked the metric (jmxterm):
+ ** 
+{code:java}
+$>bean -d org.apache.cassandra.metrics name=LiveDiskSpaceUsed,type=Table,keyspace=cycling,scope=cyclist_name
+#bean is set to org.apache.cassandra.metrics:name=LiveDiskSpaceUsed,type=Table,keyspace=cycling,scope=cyclist_name
+
+$>get -d org.apache.cassandra.metrics name=LiveDiskSpaceUsed,type=Table,keyspace=cycling,scope=cyclist_name Count
+#mbean = org.apache.cassandra.metrics:name=LiveDiskSpaceUsed,type=Table,keyspace=cycling,scope=cyclist_name:
+Count = 5193; {code}
+
+ * nodetool compact cycling
+ * Checked the metric again:
+ ** 
+{code:java}
+$>get -d org.apache.cassandra.metrics name=LiveDiskSpaceUsed,type=Table,keyspace=cycling,scope=cyclist_name Count
+#mbean = org.apache.cassandra.metrics:name=LiveDiskSpaceUsed,type=Table,keyspace=cycling,scope=cyclist_name:
+Count = -7028; {code}

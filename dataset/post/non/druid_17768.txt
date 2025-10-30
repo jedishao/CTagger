@@ -1,0 +1,25 @@
+Null query result when using SQL CASE expression
+### Affected Version
+
+Druid 32.0.0
+
+### Description
+
+After upgrading to version 32, where the `druid.generic.useDefaultValueForNull=true` feature is deprecated, we’re getting incorrect results when executing SQL queries using `CASE`. 
+The query is supposed to return a result based on a given condition, but when a type value doesn’t match any condition, it returns NULL instead of the expected ELSE value or COALESCE result.
+
+```
+SELECT
+        t.id,
+        SUM(CASE WHEN type = 'X'
+            THEN NVL(amount, 0)
+            ELSE 0
+        END) AS total_amount
+    FROM
+        example t
+    GROUP BY t.id
+```
+
+We followed all the steps in the [migration guide](https://druid.apache.org/docs/latest/release-info/migr-ansi-sql-null/), and no null values were inserted during ingestion. All raw data contains non-null values.
+
+![Image](https://github.com/user-attachments/assets/200e9b0d-7932-4722-b29a-6719081740e4)

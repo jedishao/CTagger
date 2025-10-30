@@ -1,0 +1,67 @@
+CLI with --external-authentication doesn't work on headless systems without -Djava.awt.headless=true
+Running the following fails with the error in annex:
+
+```
+java -jar trino-cli-452-executable.jar --user <user> --external-authentication --server <server>
+```
+
+Adding `-Djava.awt.headless=true` works:
+
+```
+java -Djava.awt.headless=true -jar trino-cli-452-executable.jar --user <user> --external-authentication --server <server>
+```
+
+The `-Djava.awt.headless=true` requirement is undocumented and probably unexpected? 
+
+
+Exception:
+```
+Exception in thread "main" java.awt.AWTError: Can't connect to X11 window server using ':0' as the value of the DISPLAY variable.
+        at java.desktop/sun.awt.X11GraphicsEnvironment.initDisplay(Native Method)
+        at java.desktop/sun.awt.X11GraphicsEnvironment$1.run(X11GraphicsEnvironment.java:105)
+        at java.base/java.security.AccessController.doPrivileged(AccessController.java:319)
+        at java.desktop/sun.awt.X11GraphicsEnvironment.initStatic(X11GraphicsEnvironment.java:64)
+        at java.desktop/sun.awt.X11GraphicsEnvironment.<clinit>(X11GraphicsEnvironment.java:59)
+        at java.desktop/sun.awt.PlatformGraphicsInfo.createGE(PlatformGraphicsInfo.java:37)
+        at java.desktop/java.awt.GraphicsEnvironment$LocalGE.createGE(GraphicsEnvironment.java:93)
+        at java.desktop/java.awt.GraphicsEnvironment$LocalGE.<clinit>(GraphicsEnvironment.java:84)
+        at java.desktop/java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment(GraphicsEnvironment.java:106)
+        at java.desktop/sun.awt.X11.XToolkit.<clinit>(XToolkit.java:225)
+        at java.desktop/sun.awt.PlatformGraphicsInfo.createToolkit(PlatformGraphicsInfo.java:41)
+        at java.desktop/java.awt.Toolkit.getDefaultToolkit(Toolkit.java:595)
+        at java.desktop/java.awt.Desktop.isDesktopSupported(Desktop.java:329)
+        at io.trino.client.auth.external.DesktopBrowserRedirectHandler.redirectTo(DesktopBrowserRedirectHandler.java:30)
+        at io.trino.client.auth.external.CompositeRedirectHandler.redirectTo(CompositeRedirectHandler.java:43)
+        at io.trino.client.auth.external.CompositeRedirectHandler.redirectTo(CompositeRedirectHandler.java:43)
+        at io.trino.client.auth.external.CompositeRedirectHandler.redirectTo(CompositeRedirectHandler.java:43)
+        at java.base/java.util.Optional.ifPresent(Optional.java:178)
+        at io.trino.client.auth.external.ExternalAuthentication.obtainToken(ExternalAuthentication.java:38)
+        at io.trino.client.auth.external.ExternalAuthenticator.lambda$authenticate$0(ExternalAuthenticator.java:66)
+        at io.trino.client.auth.external.LocalKnownToken.setupToken(LocalKnownToken.java:42)
+        at io.trino.client.auth.external.ExternalAuthenticator.authenticate(ExternalAuthenticator.java:60)
+        at okhttp3.internal.http.RetryAndFollowUpInterceptor.followUpRequest(RetryAndFollowUpInterceptor.kt:223)
+        at okhttp3.internal.http.RetryAndFollowUpInterceptor.intercept(RetryAndFollowUpInterceptor.kt:108)
+        at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:109)
+        at okhttp3.internal.connection.RealCall.getResponseWithInterceptorChain$okhttp(RealCall.kt:201)
+        at okhttp3.internal.connection.RealCall.execute(RealCall.kt:154)
+        at io.trino.client.JsonResponse.execute(JsonResponse.java:113)
+        at io.trino.client.StatementClientV1.executeRequest(StatementClientV1.java:401)
+        at io.trino.client.StatementClientV1.<init>(StatementClientV1.java:132)
+        at io.trino.client.StatementClientFactory.newStatementClient(StatementClientFactory.java:28)
+        at io.trino.cli.QueryRunner.startInternalQuery(QueryRunner.java:99)
+        at io.trino.cli.QueryRunner.startQuery(QueryRunner.java:85)
+        at io.trino.cli.Console.process(Console.java:363)
+        at io.trino.cli.Console.runConsole(Console.java:294)
+        at io.trino.cli.Console.run(Console.java:192)
+        at io.trino.cli.Console.call(Console.java:109)
+        at io.trino.cli.Console.call(Console.java:79)
+        at picocli.CommandLine.executeUserObject(CommandLine.java:2045)
+        at picocli.CommandLine.access$1500(CommandLine.java:148)
+        at picocli.CommandLine$RunLast.executeUserObjectOfLastSubcommandWithSameParent(CommandLine.java:2465)
+        at picocli.CommandLine$RunLast.handle(CommandLine.java:2457)
+        at picocli.CommandLine$RunLast.handle(CommandLine.java:2419)
+        at picocli.CommandLine$AbstractParseResultHandler.execute(CommandLine.java:2277)
+        at picocli.CommandLine$RunLast.execute(CommandLine.java:2421)
+        at picocli.CommandLine.execute(CommandLine.java:2174)
+        at io.trino.cli.Trino.main(Trino.java:47)
+```

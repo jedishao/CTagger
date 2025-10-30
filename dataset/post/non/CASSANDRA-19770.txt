@@ -1,0 +1,63 @@
+Incorrect latency metrics reported by metric-reporter
+Cassandra version: 4.1.5
+
+Since [CASSANDRA-16760|https://issues.apache.org/jira/browse/CASSANDRA-16760] and [these changes|https://github.com/apache/cassandra/pull/1091/files#diff-07f330b65d5335967ea96f80674b25415c70994d99b97795ed4db696c92b3ff5L532], the metric reporter is dividing the microseconds metrics by 10^6 and reporting it as  milliseconds unit (it should be divided by 10^3). This means an additional division of 10^3 happens causing the metrics to be wrong.
+
+The sample configuration or documentation does not include how to configure the metrics reporter to report it correctly.
+
+Steps to reproduce:
+
+Contents of metrics-reporter-config-sample.yaml
+{noformat}
+console:
+  -
+    outfile: '/tmp/metrics.out'
+    period: 10
+    timeunit: 'SECONDS'
+    predicate:
+      color: "white"
+      useQualifiedName: true
+      patterns:
+        - "^org.apache.cassandra.metrics.ClientRequest.+" # includes ClientRequestMetrics
+{noformat}
+
+Cassandra started with flag
+{noformat}
+-Dcassandra.metricsReporterConfigFile=metrics-reporter-config-sample.yaml
+{noformat}
+
+Run cassandra-stress to generate load
+{noformat}
+tools/bin/cassandra-stress write duration=1m cl=ONE -rate threads=1000
+{noformat}
+
+Post that
+If you check via nodetool
+{noformat}
+bin/nodetool sjk mxdump -q org.apache.cassandra.metrics:type=ClientRequest,scope=Write-ONE,name=Latency
+
+{
+  "beans" : [ {
+    "name" : "org.apache.cassandra.metrics:type=ClientRequest,scope=Write-ONE,name=Latency",
+    "modelerType" : "org.apache.cassandra.metrics.CassandraMetricsRegistry$JmxTimer",
+    "Max" : 654949.0,
+    "999thPercentile" : 11864.0,
+    "DurationUnit" : "microseconds",
+    ....
+  } ]
+}
+
+{noformat}
+
+The max is 654949.0 micros which  654 millis.
+
+However, the metric reporter emits 0.65 millis because of the division of additional 10^3 factor
+
+{noformat}
+❯ tail -n100 /tmp/metrics.out | grep -A 20 Latency.Write-ONE
+org.apache.cassandra.metrics.ClientRequest.Latency.Write-ONE
+            count = 17053398
+            max = 0.65 milliseconds
+            99.9% <= 0.01 milliseconds
+            ...
+{noformat}

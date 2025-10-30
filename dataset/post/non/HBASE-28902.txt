@@ -1,0 +1,12 @@
+Performance regression from 2.5.8 to 2.6.0 when seeking SEEK_NEXT_USING_HINT to a next column family.
+We have a custom hbase filter that seeks (SEEK_NEXT_USING_HINT) to a next column family (called "cf" in our case) based on data in a cell in a prior column family (called "bf_slicing"). We upgraded to hbase 2.6.0 from 2.5.8, the change in this ticket https://issues.apache.org/jira/browse/HBASE-27788 caused a significant performance degradation (from instant seeking to the next family to traversing the entire bf_slicing family).
+
+We traced the cause to the following:
+
+When comparing families here, the 'cf' family is ordered lower than 'bf_slicing' due to its length, causing the first column family ("bf_slicing") to be fully traversed. The offending code is here: [https://github.com/apache/hbase/pull/5171/files#diff-1ec9654ed8e00f46e11430fc726f8351db59597723efa0bf1e268196f00244c6R54]
+
+The original story (HBASE_27788) mentions no seeking should be done outside a column family, but our use case seems legitimate in the data model, so we think this is a bug.
+
+ The attached screenshot shows a jprofiler dump with invocation counts showing it is traversing all data (going to 12M cells in this case), this is on hbase 2.6.0
+
+[^Screenshot from 2024-10-04 15-52-32.png]

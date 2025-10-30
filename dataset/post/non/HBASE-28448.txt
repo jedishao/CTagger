@@ -1,0 +1,39 @@
+CompressionTest hangs when run over a Ozone ofs path
+If we run the Compression test over HDFS path, it works fine:
+{code:java}
+hbase org.apache.hadoop.hbase.util.CompressionTest hdfs://ns1/tmp/dir1/dir2/test_file.txt snappy
+24/03/20 06:08:43 WARN impl.MetricsConfig: Cannot locate configuration: tried hadoop-metrics2-hbase.properties,hadoop-metrics2.properties
+24/03/20 06:08:43 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+24/03/20 06:08:43 INFO impl.MetricsSystemImpl: HBase metrics system started
+24/03/20 06:08:43 INFO metrics.MetricRegistries: Loaded MetricRegistries class org.apache.hadoop.hbase.metrics.impl.MetricRegistriesImpl
+24/03/20 06:08:43 INFO compress.CodecPool: Got brand-new compressor [.snappy]
+24/03/20 06:08:43 INFO compress.CodecPool: Got brand-new compressor [.snappy]
+24/03/20 06:08:44 INFO compress.CodecPool: Got brand-new decompressor [.snappy]
+SUCCESS {code}
+The command exits, but when the same is tried over a ofs path, the command hangs.
+{code:java}
+hbase org.apache.hadoop.hbase.util.CompressionTest ofs://ozone1710862004/test-222compression-vol/compression-buck2/test_file.txt snappy
+24/03/20 06:05:19 INFO protocolPB.OmTransportFactory: Loading OM transport implementation org.apache.hadoop.ozone.om.protocolPB.Hadoop3OmTransportFactory as specified by configuration.
+24/03/20 06:05:20 INFO client.ClientTrustManager: Loading certificates for client.
+24/03/20 06:05:20 WARN impl.MetricsConfig: Cannot locate configuration: tried hadoop-metrics2-hbase.properties,hadoop-metrics2.properties
+24/03/20 06:05:20 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+24/03/20 06:05:20 INFO impl.MetricsSystemImpl: HBase metrics system started
+24/03/20 06:05:20 INFO metrics.MetricRegistries: Loaded MetricRegistries class org.apache.hadoop.hbase.metrics.impl.MetricRegistriesImpl
+24/03/20 06:05:20 INFO rpc.RpcClient: Creating Volume: test-222compression-vol, with om as owner and space quota set to -1 bytes, counts quota set to -1
+24/03/20 06:05:20 INFO rpc.RpcClient: Creating Bucket: test-222compression-vol/compression-buck2, with bucket layout FILE_SYSTEM_OPTIMIZED, om as owner, Versioning false, Storage Type set to DISK and Encryption set to false, Replication Type set to server-side default replication type, Namespace Quota set to -1, Space Quota set to -1
+24/03/20 06:05:21 INFO compress.CodecPool: Got brand-new compressor [.snappy]
+24/03/20 06:05:21 INFO compress.CodecPool: Got brand-new compressor [.snappy]
+24/03/20 06:05:21 WARN impl.MetricsSystemImpl: HBase metrics system already initialized!
+24/03/20 06:05:21 INFO metrics.MetricRegistries: Loaded MetricRegistries class org.apache.ratis.metrics.dropwizard3.Dm3MetricRegistriesImpl
+24/03/20 06:05:22 INFO compress.CodecPool: Got brand-new decompressor [.snappy]
+SUCCESS 
+.
+.
+.<It hangs unless exited>{code}
+The command doesnt exit.
+Attaching the jstack of the process below:
+[^hbase_ozone_compression.jstack]
+
+cc: [~weichiu] 
+
+ 

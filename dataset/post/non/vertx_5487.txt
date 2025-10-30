@@ -1,0 +1,125 @@
+Memory leak bug in Http1xClientConnectionClass
+
+
+### Version
+
+Which version(s) did you encounter this bug ? 4.2.6
+
+### Context
+
+In http1xClientConnection.handleHttpMessage() the code throws a "Received HTTP message with no request in progress" exception when a response is received without a request in progress. In this case, the content of a DefaultHttpContent is a byteBuf and hold data.  Per netty's reference counted objects documentation, the code should release the byteBuf buffer before throwing the exception, as nothing will access it anymore.
+_The general rule of thumb is that the party that accesses a reference-counted object last is also responsible for the destruction of that reference-counted object. Specifically:
+
+    If a [sending] component is supposed to pass a reference-counted object to another [receiving] component, the sending component usually does not need to destroy it but defers that decision to the receiving component.
+    If a component consumes a reference-counted object and knows nothing else will access it anymore (i.e., does not pass along a reference to yet another component), the component should destroy it._
+  
+
+### Do you have a reproducer?
+The code was ran in Http1xTest class in the vertx code.
+Updating requestNum to big enough of a value will create an out of memory exception. Current code will show the increase in used Direct Memory 
+
+```
+@Test
+  public void testMemoryLeak() {
+
+    String longParam = TestUtils.randomAlphaString(5000);
+    String content = TestUtils.randomAlphaString(1000000);
+    NetServer server = vertx.createNetServer();
+    AtomicBoolean isConnected = new AtomicBoolean(false);
+    final int requestNum = 10000;
+    AtomicInteger requestCounter = new AtomicInteger(requestNum);
+    ByteBufAllocatorMetricProvider unpooledMetricProvider =
+      (ByteBufAllocatorMetricProvider) VertxByteBufAllocator.POOLED_ALLOCATOR;
+    PooledByteBufAllocatorMetric metric = (PooledByteBufAllocatorMetric) unpooledMetricProvider.metric();
+
+    long prevUsedDirectMemory = metric.usedDirectMemory();
+    long firstUsedDirectMemoryAllocation = 0;
+
+
+    server.connectHandler(so -> {
+      System.out.println("server.connectHandler");
+      for (int i = 0; i < 2; i++) {
+        so.write("HTTP/1.1 200 OK\r\n" +
+          "Content-Type: text/plain\r\n" +
+          "Content-Length: " + content.length() + "\r\n" +
+          "\r\n" +
+          content);
+
+      }
+    });
+
+
+    try {
+      server.listen(testAddress, onSuccess(v -> {
+        isConnected.set(true);
+
+        }));
+      while(!isConnected.get()) {
+          try {
+            Thread.sleep(100);
+          } catch (Exception e) {
+
+          }
+      }
+      //System.out.println("Server is connected");
+
+      for (int i = 0 ; i < requestNum; i++) {
+        vertx.createHttpClient(new HttpClientOptions().setMaxInitialLineLength(6000))
+          .request(new RequestOptions(requestOptions).setURI("/?t=" + longParam))
+          .compose(HttpClientRequest::send)
+          .onComplete(onSuccess(resp -> {
+            resp.bodyHandler(body -> {
+              //System.out.println("Received response");
+              requestCounter.decrementAndGet();
+
+            });
+          }));
+        try {
+          Thread.sleep(10);
+        } catch (Exception e) {
+
+        }
+        long curUsedDirectMemory = metric.usedDirectMemory();
+        if(curUsedDirectMemory != prevUsedDirectMemory) {
+          System.out.println("Request #" + i + " curUsedDirectMemory (" + curUsedDirectMemory +
+            ") is different from startUsedDirectMemory (" + prevUsedDirectMemory + ")");
+          if(prevUsedDirectMemory == 0) {
+            firstUsedDirectMemoryAllocation = curUsedDirectMemory;
+          }
+          prevUsedDirectMemory = curUsedDirectMemory;
+        }
+
+      }
+
+      while(requestCounter.get() > 0) {
+        System.out.println("requestCounter = " + requestCounter.get());
+        try {
+          Thread.sleep(100);
+        } catch (Exception e) {
+
+        }
+      }
+
+      testComplete();
+      await(90, TimeUnit.MINUTES);
+      System.out.println("Stopped waiting");
+    } finally {
+      System.out.println("Closing server");
+      server.close();
+    }
+    System.out.println("First used direct memory allocation: " + firstUsedDirectMemoryAllocation);
+    System.out.println("Final used direct memory allocation: " + prevUsedDirectMemory);
+    assertEquals("Direct memory allocation difference", firstUsedDirectMemoryAllocation, prevUsedDirectMemory);
+  }
+```
+
+### Steps to reproduce
+
+1. Create a test where the client receives a HTTP response with no request in progress multiple times.
+
+
+### Extra
+
+
+* Running on java17
+* Reproducible in both Mac Sonoma and Linux.

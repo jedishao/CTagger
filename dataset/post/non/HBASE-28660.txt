@@ -1,0 +1,40 @@
+list_namespace not working after an incorrect user input
+When using hbase-3.0.0 or 2.6.0, there's a shell bug related to failure handling.
+
+If user inputs an incorrect *list_namespace* command, hshell throws an exception. However, it has a side effect on the following *list_namespace* command: the result becomes empty (incorrect).
+h1. Reproduce
+
+Execute the following 2 commands can reproduce this bug
+ * The first command is an incorrect list_namespace command, which causes and exception.
+ * The second command is a correct list_namespace command, its return value is incorrect (empty).
+
+{code:java}
+list_namespace, 'ns.*'
+list_namespace{code}
+Here's the execution result
+
+The return result of the second command is incorrect.
+{code:java}
+hbase:002:0> list_namespace, 'ns.*'
+Traceback (most recent call last):
+SyntaxError ((hbase):2: syntax error, unexpected end-of-file)
+list_namespace, 'ns.*'
+                      ^
+hbase:003:0> list_namespace
+hbase:004:0>  {code}
+The expected output of list_namespace is
+{code:java}
+hbase:001:0> list_namespace
+NAMESPACE                                                                                                                             
+default                                                                                                                               
+hbase                                                                                                                                 
+2 row(s)
+Took 0.6820 seconds {code}
+h1. Root Cause
+
+This could be a bug in shell related to list_namespace. Restarting the shell restores normal functionality of the list_namespace command.
+ 
+ 
+ 
+
+ 

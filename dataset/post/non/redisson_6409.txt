@@ -1,0 +1,151 @@
+RBuckets with unexpected behavior using Namemapper
+### Redis version
+
+6.2.14
+
+### Redisson version
+
+3.43.0
+
+### Redisson configuration
+
+```
+public class TraceMapper implements NameMapper {
+
+    private static final String TRACE_PREFIX = "trace-";
+
+    private static final int TRACE_PREFIX_LEN = TRACE_PREFIX.length();
+
+    @Override
+    public String map(String s) {
+        return TRACE_PREFIX + s;
+    }
+
+    @Override
+    public String unmap(String s) {
+        return s.substring(TRACE_PREFIX_LEN);
+    }
+}
+```
+```
+final Config config = new Config();
+config.useSingleServer()
+       .setAddress("redis://127.0.0.1:6379")
+       .setConnectTimeout(1000)
+       .setNameMapper(new TraceMapper())
+       .setTimeout(100);
+final RedissonClient redissonClient = Redisson.create(config);
+```
+
+### What is the Expected behavior?
+
+```
+final RBuckets buckets = redissonClient.getBuckets();
+final String key1 = "Redisson-Buckets1";
+final String key2 = "Redisson-Buckets2";
+final Map<String, String> kvMap = new HashMap<>(8);
+kvMap.put(key1, "Redisson-Buckets1-Val1");
+kvMap.put(key2, "Redisson-Buckets2-Val1");
+buckets.set(kvMap);
+
+final Map<String, Object> kvMapFromRedis = buckets.get(key1, key2);
+logger.info("mget() kvMap={}", kvMapFromRedis);
+logger.info("mget() k={}, v={}", key1, kvMapFromRedis.get(key1));
+logger.info("mget() k={}, v={}", key2, kvMapFromRedis.get(key2));
+```
+The expected behavior is that the corresponding value can be retrieved from the Map.
+
+### What is the Actual behavior?
+
+```
+2025-01-24 16:50:41.217 INFO RedissonTest [XNIO-1 task-1] mget() kvMap={trace-Redisson-Buckets1=Redisson-Buckets1-Val1, trace-Redisson-Buckets2=Redisson-Buckets2-Val1}
+2025-01-24 16:50:41.217 INFO RedissonTest [XNIO-1 task-1] mget() k=Redisson-Buckets1, v=null
+2025-01-24 16:50:41.217 INFO RedissonTest [XNIO-1 task-1] mget() k=Redisson-Buckets2, v=null
+```
+The Map we get from Redis doesn't actually unmap the key.
+
+### Additional information
+
+After reading the source code, it was found that the `CommandAsyncService#executeBatchedAsync(boolean readOnly, Codec codec, RedisCommand<T> command, SlotCallback<T, R> callback, Object[] keys)` method did not execute the `SlotCallback#onResult(Collection<T> result)` method for commands with non - cluster configurations.
+```
+    private <T, R> RFuture<R> executeBatchedAsync(boolean readOnly, Codec codec, RedisCommand<T> command, SlotCallback<T, R> callback, Object[] keys) {
+        if (!getServiceManager().getCfg().isClusterConfig()) {
+            Object[] params = callback.createParams(Arrays.asList(keys));
+            if (readOnly) {
+                return readAsync((String) null, codec, command, params);
+            }
+            return writeAsync((String) null, codec, command, params);
+        }
+
+        Map<MasterSlaveEntry, Map<Integer, List<Object>>> entry2keys = Arrays.stream(keys).collect(
+                Collectors.groupingBy(k -> {
+                    int slot;
+                    if (k instanceof String) {
+                        slot = connectionManager.calcSlot((String) k);
+                    } else if (k instanceof ByteBuf) {
+                        slot = connectionManager.calcSlot((ByteBuf) k);
+                    } else {
+                        throw new IllegalArgumentException();
+                    }
+                    return connectionManager.getWriteEntry(slot);
+                }, Collectors.groupingBy(k -> {
+                    if (k instanceof String) {
+                        return connectionManager.calcSlot((String) k);
+                    } else if (k instanceof ByteBuf) {
+                        return connectionManager.calcSlot((ByteBuf) k);
+                    } else {
+                        throw new IllegalArgumentException();
+                    }
+                }, Collectors.toList())));
+
+        List<CompletableFuture<?>> futures = new ArrayList<>();
+        List<CompletableFuture<?>> mainFutures = new ArrayList<>();
+        for (Entry<MasterSlaveEntry, Map<Integer, List<Object>>> entry : entry2keys.entrySet()) {
+            // executes in batch due to CROSSLOT error
+            CommandBatchService executorService;
+            if (this instanceof CommandBatchService) {
+                executorService = (CommandBatchService) this;
+            } else {
+                executorService = new CommandBatchService(this);
+            }
+
+            for (List<Object> groupedKeys : entry.getValue().values()) {
+                RedisCommand<T> c = command;
+                RedisCommand<T> newCommand = callback.createCommand(groupedKeys);
+                if (newCommand != null) {
+                    c = newCommand;
+                }
+                Object[] params = callback.createParams(groupedKeys);
+                RFuture<T> f;
+                if (readOnly) {
+                    f = executorService.readAsync(entry.getKey(), codec, c, params);
+                } else {
+                    f = executorService.writeAsync(entry.getKey(), codec, c, params);
+                }
+                futures.add(f.toCompletableFuture());
+            }
+
+            if (!(this instanceof CommandBatchService)) {
+                RFuture<BatchResult<?>> f = executorService.executeAsync();
+                mainFutures.add(f.toCompletableFuture());
+            }
+        }
+
+        CompletableFuture<Void> future;
+        if (!mainFutures.isEmpty()) {
+            future = CompletableFuture.allOf(mainFutures.toArray(new CompletableFuture[0]));
+        } else {
+            future = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        }
+        CompletableFuture<R> result = future.thenApply(r -> {
+            List<T> res = futures.stream()
+                                          .filter(e -> !e.isCompletedExceptionally() && e.getNow(null) != null)
+                                          .map(e -> (T) e.join())
+                                          .collect(Collectors.toList());
+
+            return callback.onResult(res);
+        });
+
+        return new CompletableFutureWrapper<>(result);
+    }
+```

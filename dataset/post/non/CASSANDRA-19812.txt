@@ -1,0 +1,37 @@
+We should throw exception when commitlog 's DiskAccessMode is direct but direct io is not support
+Looking into the code below : 
+{code:java}
+private static DiskAccessMode resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
+    {
+        boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
+        boolean directIOSupported = false;
+        try
+        {
+            directIOSupported = FileUtils.getBlockSize(new File(getCommitLogLocation())) > 0;
+        }
+        catch (RuntimeException e)
+        {
+            logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
+        }
+
+        if (providedDiskAccessMode == DiskAccessMode.auto)
+        {
+            if (compressOrEncrypt)
+                providedDiskAccessMode = DiskAccessMode.legacy;
+            else
+            {
+                providedDiskAccessMode = directIOSupported && conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.ssd ? DiskAccessMode.direct
+                                                                                                                                     : DiskAccessMode.legacy;
+            }
+        }
+
+        if (providedDiskAccessMode == DiskAccessMode.legacy)
+        {
+            providedDiskAccessMode = compressOrEncrypt ? DiskAccessMode.standard : DiskAccessMode.mmap;
+        }
+
+        return providedDiskAccessMode;
+    }
+{code}
+
+We should throw exception when user set the DiskAccessMode to direct for commitlog but the directIOSupported return false after the judgement of "FileUtils.getBlockSize(new File(getCommitLogLocation())) > 0;" instead of waiting for the system to start and accepting reads and writes.

@@ -1,0 +1,22 @@
+Avoid resetting bucket cache during restart if inconsistency is observed for some blocks.
+During the execution of persistence of backing map into the persistence file, the backing map is not guarded by a lock against caching of blocks and block evictions.
+
+Hence, some of the block entries in the backing map in persistence may not be consistent with the bucket cache.
+During, the retrieval of the backing map from persistence if an inconsistency is detected, the complete bucket cache is discarded and is rebuilt.
+
+One of the errors, seen, is, as mentioned below:
+
+
+{code:java}
+2024-09-30 08:58:33,840 WARN org.apache.hadoop.hbase.io.hfile.bucket.BucketCache: Can't restore from file[/hadoopfs/ephfs1/bucketcache.map]. The bucket cache will be reset and rebuilt. Exception seen:
+org.apache.hadoop.hbase.io.hfile.bucket.BucketAllocatorException: Couldn't find match for index 26 in free list
+        at org.apache.hadoop.hbase.io.hfile.bucket.BucketAllocator$Bucket.addAllocation(BucketAllocator.java:140)
+        at org.apache.hadoop.hbase.io.hfile.bucket.BucketAllocator.<init>(BucketAllocator.java:406)
+        at org.apache.hadoop.hbase.io.hfile.bucket.BucketCache.retrieveFromFile(BucketCache.java:1486)
+        at org.apache.hadoop.hbase.io.hfile.bucket.BucketCache.lambda$startPersistenceRetriever$0(BucketCache.java:377)
+        at java.base/java.lang.Thread.run(Thread.java:840) {code}
+
+This retrieval can be optimised to only discard the inconsistent entries in the persistent backing map and retain the remaining entries. The bucket cache validator will throw away the inconsistent entry from the backing map.
+
+Thanks,
+Janardhan

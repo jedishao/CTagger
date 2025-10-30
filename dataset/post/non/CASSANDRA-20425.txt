@@ -1,0 +1,22 @@
+Table name length validation accidentally lost since Cassandra 4
+Cassandra's documentation [https://cassandra.apache.org/doc/stable/cassandra/cql/ddl.html] claims that:
+
+_Both keyspace and table name ... are limited in size to 48 characters (that limit exists mostly to avoid filenames (which may include the keyspace and table name) to go over the limits of certain file systems)._ 
+
+I checked, and although this limitation was true in Cassandra 3, it is no longer enforced since Cassandra 4.
+
+It seems this change was not intentional, and happened eight years ago in commit [this commit|https://github.com/apache/cassandra/commit/af3fe39dcabd9ef77a00309ce6741268423206df]. Before this commit, we had
+
+{{public static boolean isNameValid(String name) {}}
+
+    return name != null && !name.isEmpty() && name.length() <= SchemaConstants.NAME_LENGTH && PATTERN_WORD_CHARS.matcher(name).matches(); 
+
+}
+
+After it, this definition was dropped, IndexMetadata.isNameValid() is used, and this one never had a name length check.
+
+We can see that this dropping of the limit check was unintentional in several ways. First, the documentation still mentions this no-longer-existing limitation. Second, the code still has SchemaConstants.NAME_LENGTH existing and set to 48, but no longer used. Or rather- it is used - but only in error messages, which no longer match what is actually being tested!
+
+I think Cassandra should either return this name length limit that was accidentally dropped 8 years ago, or we could decide officially that this name length limit is lifted - and drop it from the documentation and also all mentions of NAME_LENGTH in error messages (and remove this constant entirely).
+
+But before deciding what to do, I want to make another point. The documentation rightly explained the original raison d'etre for this 48-character limitation: "that limit exists mostly to avoid filenames to go over the limits of certain file systems". This reason is still relevant. I checked what happens when on a standard Linux filesystem I try to create a table name with a 300-character name. On Cassandra 4, the behavior was reasonable - I got a bizarre error, but afterwards the database was still functional. On Cassandra 5, the result was a disaster - Cassandra hang on some strange loop of IO errors and never recovered. So if the decision is to allow longer-than-48-chars table names, as were allowed in the last 8 years, we should consider whether we should have a higher limit instead, or perhaps try to catch the error of filenames too long for this filesystem and fail more gracefully.

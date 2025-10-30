@@ -1,0 +1,89 @@
+[ABFS] Support Azurite storage emulator
+In the integration test case, we will start the Azurite using the test container, and we need to access Azurite at another container.
+Now, the Azurite emulator uri values is fixed at 127.0.0.1, so at another container, it can't access the Azurite service.
+
+So I want to introduce a new config `fs.azure.storage.emulator.proxy.url`, so that I can config `fs.azure.storage.emulator.proxy.url=http://\{AzuriteIp}`, then it can access the Azurite service.
+
+ 
+
+ 
+{code:java}
+private void connectUsingCredentials(String accountName,
+StorageCredentials credentials, String containerName)
+throws URISyntaxException, StorageException, AzureException {
+
+URI blobEndPoint;
+if (isStorageEmulatorAccount(accountName)) {
+isStorageEmulator = true;
+CloudStorageAccount account =
+CloudStorageAccount.getDevelopmentStorageAccount();
+storageInteractionLayer.createBlobClient(account);
+} else {
+blobEndPoint = new URI(getHTTPScheme() + "://" + accountName);
+storageInteractionLayer.createBlobClient(blobEndPoint, credentials);
+}
+suppressRetryPolicyInClientIfNeeded();
+
+// Capture the container reference for debugging purposes.
+container = storageInteractionLayer.getContainerReference(containerName);
+rootDirectory = container.getDirectoryReference("");
+
+// Can only create container if using account key credentials
+canCreateOrModifyContainer = credentials instanceof StorageCredentialsAccountAndKey;
+} {code}
+ 
+{code:java}
+public static CloudStorageAccount getDevelopmentStorageAccount() {
+    try {
+        return getDevelopmentStorageAccount(null);
+    }
+    catch (final URISyntaxException e) {
+        // this won't happen since we know the standard development stororage uri is valid.
+        return null;
+    }
+}
+
+public static CloudStorageAccount getDevelopmentStorageAccount(final URI proxyUri) throws URISyntaxException {
+    String scheme;
+    String host;
+    if (proxyUri == null) {
+        scheme = "http";
+        host = "127.0.0.1";
+    }
+    else {
+        scheme = proxyUri.getScheme();
+        host = proxyUri.getHost();
+    }
+
+    StorageCredentials credentials = new StorageCredentialsAccountAndKey(DEVSTORE_ACCOUNT_NAME,
+            DEVSTORE_ACCOUNT_KEY);
+
+    URI blobPrimaryEndpoint = new URI(String.format(DEVELOPMENT_STORAGE_PRIMARY_ENDPOINT_FORMAT, scheme, host,
+            "10000", DEVSTORE_ACCOUNT_NAME));
+    URI queuePrimaryEndpoint = new URI(String.format(DEVELOPMENT_STORAGE_PRIMARY_ENDPOINT_FORMAT, scheme, host,
+            "10001", DEVSTORE_ACCOUNT_NAME));
+    URI tablePrimaryEndpoint = new URI(String.format(DEVELOPMENT_STORAGE_PRIMARY_ENDPOINT_FORMAT, scheme, host,
+            "10002", DEVSTORE_ACCOUNT_NAME));
+
+    URI blobSecondaryEndpoint = new URI(String.format(DEVELOPMENT_STORAGE_SECONDARY_ENDPOINT_FORMAT, scheme, host,
+            "10000", DEVSTORE_ACCOUNT_NAME));
+    URI queueSecondaryEndpoint = new URI(String.format(DEVELOPMENT_STORAGE_SECONDARY_ENDPOINT_FORMAT, scheme, host,
+            "10001", DEVSTORE_ACCOUNT_NAME));
+    URI tableSecondaryEndpoint = new URI(String.format(DEVELOPMENT_STORAGE_SECONDARY_ENDPOINT_FORMAT, scheme, host,
+            "10002", DEVSTORE_ACCOUNT_NAME));
+
+    CloudStorageAccount account = new CloudStorageAccount(credentials, new StorageUri(blobPrimaryEndpoint,
+            blobSecondaryEndpoint), new StorageUri(queuePrimaryEndpoint, queueSecondaryEndpoint), new StorageUri(
+            tablePrimaryEndpoint, tableSecondaryEndpoint), null /* fileStorageUri */);
+
+    account.isDevStoreAccount = true;
+
+    return account;
+} {code}
+CloudStorageAccount account = CloudStorageAccount.getDevelopmentStorageAccount(); will using 127.0.0.1 as the `azurite` host. 
+ 
+In fact, here we can pass into a proxy uri by invoke getDevelopmentStorageAccount(final URI proxyUri)
+ 
+ 
+ 
+ 

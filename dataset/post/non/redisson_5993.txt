@@ -1,0 +1,14 @@
+RDestroyable objects should also be AutoCloseable
+**Is your feature request related to a problem? Please describe.**
+
+We ran into a bug like #5465 where we were leaking resources associated with RMapCache and RLocalCachedMap  objects (both Listeners and Timer Tasks) due to missing destroy() calls. 
+
+**Describe the solution you'd like**
+
+Making all RDestroyable objects also AutoCloseable would make it easier (and cleaner) to ensure that these objects were always destroyed correctly (and probably give hints to tools like IntelliJ that they need to be closed as well). I THINK change would be backwards compatible and pretty straightforward to introduce, albeit probably in a lot of places.
+
+Adding a isDestroyed() method on these classes would make them safer and be generally helpful (and make calling destroy() multiple times more efficient).
+
+**Describe alternatives you've considered**
+
+In an ideal world, the project would already be Java 9+ and could add Cleaner support. That's not happening, but you could potentially add hooks that would allow these objects to register themselves with a Cleaner and close themselves with the Cleaner. That's probably more work and more impactful than you want, but it's something to think about for long-term safety.

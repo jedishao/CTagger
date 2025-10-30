@@ -1,0 +1,37 @@
+camel-core - LoggerHelper returns wrong name for source code line precise
+I noticed that the source for logging and message history was incorrect for this route.
+{code:java}
+@Component
+public class TestRoutes extends EndpointRouteBuilder {
+
+    @Override
+    public void configure() throws Exception {
+
+        from(timer("test").repeatCount(1))
+                .routeId("test")
+                .log("Hello world")
+                .throwException(new Exception("Exception message")); {code}
+ 
+
+The following logging is what I got:
+{code:java}
+2024-01-22 16:54:19.103  INFO 19752 --- [ - timer://test] java:15                                  : Hello world
+2024-01-22 16:54:19.108 ERROR 19752 --- [ - timer://test] o.a.c.p.e.DefaultErrorHandler            : Failed delivery for (MessageId: F49EB5D651EC2D3-0000000000000000 on ExchangeId: F49EB5D651EC2D3-0000000000000000). Exhausted after delivery attempt: 1 caught: java.lang.Exception: Exception messageMessage History
+---------------------------------------------------------------------------------------------------------------------------------------
+Source                                   ID                             Processor                                          Elapsed (ms)
+java:13                                  test/test                      from[timer://test?repeatCount=1]                      632443839
+java:15                                  test/log1                      log                                                           2
+java:16                                  test/throwException1           throwException[java.lang.Exception]                           0
+ {code}
+Wherever it says: *java* I would expect {*}TestRoutes{*}.
+
+Did some digging on my own and I think it's because of this piece of code in the LoggerHelper.getLineNumberLoggerName
+{code:java}
+// classname so let us only grab the name
+int pos = name.lastIndexOf('.');
+if (pos > 0) {
+    name = name.substring(pos + 1);
+} {code}
+The name in this case is *TestRoutes.java* and the substring method grabs *java* instead of *TestRoutes.*
+
+ 

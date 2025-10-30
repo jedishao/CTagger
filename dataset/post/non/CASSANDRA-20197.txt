@@ -1,0 +1,12 @@
+Provide the ability to reset Repaired At value without Cassandra node shutdown
+Background: It is a quite frequent issue when by mistake for a Cassandra cluster an incremental repair is triggered instead of a full one (incremental as a default option helps with it). As a result we have SSTables marked within non-zero "Repaired At" value and they are isolated by compaction logic to a separate SSTable pool. If incremental repair is not executed regularly after it we have issues like uncleaned tombstones sitting forever within the table even after a major compaction.
+
+The current way to solve the issue is to use [sstablerepairedset|https://cassandra.apache.org/doc/stable/cassandra/tools/sstable/sstablerepairedset.html] command but we have to stop Cassandra node to run it, so to recover from the issue described before we have to do a rolling restart of Cassandra nodes - it is time consuming and affects performance due to a warmup period after a restart.
+
+The improvement is about introducing an nodetool command which can ask Cassandra node to reset "Repaired At" value for local SSTables of a table in runtime without an node shutdown.
+
+A command can look like:
+{code:java}
+nodetool set-unrepaired some_keyspace.some_table
+nodetool set-unrepaired some_keyspace{code}
+ 

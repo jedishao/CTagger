@@ -1,0 +1,269 @@
+Bytes window state reset during connection reusing from connection pool
+### Version
+
+4.2.6
+
+### Context
+
+We are encountering an issue when resetting a Http1xClientConnection. The byteswindow variable does not get reset to 0 under certain conditions and when the connection is reused by a new request, since the byteswindow is not reset, it is causing the socket reads to pause for the new request. This happens when the byteswindow goes higher than the higher water mark. Here is the flow of events:
+
+1. first request - reads 56KiB + 1 from socket. auto read -> true. bytes window: 0
+2. first request client stream is paused. bytes window: 56KiB + 1. auto read -> true
+3. first request - complete because socket read was complete. connection is back to pool. bytes window: 56KiB + 1, auto read -> true
+4. second request - read some amount of data < total content length from socket
+5. second request - splits into 8KiB chunks, passes one to Vert.x. bytes window: 64KiB + 1. auto read -> false
+6. second request - not paused, so it will ack 8KiB + 1. bytes window: 56KiB. auto read -> false
+7. second request - will read remaining content that was read from socket. But since auto read is false, 
+8. it will never read any additional data from the socket and will hang
+
+We noticed that the variable byteswindow has been removed in release 5.0.1. We are currently on version 4.2.6. Since the upgrade is a big jump for us, we wanted to check the possibility of getting the change back ported to version 4.2.6. 
+ 
+
+### Steps to reproduce
+
+**Test for 4.2.6. This was tested in Http1xClientConnectionTest.java**
+
+```
+@Test
+  public void testStuckGet() throws TimeoutException {
+    HttpClient client = vertx.createHttpClient();
+    HttpServer server = vertx.createHttpServer();
+
+    Future<HttpServer> listen = server.requestHandler(req -> {
+      int length = 65536 + 1;
+      req.response().putHeader("Content-Length", length + "");
+      req.response().write(Buffer.buffer(new byte[length]));
+      req.response().end();
+    }).listen(9080);
+    listen.result();
+
+    CompletableFuture<Void> firstRequestEnded = new CompletableFuture<>();
+    AtomicReference<String> chosenPort = new AtomicReference<>();
+    AtomicReference<String> pausedRequestId = new AtomicReference<>();
+
+    client.request(HttpMethod.GET, 9080, "localhost", "/", response -> {
+      AtomicInteger buffer = new AtomicInteger();
+
+      HttpClientRequest result = response.result();
+      String requestId = UUID.randomUUID().toString();
+      pausedRequestId.set(requestId);
+      log.error("The problematic request id is: " + requestId);
+      if (response.result().connection() instanceof Http1xClientConnection) {
+        Http1xClientConnection conn = (Http1xClientConnection) response.result().connection();
+//        conn.setRequestId(requestId);
+      }
+
+      netty reads 64 at a time
+        passes 8 to vertx at a time
+        read all 56+1 from socket
+        + 1 is because we read 8 kib at a time -> if we set at 56
+
+
+      chosenPort.set(response.result().connection().localAddress().toString());
+      ports.putIfAbsent(chosenPort.get(), 0);
+      ports.put(chosenPort.get(), ports.get(chosenPort.get()) + 1);
+      result.response(response1 -> {
+        HttpClientResponse result1 = response1.result();
+        result1.pause();
+        result1.handler(event -> buffer.getAndAdd(event.length()));
+        result1.endHandler(event -> firstRequestEnded.complete(null));
+      });
+      result.end();
+    });
+
+    while (true) {
+      CompletableFuture<Void> future = new CompletableFuture<>();
+      String requestId = UUID.randomUUID().toString();
+      client.request(HttpMethod.GET, 9080, "localhost", "/", response -> {
+        if (response.result().connection() instanceof Http1xClientConnection) {
+          Http1xClientConnection conn = (Http1xClientConnection) response.result().connection();
+//          conn.setRequestId(requestId);
+        }
+
+        AtomicInteger buffer = new AtomicInteger();
+        HttpClientRequest result = response.result();
+        ports.putIfAbsent(response.result().connection().localAddress().toString(), 0);
+        ports.put(response.result().connection().localAddress().toString(), ports.get(response.result()
+          .connection().localAddress().toString()) + 1);
+        if (response.result().connection().localAddress().toString().equals(chosenPort.get())) {
+          log.error(requestId + " should be a stuck get on port " + chosenPort.get() + " which is caused by " +
+            pausedRequestId.get());
+        }
+        log.error(ports);
+
+        result.response(response1 -> {
+          HttpClientResponse result1 = response1.result();
+          if (result1 == null) {
+            log.error(requestId + " had a null result, oops");
+            future.completeExceptionally(new NullPointerException());
+          } else {
+            result1.handler(event -> {
+              buffer.getAndAdd(event.length());
+              log.error(requestId + ": buffer up to " + buffer.get());
+            });
+            result1.endHandler(event -> future.complete(null));
+            result1.exceptionHandler(t -> {
+              log.error(t.getMessage(), t);
+              future.completeExceptionally(t);
+            });
+          }
+        });
+        result.end();
+      });
+      try {
+        log.error("Waiting on: " + requestId);
+        future.get(30000, TimeUnit.MILLISECONDS);
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+    }
+  }
+```
+
+
+**Test for 5.0.1. This was tested in Http1xClientConnectionTest.java**
+```
+@Test
+  /*
+   * This test reproduces an issue involving connection pooling and parallel reads to the same server. When
+   * you have a client which pauses its reading of data AND that remaining data is able to be read into InboundBuffer,
+   * AND then you have another client to the same server on the same port (via pooling) which attempts to read all
+   * of the data. Then the second client will "hang" and eventually fail due to a timeout (if there is one).
+   *
+   * In order to avoid this as-is, connection pooling has to be disabled which may not be practical.
+   */
+  public void testStuckGet() throws TimeoutException {
+    int portToUse = 9080;
+    // This magic number is based on the high water mark of Http1xClientConnection, which is based on Netty.
+    // The HTTP client uses Netty's HTTP object decoder, which uses a chunk size of 8KiB. This means that
+    // a socket read of 64KiB (the write queue limit of the channel) will result in up to 8 messages which are
+    // passed down to the Vert.x handler. When the original request is paused after reading one buffer, it
+    // leaves 56KiB in the bytesWindow (not enough to hit the HWM and disable autoRead).
+    // When the next request comes in, it will read 64KiB from the socket. Then 8KiB into the InboundBuffer. Since
+    // this will be > the HWM (64KiB + 1), autoRead will be disabled. The second request is not paused, so it will
+    // then read the 8KiB which was buffered. However, since autoRead is disabled now, no further bytes will be read
+    int contentLength = 57344 + 1;
+    // This is the max number of requests to make before considering the test a success
+    int maxRequests = 5000;
+    int idleTimeout = 30000;
+    Map<String, Integer> ports = new HashMap<>();
+    HttpClient client = vertx.createHttpClient();
+    HttpServer server = vertx.createHttpServer();
+
+    // Set up a generic server which responds with data that will exceed the HWM of Http1xClientConnection (64KiB)
+    // However, the data can't be too large because it needs to all be buffered by InboundBuffer, otherwise
+    // the original request which is paused won't be complete
+    Future<HttpServer> listen = server.requestHandler(req -> {
+      req.response().putHeader("Content-Length", contentLength + "");
+      req.response().write(Buffer.buffer(new byte[contentLength]));
+      req.response().end();
+    }).listen(portToUse);
+    listen.result();
+
+    CompletableFuture<Void> firstRequestEnded = new CompletableFuture<>();
+    AtomicReference<String> chosenPort = new AtomicReference<>();
+    AtomicReference<String> pausedRequestId = new AtomicReference<>();
+    AtomicInteger pausedRequestBuffer = new AtomicInteger();
+
+    Future<HttpClientRequest> originalRequest = client.request(HttpMethod.GET, portToUse, "localhost", "/");
+    originalRequest.onComplete(response -> {
+      HttpClientRequest result = response.result();
+      String requestId = UUID.randomUUID().toString();
+      pausedRequestId.set(requestId);
+      log.error("The problematic request id is: " + requestId);
+      if (response.result().connection() instanceof Http1xClientConnection) {
+        Http1xClientConnection conn = (Http1xClientConnection) response.result().connection();
+//        conn.setRequestId(requestId);
+      }
+      chosenPort.set(response.result().connection().localAddress().toString());
+      ports.putIfAbsent(chosenPort.get(), 0);
+      ports.put(chosenPort.get(), ports.get(chosenPort.get()) + 1);
+
+      result.response().onComplete(response1 -> {
+        HttpClientResponse result1 = response1.result();
+        // Even though the response stream is paused, the remaining data will fit into InboundBuffer's pending
+        // queue. This means its own end handler will be triggered, and the connection is available for reuse
+        result1.handler(event -> pausedRequestBuffer.getAndAdd(event.length()));
+        result1.pause();
+        result1.endHandler(event -> firstRequestEnded.complete(null));
+      });
+      result.end();
+    });
+
+    // Now loop forever until we can get a request which shares the same port as the original request which is paused
+    // This means the connection was reused
+    int requestCount = 0;
+    while (requestCount < maxRequests) {
+      requestCount++;
+      // We create requests sequentially and block on the future completing. The future is complete when all data
+      // is retrieved. There is no need to do parallel requests
+      CompletableFuture<Void> future = new CompletableFuture<>();
+      String requestId = UUID.randomUUID().toString();
+      AtomicInteger buffer = new AtomicInteger();
+
+      client.request(HttpMethod.GET, portToUse, "localhost", "/").onComplete(response -> {
+        if (response.result().connection() instanceof Http1xClientConnection) {
+          Http1xClientConnection conn = (Http1xClientConnection) response.result().connection();
+//          conn.setRequestId(requestId);
+        }
+
+        HttpClientRequest result = response.result();
+        ports.putIfAbsent(response.result().connection().localAddress().toString(), 0);
+        ports.put(response.result().connection().localAddress().toString(), ports.get(response.result()
+          .connection().localAddress().toString()) + 1);
+        log.error("Ports in use are below. The problematic request was on port " + chosenPort.get() + " so there must " +
+          "be > 1 request on that port to reproduce this issue");
+        log.error(ports);
+
+        if (response.result().connection().localAddress().toString().equals(chosenPort.get())) {
+          // We can detect that this request should hang because it's reusing the paused request's port.
+          log.error(requestId + " should be a stuck get on port " + chosenPort.get() + " which is caused by " +
+            pausedRequestId.get());
+        }
+
+        // This block of code just processes the results from the server. It completes the request future once
+        // the end handler runs. If the end handler never runs, it means we have successfully hit a "stuck get"
+        result.response().onComplete(response1 -> {
+          HttpClientResponse result1 = response1.result();
+          if (result1 == null) {
+            log.error(requestId + " had a null result, oops");
+            future.completeExceptionally(new NullPointerException());
+          } else {
+            result1.handler(event -> {
+              buffer.getAndAdd(event.length());
+              log.error(requestId + ": The client's buffer has accumulated up to " + buffer.get() + " bytes");
+            });
+            result1.endHandler(event -> {
+              if (buffer.get() != contentLength) {
+                future.completeExceptionally(new RuntimeException(String.format("content length doesn't match: Was %s" +
+                  " but expected %s", buffer.get(), contentLength)));
+              } else {
+                future.complete(null);
+              }
+            });
+            result1.exceptionHandler(t -> {
+              log.error(t.getMessage(), t);
+              future.completeExceptionally(t);
+            });
+          }
+        });
+        result.end();
+      });
+      try {
+        log.error("Waiting on: " + requestId);
+        future.get(idleTimeout, TimeUnit.MILLISECONDS);
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      } catch (TimeoutException e) {
+        log.error("Timed out waiting on: " + requestId + ". Received " + buffer
+          .get() + " out of " + contentLength + " bytes");
+        log.error(ports);
+        throw e;
+      }
+    }
+  }
+```
+
+### Do you have a reproducer?
+
+_No response_

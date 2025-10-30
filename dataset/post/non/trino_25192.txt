@@ -1,0 +1,6 @@
+MERGE INTO sends Trino Coordinator into constant GC state due to highly fragmented Iceberg tables
+Trino Coordinator may go out of service if it opens enough highly fragmented partitioned Iceberg tables during MERGE INTO operation. I've been fighting an issue recently where a bunch of clusters were very unstable OOMing on coordinator side. I increased allocation to 240GB of JVM heap and it was quickly running out of RAM too. I traced it down to an unsuccessfully maintained Iceberg tables that became highly fragmented (tons of files like 1-3Kb in size). One table doesn't cause the issue, several such tables together cause the problem. The last thing that coordinator does is reading a lot of ./.../metadata/*.avro files and then it is done according to Envoy logs.
+
+In my setup reproduction step would require having ~10 50-100GB tables that have millions of parquet files of 1-5kb in size. Simultaneous MERGE INTO operation that updates good number of partitions in those tables exhaust Coordinator RAM very quickly and it goes into a sad state of a constant GC.
+
+I am not sure there is any good resolution possible on Trino end, but auto detection of highly fragmented tables that may cause troubles would be a good start.

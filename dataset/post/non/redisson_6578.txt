@@ -1,0 +1,56 @@
+in Redisson 3.37 Fetches All Hash Keys Instead of Single Key Lookup
+### Redis version
+
+Valkey server v=8.0.1 sha=00000000:1 malloc=jemalloc-5.3.0 bits=64 build=bee26e311c365b72
+
+### Redisson version
+
+3.37
+
+### Redisson configuration
+
+**Description:**
+
+When using Redisson 3.37, invoking getMap("myMap") and attempting to retrieve a specific value with a known key (e.g., "key1") results in all entries in the Redis hash being fetched. This is inefficient and unexpected when the intent is to retrieve only a single value.
+
+Currently, the `getMap` interface only supports retrieving the full map and does not offer a method to directly fetch a single key’s value in a lazy or optimised way.
+
+**Expected Behaviour:**
+
+There should be a direct way to retrieve the value of "key1" from a Redis hash map ("myMap") without fetching the entire hash.
+
+_Current Workaround (Inefficient):_
+
+```java
+RMap<String, String> map = redissonClient.getMap("myMap");
+String value = map.get("key1");  // But this causes all hash keys to be fetched
+```
+Environment: linux
+
+Redisson version: 3.37
+
+Redis server version: Valkey server v=8.0.1 sha=00000000:1 malloc=jemalloc-5.3.0 bits=64 build=bee26e311c365b72
+
+Java Version: 17
+
+Suggested Fix:
+
+Enhance the `getMap` or expose an alternative method to efficiently fetch a single value from the Redis hash (e.g., a lazy get(key) that avoids pulling the whole map).
+
+Impact:
+
+This behaviour results in unnecessary network overhead and memory usage, especially for large maps where only one key’s value is needed.
+
+
+
+### What is the Expected behavior?
+
+Enhance the getMap or expose an alternative method to efficiently fetch a single value from the Redis hash (e.g., a lazy get(key) that avoids pulling the whole map).
+
+### What is the Actual behavior?
+
+It fetching entaire hash to result
+
+### Additional information
+
+_No response_

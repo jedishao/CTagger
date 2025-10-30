@@ -1,0 +1,55 @@
+hive metastore: MetaStoreDirectSql waste time on Testing connection to MYSQL Database
+Using Hive-3.1.3.   HADOOP-3.3.4. 
+
+ 
+
+Description:
+
+Using hive-cli to execute sql, and then exit. hive client will take more than 1 minute to finish the connection to hive metastore. This caused my serial execution stuck beacause each execution will create a new client and then exit.
+
+ 
+
+Analysis:
+
+When a client try to connect hive metastore server, using direct sql, it will init a MetaStoreDirectSql Object, following is a trace of how it is created:
+
+ 
+{code:java}
+org.apache.hadoop.hive.metastore.MetaStoreDirectSql.getProductName(MetaStoreDirectSql.java:184)
+org.apache.hadoop.hive.metastore.MetaStoreDirectSql.<init>(MetaStoreDirectSql. java:184)
+org.apache.hadoop.hive.metastore.ObjectStore.initializeHelper(ObjectStore.java:499)
+org.apache.hadoop.hive.metastore.ObjectStore.initialize(0bjectStore.java:421)
+org.apache.hadoop.hive.metastore.ObjectStore.setConff(ObjectStore.java:376)
+org.apache.hadoop.util.ReflectionUtils.setConf(ReflectionUtils.java:79)
+org.apache.hadoop.util.ReflectionUtils.newInstance(ReflectionUtils.java:139)
+org.apache.hadoop.hive.metastore.RawStoreProxy.<init>(RawStoreProxy.java:59)
+org.apache.hadoop.hive.metastore.RawStoreProxy.getProxy(RawStoreProxy.java:67)
+org.apache.hadoop.hive.metastore.HiveMetaStoreSHMSHandler.newRawStoreForConf (HiveMetaStore.java:720)
+org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.getMSForConf (HiveMetaStore.java:698)
+org.apache.hadoop.hive.metastore.HiveMetaStoreSHMSHandler.getMS (HiveMetaStore.java:692) {code}
+ 
+
+ 
+ 
+{code:java}
+org.datanucleus.api.jdo.JDOQuery.execute(JDOQuery.java:216)
+org.apache.hadoop.hive.metastore.MetaStoreDirectSql.ensureDbInit(MetaStoreDirectSql. java:240)
+org.apache.hadoop.hive.metastore.MetaStoreDirectSql.<init>(MetaStoreDirectSql. java:184)
+org.apache.hadoop.hive.metastore.ObjectStore.initializeHelper(ObjectStore.java:499)
+org.apache.hadoop.hive.metastore.ObjectStore.initialize(0bjectStore.java:421)
+org.apache.hadoop.hive.metastore.ObjectStore.setConff(ObjectStore.java:376)
+org.apache.hadoop.util.ReflectionUtils.setConf(ReflectionUtils.java:79)
+org.apache.hadoop.util.ReflectionUtils.newInstance(ReflectionUtils.java:139)
+org.apache.hadoop.hive.metastore.RawStoreProxy.<init>(RawStoreProxy.java:59)
+org.apache.hadoop.hive.metastore.RawStoreProxy.getProxy(RawStoreProxy.java:67)
+org.apache.hadoop.hive.metastore.HiveMetaStoreSHMSHandler.newRawStoreForConf (HiveMetaStore.java:720)
+org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.getMSForConf (HiveMetaStore.java:698)
+org.apache.hadoop.hive.metastore.HiveMetaStoreSHMSHandler.getMS (HiveMetaStore.java:692){code}
+In these two places, the hive metastore server will try to connect to mysql and execute a simple sql, this will take tens of milliseconds which is a waste of time cause there is a Lock hold during the init. When there gets more and more clients try to connect the server, it will cause block and client will get stuck.
+ 
+Solution:
+We use the MYSQL as our database, so we don't need to use getProductName to determine the database type, and add a new Configuration to pass the database type.
+We have our DBA, so we don't need to use ensureDbInit to make sure that the mysql database is ready to connect.
+ 
+ 
+ 

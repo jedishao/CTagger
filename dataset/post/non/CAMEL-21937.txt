@@ -1,0 +1,51 @@
+camel-ai - Tool route upsets component when step 'stop' is used mid-way
+A tool process (with camel-langchain4j-tools consumer) that uses a *stop* (step) to discontinue route processing seems to cause the component to misbehave and send the LLM false information.
+
+This problem is particularly impactful when the LLM invokes 2 tools in parallel:
+ * call Tool1
+ * call Tool2
+
+If Camel executes Tool1, which contains a *stop* statement, it will return the body to the LLM, but it won't execute Tool2 and will provide the same response as Tool1.
+
+Let's say Camel executes Tool1 and the route returns "done".
+
+And let's say Tool2 is defined to return some JSON content like \{"status":"ok"}
+
+The current response to the LLM looks like this:
+{code:java}
+      {
+         "role":"tool",
+         "tool_call_id":"call_aejr2g8w",
+         "content":"done"
+      },
+      {
+         "role":"tool",
+         "tool_call_id":"call_l9dqojy3",
+         "content":"done"
+      },{code}
+Instead of
+
+The current response to the LLM looks like this:
+{code:java}
+      {
+         "role":"tool",
+         "tool_call_id":"call_aejr2g8w",
+         "content":"done"
+      },
+      {
+         "role":"tool",
+         "tool_call_id":"call_l9dqojy3",
+         "content":"{\"status\":\"ok\"}"
+      },{code}
+ 
+
+I've added a ZIP file containing code to reproduce the problem.
+
+Requires an LLM running locally (tested with Ollama)
+
+To reproduce the problem use the following prompt:
+{code:java}
+please ammend 123, and get me the promotions{code}
+ 
+
+ 

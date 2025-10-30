@@ -1,0 +1,68 @@
+[Bug] trying reader on __change_events while NS is deleted
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+3.2.0
+
+### Minimal reproduce step
+
+/
+
+### What did you expect to see?
+
+Nothing
+
+### What did you see instead?
+
+Broker is trying to read 
+
+```
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]: java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException$TopicDoesNotExistException: {"errorMsg":"Topic persistent://orga_da381d49-a6b5-42eb-97cc-d59effbc6e46/logs/__change_events-partition-0 does not exist","reqId":3207262734360353657, "remote":"yo-pulsar-broker-c3-n5/192.168.2.5:6650", "local":"/192.168.2.3:42438"}
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:332) ~[?:?]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:347) ~[?:?]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at java.util.concurrent.CompletableFuture$UniRun.tryFire(CompletableFuture.java:781) ~[?:?]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[?:?]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:2162) ~[?:?]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at org.apache.pulsar.client.impl.ClientCnx.handleError(ClientCnx.java:794) ~[org.apache.pulsar-pulsar-client-original-3.3.0-SNAPSHOT.jar:3.3.0-SNAPSHOT]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:192) ~[org.apache.pulsar-pulsar-common-3.3.0-SNAPSHOT.jar:3.3.0-SNAPSHOT]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:346) ~[io.netty-netty-codec-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:318) ~[io.netty-netty-codec-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.handler.flush.FlushConsolidationHandler.channelRead(FlushConsolidationHandler.java:152) ~[io.netty-netty-handler-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:442) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) ~[io.netty-netty-transport-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:800) ~[io.netty-netty-transport-classes-epoll-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:509) ~[io.netty-netty-transport-classes-epoll-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:407) ~[io.netty-netty-transport-classes-epoll-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[io.netty-netty-common-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[io.netty-netty-common-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.105.Final.jar:4.1.105.Final]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at java.lang.Thread.run(Thread.java:840) ~[?:?]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]: Caused by: org.apache.pulsar.client.api.PulsarClientException$TopicDoesNotExistException: {"errorMsg":"Topic persistent://orga_da381d49-a6b5-42eb-97cc-d59effbc6e46/logs/__change_events-partition-0 does not exist","reqId":3207262734360353657, "remote":"yo-pulsar-broker-c3-n5/192.168.2.5:6650", "local":"/192.168.2.3:42438"}
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at org.apache.pulsar.client.impl.ClientCnx.getPulsarClientException(ClientCnx.java:1338) ~[org.apache.pulsar-pulsar-client-original-3.3.0-SNAPSHOT.jar:3.3.0-SNAPSHOT]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        at org.apache.pulsar.client.impl.ClientCnx.handleError(ClientCnx.java:795) ~[org.apache.pulsar-pulsar-client-original-3.3.0-SNAPSHOT.jar:3.3.0-SNAPSHOT]
+Feb 01 12:34:28 yo-pulsar-broker-c3-n3 pulsar[3989552]:        ... 24 more
+```
+but the namespace has been deleted.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

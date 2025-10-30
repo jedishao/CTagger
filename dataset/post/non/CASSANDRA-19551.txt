@@ -1,0 +1,6 @@
+CCM nodes share the same environment variable map breaking upgrade tests
+In {{node.py}} {{__environment_variables}} is generally always set with a map that is passed in from {{cluster.py}} so it is [shared between nodes|https://github.com/riptano/ccm/blob/ac264706c8ca007cc584871ce907d48db334d36d/ccmlib/node.py#L151] and if nodes modify the map, such as in {{start}} when [updating the Java version|https://github.com/riptano/ccm/blob/ac264706c8ca007cc584871ce907d48db334d36d/ccmlib/node.py#L860] then when {{get_env}} runs it will [overwrite the Java version|https://github.com/riptano/ccm/blob/ac264706c8ca007cc584871ce907d48db334d36d/ccmlib/node.py#L244] that is selected by {{update_java_version}}.
+
+This results in {{nodetool drain}} failing when upgrading from 3.11 to 4.0 in some of the upgrade tests because after the first node upgrades to 4.0 it's not longer possible for the subsequent nodes to select a Java version that isn't 11 because it's overridden by  {{__environment_variables}}.
+
+I'm not even 100% clear on why the code in {{start}} should update {{__environment_variables}} at all if we calculate the correct java version on every invocation of other tools.

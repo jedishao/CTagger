@@ -1,0 +1,14 @@
+camel-core - Resequencer EIP cannot be started again after being stopped
+We have a project where we use Hazelcast and Camel together. This setup works for majority of Camel routes, except a Camel route where we registered batch mode resequencer.
+
+We use Hazelcast for active-passive deployment model. The aim is to have multiple containers running but only one of them to consume messages with a Camel route. When this leader container dies for any reason, one of the other containers in cluster will continue consuming messages seamlessly. Hazelcast provides this deployment model for us.
+
+Hazelcast works with Camel route policies in order to provide this deployment model. It uses routes' doStop and doStart methods. Majority of routes and processors work except the batch resequencer processor.
+
+I've identified a bug in this [Resequencer.java|https://github.com/apache/camel/blob/efec4cadf81753c79ce713c81ea9e463c114d293/core/camel-core-processor/src/main/java/org/apache/camel/processor/Resequencer.java#L343] file, an exception is thrown if the doStart method is called more than one times.
+
+Here is a small project to reproduce the issue:
+
+[https://github.com/Tospaa/camel-hazelcast-bug-poc]
+
+The README file includes the Steps to Reproduce section.

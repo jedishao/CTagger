@@ -1,0 +1,85 @@
+[Bug] NPE in tests when loadManagerClassName is null
+### Search before reporting
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that [unsupported versions](https://pulsar.apache.org/contribute/release-policy/#supported-versions) don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### User environment
+
+master branch, commit 6ad57da
+
+
+### Issue Description
+
+In tests, log there's a NPE that gets logged.
+
+### Error messages
+
+```text
+2025-07-25T16:14:35,093 - WARN  - [main:LoadManager] - Error when trying to create load manager:
+java.lang.NullPointerException: null
+        at java.base/java.lang.Class.forName0(Native Method) ~[?:?]
+        at java.base/java.lang.Class.forName(Class.java:534) ~[?:?]
+        at java.base/java.lang.Class.forName(Class.java:513) ~[?:?]
+        at org.apache.pulsar.common.util.Reflections.createInstance(Reflections.java:111) ~[pulsar-common-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.pulsar.broker.loadbalance.LoadManager.create(LoadManager.java:156) ~[classes/:?]
+        at org.apache.pulsar.broker.PulsarService.start(PulsarService.java:896) ~[classes/:?]
+        at org.apache.pulsar.broker.service.ReplicatorTestBase.setup(ReplicatorTestBase.java:167) ~[test-classes/:?]
+        at org.apache.pulsar.broker.service.ReplicatorTest.setup(ReplicatorTest.java:146) ~[test-classes/:?]
+        at org.apache.pulsar.tests.TestRetrySupport.stateCheck(TestRetrySupport.java:60) ~[buildtools-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?]
+        at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[?:?]
+        at org.testng.internal.invokers.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:139) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.MethodInvocationHelper.invokeMethodConsideringTimeout(MethodInvocationHelper.java:69) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.ConfigInvoker.invokeConfigurationMethod(ConfigInvoker.java:361) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.ConfigInvoker.invokeConfigurations(ConfigInvoker.java:296) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.TestInvoker.runConfigMethods(TestInvoker.java:823) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.TestInvoker.invokeMethod(TestInvoker.java:590) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.TestInvoker.retryFailed(TestInvoker.java:263) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.MethodRunner.runInSequence(MethodRunner.java:62) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.TestInvoker$MethodInvocationAgent.invoke(TestInvoker.java:969) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.TestInvoker.invokeTestMethods(TestInvoker.java:194) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.TestMethodWorker.invokeTestMethods(TestMethodWorker.java:148) ~[testng-7.7.1.jar:7.7.1]
+        at org.testng.internal.invokers.TestMethodWorker.run(TestMethodWorker.java:128) ~[testng-7.7.1.jar:7.7.1]
+        at java.base/java.util.ArrayList.forEach(ArrayList.java:1596) [?:?]
+        at org.testng.TestRunner.privateRun(TestRunner.java:829) [testng-7.7.1.jar:7.7.1]
+        at org.testng.TestRunner.run(TestRunner.java:602) [testng-7.7.1.jar:7.7.1]
+        at org.testng.SuiteRunner.runTest(SuiteRunner.java:437) [testng-7.7.1.jar:7.7.1]
+        at org.testng.SuiteRunner.runSequentially(SuiteRunner.java:431) [testng-7.7.1.jar:7.7.1]
+        at org.testng.SuiteRunner.privateRun(SuiteRunner.java:391) [testng-7.7.1.jar:7.7.1]
+        at org.testng.SuiteRunner.run(SuiteRunner.java:330) [testng-7.7.1.jar:7.7.1]
+        at org.testng.SuiteRunnerWorker.runSuite(SuiteRunnerWorker.java:52) [testng-7.7.1.jar:7.7.1]
+        at org.testng.SuiteRunnerWorker.run(SuiteRunnerWorker.java:95) [testng-7.7.1.jar:7.7.1]
+        at org.testng.TestNG.runSuitesSequentially(TestNG.java:1256) [testng-7.7.1.jar:7.7.1]
+        at org.testng.TestNG.runSuitesLocally(TestNG.java:1176) [testng-7.7.1.jar:7.7.1]
+        at org.testng.TestNG.runSuites(TestNG.java:1099) [testng-7.7.1.jar:7.7.1]
+        at org.testng.TestNG.run(TestNG.java:1067) [testng-7.7.1.jar:7.7.1]
+        at org.apache.maven.surefire.testng.TestNGExecutor.run(TestNGExecutor.java:155) [surefire-testng-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.testng.TestNGDirectoryTestSuite.executeSingleClass(TestNGDirectoryTestSuite.java:102) [surefire-testng-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.testng.TestNGDirectoryTestSuite.executeLazy(TestNGDirectoryTestSuite.java:117) [surefire-testng-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.testng.TestNGDirectoryTestSuite.execute(TestNGDirectoryTestSuite.java:86) [surefire-testng-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.testng.TestNGProvider.invoke(TestNGProvider.java:137) [surefire-testng-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385) [surefire-booter-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162) [surefire-booter-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507) [surefire-booter-3.1.0.jar:3.1.0]
+        at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495) [surefire-booter-3.1.0.jar:3.1.0]
+```
+
+### Reproducing the issue
+
+Happens at least in ReplicatorTest.
+
+### Additional information
+
+We could check if `conf.getLoadManagerClassName()` with commons-lang3 `StringUtils.isBlank` before initializing.
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

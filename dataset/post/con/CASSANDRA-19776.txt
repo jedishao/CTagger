@@ -1,0 +1,48 @@
+Spinning trying to capture readers
+On a handful of clusters we are noticing Spin locks occurring. I traced back all the calls to the EstimatedPartitionCount metric (eg. org.apache.cassandra.metrics:type=Table,keyspace=testks,scope=testcf,name=EstimatedPartitionCount)
+
+Using the following patched function:
+{code:java}
+    public RefViewFragment selectAndReference(Function<View, Iterable<SSTableReader>> filter)
+    {
+        long failingSince = -1L;
+        boolean first = true;
+        while (true)
+        {
+            ViewFragment view = select(filter);
+            Refs<SSTableReader> refs = Refs.tryRef(view.sstables);
+            if (refs != null)
+                return new RefViewFragment(view.sstables, view.memtables, refs);
+            if (failingSince <= 0)
+            {
+                failingSince = System.nanoTime();
+            }
+            else if (System.nanoTime() - failingSince > TimeUnit.MILLISECONDS.toNanos(100))
+            {
+                List<SSTableReader> released = new ArrayList<>();
+                for (SSTableReader reader : view.sstables)
+                    if (reader.selfRef().globalCount() == 0)
+                        released.add(reader);
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS,
+                                 "Spinning trying to capture readers {}, released: {}, ", view.sstables, released);
+                if (first)
+                {
+                    first = false;
+                    try {
+                        throw new RuntimeException("Spinning trying to capture readers");
+                    } catch (Exception e) {
+                        logger.warn("Spin lock stacktrace", e);
+                    }
+                }
+                failingSince = System.nanoTime();
+            }
+        }
+    }
+ {code}
+Digging into this code I found it will fail if any of the sstables are in released state (ie. reader.selfRef().globalCount() == 0).
+
+See the extract.log for an example of one of these spin lock occurrences. Sometimes these spin locks last over 5 minutes. Across the worst cluster with this issue, I ran a log processing script that everytime the 'Spinning trying to capture readers' was different to previous one it would output if the released tables were in Compacting state. Every single occurrence has it spin locking with released listing a sstable that is compacting.
+
+In the extract.log example its spin locking saying that nb-320533-big-Data.db has been released. But you can see prior to it spinning that sstable is involved in a compaction. The compaction completes at 01:03:36 and the spinning stops. nb-320533-big-Data.db is deleted at 01:03:49 along with the other 9 sstables involved in the compaction.
+
+ 

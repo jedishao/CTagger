@@ -1,0 +1,14 @@
+JDK17: Change in behaviour of DAY_OF_YEAR in timestamp 
+*Issue:*
+{code:java}
+Field DayOfYear cannot be printed as the value 202 exceeds the maximum print width of 2;{code}
+*RCA:*
+
+Two DATETIME format changes in JDK11:{*}D{*} represents DAY_OF_YEAR as in it counts days from 1-366 which requires DDD in format (dd represents DAY_OF_MONTH -> counts 1-31).
+*JDK8:* If given format is DD(width=2) but the day is actually with 3 width(above 100) in the input value then this will trigger error that width exceeds 2 and returns null.
+*JDK11:* If given format is DD or DDD then max width is set to 3(hardcoded) so it considers days with 2 and 3 digits as valid and returns the value which corresponds to the day in the year.
+*Commit:* [https://github.com/openjdk/jdk11u-dev/commit/4900a8320308f0b55344644a599c4d86afec72d2]
+
+*Solution:*
+
+Changing the value in test cases should be fine for these tests in *TestGenericUDFDateFormatEvaluate.java and TestGenericUDFFromUnixTimeEvaluate.java* as the JDK behaviour has changed.

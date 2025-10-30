@@ -1,0 +1,90 @@
+Iceberg table sorted_by not working
+How to reproduce:
+
+1. Create a sorted table
+```sql
+CREATE TABLE sorted_table (
+    user_id      INTEGER,
+    user_name    VARCHAR,
+    email        VARCHAR,
+    is_active    BOOLEAN
+)
+WITH (
+    format = 'PARQUET',
+    sorted_by = ARRAY['user_id']
+);
+```
+2. Populate with synthetic data
+```sql
+INSERT INTO sorted_table
+WITH numbers AS (
+    SELECT n
+    FROM UNNEST(sequence(1, 10000)) AS t(n)
+),
+numbers_multiplied as (
+select n1.n * n2.n as n from numbers n1 cross join numbers n2
+),
+synthetic_data AS (
+    SELECT 
+        n AS user_id,
+        format('user_%s', n) AS user_name,
+        format('user_%s@example.com', n) AS email,
+        rand() > 0.5 AS is_active
+    FROM numbers_multiplied
+)
+SELECT * FROM synthetic_data;
+```
+3. Check data file lower/upper bounds
+```sql
+select json_extract(readable_metrics, '$.user_id.lower_bound'), json_extract(readable_metrics, '$.user_id.upper_bound') from "sorted_table$files";
+```
+
+Result:
+```
+_col0|_col1    |
+-----+---------+
+1    |99750000 |
+1199 |99800000 |
+1444 |99820000 |
+1676 |99920000 |
+1913 |99370000 |
+2157 |99390000 |
+246  |99770000 |
+2496 |99410000 |
+2616 |99500000 |
+2861 |99170000 |
+3078 |99510000 |
+3324 |99690000 |
+3573 |99470000 |
+3804 |99210000 |
+3998 |99710000 |
+4269 |99930000 |
+4502 |99940000 |
+4786 |99950000 |
+486  |99780000 |
+4944 |99960000 |
+5164 |99980000 |
+5399 |99680000 |
+5614 |99970000 |
+5864 |100000000|
+6196 |99830000 |
+6334 |99840000 |
+6527 |99880000 |
+6823 |99900000 |
+7072 |99910000 |
+7289 |99890000 |
+729  |99790000 |
+7617 |99540000 |
+7895 |99990000 |
+8015 |99560000 |
+8171 |99570000 |
+8504 |99590000 |
+8706 |98830000 |
+9016 |99640000 |
+9266 |99660000 |
+9425 |99380000 |
+9549 |98980000 |
+964  |99230000 |
+9838 |99740000 |
+```
+I would expect no overlaps between lower and upper bounds.  `explain` output also does not say anything about sorting/ordering

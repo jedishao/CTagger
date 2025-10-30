@@ -1,0 +1,38 @@
+camel-aws-sqs - Error is causing the sqs message to be extended forever
+Below scenario the processing of the message threw memory error. so further processing of the exchange aborted, however the exchange couldn't get released from Sqs2Consumer timeoutExtender, as a result the message gets visibility extended forever causing the entire aws sqs queue to get blocked.
+
+{code:java}
+2025-02-18T00:01:20.793Z [C#964 T#45 - aws2-sqs://prod_sync_events.fifo - JE_ID 45901665] #033[36mo.a.c.s.ScheduledPollConsumer#033[m #033[1;31mERROR#033[m - Error occurred during running scheduled task on: aws2-sqs://prod_sync_events.fifo?amazonSQSClient=%23sqsClient&configuration=%23syncEventsSQSConfiguration, due: Java heap space. This exception is ignored and the task will run again on next poll.
+java.lang.OutOfMemoryError: Java heap space
+#011at java.base/java.util.Arrays.copyOf(Arrays.java:3537) ~[?:?]
+#011at java.base/java.io.ByteArrayOutputStream.ensureCapacity(ByteArrayOutputStream.java:100) ~[?:?]
+#011at java.base/java.io.ByteArrayOutputStream.write(ByteArrayOutputStream.java:130) ~[?:?]
+#011at org.apache.camel.converter.stream.CachedOutputStream.write(CachedOutputStream.java:108) ~[camel-support-4.8.0.jar:4.8.0]
+#011at org.apache.camel.support.builder.OutputStreamBuilder.write(OutputStreamBuilder.java:58) ~[camel-support-4.8.0.jar:4.8.0]
+#011at java.base/java.io.InputStream.transferTo(InputStream.java:783) ~[?:?]
+#011at org.apache.camel.util.IOHelper.copy(IOHelper.java:165) ~[camel-util-4.8.0.jar:4.8.0]
+#011at org.apache.camel.component.http.HttpProducer.doExtractResponseBodyAsStream(HttpProducer.java:592) ~[camel-http-4.8.0.jar:4.8.0]
+#011at org.apache.camel.component.http.HttpProducer.extractResponseBody(HttpProducer.java:579) ~[camel-http-4.8.0.jar:4.8.0]
+#011at org.apache.camel.component.http.HttpProducer.populateResponse(HttpProducer.java:351) ~[camel-http-4.8.0.jar:4.8.0]
+#011at org.apache.camel.component.http.HttpProducer.lambda$process$1(HttpProducer.java:272) ~[camel-http-4.8.0.jar:4.8.0]
+#011at org.apache.camel.component.http.HttpProducer$$Lambda$2092/0x00007f8880e1bc78.handleResponse(Unknown Source) ~[?:?]
+#011at org.apache.camel.component.http.HttpProducer.executeMethod(HttpProducer.java:486) ~[camel-http-4.8.0.jar:4.8.0]
+#011at org.apache.camel.component.http.HttpProducer.process(HttpProducer.java:247) ~[camel-http-4.8.0.jar:4.8.0]
+#011at org.apache.camel.support.AsyncProcessorConverterHelper$ProcessorToAsyncProcessorBridge.process(AsyncProcessorConverterHelper.java:65) ~[camel-support-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.SharedCamelInternalProcessor.processNonTransacted(SharedCamelInternalProcessor.java:156) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.SharedCamelInternalProcessor.process(SharedCamelInternalProcessor.java:133) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.SharedCamelInternalProcessor$1.process(SharedCamelInternalProcessor.java:89) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.DefaultAsyncProcessorAwaitManager.process(DefaultAsyncProcessorAwaitManager.java:82) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.SharedCamelInternalProcessor.process(SharedCamelInternalProcessor.java:86) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at org.apache.camel.support.cache.DefaultProducerCache.send(DefaultProducerCache.java:178) ~[camel-support-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.DefaultProducerTemplate.send(DefaultProducerTemplate.java:176) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.DefaultProducerTemplate.send(DefaultProducerTemplate.java:172) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at org.apache.camel.impl.engine.DefaultProducerTemplate.send(DefaultProducerTemplate.java:137) ~[camel-base-engine-4.8.0.jar:4.8.0]
+#011at com.ac.system.service.ACMHTTPService.execute(ACMHTTPService.kt:49) ~[classes/:?]
+#011at com.ac.system.core.ACMServiceManager.getEntityList(ACMServiceManager.kt:46) ~[classes/:?]
+#011at com.ac.system.job.ACMProjectJob.processUpdatedProjectEvent(ACMProjectJob.kt:51) ~[classes/:?]
+#011at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+#011at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77) ~[?:?]
+#011at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+#011at java.base/java.lang.reflect.Method.invoke(Method.java:569) ~[?:?]
+{code}

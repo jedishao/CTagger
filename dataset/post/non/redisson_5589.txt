@@ -1,0 +1,30 @@
+Repeated new connections with Elasticache Serverless
+I have a serverless Elasticache cluster running Redis 7.1 and Java clients using Redisson 3.26.0.
+
+Redisson config:
+```
+Config config = new Config();
+config.useClusterServers().setNodeAddresses(List.of("rediss://redis-host.cache.amazonaws.com:6379"));
+return Redisson.create(config);
+```
+
+The client is continually reconnecting to the cluster with different IP addresses that the connection host resolves to. Running `host` command for the cluster returns:
+
+```redis-host.cache.amazonaws.com has address REDIS_IP_1
+redis-host.cache.amazonaws.com has address REDIS_IP_2
+redis-host.cache.amazonaws.com has address REDIS_IP_3
+redis-host.cache.amazonaws.com has address REDIS_IP_4
+redis-host.cache.amazonaws.com has address REDIS_IP_5
+redis-host.cache.amazonaws.com has address REDIS_IP_6
+redis-host.cache.amazonaws.com has address REDIS_IP_7
+redis-host.cache.amazonaws.com has address REDIS_IP_8
+redis-host.cache.amazonaws.com has address REDIS_IP_9
+```
+
+As the cluster is serverless I have no direct control or knowledge of the individual nodes, but I would guess it's a 3 node cluster across 3 AZs, giving the 9 different IPs.
+
+Here's a log file with `org.redisson` logging set to `DEBUG`:  [redis-logs.txt](https://github.com/redisson/redisson/files/14041473/redis-logs.txt)
+
+From what I can tell Redisson is reconnecting each time the DNS resolution returns a different IP address. 
+
+Is there a recommended fix for this or config setting I need to enable?

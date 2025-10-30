@@ -1,0 +1,200 @@
+[native] Possible SEGV in HttpClient::createTransaction
+<!--- Provide a general summary of the issue in the Title above -->
+<!--- Look through existing open and closed issues to see if someone has reported the issue before -->
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used: latest
+* Storage (HDFS/S3/GCS..):
+* Data source and connector used:
+* Deployment (Cloud or On-prem): Cloud, CentOS9 base
+* [Pastebin](https://pastebin.com/) link to the complete debug logs:
+
+* compiler / OS: gcc12 / CentOS9 
+
+## Expected Behavior
+Tasks get executed.
+
+## Current Behavior
+When receiving a task request the presto_server executable may SEGV in HttpClient::createTransaction.
+This code was added newly with PR https://github.com/prestodb/presto/pull/22903.
+
+The signal address has varied from nullptr to what looks to be a valid address.
+
+Example 1 with null ptr:
+```
+I20240610 15:45:20.713101    62 TaskManager.cpp:607] Deleting task 20240610_154517_00010_p52u3.12.0.0.0
+*** Aborted at 1718034320 (unix time) try "date -d @1718034320" if you are using GNU date ***
+PC: @                0x0 (unknown)
+*** SIGSEGV (@0x0) received by PID 8 (TID 0x7f18f37fe640) from PID 0; stack trace: ***
+I20240610 15:45:20.727877    68 Task.cpp:1871] Terminating task 20240610_154517_00010_p52u3.11.0.0.0 with state Finished after running for 1009 ms.
+I20240610 15:45:20.733484    68 TaskManager.cpp:607] Deleting task 20240610_154517_00010_p52u3.11.0.0.0
+    @     0x7f51c55a26f0 (unknown)
+    @          0x1ed036d _ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_
+    @          0x1ed2cd7 _ZN5folly6detail8function14FunctionTraitsIFvRNS_7futures6detail8CoreBaseEONS_8Executor9KeepAliveIS7_EEPNS_17exception_wrapperEEE9callSmallIZNS4_4CoreIPN8proxygen15HTTPSessionBaseEE11setCallbackIZNS4_10FutureBaseISJ_E18thenImplementationIZNOS_6FutureISJ_E9thenValueIZN8facebook6presto4http10HttpClient17createTransactionEPNSH_22HTTPTransactionHandlerEEUlSJ_E_EENSP_INS4_19valueCallableResultISJ_T_E10value_typeEEEOS10_EUlSA_ONS_3TryISJ_EEE_NS4_25tryExecutorCallableResultISJ_S18_EEEENSt9enable_ifIXntsrNT0_13ReturnsFutureE5valueENSP_INS1C_10value_typeEEEE4typeES14_S1C_NS4_18InlineContinuationEEUlSA_S17_E_EEvS14_OSt10shared_ptrINS_14RequestContextEES1I_EUlS6_SA_SC_E_EEvS6_SA_SC_RNS1_4DataE
+    @     0x7f51c72d7278 folly::detail::function::FunctionTraits<>::operator()()
+    @     0x7f51c72d5388 _ZZN5folly7futures6detail8CoreBase10doCallbackEONS_8Executor9KeepAliveIS3_EENS1_5StateEENUlS6_E0_clES6_
+    @     0x7f51c72d60f6 _ZZNO5folly8Executor9KeepAliveIS0_E3addIZNS_7futures6detail8CoreBase10doCallbackEOS2_NS5_5StateEEUlS7_E0_EEvOT_ENUlvE_clEv
+    @     0x7f51c72d64ab _ZN5folly6detail8function14FunctionTraitsIFvvEE9callSmallIZNOS_8Executor9KeepAliveIS6_E3addIZNS_7futures6detail8CoreBase10doCallbackEOS8_NSB_5StateEEUlSD_E0_EEvOT_EUlvE_EEvRNS1_4DataE
+```
+
+Another example shows the si_addr as non zero ( I didn;t copy the stack but got it attached to gdb and got the si_addr from siginfo)
+```
+(gdb) p $_siginfo
+$1 = {si_signo = 11, si_errno = 0, si_code = 1, _sifields = {_pad = {16, 32698, 0 <repeats 26 times>}, _kill = {si_pid = 16, si_uid = 32698}, _timer = {si_tid = 16, si_overrun = 32698, si_sigval = {sival_int = 0, sival_ptr = 0x0}},
+    _rt = {si_pid = 16, si_uid = 32698, si_sigval = {sival_int = 0, sival_ptr = 0x0}}, _sigchld = {si_pid = 16, si_uid = 32698, si_status = 0, si_utime = 0, si_stime = 0}, _sigfault = {si_addr = 0x7fba00000010, _addr_lsb = 0,
+      _addr_bnd = {_lower = 0x0, _upper = 0x0}}, _sigpoll = {si_band = 140436840644624, si_fd = 0}}}
+```
+
+The assembler listing corresponding to the signal
+
+```
+│   0x1ed0310 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_>           test   %rsi,%rsi                                                               │
+│   0x1ed0313 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+3>         je     0x1ed0618 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8 │
+│   0x1ed0319 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+9>         push   %rbp                                                                    │
+│   0x1ed031a <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+10>        mov    %rsp,%rbp                                                               │
+│   0x1ed031d <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+13>        push   %r14                                                                    │
+│   0x1ed031f <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+15>        mov    %rdi,%r14                                                               │
+│   0x1ed0322 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+18>        push   %r13                                                                    │
+│   0x1ed0324 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+20>        push   %r12                                                                    │
+│   0x1ed0326 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+22>        push   %rbx                                                                    │
+│   0x1ed0327 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+23>        mov    %rsi,%rbx                                                               │
+│   0x1ed032a <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+26>        sub    $0xa0,%rsp                                                              │
+│   0x1ed0331 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+33>        mov    0x35f0388(%rip),%rax        # 0x54c06c0 <_ZZZN8facebook6presto4http10Ht │
+│   0x1ed0338 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+40>        test   %rax,%rax                                                               │
+│   0x1ed033b <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+43>        je     0x1ed04e0 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8 │
+│   0x1ed0341 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+49>        cmpl   $0x2,(%rax)                                                             │
+│   0x1ed0344 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+52>        jg     0x1ed0508 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8 │
+│   0x1ed034a <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+58>        mov    (%rbx),%rax                                                             │
+│   0x1ed034d <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+61>        mov    0xb0(%rax),%rdx                                                         │
+│   0x1ed0354 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+68>        cmp    $0x1ed5dc0,%rdx                                                         │
+│   0x1ed035b <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+75>        jne    0x1ed05b0 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8 │
+│   0x1ed0361 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+81>        mov    0x7c0(%rbx),%rdx             0x7fba6c035fa0 +  0x7c0 -> %rdx                                      │
+│   0x1ed0368 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+88>        test   %rdx,%rdx                                                               │
+│   0x1ed036b <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+91>        je     0x1ed0397 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8 │
+│  >0x1ed036d <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+93>        mov    0x10(%rdx),%rax                                                         │
+│   0x1ed0371 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+97>        lea    0x10(%rdx),%rdi                                                         │
+│   0x1ed0375 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+101>       mov    (%rax),%rax                                                             │
+│   0x1ed0378 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+104>       cmp    $0x1ed5da0,%rax
+│   0x1ed037e <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+110>       jne    0x1ed05a0 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8 │
+│   0x1ed0384 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+116>       mov    0x128(%rdx),%rax                                                        │
+│   0x1ed038b <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+123>       test   %rax,%rax                                                               │
+│   0x1ed038e <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+126>       jne    0x1ed05f8 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8 │
+│   0x1ed0394 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+132>       mov    (%rbx),%rax                                                             │
+│   0x1ed0397 <_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_+135>       vpxor  %xmm0,%xmm0,%xmm0 
+```
+
+The offending instruction is likely (by pointing to the previous line)
+```
+lea    0x10(%rdx),%rdi
+```
+load would cause an access to the invalid address.
+
+The registers
+```
+rax            0x7fca8c0dc860	   140507909834848
+rbx            0x7fba6c035fa0	   140438652805024
+rcx            0x7fba400024b0	   140437914395824
+rdx            0x7fba00000000	   140436840644608
+rsi            0x7fba6c035fa0	   140438652805024
+rdi            0x7fba400024b0	   140437914395824
+rbp            0x7fba2e7f2330	   0x7fba2e7f2330
+rsp            0x7fba2e7f2270	   0x7fba2e7f2270
+r8             0x1ed2c30           32320560
+r9             0x19235a            1647450
+r10            0x7fca8c0ed068	   140507909902440
+r11            0x246               582
+r12            0x7fba70001ff0	   140438719700976
+r13            0x7fba700027e8	   140438719703016
+r14            0x7fba400024b0	   140437914395824
+r15            0x7fca8b883a0a	   140507901082122
+rip            0x1ed036d           0x1ed036d <facebook::presto::http::HttpClient::createTransaction(proxygen::HTTPTransactionHandler*)::{lambda(proxygen::HTTPSessionBase*)#1}::operator()(proxygen::HTTPSessionBase*) const+93>
+eflags         0x10206             [ PF IF RF ]
+```
+
+We can see %rdx is 0x7fba00000000. Added 0x10 is `0x7fba00000010` the si_address.
+
+Looking at the assembler listing for the code with matching lines of code.
+
+```
+_ZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_:
+.LFB26971:
+        .cfi_startproc
+        .cfi_personality 0x3,__gxx_personality_v0
+        .cfi_lsda 0x3,.LLSDA26971
+# /root/oss/presto/presto-native-execution/presto_cpp/main/http/HttpClient.cpp:460:     if (!session) {
+        testq   %rsi, %rsi      # session
+        je      .L1066  #,
+# /root/oss/presto/presto-native-execution/presto_cpp/main/http/HttpClient.cpp:458:       [self = shared_from_this(), this, handler](
+        pushq   %rbp    #
+        .cfi_def_cfa_offset 16
+        .cfi_offset 6, -16
+        movq    %rsp, %rbp      #,
+        .cfi_def_cfa_register 6
+        pushq   %r14    #
+        .cfi_offset 14, -24
+        movq    %rsi, %r14      # session, session
+        pushq   %r13    #
+        pushq   %r12    #
+        pushq   %rbx    #
+        .cfi_offset 13, -32
+        .cfi_offset 12, -40
+        .cfi_offset 3, -48
+        movq    %rdi, %rbx      # tmp209, __closure
+        subq    $144, %rsp      #,
+# /root/oss/presto/presto-native-execution/presto_cpp/main/http/HttpClient.cpp:463:     VLOG(3) << "Reuse idle connection from different thread to "
+        movq    _ZZZN8facebook6presto4http10HttpClient17createTransactionEPN8proxygen22HTTPTransactionHandlerEENKUlPNS3_15HTTPSessionBaseEE_clES7_E8vlocal__(%rip), %rax        # vlocal__.level, _1
+        testq   %rax, %rax      # _1
+        je      .L1089  #,
+# /root/oss/presto/presto-native-execution/presto_cpp/main/http/HttpClient.cpp:463:     VLOG(3) << "Reuse idle connection from different thread to "
+        cmpl    $2, (%rax)      #, *_1
+        jg      .L1016  #,
+.L1017:
+# /root/oss/presto/presto-native-execution/presto_cpp/main/http/HttpClient.cpp:465:     auto* evb = session->getEventBase();
+        movq    (%r14), %rax    # session_36(D)->D.814576.D.730273._vptr.Callback, prephitmp_182
+        movq    176(%rax), %rdx # MEM[(int (*) () *)_5 + 176B], _6
+        cmpq    $_ZNK8proxygen11HTTPSession12getEventBaseEv, %rdx       #, _6
+        jne     .L1029  #,
+# /usr/include/c++/11/bits/unique_ptr.h:173:       pointer    _M_ptr() const { return std::get<0>(_M_t); }
+        movq    1984(%r14), %rdx        # MEM[(struct AsyncTransport * const &)session_36(D) + 1984], _114
+# /usr/local/include/proxygen/lib/http/session/HTTPSession.h:79:     if (sock_) {
+        testq   %rdx, %rdx      # _114
+        je      .L1030  #,
+# /usr/local/include/proxygen/lib/http/session/HTTPSession.h:80:       return sock_->getEventBase();
+        movq    16(%rdx), %rax  # MEM[(struct AsyncSocketBase *)_114 + 16B]._vptr.AsyncSocketBase, MEM[(struct AsyncSocketBase *)_114 + 16B]._vptr.AsyncSocketBase
+        leaq    16(%rdx), %rdi  #, _115
+        movq    (%rax), %rax    # *_116, _117
+        cmpq    $_ZThn16_NK5folly11AsyncSocket12getEventBaseEv, %rax    #, _117
+```
+
+The line of code is 
+```
+HttpClient.cpp:465:     auto* evb = session->getEventBase();
+```
+
+It seems that the underlying AsyncTransport pointer `sock_` is not valid failing when being de-referenced by
+```
+return sock_->getEventBase();
+```
+
+I tried to repro the same with a debug build so I could walk through it with a debugger but the issue did not occur. in the same environment (deployment from a container in the the cloud).
+Also trying to repro this locally has been unsuccessful so far and cannot provide exact steps to repro this issue.
+
+
+## Possible Solution
+<!--- Not obligatory, but suggest a fix/reason for the bug or a workaround -->
+
+## Steps to Reproduce
+<!--- Provide a link to a live example, or an unambiguous set of steps to -->
+<!--- reproduce this bug. Include code to reproduce, if relevant -->
+1.
+2.
+3.
+4.
+
+## Screenshots (if appropriate)
+
+## Context
+<!--- How has this issue affected you? -->
+<!--- Providing context helps us come up with a solution that is most useful in the real world -->
+

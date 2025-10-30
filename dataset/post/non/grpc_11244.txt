@@ -1,0 +1,37 @@
+Retry does not work with grpc-servlet in Tomcat
+**gRPC version 1.64.0 / Tomcat 9.0.89**
+
+As retry is configured from the client side - I would expect it to work, no matter which technology is used by server.
+However, something is different if using Tomcat.
+
+I would like to understand if that's a known situation and probably possible directions on how it can be fixed.
+
+I have used `RetryingHelloWorldClient` from the examples, retry works with `RetryingHelloWorldServer`, but does not work if starting gRPC inside Tomcat.
+
+My code is like the following, with `ForceTrailersServerInterceptor` from #10125
+
+
+```java
+public class TomcatServer {
+    public static void main(String[] args) throws IOException, LifecycleException {
+        Path tempDir = Files.createTempDirectory("test");
+        try {
+            Tomcat tomcatServer = new Tomcat();
+            tomcatServer.setPort(50051);
+            tomcatServer.setBaseDir(createDirectory(tempDir.resolve("root")).toString());
+            Context ctx = tomcatServer.addContext("", createDirectory(tempDir.resolve("context")).toString());
+            GrpcServlet grpcServlet = new ServletServerBuilder()
+                    .addService(new RetryingHelloWorldServer.GreeterImpl())
+                    .intercept(new ForceTrailersServerInterceptor())
+                    .buildServlet();
+            Tomcat.addServlet(ctx, "TomcatTest", grpcServlet).setAsyncSupported(true);
+            ctx.addServletMappingDecoded("/*", "TomcatTest");
+            tomcatServer.getConnector().addUpgradeProtocol(new Http2Protocol());
+            tomcatServer.start();
+
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MINUTES);
+        } finally {
+            delete(tempDir);
+        }
+    }
+```

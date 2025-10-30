@@ -1,0 +1,87 @@
+[Bug] consumers stops receiving new messages due to invalid blockedConsumerOnUnackedMsgs state
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+pulsar server: docker image [apachepulsar/pulsar:3.0.4](https://hub.docker.com/r/apachepulsar/pulsar/tags?page=&page_size=&ordering=&name=3.0.4) + helm chart [pulsar-helm-chart](https://github.com/apache/pulsar-helm-chart)
+pulsar client: java client [org.apache.pulsar:pulsar-client:3.0.4](https://search.maven.org/artifact/org.apache.pulsar/pulsar-client/3.0.4/jar)
+
+### Minimal reproduce step
+
+After updating Apache Pulsar, we noticed that one of the consumers sometimes stops receiving new messages for some topics.
+The last fully working version for us is 3.0.1. I have tested all later versions released so far and also built a branch-3.0.
+
+I looked through the commits and determined when our service stops working:
+- Last commit where our service works properly: https://github.com/apache/pulsar/commit/80a8f8d307ac2c023147410e31d567cfce8f17c5
+- Commit which breaks, our service no longer works properly: https://github.com/apache/pulsar/commit/6e5920879996de4f43dccb4809a910b227f931f5
+
+I performed a test using the last commit from branch 3.0 (https://github.com/apache/pulsar/commit/fd823f6cad40ed5a719cec6476563650a24c6986) and reverting the individualAckNormal method to the last version before the "commit which breaks." The change looks as follows: https://github.com/180254/pulsar-issue-22657/commit/6dac4bf7200f332d2a7f7bf9cbfcf43f811f322e. I have no problem with the modified code.
+
+I found nothing in the logs that would inform me about the consumer suspension, etc. There are no unusual logs at all. Restarting the Kubernetes pod with consumers has helped for some time.
+
+### What did you expect to see?
+
+consumer retrieves all messages
+
+### What did you see instead?
+
+consumers stops receiving new messages for some topics
+
+### Anything else?
+
+
+The configuration we use:
+- broker configuration:
+```
+broker:
+    managedLedgerDefaultEnsembleSize: "3"
+    managedLedgerDefaultWriteQuorum: "3"
+    managedLedgerDefaultAckQuorum: "2"
+    brokerDeduplicationEnabled: "true"
+    bookkeeperClientTimeoutInSeconds: "5"
+    bookkeeperClientHealthCheckErrorThresholdPerInterval: "3"
+    bookkeeperClientHealthCheckQuarantineTimeInSeconds: "600"
+```
+- namespace configuration:
+```
+bin/pulsar-admin --admin-url "${ADMIN_URL}" namespaces create "${TENANT}/service"
+bin/pulsar-admin --admin-url "${ADMIN_URL}" namespaces set-max-unacked-messages-per-consumer -c 10 "${TENANT}/service"
+bin/pulsar-admin --admin-url "${ADMIN_URL}" namespaces set-max-unacked-messages-per-subscription -c 20 "${TENANT}/service"
+```
+- the topic is persistent:
+```
+persistent://public/service/service12_some_topic_someotherpart
+```
+- we use PatternMultiTopicsConsumerImpl
+```
+   return pulsarClient
+        .newConsumer(Schema.STRING)
+        .subscriptionName(pulsarServerBasename)
+        .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+        .subscriptionType(SubscriptionType.Shared)
+        .topicsPattern(Pattern.compile("persistent://public/service/service12_.+"))
+        .negativeAckRedeliveryDelay(1000, TimeUnit.MILLISECONDS)
+        .patternAutoDiscoveryPeriod(60, TimeUnit.SECONDS)
+        .receiverQueueSize(1)
+```
+
+We can reproduce it on our service. Test scenario: serviced approximately 20 customers (== 20 topics), each with about 20 messages per second. 1 message is processed in approximately 200ms. The problem occurs for a certain number of topics in the test, not for all
+
+When a problem occurs:
+- pulsar_subscription_back_log metric shows that the backlog is growing
+- pulsar_subscription_unacked_messages metric shows 0
+- pulsar_subscription_blocked_on_unacked_messages metric shows 0
+- in the service metrics (consume & process pod), I do not see that any messages for the broken topic are being processed
+
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

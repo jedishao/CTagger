@@ -1,0 +1,9 @@
+binder: Ownership story for Parcelables in Metadata is inconsistent and undocumented.
+Parcelables can contain file descriptors or other resources that must be closed, for example `android.os.SharedMemory` and `ParcelFileDescriptor`. But `io.grpc.binder.ParcelableUtils` doesn't say anything about who takes ownership of such objects when stored in Metadata.
+
+Metadata has no close() method so perhaps the application layer is in the best position to own the Parcelables it sends/receives ([g/client-services/c/jxtspAxVYFs](http://g/client-services/c/jxtspAxVYFs)). Senders should install an interceptor that calls close from either ClientCall.Listener#onClose or ServerCall.Listener#onComplete(). On the flip side, Parcelable receivers should install an interceptor that extracts Parcelables from headers/trailers and closes them upon onClose/onComplete. We should users about this duty and provide them with suitable interceptors.
+
+We also need to reconcile this change with the current behavior, which does *sometimes* close these resources. In particular, the ParcelableInputStream path taken when using the binder transport always writes a Parcelable with flags=`PARCELABLE_WRITE_RETURN_VALUE`, which normally closes it. However:
+- this only applies to the sender side
+- this close seems wrong because transparent retries might necessitate writing the same Parcelable more than once 
+- the `marshalUnmarshall` path taken by the in-process transport does *not* call close, in contrast, yet the application layer shouldn't have to know what transport is in use.

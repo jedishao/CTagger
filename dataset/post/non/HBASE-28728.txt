@@ -1,0 +1,23 @@
+No data available when scan cross-region and setReversed(true)  in Spark on HBase sc.newAPIHadoopRDD
+Using below scala code to scan data in Spark on HBase:
+
+    val scan = new Scan()
+    scan.withStartRow(Bytes.toBytes(startKey))
+    scan.withStopRow(Bytes.toBytes(stopKey))
+
+    if (reversed) {
+      scan.setReversed(true)
+    }
+    val conf = ConnectionFactory.createConnection.getConfiguration
+    conf.set(TableInputFormat.INPUT_TABLE, tableName)
+    conf.set(TableInputFormat.SCAN, TableMapReduceUtil.convertScanToString(scan))
+
+   val rdd = sc.newAPIHadoopRDD(conf, classOf[TableInputFormat], classOf[ImmutableBytesWritable], classOf[Result])
+
+ 
+
+1.When scan cross-region  without reversed=true, the scan can be performed normally and the result can be obtained.
+
+2.When scan do not cross-region but with reversed=true, the scan can be performed normally and the result can be obtained.
+
+3.When scan cross-region  with reversed=true,  the result is empty.

@@ -1,0 +1,14 @@
+Skip CBO fallback when EXCEPT/INTERSECT/QUALIFY are used
+With `hive.cbo.fallback.strategy=CONSERVATIVE`, Hive retries to compile an SQL without CBO when a compile error happens. We sometimes see an unkind error message when EXCEPT, INTERSECT, OR QUALIFY are used. The fallback non-CBO mode doesn't support those operators, so Hive asked us to enable CBO.
+{code:java}
+0: jdbc:hive2://hive-hiveserver2:10000/defaul> select cast(0 as bigint) = '1' EXCEPT select cast(1 as bigint) = '1';
+Error: Error while compiling statement: FAILED: SemanticException EXCEPT and INTERSECT operations are only supported with Cost Based Optimizations enabled. Please set 'hive.cbo.enable' to true! (state=42000,code=40000)
+0: jdbc:hive2://hive-hiveserver2:10000/defaul> set hive.cbo.fallback.strategy=NEVER;
+No rows affected (0.035 seconds)
+0: jdbc:hive2://hive-hiveserver2:10000/defaul> select cast(0 as bigint) = '1' EXCEPT select cast(1 as bigint) = '1';
+Error: Error while compiling statement: FAILED: SemanticException Line 0:-1 Wrong arguments ''1'': Unsafe compares between different types are disabled for safety reasons. If you know what you are doing, please set hive.strict.checks.type.safety to false and make sure that hive.mapred.mode is not set to 'strict' to proceed. Note that you may get errors or incorrect results if you make a mistake while using some of the unsafe features. (state=42000,code=40000) {code}
+It is inconvenient, especially when the CBO mode fails because of `hive.strict.checks.*`, because we can't identify the true reason why the query failed.
+
+We plan to disable the fallback behavior or deprecate the non-CBO mode. However, we sometimes need to rely on the features at this point.
+ * https://issues.apache.org/jira/browse/HIVE-27831
+ * https://issues.apache.org/jira/browse/HIVE-27830

@@ -1,0 +1,11 @@
+Inject a key for large cross joins
+We are increasingly seeing cross joins of not-so-small size - like 10-100mb data and a few thousand rows on the small side and sever 100B rows on the left. Most often the result of these cross joins is aggregated by some field from the larger table. So one idea would be to inject the eventual group by key into the right side and do a partitioned equi-join. This scales quite well. So:
+
+SELECT agg.., T1.k1, T2.k2, T2.k3 FROM T1 CROSS JOIN T2 GROUP BY k1,k2,k3
+
+can be done better as:
+
+SELECT agg.., T1.k1, T2.k2, T2.k3 FROM T1 CROSS JOIN 
+(SELECT * FROM (SELECT DISTINCT k1 FROM T1 CROSS JOIN T2) T2
+ON T2.k1=T1.k1 -- (maybe coalesce as needed to handle nulls properly)
+GROUP BY k1,k2,k3

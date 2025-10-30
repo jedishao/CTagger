@@ -1,0 +1,154 @@
+Redisson takes much of CPU resources when querying Redis
+## Task
+
+We are trying to migrate some of DB queries to Redis for performance reasons. We are storing OHLC (Candle stick charts for every minute) points of top 100 symbols that are traded in NSDQ exchange in a ScoredSortedSet in Redis. An example would look something like this:
+![image](https://github.com/redisson/redisson/assets/46846338/bf79164c-4e41-4758-95da-ba5ecf69d2cf)
+
+Some symbols would take between 1 - 1.5 MB while others are merely KB in size. 
+
+## Component Spec and Versions
+
+We query the Redis server using simple Spring Boot wrapper that has only a single controller to fetch entire sorted set for a symbol. The Java Spec is given below:
+
+> openjdk version "21.0.1" 2023-10-17 LTS
+OpenJDK Runtime Environment Corretto-21.0.1.12.1 (build 21.0.1+12-LTS)
+OpenJDK 64-Bit Server VM Corretto-21.0.1.12.1 (build 21.0.1+12-LTS, mixed mode, sharing)
+
+The server where wrapper resides is an AWS EC2 instance of type: `t3a.xlarge`.
+
+> Architecture:          x86_64
+CPU op-mode(s):        32-bit, 64-bit
+Byte Order:            Little Endian
+CPU(s):                4
+On-line CPU(s) list:   0-3
+Thread(s) per core:    2
+Core(s) per socket:    2
+Socket(s):             1
+NUMA node(s):          1
+Vendor ID:             AuthenticAMD
+CPU family:            23
+Model:                 1
+Model name:            AMD EPYC 7571
+Stepping:              2
+CPU MHz:               2199.946
+BogoMIPS:              4399.89
+Hypervisor vendor:     KVM
+Virtualization type:   full
+L1d cache:             32K
+L1i cache:             64K
+L2 cache:              512K
+L3 cache:              8192K
+NUMA node0 CPU(s):     0-3
+
+The Java version:
+> openjdk version "21.0.1" 2023-10-17 LTS
+OpenJDK Runtime Environment Corretto-21.0.1.12.1 (build 21.0.1+12-LTS)
+OpenJDK 64-Bit Server VM Corretto-21.0.1.12.1 (build 21.0.1+12-LTS, mixed mode, sharing)
+
+Spring Boot version: `3.2.0`
+Redis Server version: `7.2.3`
+Redisson dependency version: `3.25.2`
+Suffice to say the versions are the latest
+
+## Code and Configuration
+
+Controller class
+```
+    @GetMapping("/read")
+    public Collection<String> readFromRedis(@RequestParam(value = "exchange") String exchange, @RequestParam(value = "symbol") String symbol) {
+        return this.redisDataReader.readKey(exchange, symbol);
+    }
+```
+
+readKey method
+```
+
+    public Collection<String> readKey(String exchange, String symbol) {
+        String encodedSymbol = URLEncoder.encode(symbol, StandardCharsets.UTF_8);
+        String key = exchange + "~" + encodedSymbol;
+        RScoredSortedSet<String> scoredSortedSet = redissonClient.getScoredSortedSet(key);
+        var result = scoredSortedSet.readAll();
+        return result;
+    }
+
+```
+RedissonClient bean creation
+
+```
+   @Bean(destroyMethod = "shutdown")
+    public RedissonClient redisson() throws IOException {
+        Config config = Config.fromYAML(new File("config", "redis.yml"));
+        RedissonClient client = null;
+        try {
+            client = Redisson.create(config);
+
+            // for debug purpose
+            log.debug("configured redis settings: {}", client.getConfig().toYAML());
+
+        } catch (Exception e) {
+            log.error("Redis creation failed. Shutting down!");
+            shutdownHelper.initiateShutdown(1);
+        }
+        return client;
+    }
+```
+
+Redisson configuration:
+
+> singleServerConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 10000
+  retryAttempts: 3
+  retryInterval: 1500
+  password: null
+  subscriptionsPerConnection: 0
+  clientName: "redis-wrapper"
+  address: "<OMITTED>"
+  subscriptionConnectionMinimumIdleSize: 0
+  subscriptionConnectionPoolSize: 0
+  connectionMinimumIdleSize: 64
+  connectionPoolSize: 64
+  database: 0
+  dnsMonitoringInterval: 5000
+threads: 0
+nettyThreads: 0
+codec: !<org.redisson.codec.Kryo5Codec> {}
+transportMode: "NIO"
+
+
+Everything is default except the connectionPoolSize. I tried 8, 16, 32, 64 and 128 connections.
+I have also tried setting threads to 8 and 16.
+
+## Problem and Logs
+
+In all the cases I am getting high CPU usages. I am attaching a debug log for 1 request below. I have hidden IP addresses with `<IP>`.
+
+```
+[2024-01-11 07:32:40.157] DEBUG [http-nio-8190-exec-1] (org.redisson.command.RedisExecutor) - acquired connection for command (ZRANGE) and params [ADSM~ADC, 0, -1] from slot NodeSource [slot=0, addr=null, redisClient=null, redirect=null, entry=null] using node <IP>/<IP>:6379... RedisConnection@1419908006 [redisClient=[addr=redis://<IP>:<IP>], channel=[id: 0xdb29037b, L:/<IP>:8742 - R:<IP>/<IP>:6379], currentCommand=null, usage=1]
+[2024-01-11 07:32:40.226] DEBUG [redisson-netty-1-2] (org.redisson.command.RedisExecutor) - connection released for command (ZRANGE) and params [ADSM~ADC, 0, -1] from slot NodeSource [slot=0, addr=null, redisClient=null, redirect=null, entry=null] using connection RedisConnection@1419908006 [redisClient=[addr=redis://<IP>:6379], channel=[id: 0xdb29037b, L:/<IP>:8742 - R:<IP>/<IP>:6379], currentCommand=CommandData [promise=java.util.concurrent.CompletableFuture@487267cf[Completed normally], command=(ZRANGE), params=[ADSM~ADC, 0, -1], codec=org.redisson.codec.Kryo5Codec], usage=0]
+```
+
+I am attaching the top cmd results below. This is load testing for 100 users using jmeter. Both Jmeter and Redis server are not saturating. Redis is at 30% load with this testing. Only thing that acts weird is the wrapper.
+
+This is with all other redisson configurations at default except connectionPool at 64:
+![image](https://github.com/redisson/redisson/assets/46846338/1f6a351a-6fff-4b8e-b146-594a7859aae5)
+
+This is with  connectionPool at 32:
+![image](https://github.com/redisson/redisson/assets/46846338/5ea01f2a-f6cb-4de2-8707-b3d1a89d1132)
+
+This is with  connectionPool at 16:
+![image](https://github.com/redisson/redisson/assets/46846338/121e2ca4-653b-43d2-a6f7-ca6547c7609f)
+
+Wrapper memory consumption is not even fraction of allocated xmx. 
+![image](https://github.com/redisson/redisson/assets/46846338/4dae67b8-a4bf-4672-a589-638369feb9c0)
+
+Redis is also not saturating (taken for 16 connection pool test):
+![image](https://github.com/redisson/redisson/assets/46846338/1240aede-3c3c-437b-aaf2-55c44704aeb8)
+
+## End
+
+Please let me know **if you need any other logs / stats**. I need to know if this is expected or abnormal.
+
+When I was working with Solr / DB my Java components do not show this much of CPU usage. In fact the Java components only show like 5 - 10% CPU even when connected to 500 users (jmeter) and the bottleneck is usually DB/Solr. Here it is the opposite of what I am seeing.
+

@@ -1,0 +1,35 @@
+Name mapper behavior in context of Redis operation which takes additional key parameter
+<!--
+Upgrade to Redisson PRO https://redisson.pro with advanced features.
+-->
+I used NameMapper to implement global key prefixing:
+```
+config.useSingleServer()
+        .setNameMapper(new NameMapper() {
+            @Override
+            public String map(String name) {
+                return redisKeyPrefix.isEmpty() ? name : redisKeyPrefix + name;
+            }
+
+            @Override
+            public String unmap(String name) {
+                return redisKeyPrefix.isEmpty() ? name : name.replaceFirst("^" + redisKeyPrefix, "");
+            }
+        });
+```
+What if I use 
+```
+redissonClient.getSet(nameWithoutPrefix)  // this will be automatically prefixed by NameMapper
+                .rename(newNameWithoutPrefix);
+                // redisKeyPrefix+nameWithoutPrefix is renamed to newNameWithoutPrefix.
+```
+
+According to my experience, rename() parameter will not go through nameMapper. Is it correct behavior? There could be other commands that use additional keys as parameters to which name mapper is not applied. And you have to apply mapper manually:
+
+```
+redissonClient.getSet(nameWithoutPrefix)  // this will be automatically prefixed by NameMapper
+                .rename(redissonClient.getConfig()
+                                .useSingleServer()
+                                .getNameMapper()
+                                .map(requestSetKey)); // manual mapping
+```

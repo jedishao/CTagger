@@ -1,0 +1,33 @@
+[Bug] In Shared mode consumption scenario, resetCursor gets the wrong position
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+pulsar 2.9.2
+
+### Minimal reproduce step
+
+1. Create a topic with 1 partitions, send traffic normally 
+2. start two consumer process instance in Shared mode
+3. One process calls `acknowledge `after normal consumption
+4. Another process delays calling `acknowledge `with `Thread.sleep(100000L) `after consumption
+5. After a while, `resetCursor("persistent://chenjianbo-tenant1/chenjianbo-ns/test111","subscription1", System.currentTimeMillis() - 5 * 60 * 1000)`, but the getPublishTime of received message of the first process is 1 hour ago.
+
+### What did you expect to see?
+
+getPublishTime  is the correct time
+
+### What did you see instead?
+
+after resetCursor , the first process returns the earliest data of the topic
+
+### Anything else?
+
+I found this problem occur when `searchPosition `and `getLastPosition `is equals, and `individualDeletedMessages` is not empty at the same time
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

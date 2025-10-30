@@ -1,0 +1,17 @@
+DirectSql fails for AlterPartitions
+It fails at three places: (Misses Database Which Uses CLOB & Missing Boolean type conversions Checks
+
+*First:*
+{noformat}
+2024-05-21T08:50:16,570  WARN [main] metastore.ObjectStore: Falling back to ORM path due to direct SQL failure (this is not an error): java.lang.ClassCastException: org.apache.derby.impl.jdbc.EmbedClob cannot be cast to java.lang.String at org.apache.hadoop.hive.metastore.ExceptionHandler.newMetaException(ExceptionHandler.java:152) at org.apache.hadoop.hive.metastore.Batchable.runBatched(Batchable.java:92) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.getParams(DirectSqlUpdatePart.java:748) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.updateParamTableInBatch(DirectSqlUpdatePart.java:715) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.alterPartitions(DirectSqlUpdatePart.java:636) at org.apache.hadoop.hive.metastore.MetaStoreDirectSql.alterPartitions(MetaStoreDirectSql.java:599) at org.apache.hadoop.hive.metastore.ObjectStore$20.getSqlResult(ObjectStore.java:5371);
+
+{noformat}
+*Second:*
+{noformat}
+2024-05-21T09:14:36,808  WARN [main] metastore.ObjectStore: Falling back to ORM path due to direct SQL failure (this is not an error): java.lang.ClassCastException: org.apache.derby.impl.jdbc.EmbedClob cannot be cast to java.lang.String at org.apache.hadoop.hive.metastore.ExceptionHandler.newMetaException(ExceptionHandler.java:152) at org.apache.hadoop.hive.metastore.Batchable.runBatched(Batchable.java:92) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.updateCDInBatch(DirectSqlUpdatePart.java:1228) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.updateStorageDescriptorInBatch(DirectSqlUpdatePart.java:888) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.alterPartitions(DirectSqlUpdatePart.java:638) at org.apache.hadoop.hive.metastore.MetaStoreDirectSql.alterPartitions(MetaStoreDirectSql.java:599) at org.apache.hadoop.hive.metastore.ObjectStore$20.getSqlResult(ObjectStore.java:5371);{noformat}
+
+*Third: Missing Boolean check type*
+
+{noformat}
+2024-05-21T09:35:44,063  WARN [main] metastore.ObjectStore: Falling back to ORM path due to direct SQL failure (this is not an error): java.sql.BatchUpdateException: A truncation error was encountered trying to shrink CHAR 'false' to length 1. at org.apache.hadoop.hive.metastore.ExceptionHandler.newMetaException(ExceptionHandler.java:152) at org.apache.hadoop.hive.metastore.Batchable.runBatched(Batchable.java:92) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.lambda$updateSDInBatch$16(DirectSqlUpdatePart.java:926) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.updateWithStatement(DirectSqlUpdatePart.java:656) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.updateSDInBatch(DirectSqlUpdatePart.java:926) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.updateStorageDescriptorInBatch(DirectSqlUpdatePart.java:900) at org.apache.hadoop.hive.metastore.DirectSqlUpdatePart.alterPartitions(DirectSqlUpdatePart.java:638) at org.apache.hadoop.hive.metastore.MetaStoreDirectSql.alterPartitions(MetaStoreDirectSql.java:599) at org.apache.hadoop.hive.metastore.ObjectStore$20.getSqlResult(ObjectStore.java:5371);
+{noformat}

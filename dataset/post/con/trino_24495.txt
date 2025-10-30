@@ -1,0 +1,10 @@
+The Trino Server RPM preinstall script should not check for a valid JVM
+The Trino Server RPM has a preinstall script (./core/trino-server-rpm/src/main/rpm/preinstall) that looks for various versions of the JVM. If a valid JVM isn't located, then the installation fails.
+
+This approach forces a user to manually install a JVM package since there isn't an RPM dependency to ensure the JVM is automatically installed.
+
+This creates a problem with trying to bundle Trino into a custom installation ISO as a default package. The RPM installation system doesn't allow specifying the order of RPM installation if there isn't a RPM dependency, which creates a race condition between installing the JVM RPM and the Trino RPM.
+
+The Trino Server RPM should not try to enforce dependencies through a preinstall script.  Instead , the Java check should be moved to the Trino launcher.
+
+This will ensure that Trino can be installed in an automated fashion and still have the necessary JVM check before starting.

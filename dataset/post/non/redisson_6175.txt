@@ -1,0 +1,59 @@
+GraalVM EE JDK22 Native Build Failure
+The error message following: 
+
+[creator]     Error: Unsupported features in 2 methods
+    [creator]     Detailed message:
+    [creator]     Error: An object of type 'org.redisson.misc.BiHashMap' was found in the image heap. This type, however, is marked for initialization at image run time for the following reason: classes are initialized at run time by default.
+    [creator]     This is not allowed for correctness reasons: All objects that are stored in the image heap must be initialized at build time.
+    [creator]     
+    [creator]     You now have two options to resolve this:
+    [creator]     
+    [creator]     1) If it is intended that objects of type 'org.redisson.misc.BiHashMap' are persisted in the image heap, add 
+    [creator]     
+    [creator]         '--initialize-at-build-time=org.redisson.misc.BiHashMap'
+    [creator]     
+    [creator]     to the native-image arguments. Note that initializing new types can store additional objects to the heap. It is advised to check the static fields of 'org.redisson.misc.BiHashMap' to see if they are safe for build-time initialization,  and that they do not contain any sensitive data that should not become part of the image.
+    [creator]     
+    [creator]     2) If these objects should not be stored in the image heap, you can use 
+    [creator]     
+    [creator]         '--trace-object-instantiation=org.redisson.misc.BiHashMap'
+    [creator]     
+    [creator]     to find classes that instantiate these objects. Once you found such a class, you can mark it explicitly for run time initialization with 
+    [creator]     
+    [creator]         '--initialize-at-run-time=<culprit>'
+    [creator]     
+    [creator]     to prevent the instantiation of the object.
+    [creator]     
+    [creator]     If you are seeing this message after upgrading to a new GraalVM release, this means that some objects ended up in the image heap without their type being marked with --initialize-at-build-time.
+    [creator]     To fix this, include '--initialize-at-build-time=org.redisson.misc.BiHashMap' in your configuration. If the classes do not originate from your code, it is advised to update all library or framework dependencies to the latest version before addressing this error.
+    [creator]     
+    [creator]     The following detailed trace displays from which field in the code the object was reached.
+    [creator]     Trace: Object was reached by
+    [creator]       reading static field org.redisson.RedissonReference.REACTIVE_MAP
+    [creator]         at <unknown-location>
+    [creator]       registered as read because: null
+    [creator]     Error: An object of type 'org.redisson.misc.BiHashMap' was found in the image heap. This type, however, is marked for initialization at image run time for the following reason: classes are initialized at run time by default.
+    [creator]     This is not allowed for correctness reasons: All objects that are stored in the image heap must be initialized at build time.
+    [creator]     
+    [creator]     You now have two options to resolve this:
+    [creator]     
+    [creator]     1) If it is intended that objects of type 'org.redisson.misc.BiHashMap' are persisted in the image heap, add 
+    [creator]     
+    [creator]         '--initialize-at-build-time=org.redisson.misc.BiHashMap'
+    [creator]     
+    [creator]     to the native-image arguments. Note that initializing new types can store additional objects to the heap. It is advised to check the static fields of 'org.redisson.misc.BiHashMap' to see if they are safe for build-time initialization,  and that they do not contain any sensitive data that should not become part of the image.
+    [creator]     
+    [creator]     2) If these objects should not be stored in the image heap, you can use 
+    [creator]     
+    [creator]         '--trace-object-instantiation=org.redisson.misc.BiHashMap'
+    [creator]     
+    [creator]     to find classes that instantiate these objects. Once you found such a class, you can mark it explicitly for run time initialization with 
+    [creator]     
+    [creator]         '--initialize-at-run-time=<culprit>'
+    [creator]     
+    [creator]     to prevent the instantiation of the object.
+    [creator]     
+    [creator]     If you are seeing this message after upgrading to a new GraalVM release, this means that some objects ended up in the image heap without their type being marked with --initialize-at-build-time.
+    [creator]     To fix this, include '--initialize-at-build-time=org.redisson.misc.BiHashMap' in your configuration. If the classes do not originate from your code, it is advised to update all library or framework dependencies to the latest version before addressing this error.
+
+If I used GraalVM JDK21, the error didn't happened. 

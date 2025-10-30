@@ -1,0 +1,59 @@
+Problem with Command Replacement in Lua Scripts When Using Command Renaming in Redis (CommandMapper)
+### Redis version
+
+7.4.0
+
+### Redisson version
+
+3.48.0
+
+### Redis configuration
+
+```
+rename-command KEYS NEW_KEYS
+rename-command DEL NEW_DEL
+rename-command GET NEW_GET
+rename-command PEXPIRE MY_PEXPIRE
+```
+
+### What is the Expected behavior?
+
+_No response_
+
+### What is the Actual behavior?
+
+Hello, we are using command renaming in Redis. For example, the command PEXPIRE is renamed to MY_PEXPIRE (rename-command PEXPIRE MY_PEXPIRE).
+
+In our code, we use our own implementation of a mapper:
+
+```java
+public class PlatformCommandMapper implements CommandMapper {
+
+  Map<String, String> commandMap;
+
+  public PlatformCommandMapper(Map<String, String> commandMap) {
+    this.commandMap = commandMap.entrySet().stream()
+      .collect(Collectors.toUnmodifiableMap(
+        entry -> entry.getKey().toLowerCase(),
+        entry -> entry.getValue().toLowerCase()
+      ));
+  }
+
+  @Override
+  public String map(String name) {
+    return commandMap.getOrDefault(name.toLowerCase(), name);
+  }
+}
+```
+
+We encountered a problem with Lua scripts. In the script `org.redisson.RedissonExpirable#expireAsync(long, java.util.concurrent.TimeUnit, java.lang.String, java.lang.String...)`, the call to `pexpire` is used twice. Meanwhile, in `org.redisson.command.CommandAsyncService#map`, the `script.replace(...)` method is used, which replaces all occurrences.
+
+As a result, we end up with a script that looks like this:
+
+```lua
+local result = 0;for j = 1, #KEYS, 1 do local expireSet; if ARGV[2] ~= '' then expireSet = redis.call('my_my_pexpire', KEYS[j], ARGV[1], ARGV[2]); else expireSet = redis.call('my_my_pexpire', KEYS[j], ARGV[1]); end; if expireSet == 1 then result = expireSet;end; end; return result; 
+```
+
+### Additional information
+
+_No response_

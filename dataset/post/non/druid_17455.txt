@@ -1,0 +1,20 @@
+Regression in filtered aggregate for double columns
+### Affected Version
+
+Druid 29.0.1
+
+### Description
+
+```
+SELECT
+  (TIME_FLOOR("__time", 'P1D', NULL, 'Asia/Calcutta')) AS "__time",
+  SUM(CASE WHEN "countryIsoCode" IN ('US') THEN added  ELSE 0 END) AS "CASE_LONG",
+  SUM(CASE WHEN "countryIsoCode" IN ('US') THEN CAST(added as double)  ELSE 0.0 END) AS "CASE_DOUBLE"
+FROM "wikipedia"
+WHERE ("__time" >= '2024-10-23T09:00:00.000Z' AND "__time" < '2024-10-30T11:00:00.000Z')
+GROUP BY 1
+ORDER BY "__time"
+LIMIT 10001
+```
+
+If we check the query plan for above query, `CASE_LONG` aggregate gets converted to a filtered aggregator where as `CASE_DOUBLE` gets translated to a virtual column with `case_searched` expression which impacts the performance. Performance wise there is a big difference for real use case if there are multiple dimension values to check. Filtered aggregator is much faster than virtual column based aggregate with `case_searched` expression.

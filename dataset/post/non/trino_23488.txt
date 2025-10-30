@@ -1,0 +1,45 @@
+When I customize the udf function plugin，met a  problem,java.lang.IllegalStateException: No service providers of type io.prestosql.spi.Plugin
+When I customize the udf function plugin，met a  problem
+
+java.lang.IllegalStateException: No service providers of type io.prestosql.spi.Plugin
+
+trino version is 350
+
+import com.google.common.collect.ImmutableSet;
+import io.prestosql.spi.Plugin;
+
+import java.util.Set;
+
+//Presto 注册自定义函数的类，此类需要继承Plugin接口
+public class MyFunctionsPlugin implements Plugin {
+    @Override
+    public Set<Class<?>> getFunctions()
+    {
+        return ImmutableSet.<Class<?>>builder()
+                .add(MyUDF.class)
+                .build();
+    }
+}
+
+
+public class MyUDF {
+    @ScalarFunction("lower_cxk")
+
+    @Description("hive to_date function")
+
+    @SqlType(StandardTypes.VARCHAR)
+
+    public static Slice lower_cxk(@SqlType(StandardTypes.VARCHAR) Slice input) {
+
+        String argument = input.toStringUtf8();
+
+        return Slices.utf8Slice(argument.toLowerCase());
+
+    }
+}
+
+
+META-INF.service/io.prestosql.spi.Plugin
+org.example.xx.MyFunctionsPlugin
+
+How to troubleshoot this problem?

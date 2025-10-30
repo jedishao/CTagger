@@ -1,0 +1,17 @@
+CamelTestSupport: Add an option for camel quarkus to customize unsupported check
+I introduced an wrong condition into the CamelTestSupport a long time ago, The issue can not be detected, because camel-quarkus overrode the logic in its own class. The [refactor|http://example.com]https://github.com/apache/camel/commit/427c19faa5d2e5a3534f244e30355ec7134422e5 of that code  revealed that mistake.
+
+ 
+
+The proper condition for the Camel-quarkus test is not existence of annotation 
+{code:java}
+org.apache.camel.quarkus.test.CamelQuarkusTest (which does not exist){code}
+, but inheritance from 
+{code:java}
+org.apache.camel.quarkus.test.CamelQuarkusTestSupport {code}
+
+Ideally the fix would use 
+{code}clazz.isAssignableFrom(CamelQuarkusTestSupport.class). {code}
+Unfortunately Camel does not know about _CamelQuarkusTestSupport_, therefore it hoas to be solved differently.
+
+

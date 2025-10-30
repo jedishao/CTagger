@@ -1,0 +1,46 @@
+Hive View Read from Trino 
+Hive:
+create table test1( ID DECIMAL(12,0), NAME STRING);
+ 
+create view decview1 as select name,case when ID=0 then 12345623423423 else id end as newid from test1;
+
+
+While Reading from trino :
+trino:ak4> select * from decview1;
+Query 20240821_131037_00050_8ixna failed: line 1:15: View 'hive.ak4.decview1' is stale or in invalid state: column [newid] of type decimal(19,0) projected from query view at position 1 cannot be coerced to column [newid] of type decimal(12,0) stored in view definition
+select * from decview1
+ 
+Explanantion:
+The name column in the view is directly taken from the name column in the source table.
+The newid column in the view is derived from the ID column in the source table with the help of a CASE expression. The CASE expression works like this:
+It checks each row's ID value from the source table.
+If the ID value is 0, then it assigns the value 12345623423423 to newid.
+If the ID value is not 0, then it assigns the actual ID value to newid.
+In other words, the CASE expression replaces any ID value of 0 with 12345623423423 in the view. All other ID values remain the same.
+So, the newid column in the view contains the same values as the ID column in the source table, except where ID was 0, it will be 12345623423423 in the view. 
+
+
+Query{queryBody=QuerySpecification{select=Select{distinct=false, selectItems=["decbigintcheck"."name" "name", (CASE WHEN ("decbigintcheck"."id" = 0) THEN 12345623423423 ELSE "decbigintcheck"."id" END) "newid"]}, from=Optional[AliasedRelation{relation=Table{ak4.decbigintcheck, Optional.empty}, alias="decbigintcheck"}], where=null, groupBy=Optional.empty, having=null, windows=null, orderBy=Optional.empty, offset=null, limit=null}, orderBy=Optional.empty}
+ 
+The coerceToSingleType function is used to ensure all expressions in a list can be coerced to a common type. It goes through each unique type in the expressions and tries to find a common super type. If it can't find a common super type or if an expression can't be coerced to the super type, it throws a TYPE_MISMATCH error.
+In your case, you're trying to coerce DECIMAL(19,0) to DECIMAL(12,0). The decimal type in Trino is defined with precision and scale DECIMAL(precision, scale). The precision is the total number of digits that the number can have, and the scale is the number of digits to the right of the decimal point.
+When coercing from one decimal type to another, Trino ensures that no precision is lost. So, while you can coerce from DECIMAL(12,0) to DECIMAL(19,0), you can't do it the other way around. The reason is that DECIMAL(19,0) can represent larger numbers than DECIMAL(12,0), so trying to coerce could result in data loss.
+That's why you're seeing the TYPE_MISMATCH error - Trino is preventing a potential loss of precision. You'll need to ensure that all expressions in the list return the same type, or a type that can be safely coerced to a common type.
+ 
+When you're using a CASE statement, the Trino engine uses these functions to ensure that all branches of the CASE statement return the same type, or a type that can be coerced to a common type. If it finds a branch that can't be coerced to a common type, it throws a TYPE_MISMATCH exception, which is likely the error you're seeing.
+The error message you're seeing is due to the fact that the Trino engine couldn't find a common super type for all results of your CASE statement. It tried to coerce the types of all branches to a common type, but found a type that couldn't be coerced, and thus threw an exception.
+ 
+The coerceToSingleType function is used to determine a common supertype among a list of expressions. It first determines the type of each expression and then iterates over these types to find a common supertype. If it finds a common supertype, it verifies that all expressions can be coerced to this supertype. If any of these checks fail, it throws a TYPE_MISMATCH exception.
+The visitSearchedCaseExpression function uses coerceToSingleType to ensure all possible results of a CASE expression have a common supertype. This is important because a CASE expression can return different types based on different conditions, and these types need to be compatible.
+Now, let's relate this to your scenario. When you create the view decview1, the newid column can potentially hold values of type DECIMAL(19,0), specifically the value 12345623423423. However, the newid column is defined as DECIMAL(12,0) in the view.
+When you query the view, Trino checks whether the actual data type (DECIMAL(19,0)) can be coerced to the defined data type (DECIMAL(12,0)). This check is done in the checkViewStaleness function, which calls canCoerce. Since DECIMAL(19,0) cannot be coerced to DECIMAL(12,0), canCoerce returns false, and checkViewStaleness throws a VIEW_IS_STALE exception, indicating that the view's definition doesn't match the actual data types of the query results.
+To fix the issue, you should define newid as DECIMAL(19,0) in the view, or make sure the CASE expression does not return values that exceed the precision of DECIMAL(12,0).
+
+after i changed , getting error trino> select * from ak4.decview1;
+
+Query 20240822_111828_00005_n9z83, FAILED, 1 node
+Splits: 3 total, 0 done (0.00%)
+12.15 [0 rows, 0B] [0 rows/s, 0B/s]
+
+Query 20240822_111828_00005_n9z83 failed: Cannot cast BIGINT '12345623423423' to DECIMAL(12, 0)
+

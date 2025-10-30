@@ -1,0 +1,58 @@
+Python dtest TestWriteFailures.test_paxos is failing with Paxos V2
+With configuration changed to engage Paxos V2 with repaired state purging, the dtest fails with:
+{code}
+test_paxos
+write_failures_test.TestWriteFailures
+
+self = <write_failures_test.TestWriteFailures object at 0x7f396bb68910>
+
+    def test_paxos(self):
+        """
+        A light transaction receives a WriteFailure
+        """
+>       exc = self._perform_cql_statement("INSERT INTO mytable (key, value) VALUES ('key1', 'Value 1') IF NOT EXISTS")
+
+write_failures_test.py:202: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+write_failures_test.py:88: in _perform_cql_statement
+    session.execute(statement)
+../env3.7/src/cassandra-driver/cassandra/cluster.py:2618: in execute
+    return self.execute_async(query, parameters, trace, custom_payload, timeout, execution_profile, paging_state, host, execute_as).result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ResponseFuture: query='<BoundStatement query="INSERT INTO mytable (key, value) VALUES ('key1', 'Value 1') IF NOT EXIS...ncy': 'SERIAL', 'required_responses': 2, 'received_responses': 1, 'write_type': 'CAS'} coordinator_host=127.0.0.1:9042>
+
+    def result(self):
+        """
+        Return the final result or raise an Exception if errors were
+        encountered.  If the final result or error has not been set
+        yet, this method will block until it is set, or the timeout
+        set for the request expires.
+    
+        Timeout is specified in the Session request execution functions.
+        If the timeout is exceeded, an :exc:`cassandra.OperationTimedOut` will be raised.
+        This is a client-side timeout. For more information
+        about server-side coordinator timeouts, see :class:`.policies.RetryPolicy`.
+    
+        Example usage::
+    
+            >>> future = session.execute_async("SELECT * FROM mycf")
+            >>> # do other stuff...
+    
+            >>> try:
+            ...     rows = future.result()
+            ...     for row in rows:
+            ...         ... # process results
+            ... except Exception:
+            ...     log.exception("Operation failed:")
+    
+        """
+        self._event.wait()
+        if self._final_result is not _NOT_SET:
+            return ResultSet(self, self._final_result)
+        else:
+>           raise self._final_exception
+E           cassandra.WriteTimeout: Error from server: code=1100 [Coordinator node timed out waiting for replica nodes' responses] message="CAS operation timed out: received 1 of 2 required responses after 0 contention retries" info={'consistency': 'SERIAL', 'required_responses': 2, 'received_responses': 1, 'write_type': 'CAS'}
+
+../env3.7/src/cassandra-driver/cassandra/cluster.py:4894: WriteTimeout
+{code}

@@ -1,0 +1,89 @@
+camel-quarkus: REST route inlining works incorrectly when testing
+h2. The Issue: REST-route inlining works incorrectly/inconsistently when testing
+
+Encountered when running tests, sometimes the wrong subroute gets inlined to the rest-route and causes failures.
+
+Referring to: [https://camel.apache.org/manual/rest-dsl.html#_inline_rest_dsl_as_a_single_route]
+
+ I've attached an example project. When running the tests, a test called "FailingTest" should have "camel.rest.inline-routes" enabled and should fail, as opposed to "SucceedingTest" which has the option disabled and does not fail.
+
+It seems like when inlining the routes, the subroute "get-from-db-route" gets inlined when actually route "quarkuscamelexampleservice-http-get-route" should be inlined as it is the subroute that is called from the REST-route.
+
+For some reason, the tests failing also seems a bit flaky, so you might have to run all the tests in a loop to replicate the issue, i've included a script "run-test-in-loop.sh".
+
+When the test fails, it only shows routes:
+{code:java}
+2024-12-02 10:45:20,687 INFO  [org.apa.cam.qua.cor.CamelBootstrapRecorder] (main) Apache Camel Quarkus 3.16.0 is starting
+2024-12-02 10:45:20,687 INFO  [org.apa.cam.mai.MainSupport] (main) Apache Camel (Main) 4.8.1 is starting
+2024-12-02 10:45:20,716 INFO  [org.apa.cam.mai.BaseMainSupport] (main) Auto-configuration summary
+2024-12-02 10:45:20,716 INFO  [org.apa.cam.mai.BaseMainSupport] (main)     [MicroProfilePropertiesSource] camel.main.dumpRoutes = xml
+2024-12-02 10:45:20,716 INFO  [org.apa.cam.mai.BaseMainSupport] (main)     [JVM System Property]          camel.rest.inlineRoutes = true
+2024-12-02 10:45:20,882 INFO  [org.apa.cam.imp.eng.AbstractCamelContext] (main) Apache Camel 4.8.1 (camel-1) is starting
+2024-12-02 10:45:20,894 INFO  [org.apa.cam.imp.DefaultDumpRoutesStrategy] (main) Dumping 5 routes as XML
+2024-12-02 10:45:20,895 INFO  [org.apa.cam.imp.DefaultDumpRoutesStrategy] (main)
+
+
+    <route id="get-from-db-route" streamCache="true">
+        <from uri="direct:get-from-db"/>
+        <onException>
+            <exception>java.lang.Exception</exception>
+            <redeliveryPolicy logHandled="true"/>
+            <setBody>
+                <simple>Error with database backend: ${exception.message}</simple>
+            </setBody>
+            <removeHeaders pattern="*"/>
+            <stop/>
+        </onException>
+        <process/>
+    </route>
+{code}
+ 
+
+Sometimes it works correctly, and shows how it actually should have inlined the routes with the route "subroute-for-get" not being inlined to the REST-route,but instead existing as a separate route in the context:
+{code:java}
+2024-12-02 10:40:11,095 INFO  [org.apa.cam.qua.cor.CamelBootstrapRecorder] (main) Apache Camel Quarkus 3.16.0 is starting
+2024-12-02 10:40:11,096 INFO  [org.apa.cam.mai.MainSupport] (main) Apache Camel (Main) 4.8.1 is starting
+2024-12-02 10:40:11,198 INFO  [org.apa.cam.mai.BaseMainSupport] (main) Auto-configuration summary
+2024-12-02 10:40:11,198 INFO  [org.apa.cam.mai.BaseMainSupport] (main)     [MicroProfilePropertiesSource] camel.main.dumpRoutes = xml
+2024-12-02 10:40:11,199 INFO  [org.apa.cam.mai.BaseMainSupport] (main)     [JVM System Property]          camel.rest.inlineRoutes = true
+2024-12-02 10:40:11,857 INFO  [org.apa.cam.imp.eng.AbstractCamelContext] (main) Apache Camel 4.8.1 (camel-1) is starting
+2024-12-02 10:40:11,923 INFO  [org.apa.cam.imp.DefaultDumpRoutesStrategy] (main) Dumping 6 routes as XML
+2024-12-02 10:40:11,924 INFO  [org.apa.cam.imp.DefaultDumpRoutesStrategy] (main) 
+
+
+    <route id="get-from-db-route" streamCache="true">
+        <from uri="direct:get-from-db"/>
+        <onException>
+            <exception>java.lang.Exception</exception>
+            <redeliveryPolicy logHandled="true"/>
+            <setBody>
+                <simple>Error with database backend: ${exception.message}</simple>
+            </setBody>
+            <removeHeaders pattern="*"/>
+            <stop/>
+        </onException>
+        <process/>
+    </route>
+
+    <route id="subroute-for-get">
+        <from uri="direct:subroute-for-get"/>
+        <onException>
+            <exception>java.lang.Exception</exception>
+            <redeliveryPolicy logHandled="true"/>
+            <setBody>
+                <simple>Error with http backend: ${exception.message}</simple>
+            </setBody>
+            <removeHeaders pattern="*"/>
+            <stop/>
+        </onException>
+        <process/>
+    </route>
+
+{code}
+I have not had any issues when running in quarkus dev-mode, so i am assuming this only affects testing.
+h2. Workaround
+
+For tests, disabled inlining the routes with:
+{code:java}
+camel.rest.inline-routes = false
+{code}

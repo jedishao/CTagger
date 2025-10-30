@@ -1,0 +1,154 @@
+Druid in k8s not able to reload services when p12 TLS is renewed
+### Affected Version
+
+28.0.1
+
+### Description
+- Cluster size 
+
+Overlords : 2 pods
+Coordinators : 2 pods
+Brokers : 2 pods
+Routers : 2 pods
+Historicals : 2 pods
+
+- Configurations in use
+
+We are running Druid in EKS with [Druid operator](https://github.com/datainfrahq/druid-operator)
+
+common.runtime.properties TLS configuration is :
+```
+        #
+        # Encryption: HTTPS
+        #
+        druid.enablePlaintextPort=false
+        druid.plaintextPort=8088
+        druid.enableTlsPort=true
+        druid.tlsPort=8283
+        druid.server.https.keyStoreType=pkcs12
+        druid.server.https.keyStorePath=/opt/druid/https/keystore.p12
+        druid.server.https.keyStorePassword=${env:https_keystore_pass}
+        druid.server.https.certAlias=1
+        druid.server.https.reloadSslContext=true
+        druid.server.https.reloadSslContextSeconds=60
+        # Since K8S use IP addresses and not hostname we have to keep druid.client.https.validateHostnames=false
+        druid.client.https.validateHostnames=false
+        druid.client.https.protocol=TLSv1.2
+        druid.client.https.trustStoreType=pkcs12
+        druid.client.https.trustStorePath=/opt/druid/https/truststore.p12
+        druid.client.https.trustStorePassword=${env:https_keystore_pass}
+```
+
+certificates and secret are handled by cert-manager :
+
+```
+07:48 $ kubectl describe certificate druid-https-certificates
+Name:         druid-https-certificates
+Namespace:    default
+Labels:       app.kubernetes.io/instance=druid
+Annotations:  <none>
+API Version:  cert-manager.io/v1
+Kind:         Certificate
+Metadata:
+  Creation Timestamp:  2024-02-21T11:47:14Z
+  Generation:          1
+  Resource Version:    1118546
+  UID:                 c09c19ce-aad1-43b7-9ab7-ee0801a8de9c
+Spec:
+  Common Name:  druid-uat.domain.tld
+  Dns Names:
+    druid.druid-uat.domain.tld
+  Duration:  7h0m0s
+  Issuer Ref:
+    Group:  awspca.cert-manager.io
+    Kind:   AWSPCAIssuer
+    Name:   awspca-issuer
+  Keystores:
+    pkcs12:
+      Create:  true
+      Password Secret Ref:
+        Key:   https_keystore_pass
+        Name:  druid-auth
+  Private Key:
+    Algorithm:   RSA
+    Size:        2048
+  Renew Before:  1h0m0s
+  Secret Name:   druid-https-certificates
+  Usages:
+    server auth
+    client auth
+Status:
+  Conditions:
+    Last Transition Time:  2024-02-21T11:47:18Z
+    Message:               Certificate is up to date and has not expired
+    Observed Generation:   1
+    Reason:                Ready
+    Status:                True
+    Type:                  Ready
+  Not After:               2024-02-23T12:47:15Z
+  Not Before:              2024-02-23T04:47:15Z
+  Renewal Time:            2024-02-23T11:47:15Z
+  Revision:                8
+``` 
+
+secrets are mounted into pods as files
+```
+  volumes:
+    - name: druid-https-certificates
+      projected:
+        sources:
+          - secret:
+              name: druid-https-certificates
+              items:
+                - key: keystore.p12
+                  path: keystore.p12
+                - key: truststore.p12
+                  path: truststore.p12
+  volumeMounts:
+    - name: druid-https-certificates
+      mountPath: "/opt/druid/https/"
+      readOnly: true
+
+######
+<<K9s-Shell>> Pod: default/druid-cluster-brokers-0 | Container: druid-cluster-brokers
+bash-5.1$ ls -la https/
+total 0
+drwxrwsrwt    3 root     druid          120 Feb 23 09:55 .
+drwxr-xr-x    1 druid    druid           52 Feb 23 10:20 ..
+drwxr-sr-x    2 root     druid           80 Feb 23 09:55 ..2024_02_23_09_55_04.1951764357
+lrwxrwxrwx    1 root     druid           32 Feb 23 09:55 ..data -> ..2024_02_23_09_55_04.1951764357
+lrwxrwxrwx    1 root     druid           19 Feb 23 09:55 keystore.p12 -> ..data/keystore.p12
+lrwxrwxrwx    1 root     druid           21 Feb 23 09:55 truststore.p12 -> ..data/truststore.p12
+bash-5.1$ pwd
+/opt/druid
+```
+
+- Steps to reproduce the problem :
+
+1 - launch stack
+2 - everything is working fine
+3 - wait cert to be renewed
+4 - services are not able to communicate with coordinators anymore because certificate is "expired" even if certificate has been renewed and secret updated
+5 - restart all pods
+6 - problem is gone
+
+- Expected behaviour
+
+Druid with the `reloadSslContextSeconds` should be able to re-read p12 files and not require a pods restart
+
+- The error message or stack traces encountered. Providing more context, such as nearby log messages or even entire logs, can be helpful.
+
+We can check that secret has been updated when certificate have been renewed with the following 
+```
+07:45 $ kubectl get secret druid-https-certificates --show-managed-fields -o jsonpath='{range .metadata.managedFields[*]}{.manager}{" did "}{.operation}{" at "}{.time}{"\n"}{end}'
+cert-manager-certificates-issuing did Apply at 2024-02-23T05:47:18Z
+```
+
+Error message is 
+
+```
+Caused by: java.security.cert.CertificateExpiredException: NotAfter: Thu Feb 22 12:47:15 UTC 2024
+```
+
+Full stacktrace as attachment
+[druid_error_certificate.log](https://github.com/apache/druid/files/14383483/druid_error_certificate.log)

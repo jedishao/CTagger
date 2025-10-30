@@ -1,0 +1,21 @@
+Easier way to add support for more scalar functions during JDBC predicate pushdown
+### Issue
+During JDBC predicate pushdown, we parse the [OperatorTranslators](https://github.com/prestodb/presto/blob/04138bc26a4fc801630fe936463d89d071d00c0a/presto-base-jdbc/src/main/java/com/facebook/presto/plugin/jdbc/optimization/function/OperatorTranslators.java#L29) registry with the [TranslatorAnnotationParser#parseFunctionDefinitions](https://github.com/prestodb/presto/blob/f85a1c2bf1bcda217655c24220059bc5377d6b76/presto-expressions/src/main/java/com/facebook/presto/expressions/translator/TranslatorAnnotationParser.java#L55) to build a `Map<FunctionMetadata, MethodHandle>` 
+
+These map is then used in [FunctionMetadata#translate](https://github.com/prestodb/presto/blob/9092cb7b41638de8c5ec4046b632be89f66c5e7b/presto-expressions/src/main/java/com/facebook/presto/expressions/translator/FunctionTranslator.java#L49) to check if the predicate expression will translate into a `JdbcExpression`
+
+This approach works, but for every new scalar function (or variant with different type parameters), we would need to add a new method in the OperatorTranslators class.
+For example, to support `INTEGER` addition, we would need to add the below method in `OperatorTranslators` -
+```
+@ScalarOperator(ADD)
+@SqlType(StandardTypes.INTEGER)
+public static JdbcExpression addInteger(@SqlType(StandardTypes.INTEGER) JdbcExpression left, @SqlType(StandardTypes.INTEGER) JdbcExpression right)
+{
+    return new JdbcExpression(infixOperation("+", left, right), forwardBindVariables(left, right));
+}
+```
+
+This would need to be repeated for other type variants like DOUBLE, SMALLINT, TINYINT - which gets quite onerous
+
+### Change needed
+Instead of using methods with Java annotations to build the `Map<FunctionMetadata, MethodHandle>` we need an easier way to support the [common operators](https://github.com/prestodb/presto/blob/b0d8a70a55e2d3ad60ffdf2a8f5b5659a7f6741c/presto-common/src/main/java/com/facebook/presto/common/function/OperatorType.java#L29-L40) that should translate with most Jdbc backends

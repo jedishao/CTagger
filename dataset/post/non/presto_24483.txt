@@ -1,0 +1,30 @@
+Use iceberg property names in IcebergTableProperties
+Currently, Iceberg has a number of table properties available that can be set such as (non-exhaustive):
+
+- `format`
+- `location`
+- `commit_retries`
+- `delete_mode`
+- etc..
+
+These properties are presto-specific names that we map to properties in the Iceberg library. One example is that we map `delete_mode` to `write.delete.mode`. This creates an extra layer of indirection - and potentially confusion - for the users of the Iceberg connector in Presto.
+
+It's common for users to refer to the iceberg library when configuring tables for updates, deletes, etc. Instead of having to document our name mapping to iceberg's mapping it would be better if we just adopted using the same property names as in the Iceberg library. It should be less error-prone and more straightforward since we won't have to do any mapping of property names to one another. Then, in our documentation we can just include a list of the supported properties and link to Iceberg description of them.
+
+The big caveat is that we'll somehow need to support backwards compatibility for the existing properties while also updating and using the new property names going forward. We should warn about the deprecation to users and eventually remove the old property names after a few releases.
+
+## Expected Behavior or Use Case
+
+Table property names in `SHOW CREATE TABLE` and `CREATE TABLE` statements should match those in the Iceberg documentation, rather than use our own naming scheme.
+
+## Presto Component, Service, or Connector
+
+Iceberg connector.
+
+## Possible Implementation
+
+[Suggestion here](https://github.com/prestodb/presto/pull/24397#discussion_r1939871899)
+
+## Context
+
+[Initial discussion here](https://github.com/prestodb/presto/pull/24397#discussion_r1934397282).

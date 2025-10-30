@@ -1,0 +1,35 @@
+Shared work optimizer ignores schema merge setting in case of virtual column difference
+{code:java}
+set hive.optimize.shared.work.merge.ts.schema=false;
+
+create table t1(a int);
+
+explain
+WITH t AS (
+  select BLOCK__OFFSET__INSIDE__FILE, INPUT__FILE__NAME, a from (
+    select BLOCK__OFFSET__INSIDE__FILE, INPUT__FILE__NAME, a, row_number() OVER (partition by INPUT__FILE__NAME) rn from t1
+    where a = 1
+  ) q
+  where rn=1
+)
+select BLOCK__OFFSET__INSIDE__FILE, INPUT__FILE__NAME, a from t1 where NOT (a = 1) AND INPUT__FILE__NAME IN (select INPUT__FILE__NAME from t)
+union all
+select * from t
+{code}
+Before SharedWorkOptimizer:
+{code:java}
+TS[0]-FIL[32]-SEL[2]-RS[14]-MERGEJOIN[42]-SEL[17]-UNION[27]-FS[29]
+TS[3]-FIL[34]-RS[5]-SEL[6]-PTF[7]-FIL[33]-SEL[8]-GBY[13]-RS[15]-MERGEJOIN[42]
+TS[18]-FIL[36]-RS[20]-SEL[21]-PTF[22]-FIL[35]-SEL[23]-UNION[27]
+{code}
+After SharedWorkOptimizer:
+{code:java}
+TS[0]-FIL[32]-SEL[2]-RS[14]-MERGEJOIN[42]-SEL[17]-UNION[27]-FS[29]
+     -FIL[34]-RS[5]-SEL[6]-PTF[7]-FIL[33]-SEL[8]-GBY[13]-RS[15]-MERGEJOIN[42]
+TS[18]-FIL[36]-RS[20]-SEL[21]-PTF[22]-FIL[35]-SEL[23]-UNION[27]
+{code}
+TS[3] and TS[18] are merged but their schema doesn't match and {{hive.optimize.shared.work.merge.ts.schema}} was turned off in the test
+{code:java}
+TS[3]: 0 = FILENAME
+TS[18]: 0 = BLOCKOFFSET,  FILENAME
+{code}

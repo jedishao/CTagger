@@ -1,0 +1,25 @@
+Bean deserialisation from YAML displays message displays wrong nodeType
+actual:
+
+When deserializing a bean with a sequence (which is unfortunate not possible). The error  'Unsupported type: MAPPING' is thrown.
+
+expected:
+
+When deserializing a bean with a sequence . The error  'Unsupported type: SEQUENCE' is thrown.
+
+ 
+
+cause:
+
+In YamlDeserializerSupport at line 188 there is a switch on val.genNodeType, val is the node  with the type, the error is however thrown on the mapping node.
+{code:java}
+switch (val.getNodeType()) {
+    case SCALAR:
+        answer.put(StringHelper.dashToCamelCase(key), asText(val));
+        break;
+    case MAPPING:
+        answer.put(StringHelper.dashToCamelCase(key), asMap(val));
+        break;
+    default:
+        throw new UnsupportedNodeTypeException(node); // <- node should be val{code}
+I believe this error is not fixed on the main

@@ -1,0 +1,63 @@
+[Bug] Broker Fails to Restart Due to Incomplete NAR File Extraction in `/tmp` Directory
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+Master branch
+
+### Minimal reproduce step
+
+1. Configure the Pulsar broker with a filter NAR file, using the following parameters:
+    * `entryFilterNames=<your-filter-name>`
+    * `entryFiltersDirectory=<path-to-filter-directory>`
+2. Attempt to start the broker. Ensure the NAR file is available in the filters directory.
+3. While the broker is attempting to unpack the NAR file, stop the broker mid-process.
+4. Restart the broker.
+5. Observe that the broker fails to restart due to a `NoSuchFileException` related to the `/tmp` directory.
+
+### What did you expect to see?
+
+The Pulsar broker should restart normally without any manual intervention or deletion of files in the `/tmp` directory.
+
+### What did you see instead?
+
+The broker fails to start, throwing a `NoSuchFileException` for missing files in the `/tmp` directory, specifically related to the filter NAR file. Manually deleting the `/tmp` directory allows the broker to start normally, but the issue reappears on subsequent restarts.
+
+```
+java.nio.file.NoSuchFileException: /tmp/pulsar-nar/pulsar-jms-5.0.4-nar.nar-unpacked/_Cvs_KLip3kCfKeErKASDO/META-INF/services/entry_filter.yml
+	at sun.nio.fs.UnixException.translateToIOException(UnixException.java:92) ~[?:?]
+	at sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:106) ~[?:?]
+	at sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111) ~[?:?]
+	at sun.nio.fs.UnixFileSystemProvider.newByteChannel(UnixFileSystemProvider.java:218) ~[?:?]
+	at java.nio.file.Files.newByteChannel(Files.java:380) ~[?:?]
+	at java.nio.file.Files.newByteChannel(Files.java:432) ~[?:?]
+	at java.nio.file.Files.readAllBytes(Files.java:3288) ~[?:?]
+	at org.apache.pulsar.common.nar.NarClassLoader.getServiceDefinition(NarClassLoader.java:204) ~[org.apache.pulsar-pulsar-common-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.broker.service.plugin.EntryFilterProvider.getEntryFilterDefinition(EntryFilterProvider.java:125) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.broker.service.plugin.EntryFilterProvider.getEntryFilterDefinition(EntryFilterProvider.java:114) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.broker.service.plugin.EntryFilterProvider.searchForEntryFilters(EntryFilterProvider.java:84) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.broker.service.plugin.EntryFilterProvider.createEntryFilters(EntryFilterProvider.java:49) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.broker.service.BrokerService.<init>(BrokerService.java:328) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.broker.PulsarService.newBrokerService(PulsarService.java:1843) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.broker.PulsarService.start(PulsarService.java:756) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.PulsarBrokerStarter$BrokerStarter.start(PulsarBrokerStarter.java:274) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+	at org.apache.pulsar.PulsarBrokerStarter.main(PulsarBrokerStarter.java:354) ~[org.apache.pulsar-pulsar-broker-2.11.1.jar:2.11.1]
+```
+
+### Anything else?
+
+* This issue only occurs in bare metal installations, as the /tmp directory is retained across broker restarts.
+* Possible root cause: The broker might have been restarted while the NAR file was being extracted, leaving the extraction incomplete. Upon restart, the broker assumes the incomplete files are valid, leading to the error.
+* Suggested fix: Implement a mechanism that writes a ".success" file after successful NAR extraction and ensures this file is present before using the directory.
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

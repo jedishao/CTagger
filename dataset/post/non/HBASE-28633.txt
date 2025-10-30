@@ -1,0 +1,9 @@
+Make sure that filterAllRemaining() is not called from filterRowKey()
+Many of the current filters call filterAllRemaining() from filterRowKey().
+
+This should not be necessary, as in the normal (RS) code path, filterRowKey() is only called AFTER filterAllReamaining()  has returned false.
+
+Well-written filters do cache their filterAllReamaining() status, so this is not very expensive, but we could still save a few cycles for each cell.
+
+* Change the filter API definition to explicitly state this
+* Fix the code where this is not true. At first glance, org.apache.hadoop.hbase.mapreduce.Import seems to be one place that does not confirm to this behaviour.

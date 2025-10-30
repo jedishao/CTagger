@@ -1,0 +1,73 @@
+Jolokia FailureDetector AllEndpointStates Doesn't Reflect Node Down Status in Cassandra 4.0.17
+*Environment:*
+
+Cassandra version: 4.0.17
+Jolokia version: 1.6.2 (also tested with latest 2.2.9)
+OS: Ubuntu/Debian 22.04
+phi_convict_threshold: 12
+
+We rely on the following Jolokia endpoint to monitor Cassandra node health:
+
+{noformat}
+curl localhost:8778/jolokia/read/org.apache.cassandra.net:type=FailureDetector/AllEndpointStates -s | jq '.value' -r
+{noformat}
+
+However, we encountered a case where a Cassandra node was unreachable (hung), and nodetool status correctly showed it as Down (DN), but the above Jolokia API still showed the node's STATUS_WITH_PORT as NORMAL.
+
+Output of nodetool status on a different node:
+
+{noformat}
+Datacenter: csxxx_prod_central1_1
+=================================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address        Load        Tokens  Owns (effective)  Host ID                               Rack
+DN  10.50.92.183   108.53 GiB  16      2.0%              688f1029-b5b2-461c-ac76-f5e5e2b959f5  us-central1-c
+
+Datacenter: csxxx_prod_east1_1
+==============================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address        Load        Tokens  Owns (effective)  Host ID                               Rack
+{noformat}
+
+Output from AllEndpointStates Jolokia API:
+
+{noformat}
+  /10.50.92.183
+    generation:1744628019
+    heartbeat:5692653
+    LOAD:5692620:1.1653407553E11
+    SCHEMA:17:5ad5d2f7-62fc-3f6d-8695-7b76c54eea22
+    DC:13:csxxx_prod_central1_1
+    RACK:15:us-central1-c
+    RELEASE_VERSION:6:4.0.17
+    NET_VERSION:2:12
+    HOST_ID:3:688f1029-b5b2-461c-ac76-f5e5e2b959f5
+    RPC_READY:35:true
+    INTERNAL_ADDRESS_AND_PORT:9:10.50.92.183:7000
+    NATIVE_ADDRESS_AND_PORT:4:10.50.92.183:9042
+    STATUS_WITH_PORT:22:NORMAL,-1824512796223699308  <==== This should show 'shutdown'
+    SSTABLE_VERSIONS:7:big-nb
+    TOKENS:21:<hidden>
+{noformat}
+
+We expected STATUS_WITH_PORT to reflect SHUTDOWN status when the node is down/unreachable.
+
+Output of alternative Jolokia endpoint using SimpleStates correctly reports the node as DOWN:
+
+{noformat}
+curl localhost:8778/jolokia/read/org.apache.cassandra.net:type=FailureDetector/SimpleStates | jq '.value' -r
+{noformat}
+
+nodetool failuredetector also shows an extremely high Phi value:
+
+{noformat}
+Endpoint,             Phi
+/10.50.92.183,    559.46493999
+{noformat}
+
+When a node is no longer reachable and marked as DOWN by nodetool, the Jolokia AllEndpointStates output (specifically STATUS_WITH_PORT) should reflect that status, ideally showing SHUTDOWN or another indicator of failure.
+
+Is this expected behavior or a bug in the AllEndpointStates MBean response?
+Would appreciate clarification or suggested workaround, if any.

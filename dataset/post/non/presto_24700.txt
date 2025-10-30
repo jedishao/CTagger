@@ -1,0 +1,34 @@
+array_top_n: Throws wrong error code and cannot be caught by try
+Function `array_top_n` throws for invalid `n` value; however, this exception is not properly caught by `try`. Velox implements this behavior correctly.
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used: 0.289
+* Storage (HDFS/S3/GCS..): Hive DWRF
+* Deployment (Cloud or On-prem): On-prem
+
+## Expected Behavior
+This is what the output should look like, as properly implemented in C++ Presto:
+```
+presto:di> SELECT try(array_top_n(c0, (- INTEGER '153792828'))) from (values array[1,23]) t(c0);
+ _col0                
+-------
+ NULL  
+(1 row)
+```
+
+## Current Behavior
+This is what the actual Presto java behavior looks like:
+```
+presto> SELECT try(array_top_n(c0, (- INTEGER '153792828'))) from (values array[1,23]) t(c0);
+
+Query 20250310_182248_00840_7t8j6 failed: Parameter n: -153792828 to ARRAY_TOP_N is negative
+
+presto> SELECT try(array_top_n(array[1,23], (- INTEGER '153792828')));
+
+Query 20250310_182351_01778_7t8j6 failed: Parameter n: -153792828 to ARRAY_TOP_N is negative
+```
+Notice the exception is propagated instead of being caught and outputting null.
+
+## Possible Solution
+We believe it's because the wrong error code is being propagated, not something try can catch.

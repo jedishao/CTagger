@@ -1,0 +1,61 @@
+Fix tcm startup ExceptionInInitializerError when upgrade from 5.0-beta1 to trunk
+5.0-beta1 had set the storage_compatibility_mode: CASSANDRA_4 explicitly,
+
+However, the trunk has set storage_compatibility_mode: NONE recently.
+
+I just upgrade a test cluster from 5.0-beta1 to trunk only with source codes(not with conf)
+
+The trunk source code is incompatible with storage_compatibility_mode: CASSANDRA_4. we will get the following exceptions at the start up:
+{code:java}
+INFO  [main] 2024-01-03 17:40:54,341 Startup.java:98 - Initializing as first CMS node in a new cluster
+Exception (java.lang.NoClassDefFoundError) encountered during startup: Could not initialize class org.apache.cassandra.net.MessagingService
+java.lang.NoClassDefFoundError: Could not initialize class org.apache.cassandra.net.MessagingService
+ at org.apache.cassandra.tcm.Commit$Handler.<init>(Commit.java:304)
+ at org.apache.cassandra.tcm.ClusterMetadataService.<init>(ClusterMetadataService.java:181)
+ at org.apache.cassandra.tcm.Startup.initializeAsNonCmsNode(Startup.java:146)
+ at org.apache.cassandra.tcm.Startup.initialize(Startup.java:99)
+ at org.apache.cassandra.tcm.Startup.initialize(Startup.java:86)
+ at org.apache.cassandra.service.CassandraDaemon.setup(CassandraDaemon.java:268)
+ at org.apache.cassandra.service.CassandraDaemon.activate(CassandraDaemon.java:726)
+ at org.apache.cassandra.service.CassandraDaemon.main(CassandraDaemon.java:876)
+ERROR [main] 2024-01-03 17:40:54,378 CassandraDaemon.java:898 - Exception encountered during startup
+java.lang.NoClassDefFoundError: Could not initialize class org.apache.cassandra.net.MessagingService
+ at org.apache.cassandra.tcm.Commit$Handler.<init>(Commit.java:304)
+ at org.apache.cassandra.tcm.ClusterMetadataService.<init>(ClusterMetadataService.java:181)
+ at org.apache.cassandra.tcm.Startup.initializeAsNonCmsNode(Startup.java:146)
+ at org.apache.cassandra.tcm.Startup.initialize(Startup.java:99)
+ at org.apache.cassandra.tcm.Startup.initialize(Startup.java:86)
+ at org.apache.cassandra.service.CassandraDaemon.setup(CassandraDaemon.java:268)
+ at org.apache.cassandra.service.CassandraDaemon.activate(CassandraDaemon.java:726)
+ at org.apache.cassandra.service.CassandraDaemon.main(CassandraDaemon.java:876) {code}
+ 
+
+After debugging, I found it was caused by the {*}_ExceptionInInitializerError_{*}, in the {_}*LINE-WITH-ISSUE*{_}(logger here is null). A circular dependency is here：
+
+_*(init)MessagingService -> Version(init its static block) -> logger.warn(requires the init of MessagingService)*_
+
+ 
+{code:java}
+public class MessagingService
+{
+ 
+    private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
+    public enum Version
+    {
+        static
+        {
+            if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
+             {
+                 // LINE-WITH-ISSUE
+                 logger.warn("Starting in storage compatibility mode " + DatabaseDescriptor.getStorageCompatibilityMode());
+                 CURRENT = VERSION_40;
+             }
+             else
+             {
+                 CURRENT = VERSION_51;
+             }
+        }
+    }
+    public static final int current_version = Version.CURRENT.value;
+} {code}
+ 

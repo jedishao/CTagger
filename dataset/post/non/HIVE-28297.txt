@@ -1,0 +1,21 @@
+Unify table pattern definition in Hive MetaStore
+*Current Situation*
+There are two cases for table pattern in Hive:
+ - Case 1: Wildcards ('*' and '|)
+It's replaced by SQL type like expressions with '%' and '_' since Hive 4.0.0, details in HIVE-23359.
+DDL documents: https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-Show
+ - Case 2: Java regular expression
+It's declared in hive code:
+[https://github.com/apache/hive/blob/45867be6cb5308566e4cf16c7b4cf8081085b58c/ql/src/java/org/apache/hadoop/hive/ql/metadata/Hive.java#L1882-L1894], and also match the jdo {{matches(String pattern)}} method: 
+[https://www.datanucleus.org/products/accessplatform/jdo/query.html]
+
+*Issues*
+The different definitions cause the misuse of table pattern, in some codes it use * to represent match everything, while it use .* in other codes.
+
+The misuse would cause the wrong result because both client and server side of HMS need a trick handle for '*' with code like:
+{code:java}
+patterns.split("\\|")
+pattern.replaceAll("\\*", ".*"))
+{code}
+*Action*
+We should honor the definition in HMS of Case 2, because Case 1 is just the frontend of SQL, and it has been replaced.

@@ -1,0 +1,42 @@
+Support querying Iceberg partition transforms
+Create partitioned Iceberg tables:
+```
+ CREATE TABLE iceberg.test.buckets (
+    "c0" integer,
+    "c1" bigint
+ )
+ WITH (
+    "format-version" = '2',
+    location = 'file:/Users/yingsu/iceberg_data/iceberg_data/HIVE/test/buckets',
+    partitioning = ARRAY['c1','bucket(c0, 2)'],
+    "read.split.target-size" = 134217728,
+    "write.delete.mode" = 'merge-on-read',
+    "write.format.default" = 'PARQUET',
+    "write.metadata.delete-after-commit.enabled" = false,
+    "write.metadata.metrics.max-inferred-column-defaults" = 100,
+    "write.metadata.previous-versions-max" = 100,
+    "write.update.mode" = 'merge-on-read'
+ )
+```
+We want to run queries like this
+```
+select iceberg.buckets.c0 from buckets where iceberg.BUCKET(c0, 1)=0;
+```
+```
+ CREATE TABLE iceberg.test.months (
+    "c0" integer,
+    "ds" date
+ )
+ WITH (
+    "format-version" = '2',
+    location = 'file:/Users/yingsu/iceberg_data/iceberg_data/HIVE/test/months',
+    partitioning = ARRAY['month(ds)'],
+    "write.format.default" = 'PARQUET'
+ );
+```
+We want to run queries like this:
+```
+select iceberg.MONTH(ds) from months;
+select * from months where iceberg.MONTH(ds)=647;
+```
+Note that this is not Presto's MONTH(), DAY() functions. Those functions just return the month or the day of the year, while Iceberg's partition transform returns the number of months/days from 1970-01-01

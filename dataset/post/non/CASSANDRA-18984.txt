@@ -1,0 +1,13 @@
+Simplify scope-local retries using Entry.Id
+If a node submits a commit request to the CMS which succeeds but doesn't receive the response, it will automatically retry. However, the CMS node handling the resubmission most likely reject it as transformations are generally not idempotent. The submitter will need to then handle that rejection of the resubmission, which can currently mean inspecting the ClusterMetadata to see if the expected effects of the transformation are present. By using the entry id, the CMS node can identify the resubmission as such and return the same (success) response it sent (or should have sent) the first time.
+
+Implementation can be found in:
+https://github.com/beobal/cassandra/commit/c3c33ea1430e1bd14552f68de75bb9c4166fc986
+
+CI summary results attached. For right now, we've only been foccussing on unit tests, in-jvm & python dtests, so the failures in other suites are to be expected. Unfortunately, the archive containing the detailed results is too large to attach as a single file, so will look into the best way to work around that.
+The intention is to fix all suites before merging the feature branch.
+
+||Suite||Total||Passed||Skipped||Failed||Errors||
+|jvm dtest|1508|1465|24|8|11|
+|python dtest|1083|790|262|28|3|
+|unit|12082|12006|61|6|9|

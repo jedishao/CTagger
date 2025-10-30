@@ -1,0 +1,68 @@
+Intermittent Exception when creating RedissonLocalCachedMap in 3.24.1
+**Expected behavior**
+
+No errors, same as with 3.23.5
+
+**Actual behavior**
+
+After upgrading to 3.24.1 my application is ocassionally throwing this error:
+
+```
+org.redisson.client.RedisTimeoutException: Unable to acquire subscription lock after 0ms. Try to increase 'subscriptionTimeout', 'subscriptionsPerConnection', 'subscriptionConnectionPoolSize' parameters.
+    at org.redisson.pubsub.PublishSubscribeService.lambda$timeout$12(PublishSubscribeService.java:328)
+    at io.netty.util.HashedWheelTimer$HashedWheelTimeout.run(HashedWheelTimer.java:715)
+    at io.netty.util.concurrent.ImmediateExecutor.execute(ImmediateExecutor.java:34)
+    at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:703)
+    at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:790)
+    at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:503)
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+    at java.base/java.lang.Thread.run(Thread.java:833)
+```
+
+The application uses `RedissonLocalCachedMap` with `SyncStrategy.NONE`.
+It doesn't override the default subscriptionTimeout.
+
+**Steps to reproduce or test case**
+
+This code reproduces the bug most of the time with 3.24.1, never throws with 3.23.5:
+
+```
+    void redissonSubscribeIssue() {
+        Config config = new Config();
+        config.useSingleServer()
+                .setAddress("redis://localhost:6379")
+                .setConnectionMinimumIdleSize(1)
+                .setConnectionPoolSize(16)
+                .setSubscriptionConnectionMinimumIdleSize(1)
+                .setSubscriptionConnectionPoolSize(32)
+                .setUsername(null)
+                .setPassword("...")
+                .setTcpNoDelay(true)
+                .setKeepAlive(true)
+                .setTimeout(30000)
+                .setConnectTimeout(10000)
+                .setPingConnectionInterval(10000);
+        RedissonClient redissonClient = Redisson.create(config);
+        for (int i = 0; i < 8; i++) {
+            redissonClient.getLocalCachedMap(
+                    UUID.randomUUID().toString(),
+                    LocalCachedMapOptions
+                            .<String, String>defaults()
+                            .syncStrategy(SyncStrategy.NONE)
+                            .useKeyEventsPattern(false)
+            );
+        }
+    }
+```
+
+**Redis version**
+
+Observed with 7.0.9 cluster and single instance.
+
+**Redisson version**
+
+3.24.1
+
+**Redisson configuration**
+
+See code block above.

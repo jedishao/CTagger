@@ -1,0 +1,89 @@
+Failed to submit a listener notification task. Event loop shut down?
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+Should not occur
+
+**Actual behavior**
+Occurred
+
+<details>
+<summary>stack trace</summary>
+
+```kt
+java.util.concurrent.RejectedExecutionException: event executor terminated
+	at io.netty.util.concurrent.SingleThreadEventExecutor.reject(SingleThreadEventExecutor.java:934)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.offerTask(SingleThreadEventExecutor.java:351)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.addTask(SingleThreadEventExecutor.java:344)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:836)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.execute0(SingleThreadEventExecutor.java:827)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:817)
+	at io.netty.util.concurrent.DefaultPromise.safeExecute(DefaultPromise.java:862)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:500)
+	at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636)
+	at io.netty.util.concurrent.DefaultPromise.setSuccess0(DefaultPromise.java:625)
+	at io.netty.util.concurrent.DefaultPromise.setSuccess(DefaultPromise.java:97)
+	at io.netty.channel.group.DefaultChannelGroupFuture.setSuccess0(DefaultChannelGroupFuture.java:200)
+	at io.netty.channel.group.DefaultChannelGroupFuture.access$400(DefaultChannelGroupFuture.java:41)
+	at io.netty.channel.group.DefaultChannelGroupFuture$1.operationComplete(DefaultChannelGroupFuture.java:75)
+	at io.netty.channel.group.DefaultChannelGroupFuture$1.operationComplete(DefaultChannelGroupFuture.java:48)
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590)
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:557)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492)
+	at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636)
+	at io.netty.util.concurrent.DefaultPromise.setSuccess0(DefaultPromise.java:625)
+	at io.netty.util.concurrent.DefaultPromise.trySuccess(DefaultPromise.java:105)
+	at io.netty.channel.DefaultChannelPromise.trySuccess(DefaultChannelPromise.java:84)
+	at io.netty.channel.AbstractChannel$AbstractUnsafe.safeSetSuccess(AbstractChannel.java:990)
+	at io.netty.channel.AbstractChannel$AbstractUnsafe.doClose0(AbstractChannel.java:756)
+	at io.netty.channel.AbstractChannel$AbstractUnsafe.close(AbstractChannel.java:731)
+	at io.netty.channel.AbstractChannel$AbstractUnsafe.close(AbstractChannel.java:620)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.close(DefaultChannelPipeline.java:1352)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeClose(AbstractChannelHandlerContext.java:755)
+	at io.netty.channel.AbstractChannelHandlerContext.access$1200(AbstractChannelHandlerContext.java:61)
+	at io.netty.channel.AbstractChannelHandlerContext$11.run(AbstractChannelHandlerContext.java:738)
+	at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98)
+	at io.netty.util.concurrent.PromiseTask.run(PromiseTask.java:106)
+	at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173)
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:470)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+```
+
+
+</details>
+
+**Steps to reproduce or test case**
+Sorry, I don't know well.
+
+**Redis version**
+Elasticache Redis 7.1.0
+
+**Redisson version**
+3.28.0
+
+**Redisson configuration**
+```kt
+    @Bean
+    fun redissonClient(): RedissonClient {
+        val config =
+            Config().apply {
+                useMasterSlaveServers()
+                    .setTimeout(redisCommandTimeout.toInt())
+                    .setConnectTimeout(redisConnectTimeout.toInt())
+                    .setMasterAddress("redis://${redisReplicaProperties.master.host}:${redisReplicaProperties.master.port}")
+                    .apply {
+                        redisReplicaProperties.slaves.forEach { slave ->
+                            addSlaveAddress("redis://${slave.host}:${slave.port}")
+                        }
+                    }
+            }
+        return Redisson.create(config)
+    }
+```

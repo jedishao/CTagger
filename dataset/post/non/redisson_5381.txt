@@ -1,0 +1,90 @@
+RediSearch: Issues in FT.AGGREGATE implementation
+**Steps to reproduce or test case**
+
+Try to call the aggregate API passing the withCursor option:
+```
+AggregationOptions aggregateOptions = AggregationOptions.defaults().load("$").withCursor(10);
+...
+AggregationResult aggregationResult = redissonSearch.aggregate("index", "*", aggregateOptions);
+```
+
+**Expected behavior**
+
+The resulting Redis query should like like this:
+```
+ "FT.AGGREGATE" "index" "*" "LOAD" "1" "$" "WITHCURSOR" "COUNT" 10
+```
+
+**Actual behavior**
+
+The resulting Redis query looks like this:
+```
+ "FT.AGGREGATE" "index" "*" "LOAD" "1" "$" "SORTBY" "0" "WITHCURSOR"
+```
+
+**Redis version**
+redis_version:6.2.12
+...
+module:name=search,ver=20609,api=1,filters=0,usedby=[],using=[ReJSON],options=[handle-io-errors]
+module:name=ReJSON,ver=20407,api=1,filters=0,usedby=[search|graph],using=[],options=[handle-io-errors]
+module:name=timeseries,ver=10810,api=1,filters=0,usedby=[],using=[],options=[handle-io-errors]
+module:name=graph,ver=21010,api=1,filters=0,usedby=[],using=[ReJSON],options=[]
+module:name=bf,ver=20405,api=1,filters=0,usedby=[],using=[],options=[]
+
+**Redisson version**
+3.23.4
+
+**Redisson configuration**
+default
+
+**Additional Information**
+
+There seem to be several issues in the aggregateAsync implementation:
+https://github.com/redisson/redisson/blob/b0f8bb756002c50672a51a6059837411b5b6a2b7/redisson/src/main/java/org/redisson/RedissonSearch.java#L507C39-L507C53
+
+
+**Issue 1: There is no COUNT clause after WITHCURSOR**
+
+The issue is at line 573. We should check on `getCursorCount` instead of `getCount`.
+
+```
+if (options.getCount() != null) {
+      args.add("COUNT");
+      args.add(options.getCount());
+}
+``` 
+should be
+```
+if (options.getCursorCount() != null) {
+     args.add("COUNT");
+     args.add(options.getCursorCount());
+}
+```
+**Issue 2: There is a SORTBY clause in the query, even though no sorting options were provided**
+
+The issue is at line 544. The condition should be inverted.
+```
+if (options.getSortedByFields().isEmpty()) {
+```
+should be
+```
+if (!options.getSortedByFields().isEmpty()) {
+```
+
+**Issue 3: MAXIDLE option is not honored**
+
+The issue is at line 578. We should add MAXIDLE instead of COUNT.
+
+```
+if (options.getCursorMaxIdle() != null) {
+    args.add("COUNT");
+    args.add(options.getCount());
+}
+```
+should be
+```
+if (options.getCursorMaxIdle() != null) {
+    args.add("MAXIDLE");
+    args.add(options.getCursorMaxIdle());
+}
+```

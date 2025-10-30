@@ -1,0 +1,2 @@
+binder: BinderTransport should avoid canceling AsyncSecurityPolicy futures while holding its lock
+In theory this could lead to deadlock if someone installs a listener with directExecutor() which would run with the lock held. But BinderTransport itself keeps futures from AsyncSecurityPolicy private and runs its own callbacks on a non-directExecutor(). So the only remaining concern is if some AsyncSecurityPolicy implementation did so itself. None of the official SecurityPolicies do this but would be good to fix at some point.

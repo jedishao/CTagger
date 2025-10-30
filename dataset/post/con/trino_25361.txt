@@ -1,0 +1,140 @@
+Trino 473 Unable to Query Hudi 1.0.x Tables (COW and MOR) - GENERIC_INTERNAL_ERROR
+
+Hi Trino community,
+
+I am encountering an issue with **Trino 473** when attempting to query Hudi tables (both COW and MOR types) after upgrading Hudi from **0.14.0 to 1.0.1**. **The same tables can be queried successfully in Apache Flink with Hudi 1.0.1 and in Trino with Hudi 0.14.0**, but they fail in Trino 473 with Hudi 1.0.1, resulting in a GENERIC_INTERNAL_ERROR. I would appreciate your assistance in diagnosing and resolving this issue.
+
+### Environment
+
+- Trino Version: 473
+
+- Hudi Version: 1.0.1 (previously 0.14.0)
+
+- Hive Metastore Version: 3.1.3
+
+- Flink Version: 1.19.1 
+
+- Deployment: Docker containers
+
+### Steps to Reproduce
+
+1. Create a Hudi catalog and table in Flink using Hudi 1.0.1. Below is the Flink SQL used :
+   
+   sql
+   
+   ```sql
+   -- Create Hudi catalog
+   CREATE CATALOG hudi_catalog_3 WITH (
+      'type' = 'hudi',
+      'catalog.path' = 's3a://catalog_name/data_pool2/hudi_catalog_3',
+      'hive.conf.dir' = 's3a://catalog_name/data_pool/conf_hms_8084',
+      'table.external' = 'true',
+      'mode' = 'hms'
+   );
+   
+   -- Create COW table
+   CREATE TABLE IF NOT EXISTS hudi_catalog_3.data_pool2.file_metadata_cow_1_4 (
+    -- Primary key
+    uuid STRING,
+    object_id STRING,
+    -- Base fields
+    tenant_id STRING,
+    store_type STRING,
+    store_object_key STRING,
+    file_name STRING,
+    file_path STRING,
+    file_format STRING,
+    source_channel STRING,
+    description STRING,
+    tags MAP<STRING,STRING>,
+    -- High-frequency search fields
+    file_width INT,
+    file_height INT,
+    duration DOUBLE,
+    alarm_id STRING,
+    device_id STRING,
+    skill_name STRING,
+    -- Skill attributes
+    skill_attrs ROW<
+      labels ROW<
+        alertname STRING,
+        business STRING,
+        orgUuid STRING,
+        requestID STRING,
+        roiID STRING,
+        skillID STRING,
+        trackerID STRING
+      >,
+      annotations ROW<
+        callback STRING,
+        desc STRING,
+        imageTimestamp STRING,
+        isMeter STRING,
+        predictions STRING
+      >
+    >,
+    created_at TIMESTAMP(3),
+    updated_at TIMESTAMP(3),
+    deleted_at TIMESTAMP(3),
+    delete_status TINYINT,
+    -- Processing time
+    proc_time AS PROCTIME(),
+    PRIMARY KEY (uuid) NOT ENFORCED
+   ) WITH (
+    'connector' = 'hudi',
+    'path' = 's3a://catalog_name/data_pool2/data/file_metadata_cow_1_4',
+    'table.type' = 'COPY_ON_WRITE',
+    'hoodie.datasource.write.recordkey.field' = 'uuid',
+    'hoodie.datasource.write.precombine.field' = 'updated_at',
+    -- Partition configuration
+    'hoodie.datasource.write.partitionpath.field' = 'tenant_id,file_format,source_channel',
+    -- Lock configuration
+    'hoodie.write.lock.provider' = 'org.apache.hudi.client.transaction.lock.InProcessLockProvider'
+   );
+   ```
+
+2. Run a simple query in Trino:
+   
+   sql
+   
+   ```sql
+   SELECT * FROM hudi_catalog_2.data_pool2.file_metadata_cow_1_4;
+   ```
+
+3. The query fails with the following error:
+   
+   ```text
+   Query 20250320_073504_00043_kf9gm failed: Internal error
+   ```
+
+4. The only relevant log from the Trino Docker container is:
+   
+   ```text
+   2025-03-20T07:35:04.474Z  INFO  dispatcher-query-81  io.trino.event.QueryMonitor
+   TIMELINE: Query 20250320_073504_00043_kf9gm :: FAILED (GENERIC_INTERNAL_ERROR) :: elapsed 395ms :: planning 395ms :: waiting 0ms :: scheduling 0ms :: running 0ms :: finishing 0ms :: begin 2025-03-20T07:35:04.078Z :: end 2025-03-20T07:35:04.473Z
+   ```
+
+### Observations
+
+- The issue affects both COW and MOR tables in Hudi 1.0.x.
+
+- Queries succeed in Trino with Hudi 0.14.0 and in Flink with Hudi 1.0.1, indicating a compatibility issue between Trino 473 and Hudi 1.0.1.
+
+- The failure occurs during the query planning phase, suggesting potential issues with metadata parsing or query planning.
+
+- Hive Metastore metadata is intact, as confirmed by successful queries in Flink.
+
+### Suspected Cause
+
+Hudi 1.0.1 may have introduced changes (e.g., in metadata format or table structure) that are not yet supported by Trino’s Hudi connector in version 473.
+
+### Questions
+
+- Does Trino 473 support Hudi 1.0.1 for COW and MOR tables?
+
+- If not, is there a planned update to add support, or are there any known workarounds to enable querying these tables?
+
+- Could you provide any guidance on debugging or resolving the GENERIC_INTERNAL_ERROR?
+
+Thank you for your time and support!
+

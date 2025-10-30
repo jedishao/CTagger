@@ -1,0 +1,17 @@
+gRPC Java service stops forwarding requests to handler and instead automatically cancels the request
+### What version of gRPC-Java are you using?
+1.62.2
+
+### What is your environment?
+Observed on deployment running on eclipse-temurin:21 as base image, deployed on GKE.
+
+### What did you expect to see?
+I have a gRPC bidirectional streaming service that keeps the connection over for an extended period of time (10 minutes). This works as intended but after the server has been running for a while, it enters a state where I stop receiving inbound calls.
+
+### What did you see instead?
+I have an interceptor that logs all requests and observe a call to interceptCall, but never see the log output from my actual method handler. Instead a while later I observe a call to the onCancel() callback of a call listener attached to the call.
+
+I have other gRPC services (such as a health check) that _do_ continue to operate correctly. 
+
+### Steps to reproduce the bug
+Unfortunately I do not have a clean repro but would appreciate any suggestions as to how to troubleshoot this further. I've only see this in production, and only after an instance has been running for an extended period of time. Once this "zombie" state is entered, the service does not recover until forcefully restarted.

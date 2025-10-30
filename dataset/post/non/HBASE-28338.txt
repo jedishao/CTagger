@@ -1,0 +1,8 @@
+Bounded leak of FSDataInputStream buffers from checksum switching
+In FSDataInputStreamWrapper, the unbuffer() method caches an unbuffer instance the first time it is called. When an FSDataInputStreamWrapper is initialized, it has hbase checksum disabled.
+
+In HFileInfo.initTrailerAndContext we get the stream, read the trailer, then call unbuffer. At this point, checksums have not been enabled yet via prepareForBlockReader. So the call to unbuffer() caches the current non-checksum stream as the unbuffer instance.
+
+Later, in initMetaAndIndex we do a similar thing. This time, prepareForBlockReader has been called, so we are now using hbase checksums. When initMetaAndIndex calls unbuffer(), it uses the old unbuffer instance which actually has been closed when we switched to hbase checksums. So that call does nothing, and the new no-checksum input stream is never unbuffered.
+
+I haven't seen this cause an issue with normal hdfs replication (though haven't gone looking). It's very problematic for Erasure Coding because DFSStripedInputStream holds a large buffer (numDataBlocks * cellSize, so 6mb for RS-6-3-1024k) that is only used for stream reads NOT pread. The FSDataInputStreamWrapper we are talking about here is only used for pread in hbase, so those 6mb buffers just hang around totally unused but unreclaimable. Since there is an input stream per StoreFile, this can add up very quickly on big servers.

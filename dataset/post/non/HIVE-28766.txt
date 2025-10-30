@@ -1,0 +1,137 @@
+EXECUTE IMMEDIATE 'load data inpath ''/tmp/test.txt'' OVERWRITE INTO table test_table' displays ERROR on the console.
+_EXECUTE IMMEDIATE 'load data inpath ''/tmp/test.txt'' OVERWRITE INTO table test_table'_ displays ERROR on the console though the data loading into the table successful.
+{noformat}
+create table test_table (id bigint, name string) stored as textfile;{noformat}
+Beeline console
+{noformat}
+0: jdbc:hive2://localhost> EXECUTE IMMEDIATE 'load data inpath ''/tmp/test.txt'' OVERWRITE INTO table test_table';/
+INFO  : Compiling command(queryId=hive_20250213135129_7d88b621-9282-4133-a1a5-eb24a78fe794): load data inpath '/tmp/test.txt' OVERWRITE INTO table test_table
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20250213135129_7d88b621-9282-4133-a1a5-eb24a78fe794); Time taken: 0.025 seconds
+INFO  : Executing command(queryId=hive_20250213135129_7d88b621-9282-4133-a1a5-eb24a78fe794): load data inpath '/tmp/test.txt' OVERWRITE INTO table test_table
+INFO  : Starting task [Stage-0:MOVE] in serial mode
+INFO  : Loading data to table default.test_table from hdfs://localhost:8020/tmp/test.txt
+INFO  : Starting task [Stage-1:STATS] in serial mode
+INFO  : Executing stats task
+INFO  : Table default.test_table stats: [numFiles=1, numRows=0, totalSize=10, rawDataSize=0, numFilesErasureCoded=0]
+INFO  : Table default.test_table stats: [numFiles=1, numRows=0, totalSize=10, rawDataSize=0, numFilesErasureCoded=0]
+INFO  : Completed executing command(queryId=hive_20250213135129_7d88b621-9282-4133-a1a5-eb24a78fe794); Time taken: 0.185 seconds
+INFO  : OK
+Error: Error running HPL/SQL operation (state=,code=0){noformat}
+Selecting data from _test_table_ shows the data
+{noformat}
+0: jdbc:hive2://localhost> select * from test_table;/
+INFO  : Compiling command(queryId=hive_20250213135145_c0ab0a25-52d7-474d-9568-a43f2b363a61): select * from test_table
+INFO  : No Stats for default@test_table, Columns: name, id
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:test_table.id, type:bigint, comment:null), FieldSchema(name:test_table.name, type:string, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20250213135145_c0ab0a25-52d7-474d-9568-a43f2b363a61); Time taken: 0.079 seconds
+INFO  : Executing command(queryId=hive_20250213135145_c0ab0a25-52d7-474d-9568-a43f2b363a61): select * from test_table
+INFO  : Completed executing command(queryId=hive_20250213135145_c0ab0a25-52d7-474d-9568-a43f2b363a61); Time taken: 0.012 seconds
+INFO  : OK
+INFO  : 100
+INFO  : 	
+INFO  : xyz
+INFO  : 
++----------------+------------------+
+| test_table.id  | test_table.name  |
++----------------+------------------+
+| 100            | xyz              |
++----------------+------------------+
+1 row selected (0.149 seconds){noformat}
+HS2 logs shows the below stack trace
+{noformat}
+25/02/17 07:36:34 ERROR hplsql.HplSqlOperation: Error running hive query
+org.apache.hive.service.cli.HiveSQLException: Error running HPL/SQL operation
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlOperation.interpret(HplSqlOperation.java:111) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlOperation.access$500(HplSqlOperation.java:54) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlOperation$BackgroundWork.lambda$run$0(HplSqlOperation.java:207) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at java.security.AccessController.doPrivileged(Native Method) ~[?:1.8.0_292]
+        at javax.security.auth.Subject.doAs(Subject.java:422) ~[?:1.8.0_292]
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1899) ~[hadoop-common-3.3.6.jar:?]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlOperation$BackgroundWork.run(HplSqlOperation.java:219) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) ~[?:1.8.0_292]
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266) ~[?:1.8.0_292]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) ~[?:1.8.0_292]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) ~[?:1.8.0_292]
+        at java.lang.Thread.run(Thread.java:748) ~[?:1.8.0_292]
+Caused by: java.lang.RuntimeException: java.lang.NullPointerException
+        at org.apache.hive.service.cli.session.HiveSessionProxy.invoke(HiveSessionProxy.java:89) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.access$000(HiveSessionProxy.java:36) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionProxy$1.run(HiveSessionProxy.java:63) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at java.security.AccessController.doPrivileged(Native Method) ~[?:1.8.0_292]
+        at javax.security.auth.Subject.doAs(Subject.java:422) ~[?:1.8.0_292]
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1899) ~[hadoop-common-3.3.6.jar:?]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.invoke(HiveSessionProxy.java:59) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at com.sun.proxy.$Proxy126.getResultSetMetadata(Unknown Source) ~[?:?]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlQueryExecutor.metadata(HplSqlQueryExecutor.java:77) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlQueryExecutor.lambda$executeQuery$0(HplSqlQueryExecutor.java:69) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at com.google.common.base.Suppliers$NonSerializableMemoizingSupplier.get(Suppliers.java:160) ~[guava-22.0.jar:?]
+        at org.apache.hive.hplsql.executor.QueryResult.metadata(QueryResult.java:67) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.executor.QueryResult.columnCount(QueryResult.java:41) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Stmt.exec(Stmt.java:1090) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitExec_stmt(Exec.java:2064) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitExec_stmt(Exec.java:96) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$Exec_stmtContext.accept(HplsqlParser.java:10369) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.Exec.visitStmt(Exec.java:1103) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitStmt(Exec.java:96) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$StmtContext.accept(HplsqlParser.java:1054) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.HplsqlBaseVisitor.visitBlock(HplsqlBaseVisitor.java:27) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$BlockContext.accept(HplsqlParser.java:473) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.Exec.visitProgram(Exec.java:999) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitProgram(Exec.java:96) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$ProgramContext.accept(HplsqlParser.java:414) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visit(AbstractParseTreeVisitor.java:18) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.Exec.evaluate(Exec.java:817) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.parseAndEval(Exec.java:796) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlOperation.interpret(HplSqlOperation.java:98) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        ... 11 more
+Caused by: java.lang.NullPointerException
+        at org.apache.hive.service.cli.TableSchema.<init>(TableSchema.java:52) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.TableSchema.<init>(TableSchema.java:59) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.SQLOperation.getResultSetSchema(SQLOperation.java:456) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.OperationManager.getOperationResultSetSchema(OperationManager.java:331) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionImpl.getResultSetMetadata(HiveSessionImpl.java:910) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_292]
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:1.8.0_292]
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_292]
+        at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_292]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.invoke(HiveSessionProxy.java:78) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.access$000(HiveSessionProxy.java:36) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionProxy$1.run(HiveSessionProxy.java:63) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at java.security.AccessController.doPrivileged(Native Method) ~[?:1.8.0_292]
+        at javax.security.auth.Subject.doAs(Subject.java:422) ~[?:1.8.0_292]
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1899) ~[hadoop-common-3.3.6.jar:?]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.invoke(HiveSessionProxy.java:59) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at com.sun.proxy.$Proxy126.getResultSetMetadata(Unknown Source) ~[?:?]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlQueryExecutor.metadata(HplSqlQueryExecutor.java:77) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlQueryExecutor.lambda$executeQuery$0(HplSqlQueryExecutor.java:69) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at com.google.common.base.Suppliers$NonSerializableMemoizingSupplier.get(Suppliers.java:160) ~[guava-22.0.jar:?]
+        at org.apache.hive.hplsql.executor.QueryResult.metadata(QueryResult.java:67) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.executor.QueryResult.columnCount(QueryResult.java:41) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Stmt.exec(Stmt.java:1090) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitExec_stmt(Exec.java:2064) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitExec_stmt(Exec.java:96) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$Exec_stmtContext.accept(HplsqlParser.java:10369) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.Exec.visitStmt(Exec.java:1103) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitStmt(Exec.java:96) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$StmtContext.accept(HplsqlParser.java:1054) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.HplsqlBaseVisitor.visitBlock(HplsqlBaseVisitor.java:27) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$BlockContext.accept(HplsqlParser.java:473) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.Exec.visitProgram(Exec.java:999) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.visitProgram(Exec.java:96) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.HplsqlParser$ProgramContext.accept(HplsqlParser.java:414) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visit(AbstractParseTreeVisitor.java:18) ~[antlr4-runtime-4.9.3.jar:4.9.3]
+        at org.apache.hive.hplsql.Exec.evaluate(Exec.java:817) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.hplsql.Exec.parseAndEval(Exec.java:796) ~[hive-hplsql-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        at org.apache.hive.service.cli.operation.hplsql.HplSqlOperation.interpret(HplSqlOperation.java:98) ~[hive-service-4.1.0-SNAPSHOT.jar:4.1.0-SNAPSHOT]
+        ... 11 more
+{noformat}
+ 

@@ -1,0 +1,24 @@
+Wrong results when comparing STRUCT/ROW with nulls
+{code:sql}
+CREATE TABLE t (id int, cstring STRING);
+INSERT INTO t VALUES(1,'A'), (2,'X'), (3,null);
+SELECT id, (t.cstring, 'B') = ('A', 'B') FROM t;
+SELECT id, STRUCT(t.cstring, 'B') = STRUCT('A', 'B') FROM t;
+{code}
++Expected+
+|1|true|
+|2|false|
+|3|null|
+
++Actual+
+|1|true|
+|2|false|
+|3|false|
+
+The problem can be seen in row 3 when comparing the following STRUCT/ROW types.
+{noformat}
+(null, 'B') = ('A', 'B')
+{noformat}
+The result is *false* but it should be *null* cause equality between null and 'A' is not defined.
+
+I checked with Postgres and the SQL standard and it seems that returning null is the correct behavior.

@@ -1,0 +1,41 @@
+Camel-package-maven-plugin: generates test configurers in non-tests artifacts
+Change [https://github.com/apache/camel/commit/0fb5aa31ae590eb042a1664ff18b6d5c44acc5c4#diff-8c376760c1f21c10dc4f6b051f972405cc04fc1ce9ca636a478cc5cfb8a1f51c]
+
+causes that for example _camel-main.jar_ contains test configurers like 
+{code:java}
+org.apache.camel.main.MySecondBar, org.apache.camel.main.MySecondFoo| {code}
+As you can see herehttps://github.com/apache/camel/commit/0fb5aa31ae590eb042a1664ff18b6d5c44acc5c4
+
+different method is called.
+
+ 
+
+The original method was:
+{code:java}
+    public static boolean updateResource(BuildContext buildContext, Path out, String data) {
+        try {
+            if (FileUtil.updateFile(out, data)) {
+                refresh(buildContext, out);
+                return true;
+            }
+        } catch (IOException e) {
+            throw new IOError(e);
+        }
+        return false;
+{code}
+
+which can not create a test resource.
+
+Newly called method
+{code:java}
+    protected boolean updateResource(Path dir, String fileName, String data) {
+        boolean updated;
+        updated = updateResource(buildContext, dir.resolve(fileName), data);
+>>>>        if (!fileName.endsWith(".java")) {
+>>>>>           Path outputDir = Paths.get(project.getBuild().getOutputDirectory());
+>>>>>           updated |= updateResource(buildContext, outputDir.resolve(fileName), data);
+        }
+        return updated;
+{code}
+refreshes also resources in outputDiectorry. Therefore some test configurers are created during build of the artifact.
+ 

@@ -1,0 +1,85 @@
+[Bug] pulsar-client-original 4.0.1 is not debuggable
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+4.0.1
+
+### Minimal reproduce step
+
+1. open https://github.com/Shawyeok/348-pulsar-client.git with IDEA
+2. add breakpoint for `org/apache/pulsar/client/impl/ConsumerBase.java:864`
+3. run `ConsumerInterceptorDemo` with debugger, you'll notice there is a gray cross mark indicate `No executable code found at line 864 in class org.apache.pulsar.client.impl.ConsumerBase`
+
+<img width="1728" alt="image" src="https://github.com/user-attachments/assets/628b9177-6efc-4cce-944f-589ac0a9fff7" />
+
+### What did you expect to see?
+
+`pulsar-client` is a shade jar which is very hard to debug with, `pulsar-client-original` should be debug normally in the IDEA.
+
+### What did you see instead?
+
+`No executable code found at line 864 in class org.apache.pulsar.client.impl.ConsumerBase`
+
+### Anything else?
+
+Here is the output of `javap -l -v -p -c org.apache.pulsar.client.impl.ConsumerBase` for `ConsumerBase#beforeConsume` method in [pulsar-client-original-4.0.1.jar](https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client-original/4.0.1/)
+```
+  protected org.apache.pulsar.client.api.Message<T> beforeConsume(org.apache.pulsar.client.api.Message<T>);
+    descriptor: (Lorg/apache/pulsar/client/api/Message;)Lorg/apache/pulsar/client/api/Message;
+    flags: ACC_PROTECTED
+    Code:
+      stack=3, locals=2, args_size=2
+         0: aload_0
+         1: getfield      #158                // Field interceptors:Lorg/apache/pulsar/client/impl/ConsumerInterceptors;
+         4: ifnull        17
+         7: aload_0
+         8: getfield      #158                // Field interceptors:Lorg/apache/pulsar/client/impl/ConsumerInterceptors;
+        11: aload_0
+        12: aload_1
+        13: invokevirtual #763                // Method org/apache/pulsar/client/impl/ConsumerInterceptors.beforeConsume:(Lorg/apache/pulsar/client/api/Consumer;Lorg/apache/pulsar/client/api/Message;)Lorg/apache/pulsar/client/api/Message;
+        16: areturn
+        17: aload_1
+        18: areturn
+      LineNumberTable:
+        line 862: 0
+        line 863: 7
+        line 865: 17
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      19     0  this   Lorg/apache/pulsar/client/impl/ConsumerBase;
+            0      19     1 message   Lorg/apache/pulsar/client/api/Message;
+      LocalVariableTypeTable:
+        Start  Length  Slot  Name   Signature
+            0      19     0  this   Lorg/apache/pulsar/client/impl/ConsumerBase<TT;>;
+            0      19     1 message   Lorg/apache/pulsar/client/api/Message<TT;>;
+      StackMapTable: number_of_entries = 1
+        frame_type = 17 /* same */
+    MethodParameters:
+      Name                           Flags
+      message
+    Signature: #1333                        // (Lorg/apache/pulsar/client/api/Message<TT;>;)Lorg/apache/pulsar/client/api/Message<TT;>;
+```
+
+below lines should be highlighted, there is one line missing from the bytecode.
+```
+      LineNumberTable:
+        line 862: 0
+        line 863: 7
+        line 865: 17
+```
+
+https://github.com/apache/pulsar/blob/3ea527bf6b720dcfe074c4476257cce96ebc068a/pulsar-client/src/main/java/org/apache/pulsar/client/impl/ConsumerBase.java#L862-L868
+
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

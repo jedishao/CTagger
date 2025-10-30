@@ -1,0 +1,19 @@
+Issue with Kryo5Codec in combination with org.springframework.cache.support.NullValue
+Hi,
+
+I'm currently having an issue with the Spring Cache implementation in combination with Redisson. 
+The JCacheCache class provided by Redisson extends `org.springframework.cache.support.AbstractValueAdaptingCache`. In the method `protected Object fromStoreValue(@Nullable Object storeValue)` of the class AbstractValueAdaptingCache, there is an if condition, that check if the storeValue is equal to NullValue.INSTANCE using ==. 
+
+```
+protected Object fromStoreValue(@Nullable Object storeValue) {
+	if (this.allowNullValues && storeValue == NullValue.INSTANCE) {
+		return null;
+	}
+	return storeValue;
+}
+```
+
+This condition evaluated to false in my case, because the instance of storeValue was not the same instance as NullValue.INSTANCE. Reason is the deserialisation, that was done by Kryo. It seems, that Kryo changes the constructor to "public" using reflections and creates a new instance by calling the constructor. It does not call the "readResolve()" method of NullValue class, which would return NullValue.INSTANCE.
+Is this a known issue? The only solution I came up with is extending the Kryo5Codec and adding a custom Serializer for NullValue.class. Is there another way to fix this issue?
+
+Best regards

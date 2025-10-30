@@ -1,0 +1,19 @@
+JDBC: HttpRequestInterceptorBase should not add an empty "Cookie:" header to the request if no custom cookies have been specified
+While debugging session cookies of a sticky session, I noticed that the JDBC driver adds an empty "Cookie" header to the request if no custom cookie is configured. This is both unnecessary and unfortunately intermittently interferes with the sticky session handling in the kubernetes nginx ingress controller, so I created this ticket to omit the empty "Cookie" header.
+
+some logs from the debug session:
+
+
+{noformat}
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> POST /cliservice HTTP/1.1
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Content-Type: application/x-thrift
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Accept: application/x-thrift
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> User-Agent: Java/THttpClient/HC
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Cookie: 
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Content-Length: 85
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Host: hs2-gfarkas1102d.apps.shared-rke-dev-01.kcloud.cloudera.com:443
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Connection: Keep-Alive
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Cookie: NGINX_HS2_CLIENT_COOKIE=c3841bfcbfe977d6d38f33540a726fa6|581343ccdf5ff27614eb3667d4be1ded; hive.server2.auth=cu=dwxdevuser&rn=-2881699162572965070&s=OyfcNcLzBz0h6AhDutto0M6jTNhpk+KfkJjp//q2lCg=
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> Accept-Encoding: gzip,deflate
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> X-XSRF-HEADER: true
+2023-11-08T17:18:05,616 DEBUG [main] http.headers: http-outgoing-0 >> X-CSRF-TOKEN: true{noformat}

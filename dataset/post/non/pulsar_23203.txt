@@ -1,0 +1,68 @@
+[Bug] use dependency pulsar-client 3.3.1 will occured error AbstractMethodError
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+MacOS/Java21/Pulsar-client 3.3.1
+
+### Minimal reproduce step
+
+add dependency in the pom.xml
+```xml
+<dependency>
+            <groupId>org.apache.pulsar</groupId>
+            <artifactId>pulsar-client</artifactId>
+            <version>3.3.1</version>
+        </dependency>
+```
+and run application
+wait for maybe 10 minutes will get an error
+
+```
+java.lang.AbstractMethodError: Receiver class org.apache.pulsar.client.impl.PulsarClientImpl does not define or inherit an implementation of the resolved method 'abstract java.util.concurrent.CompletableFuture getPartitionsForTopic(java.lang.String)' of interface org.apache.pulsar.client.api.PulsarClient.
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl.subscribeIncreasedTopicPartitions(MultiTopicsConsumerImpl.java:1368) ~[pulsar-client-3.3.1.jar:3.3.1]
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl.access$200(MultiTopicsConsumerImpl.java:82) ~[pulsar-client-3.3.1.jar:3.3.1]
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl$TopicsPartitionChangedListener.lambda$onTopicsExtended$0(MultiTopicsConsumerImpl.java:1351) ~[pulsar-client-3.3.1.jar:3.3.1]
+	at java.base/java.util.concurrent.ConcurrentHashMap$KeySetView.forEach(ConcurrentHashMap.java:4709) ~[na:na]
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl$TopicsPartitionChangedListener.onTopicsExtended(MultiTopicsConsumerImpl.java:1351) ~[pulsar-client-3.3.1.jar:3.3.1]
+```
+
+### What did you expect to see?
+
+no error
+
+### What did you see instead?
+
+```
+java.lang.AbstractMethodError: Receiver class org.apache.pulsar.client.impl.PulsarClientImpl does not define or inherit an implementation of the resolved method 'abstract java.util.concurrent.CompletableFuture getPartitionsForTopic(java.lang.String)' of interface org.apache.pulsar.client.api.PulsarClient.
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl.subscribeIncreasedTopicPartitions(MultiTopicsConsumerImpl.java:1368) ~[pulsar-client-3.3.1.jar:3.3.1]
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl.access$200(MultiTopicsConsumerImpl.java:82) ~[pulsar-client-3.3.1.jar:3.3.1]
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl$TopicsPartitionChangedListener.lambda$onTopicsExtended$0(MultiTopicsConsumerImpl.java:1351) ~[pulsar-client-3.3.1.jar:3.3.1]
+	at java.base/java.util.concurrent.ConcurrentHashMap$KeySetView.forEach(ConcurrentHashMap.java:4709) ~[na:na]
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl$TopicsPartitionChangedListener.onTopicsExtended(MultiTopicsConsumerImpl.java:1351) ~[pulsar-client-3.3.1.jar:3.3.1]
+```
+
+### Anything else?
+
+"The error occurred in the method `getPartitionsForTopic` in `PulsarClientImpl`. It expects a `String`, but the method is defined as:
+
+```java
+public CompletableFuture<List<String>> getPartitionsForTopic(String topic, boolean metadataAutoCreationEnabled) {
+//...
+}
+```
+"
+
+When I use version 3.2.2 everything is alright.
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

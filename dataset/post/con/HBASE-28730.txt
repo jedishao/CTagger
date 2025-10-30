@@ -1,0 +1,24 @@
+Locating region can exceed client operation timeout 
+I'll be referring to hbase.client.operation.timeout as 'operation timeout' and hbase.client.meta.operation.timeout as 'meta timeout'.
+
+In the branch-2 client there is a userRegionLock that a thread needs to acquire to run a meta scan to locate a region. userRegionLock acquisition time is bounded by the meta timeout (HBASE-24956) and once the lock is acquired the meta scan time is bounded by hbase.client.meta.scanner.timeout.period (HBASE-27078). The following describes two cases where resolving the region location for an operation can exceed the end to end operation timeout when there is contention around userRegionLock and/or meta slowness (high contention could result from meta slowness/hotspotting , and is more likely in a high concurrency environment where lots of batch operations are being executed):
+
+1. In locateRegionInMeta , if the relevant region location is not cached, userRegion lock acquisition and meta scan (if userRegionLock is able to be acquired within the lock timeout) [may be retried up to hbase.client.retries.number times|https://github.com/apache/hbase/blob/branch-2/hbase-client/src/main/java/org/apache/hadoop/hbase/client/ConnectionImplementation.java#L1012]. Operation timeout check is not done in between retries, so even if one has meta operation timeout + meta scanner timeout < operation timeout, retries could take the client beyond the operation timeout before an exception gets thrown or we exit out of locateRegionInMeta if (meta operation timeout + meta scanner timeout) * region lookup attempts > operation timeout. 
+
+Suppose we have operation timeout = meta timeout = 10sec and client retries = 2, and there is enough contention/meta slowness that userRegionLock cannot be acquired for 1min, and we have a new thread running an operation that needs to do a region lookup. For this operation, locateRegionInMeta will try to acquire the userRegionLock 3 times , taking 3 * 10sec + some pause time in between retries before we exit out of locateRegionInMeta and the operation times out after >3x the configured 10sec operation/meta timeout.
+
+2. Without any retries, if one has (hbase.client.meta.operation.timeout || hbase.client.meta.scanner.timeout.period) > hbase.client.operation.timeout (meta operation timeout default makes this easily possible -  HBASE-28608) the client operation timeout could be exceeded.
+
++Proposal+
+I propose two changes:
+1. Doing an operation timeout check in between retrying userRegion lock acquisition + meta scan (perhaps moving the retry logic + loop outside of the locateRegionInMeta method?)
+
+2. Change userRegionLock timeout and meta scanner timeout to dynamic values that depend on the time remaining for the end to end operation. userRegionLock acquisition and meta scan time are bounded by static values regardless of how much time was already spent trying to do region location lookups or how much time might be remaining to run the actual operations once all required region locations are found.
+
+If we were to use time remaining for the operation for the lock timeout, and then set the meta scanner timeout to min(hbase.client.meta.scanner.timeout.period, operation time remaining after userRegionLock acquisition), that would provide a good upper bound on time spent attempting to locate a region that should keep the operation closely within the desired end to end timeout.
+
+Dynamic userRegionLock and meta scanner timeouts would also remove some complexity/dependence on client configurations in the locate region codepath which should simplify the thought process behind choosing appropriate client timeouts.
+----
+Branch-2 blocking client is effected, I am not yet sure and have not tested how branch-2 AsyncTable is effected. Branch-3+ does not have userRegionLock, and the sync client connection implementation is very [different|https://github.com/apache/hbase/pull/6000#issuecomment-2210913557] (thank you Duo for explaining).
+
+This issue extends/develops on what was originally reported in the bottom of HBASE-28358. HBASE-27490 is related work which greatly improved the upper bound on region location resolution time for batch operations.

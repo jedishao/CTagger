@@ -1,0 +1,48 @@
+Improve heuristics of FilterStatsRule without column stats
+HIVE-19097 changed the formula to estimate # of rows selected by FilterOperator. This ticket would try to improve the case where column stats are unavailable.
+
+ 
+
+This is an example. The table has ten rows and no column stats on `id`.
+{code:java}
+0: jdbc:hive2://hive-hiveserver2:10000/defaul> DESCRIBE FORMATTED users id;
+...
++------------------------+-----------------------------+
+|    column_property     |            value            |
++------------------------+-----------------------------+
+| col_name               | id                          |
+| data_type              | int                         |
+| min                    |                             |
+| max                    |                             |
+| num_nulls              |                             |
+| distinct_count         |                             |
+| avg_col_len            |                             |
+| max_col_len            |                             |
+| num_trues              |                             |
+| num_falses             |                             |
+| bit_vector             |                             |
+| comment                | from deserializer           |
+| COLUMN_STATS_ACCURATE  | {\"BASIC_STATS\":\"true\"}  |
++------------------------+-----------------------------+{code}
+With a single needle, the estimated number becomes 10 * 0.5 = 5 because of the fallback heuristics.
+{code:java}
+0: jdbc:hive2://hive-hiveserver2:10000/defaul> EXPLAIN SELECT * FROM users WHERE id IN (1);
+...
+|                 TableScan                          |
+|                   alias: users                     |
+|                   filterExpr: (id = 1) (type: boolean) |
+|                   Statistics: Num rows: 10 Data size: 11 Basic stats: COMPLETE Column stats: NONE |
+|                   Filter Operator                  |
+|                     predicate: (id = 1) (type: boolean) |
+|                     Statistics: Num rows: 5 Data size: 5 Basic stats: COMPLETE Column stats: NONE | {code}
+The size is estimated to be the original size with two or more needles. The heuristics estimate the size as min(10, 10 * 0.5 * N) = 10. However, I believe users expect to observe some reduction when using IN.
+{code:java}
+0: jdbc:hive2://hive-hiveserver2:10000/defaul> EXPLAIN SELECT * FROM users WHERE id IN (1, 2);
+|                 TableScan                          |
+|                   alias: users                     |
+|                   filterExpr: (id) IN (1, 2) (type: boolean) |
+|                   Statistics: Num rows: 10 Data size: 11 Basic stats: COMPLETE Column stats: NONE |
+|                   Filter Operator                  |
+|                     predicate: (id) IN (1, 2) (type: boolean) |
+|                     Statistics: Num rows: 10 Data size: 11 Basic stats: COMPLETE Column stats: NONE | {code}
+ 

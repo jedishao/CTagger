@@ -1,0 +1,88 @@
+Hbase compaction is slow in 2.4.11 compared to hbase 1.x
+Hi Team,
+
+we build an Hbase 2.4.11 cluster comprising HDFS and HBase components. However, during our performance testing, we observed that the HBase compaction process was taking longer than expected.
+
+With identical configurations, in  HBase-1 cluster is completing compaction tasks in less time compared to the new Hbase 2  cluster.
+
+Hbase1 cluster details:
+
+HBASE: 1.1.2
+
+Hbase2 cluster details
+
+HBASE: 2.4.11
+
+Please find the scre
+
+enshot for the Compaction iteration and timeline:
+
+!image-2024-06-05-16-15-45-975.png!
+
+IN Hbase 1  COMPACTION TIME 
+
+In the HBASE1 cluster with the same set of configurations and tables, we observed consistent behavior in terms of compaction time(3hrs).
+
+Start Time: 1:30AM 
+End Time: 4:30AM
+
+!image-2024-06-05-16-17-34-685.png!
+
+IN Hbase 2  COMPACTION TIME
+
+Start Time: 1:30AM
+
+End Time: 23:00PM+
+
+!image-2024-06-05-16-18-33-322.png!
+
+ 
+
+Actions Taken:
+
+Tuning of HBase configurations related to compactions was performed initially but didn't yield significant improvement.
+
+Observations:
+
+We suspected that this absence of data encoding might be contributing to longer compaction times in HBase-2.
+
+Scheduled two separate compactions for tables with and without DATA_ENCODING enabled in Hbase 2.
+
+In the screenshot below, the first compaction started at 1:30 AM for 15 tables (total size exceeding 220TB+) with (DATA ENCODED=FAST_DIFF) enabled and this compaction completed by 2:30 AM. However, at 2:30 AM, we scheduled another compaction for only 6 tables, totalling over 60TB in size, but these tables were not enabled with DATA ENCODING , and this compaction is taking longer.
+
+!image-2024-06-05-16-22-33-464.png!
+
+After enabling DATA ENCODING for all the  tables in HBASE-2, we initiated compaction at 1:30 AM, which completed by 4:30 AM(3hrs)
+
+Start Time: 1:30AM
+End Time: 4:30 AM
+
+!image-2024-06-05-16-23-29-565.png!
+
+ 
+
+Noticed that tables with (DATA_ENCODING=FAST_DIFF) enabled underwent faster compactions compared to those without.
+
+
+Upon comparing the debug logs of the two Hbase 2 clusters, we discovered that the cluster with (DATA_ENCODING=FAST_DIFF) enabled exhibited higher throughput(average throughput is 89.54 MB/Second), whereas the cluster with DATA_ENCODING disabled showed lower throughput(average throughput is 8.19 MB/second,).
+
+ 
+
+#DATA_ENCODED ENBALED Tables throughput
+
+2024-04-02 03:11:58,956 INFO [regionserver/xxxxxxxx:16020-shortCompactions-0] throttle.PressureAwareThroughputController: 803e9ef64aec8e526837c0477cc48884#scr#compaction#34672 average throughput is 89.54 MB/second, slept 0 time(s) and total slept time is 0 ms. 21 active operations remaining, total limit is unlimited 2024-04-02 03:12:23,680 INFO [regionserver/usr-Hbase 1<XXXXX>201:16020-shortCompactions-7] throttle.PressureAwareThroughputController: 82565df649e3e6eb53a1e168435204db#scr#compaction#34677 average throughput is 65.02 MB/second, slept 0 time(s) and total slept time is 0 ms. 21 active operations remaining, total limit is unlimited
+
+2024-04-02 02:45:46,538 DEBUG [regionserver/xxxxxx:16020-longCompactions-7] compactions.Compactor: Compaction progress: b746a46d64df25ca82571b10bb1e2c03#key#compaction#34484 128896600/371074603 (34.74%), rate=17151.92 KB/sec, throughputController is DefaultCompactionThroughputController [maxThroughput=unlimited, activeCompactions=22] 2024-04-02 02:45:47,291 DEBUG [regionserver/usr-Hbase 1<XXXX>201:16020-shortCompactions-0] compactions.Compactor: Compaction progress: a1338704db18a8fc613ad2c9a4561d65#key#compaction#34496 90148941/110577879 (81.53%), rate=20950.64 KB/sec, throughputController is DefaultCompactionThroughputController [maxThroughput=unlimited, activeCompactions=22]
+
+ 
+
+#DATA_ENCODED DISABLED tables throughput
+
+2024-04-04 03:12:48,521 INFO [regionserver/xxxxxxx:16020-longCompactions-3] throttle.PressureAwareThroughputController: 273b9d62b602ecd3e6df3d244f796c0b#key#compaction#185279 average throughput is 8.91 MB/second, slept 0 time(s) and total slept time is 0 ms. 21 active operations remaining, total limit is unlimited 2024-04-04 03:14:02,793 INFO [regionserver/usr-Hbase 1<XXXXXXX>201:16020-longCompactions-2] throttle.PressureAwareThroughputController: 11fff837daa7da3fa307ecbb457fe64d#key#compaction#185282 average throughput is 8.19 MB/second, slept 0 time(s) and total slept time is 0 ms. 21 active operations remaining, total limit is unlimited
+
+2024-04-03 02:46:21,165 DEBUG [regionserver/xxxxxxx:16020-shortCompactions-0] compactions.Compactor: Compaction progress: 98748d4c25e15c623e43a3e42f03f5de#key#com paction#178586 2986892/73628890 (4.06%), rate=9936.51 KB/sec, throughputController is DefaultCompactionThroughputController [maxThroughput=unlimited, activeCompactions=22] 2024-04-03 02:46:21,193 DEBUG [regionserver/:16020-longCompactions-0] compactions.Compactor: Compaction progress: ce578c37f0a8354afd6d37fa5ca9c7d7#key#comp
+
+
+Need Help With: 
+In Hbase 1 the compaction is consistently completing in 3 hours without data encoading. 
+In hbase 2 Compaction without data encoading and compression it is taking 12 + hours. but with data encoading and compression we are able to finish it in approx 4-4.5 hours.

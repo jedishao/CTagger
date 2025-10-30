@@ -1,0 +1,124 @@
+For ICEBERG partitioned table, after turning on vectorisation-read, all non-partitioned columns may will be empty(location based table).
+Currently, we found that when using HIVE4-BETA1 version, if we use ICEBERG table in the subquery, we can't get any data in the end.
+
+I have used HIVE3-TEZ for cross validation and HIVE3 does not have this problem when querying ICEBERG.
+{code:java}
+--spark3.4.1+iceberg 1.4.2
+CREATE TABLE datacenter.dwd.b_std_trade (
+  uni_order_id STRING,
+  data_from BIGINT,
+  partner STRING,
+  plat_code STRING,
+  order_id STRING,
+  uni_shop_id STRING,
+  uni_id STRING,
+  guide_id STRING,
+  shop_id STRING,
+  plat_account STRING,
+  total_fee DOUBLE,
+  item_discount_fee DOUBLE,
+  trade_discount_fee DOUBLE,
+  adjust_fee DOUBLE,
+  post_fee DOUBLE,
+  discount_rate DOUBLE,
+  payment_no_postfee DOUBLE,
+  payment DOUBLE,
+  pay_time STRING,
+  product_num BIGINT,
+  order_status STRING,
+  is_refund STRING,
+  refund_fee DOUBLE,
+  insert_time STRING,
+  created STRING,
+  endtime STRING,
+  modified STRING,
+  trade_type STRING,
+  receiver_name STRING,
+  receiver_country STRING,
+  receiver_state STRING,
+  receiver_city STRING,
+  receiver_district STRING,
+  receiver_town STRING,
+  receiver_address STRING,
+  receiver_mobile STRING,
+  trade_source STRING,
+  delivery_type STRING,
+  consign_time STRING,
+  orders_num BIGINT,
+  is_presale BIGINT,
+  presale_status STRING,
+  first_fee_paytime STRING,
+  last_fee_paytime STRING,
+  first_paid_fee DOUBLE,
+  tenant STRING,
+  tidb_modified STRING,
+  step_paid_fee DOUBLE,
+  seller_flag STRING,
+  is_used_store_card BIGINT,
+  store_card_used DOUBLE,
+  store_card_basic_used DOUBLE,
+  store_card_expand_used DOUBLE,
+  order_promotion_num BIGINT,
+  item_promotion_num BIGINT,
+  buyer_remark STRING,
+  seller_remark STRING,
+  trade_business_type STRING)
+USING iceberg
+PARTITIONED BY (uni_shop_id, truncate(4, created))
+LOCATION '/iceberg-catalog/warehouse/dwd/b_std_trade'
+TBLPROPERTIES (
+  'current-snapshot-id' = '7217819472703702905',
+  'format' = 'iceberg/orc',
+  'format-version' = '1',
+  'hive.stored-as' = 'iceberg',
+  'read.orc.vectorization.enabled' = 'true',
+  'sort-order' = 'uni_shop_id ASC NULLS FIRST, created ASC NULLS FIRST',
+  'write.distribution-mode' = 'hash',
+  'write.format.default' = 'orc',
+  'write.metadata.delete-after-commit.enabled' = 'true',
+  'write.metadata.previous-versions-max' = '3',
+  'write.orc.bloom.filter.columns' = 'order_id',
+  'write.orc.compression-codec' = 'zstd')
+
+
+
+--hive-iceberg
+
+ CREATE EXTERNAL TABLE iceberg_dwd.b_std_trade 
+ STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
+LOCATION 'hdfs://xxxx/iceberg-catalog/warehouse/dwd/b_std_trade'
+TBLPROPERTIES ('iceberg.catalog'='location_based_table','engine.hive.enabled'='true');
+
+
+select * from iceberg_dwd.b_std_trade 
+where uni_shop_id = 'TEST|11111' limit 10  --10 rows
+
+
+select *
+from ( 
+select * from iceberg_dwd.b_std_trade 
+where uni_shop_id = 'TEST|11111' limit 10
+) t1;   --10 rows
+
+
+select uni_shop_id
+from ( 
+select * from iceberg_dwd.b_std_trade 
+where uni_shop_id = 'TEST|11111' limit 10
+) t1;  --0 rows
+
+
+select uni_shop_id
+from ( 
+select uni_shop_id as uni_shop_id from iceberg_dwd.b_std_trade 
+where uni_shop_id = 'TEST|11111' limit 10
+) t1;  --0 rows
+
+
+--hive-orc
+select uni_shop_id
+from ( 
+select * from iceberg_dwd.trade_test 
+where uni_shop_id = 'TEST|11111' limit 10
+) t1;    --10 ROWS{code}
+ 

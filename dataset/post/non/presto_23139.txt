@@ -1,0 +1,10 @@
+TDigest internal check on double equal needs improvements
+In TDigest.java: https://github.com/prestodb/presto/blob/543e46c356dc22625b0d244ca1c3b5a9748c4b0b/presto-main/src/main/java/com/facebook/presto/tdigest/TDigest.java#L357
+
+The double comparison only compares the absolute difference, which could be too restrictive for large values.
+
+In general, we cannot use a simple abs(diff) < epsilon to compare two doubles because the absolute error in large number case could be large and yet the relative error is still small. See this SOF thread for correct way to compare. Especially Knuth’s method: https://stackoverflow.com/questions/17333/how-do-you-compare-float-and-double-while-accounting-for-precision-loss
+
+* Presto version used: master branch
+
+Repro case would be when TDigest to be merged both containing large weights like 1E14.

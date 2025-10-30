@@ -1,0 +1,31 @@
+Using internal and external TLS uses wrong certificate for internal communication
+We have configured Trino to use the  auto-generated TLS certificate for internal communication and a company-provided certificate for server communication:
+```yaml
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCluster
+metadata:
+  name: trino
+spec:
+  image:
+    productVersion: "455"
+  clusterConfig:
+    listenerClass: external-unstable
+    catalogLabelSelector:
+      matchLabels:
+        trino: trino
+    tls:
+      internalSecretClass: tls
+      serverSecretClass: trino-worker-cert-class
+# (...)
+```
+However, the `serverSecretClass` certificate is used for internal configuration, which causes failed connections between worker and coordinator pods.
+
+As a workaround we overwrite the discovery url to match the servers fqdn and node port:
+```yaml
+# (...)
+    configOverrides:
+      config.properties:
+        # Fix for internal Trino cluster communication with custom certificate
+        discovery.uri: "https://<external-node-fqdn-url>:<external-coordinator-node-port>"
+# (...)
+```

@@ -1,0 +1,19 @@
+Add guidance on enabling Incremental Repair using AutoRepair on an existing data set
+CASSANDRA-20184 added an overview document of AutoRepair and some guidance in cassandra.yaml and how to tune it.
+
+Granted a cluster is not massively out of sync, I would expect one could turn on AutoRepair for full repair and the defaults would do a relatively good job at not overwhelming a cluster.
+
+For incremental repair on the other hand, while AutoRepair does its best to tune it out of the box to reduce impact, there are still a bunch of considerations to tune it effectively on an existing cluster with data.
+
+There is some existing guidance on enabling incremental repair for an existing cluster in cassandra.yaml:
+
+{{When turning on incremental repair for the first time with a decent amount of data it may be advisable to increase this interval to 24h or longer to reduce the impact of anticompaction caused by incremental repair.}}
+
+There are enough considerations for enabling incremental repair that it's worth covering it in detail in its own section.  The following come to mind.
+ # Define what anticompaction is and how it should impact how you tune auto repair's incremental repair overrides.  For example, one might thing that reducing the {{max_bytes_per_schedule}} would be an intuitive configuration, but this could possibly cause a lot of anticompaction for large SSTables.
+ # Define what the repaired and unrepaired data set means.
+ # Cover how compaction may interact with incremental repair.  LeveledCompactionStrategy tends to be better suited than SizeTieredCompaction for incremental repair because partitions tend to only exist in 1 SSTable per level, and fixed sized SSTables reduce the possible impact of anticompaction.  Consider adding some guidance for UnifiedCompactionStrategy.
+ # Reference other properties that might act as good guardrails, e.g.: {{auto_repair.sstable_upper_threshold}} and {{{}reject_repair_compaction_threshold{}}}.
+ # Reference metrics that are worth monitoring. ({{{}PercentRepaired{}}}, {{{}BytesAnticompacted{}}}, {{{}BytesMutatedAnticompaction{}}}, {{{}AnticompactionTime{}}}.
+
+ 

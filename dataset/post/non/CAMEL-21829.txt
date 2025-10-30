@@ -1,0 +1,28 @@
+camel-sql - Make it easier to use Map values for non-named SQL statements
+When you have a Map then you usually want to use named SQL statements to lookup the value via the parameter name as a key. But sometimes you have a LinkedHashMap and then the order of the values are as added to the map, and then you can use the values without key lookup in SQL statements.
+
+Otherwise you get an exception
+{code:java}
+Caused by: org.h2.jdbc.JdbcSQLDataException: Serialization failed, cause: "java.io.NotSerializableException: java.util.LinkedHashMap$Entry" [90026-232]
+    at org.h2.message.DbException.getJdbcSQLException(DbException.java:658)
+    at org.h2.message.DbException.getJdbcSQLException(DbException.java:489)
+    at org.h2.message.DbException.get(DbException.java:212)
+    at org.h2.util.JdbcUtils.serialize(JdbcUtils.java:394)
+    at org.h2.value.ValueToObjectConverter.otherToValue(ValueToObjectConverter.java:205)
+    at org.h2.value.ValueToObjectConverter.objectToValue(ValueToObjectConverter.java:150)
+    at org.h2.jdbc.JdbcPreparedStatement.setObject(JdbcPreparedStatement.java:506)
+    at org.springframework.jdbc.core.StatementCreatorUtils.setValue(StatementCreatorUtils.java:453)
+    at org.springframework.jdbc.core.StatementCreatorUtils.setParameterValueInternal(StatementCreatorUtils.java:247)
+    at org.springframework.jdbc.core.StatementCreatorUtils.setParameterValue(StatementCreatorUtils.java:179)
+    at org.springframework.jdbc.core.ArgumentPreparedStatementSetter.doSetValue(ArgumentPreparedStatementSetter.java:72)
+    at org.springframework.jdbc.core.ArgumentPreparedStatementSetter.setValues(ArgumentPreparedStatementSetter.java:51)
+    at org.apache.camel.component.sql.DefaultSqlPrepareStatementStrategy.populateStatement(DefaultSqlPrepareStatementStrategy.java:219)
+    at org.apache.camel.component.sql.SqlProducer.populateStatement(SqlProducer.java:287)
+    at org.apache.camel.component.sql.SqlProducer$1.doInPreparedStatement(SqlProducer.java:155)
+    at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:658)
+    ... 32 more
+Caused by: java.io.NotSerializableException: java.util.LinkedHashMap$Entry
+    at java.base/java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1200)
+    at java.base/java.io.ObjectOutputStream.writeObject(ObjectOutputStream.java:358)
+    at org.h2.util.JdbcUtils.serialize(JdbcUtils.java:391)
+    ... 44 more {code}

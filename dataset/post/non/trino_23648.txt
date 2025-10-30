@@ -1,0 +1,8 @@
+File based authentication fails if bcrypt passwords are prefixed with '$2b' instead of '$2y'
+I discovered an issue where we are managing our password.db file for Trino users via Ansible and the python passlib library it uses to generate hashed bcrypt passwords uses `$2b$` as a prefix instead of `$2y$`.
+
+If _any_ passwords in the passwords.db file are prefixed with `$2b$`, _all_ passwords fail. It does not have to be the specific login attempted.  I.e, if I have "usera" in the passwords.db file with a working login prefixed with `$2y$` and then add "userb" to the file with a password prefixed with `"$2b$`, "usera" (and every other user in the file) will no longer be able to log in.
+
+We have worked around this by replacing all `$2b$` prefixes in the file with `$2y$` via regex after the task using the Ansible htpasswd module is done but considering that that `$2b$` algorithm prefix has been in place since 2014 and functionally equivalent to `$2y$`, it seems that it should be supported by now.
+
+It seems like this might be a simple one line change [here](https://github.com/trinodb/trino/blob/5ceaffb3783c83892f47634fd67c2526b4eb2e3f/plugin/trino-password-authenticators/src/main/java/io/trino/plugin/password/file/EncryptionUtil.java#L82) to support (plus additional test cases) although I'm not too familiar with the code base.

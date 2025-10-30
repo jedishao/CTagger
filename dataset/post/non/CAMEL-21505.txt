@@ -1,0 +1,14 @@
+camel-as2: Binary files get corrupt when using 'base64' content transfer encoding
+Binary files get corrupt when using *base64* content transfer encoding due to String assignment of the decoded byte[]
+
+This can easily be tested sending a .zip file to Camel AS2 listener.
+
+After some investigation the issue seems to be in the EntityUtil.decode method.
+
+
+As shown in the screenshot the decoded (binary) byte[] is assigned to a new String which result into corrupt date in case of binary content.
+!image-2024-12-03-12-29-47-487.png!
+
+In addition there are new line characters in the encoded base64 encoded String data object.
+
+In case of using transfer encoding type *binary* java.nio.charset.MalformedInputException: Input length = 1 it thrown which might be OK.

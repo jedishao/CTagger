@@ -1,0 +1,11 @@
+Interval types part of Trino SPI
+The Trino SPI package contains a set of types in `io.trino.spi.type` that can easily be used by connectors. Especially if the connector defines a static schema. There are additional types defined in Trino main `io.trino.type` that would be beneficial to be usable by connectors. Specificially I'm interested in the interval types `IntervalYearMonthType` and `IntervalDayTimeType` to allow defining shemas using these types and using Trino provided calculation functions on columns of these types.
+
+Just using the types by using trino-main in the connector does not work out of the box. E.g. the types equals method expects a singleton instance of the type. However, Trino uses separated class loaders for the main Trino and the connector plugin. Resulting in two different singleton instances if the type is not part of SPI.
+An example is the faker connector that tries to use the Interval types, but equals check fails due to different singleton instances. See #25740 
+
+To get a better understanding: Why is there a split of types defined in trino-main vs types defined in SPI?
+
+Would moving those types to Trino SPI be feasible?
+Is there anything special that needs to be considered when moving those types?
+Would a contribution to move the types be accepted?

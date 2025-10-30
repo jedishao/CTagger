@@ -1,0 +1,80 @@
+Retrieving object from redis with empty list does not compare to identical object with empty list
+### Redis version
+
+5.0.5
+
+### Redisson version
+
+3.35
+
+### Redisson configuration
+
+Redisson client thats being used
+` private def createRedisClient(): RedissonClient = {
+    val config: Config = new Config
+    config.setEventLoopGroup(RedissonClusteredConnectionPool.nioEventLoopGroup)
+    config.useClusterServers
+    cfgCtx.nodeAddresses.foreach(addr => config.useClusterServers.addNodeAddress(addr))
+    config.useClusterServers().setReadMode(cfgCtx.readMode.getOrElse{
+      LOGGER.info("Using default read mode: " + RedissonConnectionPool.DEFAULT_READ_MODE)
+      RedissonConnectionPool.DEFAULT_READ_MODE
+    })
+    cfgCtx.retryAttempts.map(config.useClusterServers.setRetryAttempts)
+    cfgCtx.retryInterval.map(v => config.useClusterServers.setRetryInterval(v.toMillis.toInt))
+    cfgCtx.idleConnectionTimeout.map(v => config.useClusterServers.setIdleConnectionTimeout(v.toMillis.toInt))
+    cfgCtx.timeout.map(v => config.useClusterServers.setTimeout(v.toMillis.toInt))
+    cfgCtx.slaveConnectionMinimumIdleSize.map(config.useClusterServers.setSlaveConnectionMinimumIdleSize)
+    cfgCtx.slaveConnectionPoolSize.map(config.useClusterServers.setSlaveConnectionPoolSize)
+    cfgCtx.masterConnectionMinimumIdleSize.map(config.useClusterServers.setMasterConnectionMinimumIdleSize)
+    cfgCtx.masterConnectionPoolSize.map(config.useClusterServers.setMasterConnectionPoolSize)
+    LOGGER.debug("Creating Redis Client connecting to database [ {} ] with these settings {}", config.toJSON)
+    Redisson.create(config)
+  }`
+
+Our get method thats being used
+`private def getFromRedis(compositeKey: String): Future[Option[T]] = {
+    logger.debug("Retrieving from Redis ...")
+    redisClient.getBucket[T](compositeKey).getAsync.toScala.map(Option(_))
+  }`
+
+Test object
+`case class testObject (
+  var id: String = "",
+  var person: List[String] = List.empty,
+)`
+
+Unit test
+`  "Redis cache with empty list " should {
+    val test: testObject = testObject(
+      id = "1",
+      person = List(),
+    )
+    "work" in {
+      redisCacheListObject.put("abc", test)
+      Await.result(redisCacheListObject.get("abc"), Duration.Inf) shouldBe Some(test)
+    }
+  }`
+
+redisCacheListObject.get maps to getFromRedis
+
+
+### What is the Expected behavior?
+
+Comparing two identical objects with empty lists should pass 
+
+### What is the Actual behavior?
+
+The unit test fails with new version without anything else being changed
+
+Message: 	Some(testObject("1", List())) was not equal to Some(testObject("1", List()))
+Line:	(RedisClusteredCacheSpec.scala:399)
+Exception:	org.scalatest.exceptions.TestFailedException
+
+
+
+
+
+
+### Additional information
+
+We are upgrading redisson from version 3.11.6 to 3.35. The unit test passes in 3.11.6 but not in 3.35. I ran the unit test against each version with the only change being the version upgrade. 

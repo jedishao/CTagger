@@ -1,0 +1,28 @@
+Recovering cloud native properties
+When we run a Camel application on the cloud we may leverage the cloud native way of setting configuration. For example, when running on Kubernetes we may leverage the configmap and secret which are typically mounted as a key/value files.
+
+Given the following Secret:
+
+{code}
+apiVersion: v1
+data:
+  org.acme.my-key: czNjcjN0
+kind: Secret
+...
+{code}
+
+and the following Camel application Deployment volume mounted leveraging such a secret:
+
+{code}
+          volumeMounts:
+          - mountPath: /etc/camel/conf.d/_secret/my-properties
+            name: my-properties
+            readOnly: true
+{code}
+
+We may expect that at startup, the application scans a given directory (ie /etc/camel/conf.d/_configmaps|_secrets/) and add the parameter to the regular properties available to the context. From that moment onward, the application could leverage the properties placeholder, ie using {{org.acme.my-key}}.
+
+Ideally we should have a couple of properties to control the behavior, ie:
+
+cloud.config.scan=false (not sure if enable this by default)
+cloud.config.location=/etc/camel/conf.d

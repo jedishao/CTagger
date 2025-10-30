@@ -1,0 +1,15 @@
+Router `priority` strategy implementation does not match documentation
+The `priority` router strategy is documented as follows ([source](https://github.com/apache/druid/blob/4f137d27001ae5e201cf605607cd82a381492183/docs/design/router.md?plain=1#L108)):
+
+> Queries with a priority set to less than minPriority are routed to the lowest priority Broker. Queries with priority set to greater than maxPriority are routed to the highest priority Broker. By default, minPriority is 0 and maxPriority is 1. Using these default values, if a query with priority 0 (the default query priority is 0) is sent, the query skips the priority selection logic.
+
+But the implementation is very different:
+
+https://github.com/apache/druid/blob/4f137d27001ae5e201cf605607cd82a381492183/services/src/main/java/org/apache/druid/server/router/PriorityTieredBrokerSelectorStrategy.java#L44-L57
+
+Since this is a default router strategy, it can lead to some really unexpected behaviour. Given default configuration, a query with priority=2 will be assigned directly to the default brokers, bypassing any other broker routing strategies.
+
+More accurate documentation would be:
+> Queries with a priority higher than maxPriority or lower than minPriority will be routed to the default broker tier. All other queries will skip the priority selection logic.
+
+I think it would be preferable to update the implementation. I'm happy to submit a fix but will need someone to confirm the intended behaviour.

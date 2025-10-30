@@ -1,0 +1,66 @@
+[Bug] Broker failing to start with Ledger errors, autoSkipNonRecoverableData set to true not working
+### Search before asking
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+Pulsar 4.0.1
+Not OS specific
+We use pulsar-go client, but not a factor here
+
+### Minimal reproduce step
+
+I am not sure how to reproduce this.
+
+I suspect it occurred when there were multiple restarts occurring across the pulsar cluster(Bookie, brokers, Zookeeper). Restarts not caused by Pulsar, but scaling up and down of nodes.
+
+
+
+### What did you expect to see?
+
+autoSkipNonRecoverableData is set to true so I had expected the broker to ignore the ledger errors and startup successfully.
+
+### What did you see instead?
+
+The broker(s) crash when trying to startup, the cluster is down
+
+From the broker.conf
+```
+# Skip reading non-recoverable/unreadable data-ledger under managed-ledger's list. It helps when data-ledgers gets
+# corrupted at bookkeeper and managed-cursor is stuck at that ledger.
+autoSkipNonRecoverableData=true
+```
+
+Here are some of the errors I am seeing
+
+`││ pulsar-broker org.apache.bookkeeper.mledger.ManagedLedgerException: Error while reading ledger error code: -1                                            ││ pulsar-broker 2025-01-22T12:52:24,865+0000 [broker-topic-workers-OrderedExecutor-0-0] ERROR org.apache.pulsar.broker.service.persistent.PersistentDispat ││ cherSingleActiveConsumer - [persistent://public/functions/metadata / c-pulsar-fw-pulsar-broker-1.pulsar-broker.default.svc.cluster.local-8080-function-m ││ etadata-tailer-reader-c968c95506-Consumer{subscription=PersistentSubscription{topic=persistent://public/functions/metadata, name=c-pulsar-fw-pulsar-brok ││ er-1.pulsar-broker.default.svc.cluster.local-8080-function-metadata-tailer-reader-c968c95506}, consumerId=1, consumerName=c-pulsar-fw-pulsar-broker-1.pu ││ lsar-broker.default.svc.cluster.local-8080-function-metadata-tailer, address=[id: 0xb55fc6c8, L:/10.196.5.38:6650 - R:/10.196.5.38:33450] [SR:10.196.5.3 ││ , state:Connected[]}] Error reading entries at 1508619:54 : Error while reading ledger error code: -1 - Retrying to read in 54.316 seconds               `
+
+`pulsar-broker 2025-01-22T12:54:38,036+0000 [BookKeeperClientWorker-OrderedExecutor-0-0] INFO  org.apache.bookkeeper.client.ReadOpBase - Error: Error whi ││ le reading ledger while reading L1533609 E0 from bookie: pulsar-bookie-1.pulsar-bookie.default.svc.cluster.local:3181  `
+
+`2025-01-22T12:56:59,600+0000 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.bookkeeper.client.PendingReadOp - Read of ledge ││ r entry failed: L1533609 E0-E0, Sent to [pulsar-bookie-1.pulsar-bookie.default.svc.cluster.local:3181], Heard from [] : bitset = {}, Error = 'Error whil ││ e reading ledger'. First unread entry is (-1, rc = null) `
+
+### Anything else?
+
+Based on another issue, I deleted one or two ledgers mentioned in the logs to see if that would make a difference. However I didn't keep deleting, as I wish to find a better solution, in case this happens in our production environments.
+
+Since the errors messages refer to bookie-1, I tried scaling down the cluster to 1 broker, bookie, zookeeper. This did not resolve the issue.
+
+Another error
+`ption: Error while recovering ledger error code: -10\n"}                                                                                                 │
+│ pulsar-broker         at org.glassfish.jersey.client.JerseyInvocation.convertToException(JerseyInvocation.java:977)                                      │
+│ pulsar-broker         at org.glassfish.jersey.client.JerseyInvocation.access$700(JerseyInvocation.java:82)                                               │
+│ pulsar-broker         ... 64 more                                                                                                                        │
+│ pulsar-broker Caused by: [CIRCULAR REFERENCE: javax.ws.rs.InternalServerErrorException: HTTP 500 {"reason":"\n --- An unexpected error occurred in the s ││ erver ---\n\nMessage: org.apache.bookkeeper.mledger.ManagedLedgerException: Error while recovering ledger error code: -10\n\nStacktrace:\n\norg.apache.p ││ ulsar.broker.service.BrokerServiceException$PersistenceException: org.apache.bookkeeper.mledger.ManagedLedgerException: Error while recovering ledger er ││ ror code: -10\n\tat org.apache.pulsar.broker.service.BrokerService$2.openLedgerFailed(BrokerService.java:1872)\n\tat org.apache.bookkeeper.mledger.impl. ││ ManagedLedgerFactoryImpl.lambda$asyncOpen$10(ManagedLedgerFactoryImpl.java:469)\n\tat java.base/java.util.concurrent.CompletableFuture.uniExceptionally( ││ Unknown Source)\n\tat java.base/java.util.concurrent.CompletableFuture$UniExceptionally.tryFire(Unknown Source)\n\tat java.base/java.util.concurrent.Com ││ pletableFuture.postComplete(Unknown Source)\n\tat java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source)\n\tat org.apach ││ e.bookkeeper.mledger.impl.ManagedLedgerFactoryImpl$2.initializeFailed(ManagedLedgerFactoryImpl.java:460)\n\tat org.apache.bookkeeper.mledger.impl.Manage ││ dLedgerImpl$1.lambda$operationComplete$2(ManagedLedgerImpl.java:452)\n\tat org.apache.bookkeeper.common.util.SingleThreadExecutor.safeRunTask(SingleThre ││ adExecutor.java:137)\n\tat org.apache.bookkeeper.common.util.SingleThreadExecutor.run(SingleThreadExecutor.java:113)\n\tat io.netty.util.concurrent.Fast ││ ThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)\n\tat java.base/java.lang.Thread.run(Unknown Source)\nCaused by: org.apache.bookkeeper.mledger. ││ ManagedLedgerException: Error while recovering ledger error code: -10\n"}] `
+
+Thanks in advance for any advice
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,81 @@
+VeloxRuntimeError: idx != std::nullopt Column 'orderkey' not found on TPC-H table 'lineitem'. Operator: TableScan[0] 0
+Forked from https://github.com/prestodb/presto/issues/19291
+
+
+Prestissimo fails with the tpch connector like so:
+
+```
+Query 20230413_142635_00005_mw7ts failed: idx != std::nullopt Column 'custkey' not found on TPC-H table 'customer'.
+VeloxRuntimeError: idx != std::nullopt Column 'custkey' not found on TPC-H table 'customer'.
+	at Unknown.# 0  _ZN8facebook5velox7process10StackTraceC1Ei(Unknown Source)
+	at Unknown.# 1  _ZN8facebook5velox14VeloxExceptionC2EPKcmS3_St17basic_string_viewIcSt11char_traitsIcEES7_S7_S7_bNS1_4TypeES7_(Unknown Source)
+	at Unknown.# 2  _ZN8facebook5velox6detail14veloxCheckFailINS0_17VeloxRuntimeErrorERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEEvRKNS1_18VeloxCheckFailArgsET0_(Unknown Source)
+	at Unknown.# 3  _ZN8facebook5velox9connector4tpch14TpchDataSourceC1ERKSt10shared_ptrIKNS0_7RowTypeEERKS4_INS1_20ConnectorTableHandleEERKSt13unordered_mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES4_INS1_12ColumnHandleEESt4hashISK_ESt8equal_toISK_ESaISt4pairIKSK_SM_EEEPNS0_6memory10MemoryPoolE(Unknown Source)
+	at Unknown.# 4  _ZN8facebook5velox9connector4tpch13TpchConnector16createDataSourceERKSt10shared_ptrIKNS0_7RowTypeEERKS4_INS1_20ConnectorTableHandleEERKSt13unordered_mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES4_INS1_12ColumnHandleEESt4hashISK_ESt8equal_toISK_ESaISt4pairIKSK_SM_EEEPNS1_17ConnectorQueryCtxE(Unknown Source)
+	at Unknown.# 5  _ZN8facebook5velox4exec9TableScan9getOutputEv(Unknown Source)
+	at Unknown.# 6  _ZN8facebook5velox4exec6Driver11runInternalERSt10shared_ptrIS2_ERS3_INS1_13BlockingStateEERS3_INS0_9RowVectorEE(Unknown Source)
+	at Unknown.# 7  _ZN8facebook5velox4exec6Driver3runESt10shared_ptrIS2_E(Unknown Source)
+	at Unknown.# 8  _ZN5folly6detail8function14FunctionTraitsIFvvEE9callSmallIZN8facebook5velox4exec6Driver7enqueueESt10shared_ptrIS9_EEUlvE_EEvRNS1_4DataE(Unknown Source)
+	at Unknown.# 9  _ZN5folly6detail8function14FunctionTraitsIFvvEEclEv(Unknown Source)
+	at Unknown.# 10 _ZN5folly18ThreadPoolExecutor7runTaskERKSt10shared_ptrINS0_6ThreadEEONS0_4TaskE(Unknown Source)
+	at Unknown.# 11 _ZN5folly21CPUThreadPoolExecutor9threadRunESt10shared_ptrINS_18ThreadPoolExecutor6ThreadEE(Unknown Source)
+	at Unknown.# 12 _ZSt13__invoke_implIvRMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEERPS1_JRS4_EET_St21__invoke_memfun_derefOT0_OT1_DpOT2_(Unknown Source)
+	at Unknown.# 13 _ZSt8__invokeIRMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEEJRPS1_RS4_EENSt15__invoke_resultIT_JDpT0_EE4typeEOSC_DpOSD_(Unknown Source)
+	at Unknown.# 14 _ZNSt5_BindIFMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEEPS1_S4_EE6__callIvJEJLm0ELm1EEEET_OSt5tupleIJDpT0_EESt12_Index_tupleIJXspT1_EEE(Unknown Source)
+	at Unknown.# 15 _ZNSt5_BindIFMN5folly18ThreadPoolExecutorEFvSt10shared_ptrINS1_6ThreadEEEPS1_S4_EEclIJEvEET0_DpOT_(Unknown Source)
+	at Unknown.# 16 _ZN5folly6detail8function14FunctionTraitsIFvvEE9callSmallISt5_BindIFMNS_18ThreadPoolExecutorEFvSt10shared_ptrINS7_6ThreadEEEPS7_SA_EEEEvRNS1_4DataE(Unknown Source)
+	at Unknown.# 17 0x0000000000000000(Unknown Source)
+	at Unknown.# 18 start_thread(Unknown Source)
+	at Unknown.# 19 clone(Unknown Source)
+```
+
+When I tried this yesterday, on a recent prestissimo install I was able to show the tpch tables but not query them:
+
+```
+[elharo@devvm1407.rva0 ~ (000000000)]$ presto ... tpch.sf1
+Connecting to https://twshared9517.13.pnb1.facebook.com:7778/ using tpch.sf1
+Picked up JAVA_TOOL_OPTIONS: -Xmx8192m -Djava.net.preferIPv4Stack=false -Djava.net.preferIPv6Addresses=true -Dhttp.proxyHost=fwdproxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=fwdproxy -Dhttps.proxyPort=8080 -Dhttp.nonProxyHosts=*.fbcdn.net|*.facebook.com|*.thefacebook.com|*.tfbnw.net|*.fb.com|*.fburl.com|*.facebook.net|*.sb.fbsbx.com|localhost
+presto:sf1> show tables;
+  Table               
+----------
+ customer 
+ lineitem 
+ nation   
+ orders   
+ part     
+ partsupp 
+ region   
+ supplier 
+(8 rows)
+
+Query 20240917_141746_00010_fj8zm, FINISHED, 2 nodes
+Splits: 123 total, 123 done (100.00%)
+[Latency: client-side: 0:01, server-side: 491ms] [8 rows, 158B] [16 rows/s, 321B/s]
+
+presto:sf1> select * from lineitem LIMIT 10;
+                      
+Query 20240917_141810_00011_fj8zm, FAILED, 1 node
+Splits: 121 total, 60 done (49.59%)
+[Latency: client-side: 206ms, server-side: 121ms] [0 rows, 0B] [0 rows/s, 0B/s]
+
+Query 20240917_141810_00011_fj8zm failed: idx != std::nullopt Column 'orderkey' not found on TPC-H table 'lineitem'. Operator: TableScan[0] 0
+```
+
+Stack trace is
+```
+VeloxRuntimeError: idx != std::nullopt Column 'orderkey' not found on TPC-H table 'lineitem'. Operator: TableScan[0] 0
+	at Unknown.# 0  facebook::velox::VeloxException::VeloxException(char const*, unsigned long, char const*, std::basic_string_view<char, std::char_traits<char> >, std::basic_string_view<char, std::char_traits<char> >, std::basic_string_view<char, std::char_traits<char> >, std::basic_string_view<char, std::char_traits<char> >, bool, facebook::velox::VeloxException::Type, std::basic_string_view<char, std::char_traits<char> >)(Unknown Source)
+	at Unknown.# 1  void facebook::velox::detail::veloxCheckFail<facebook::velox::VeloxRuntimeError, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&>(facebook::velox::detail::VeloxCheckFailArgs const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)(Unknown Source)
+	at Unknown.# 2  facebook::velox::connector::tpch::TpchDataSource::TpchDataSource(std::shared_ptr<facebook::velox::RowType const> const&, std::shared_ptr<facebook::velox::connector::ConnectorTableHandle> const&, std::unordered_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::shared_ptr<facebook::velox::connector::ColumnHandle>, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::shared_ptr<facebook::velox::connector::ColumnHandle> > > > const&, facebook::velox::memory::MemoryPool*)(Unknown Source)
+	at Unknown.# 3  facebook::velox::connector::tpch::TpchConnector::createDataSource(std::shared_ptr<facebook::velox::RowType const> const&, std::shared_ptr<facebook::velox::connector::ConnectorTableHandle> const&, std::unordered_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::shared_ptr<facebook::velox::connector::ColumnHandle>, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::shared_ptr<facebook::velox::connector::ColumnHandle> > > > const&, facebook::velox::connector::ConnectorQueryCtx*)(Unknown Source)
+	at Unknown.# 4  facebook::velox::exec::TableScan::getOutput()(Unknown Source)
+	at Unknown.# 5  facebook::velox::exec::Driver::runInternal(std::shared_ptr<facebook::velox::exec::Driver>&, std::shared_ptr<facebook::velox::exec::BlockingState>&, std::shared_ptr<facebook::velox::RowVector>&)(Unknown Source)
+	at Unknown.# 6  facebook::velox::exec::Driver::run(std::shared_ptr<facebook::velox::exec::Driver>)(Unknown Source)
+	at Unknown.# 7  void folly::detail::function::call_<facebook::velox::exec::Driver::enqueue(std::shared_ptr<facebook::velox::exec::Driver>)::$_0, true, false, void>(, folly::detail::function::Data&)(Unknown Source)
+	at Unknown.# 8  folly::ThreadPoolExecutor::runTask(std::shared_ptr<folly::ThreadPoolExecutor::Thread> const&, folly::ThreadPoolExecutor::Task&&)(Unknown Source)
+	at Unknown.# 9  folly::CPUThreadPoolExecutor::threadRun(std::shared_ptr<folly::ThreadPoolExecutor::Thread>)(Unknown Source)
+	at Unknown.# 10 void std::__invoke_impl<void, void (folly::ThreadPoolExecutor::*&)(std::shared_ptr<folly::ThreadPoolExecutor::Thread>), folly::ThreadPoolExecutor*&, std::shared_ptr<folly::ThreadPoolExecutor::Thread>&>(std::__invoke_memfun_deref, void (folly::ThreadPoolExecutor::*&)(std::shared_ptr<folly::ThreadPoolExecutor::Thread>), folly::ThreadPoolExecutor*&, std::shared_ptr<folly::ThreadPoolExecutor::Thread>&)(Unknown Source)
+	at Unknown.# 11 execute_native_thread_routine(Unknown Source)
+	at Unknown.# 12 start_thread(Unknown Source)
+	at Unknown.# 13 __clone3(Unknown Source)
+```

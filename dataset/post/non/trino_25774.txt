@@ -1,0 +1,40 @@
+Trino Ranger Plugin - 474
+I am encountering an issue after integrating the Trino Ranger Plugin version 474. Specifically, I am unable to run even the simplest query, such as SELECT 1. Any help or guidance in resolving this issue would be greatly appreciated!
+
+
+
+Errors:
+
+trino> select 1;
+Query 20250512_164339_00000_3ajqi failed: Access Denied: Cannot execute query
+io.trino.spi.security.AccessDeniedException: Access Denied: Cannot execute query
+        at io.trino.spi.security.AccessDeniedException.denyExecuteQuery(AccessDeniedException.java:94)
+        at io.trino.spi.security.AccessDeniedException.denyExecuteQuery(AccessDeniedException.java:89)
+        at io.trino.plugin.ranger.RangerSystemAccessControl.checkCanExecuteQuery(RangerSystemAccessControl.java:180)
+        at io.trino.security.AccessControlManager.lambda$checkCanExecuteQuery$5(AccessControlManager.java:322)
+        at io.trino.security.AccessControlManager.systemAuthorizationCheck(AccessControlManager.java:1488)
+        at io.trino.security.AccessControlManager.checkCanExecuteQuery(AccessControlManager.java:322)
+        at io.trino.security.ForwardingAccessControl.checkCanExecuteQuery(ForwardingAccessControl.java:86)
+        at io.trino.tracing.TracingAccessControl.checkCanExecuteQuery(TracingAccessControl.java:106)
+        at io.trino.dispatcher.DispatchManager.createQueryInternal(DispatchManager.java:222)
+        at io.trino.dispatcher.DispatchManager.lambda$createQuery$1(DispatchManager.java:194)
+        at io.opentelemetry.context.Context.lambda$wrap$1(Context.java:241)
+        at io.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:79)
+        at io.trino.$gen.Trino_475____20250512_164238_2.run(Unknown Source)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+        at java.base/java.lang.Thread.run(Thread.java:1575)
+
+
+Environment:
+Trino ver : 474
+Java : "23.0.2"
+Ranger :  2.3.0
+
+
+
+#cat access-control.properties
+ranger.service.name=test_trino
+access-control.name=ranger
+ranger.hadoop.config.resource=/etc/hadoop/conf/core-site.xml,/etc/hadoop/conf/hdfs-site.xml
+ranger.plugin.config.resource=/etc/trino/ranger-trino-security.xml,/etc/trino/ranger-trino-audit.xml

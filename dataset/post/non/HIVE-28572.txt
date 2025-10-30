@@ -1,0 +1,26 @@
+Support Distribute by and Cluster by clauses in CBO
+If a query has {{distribute by}} or {{cluster by}} clause CBO is turned off and only non-CBO optimizations are applied to the query plan.
+One impact of not using CBO is that implicit type conversions are not added.
+Example:
+{code:java}
+create table t1 (a string, b int);
+
+insert into t1 values ('2014-03-14 10:10:12', 10);
+
+select * from t1 where a between date_add('2014-03-14', -1) and '2014-03-14' distribute by a;
+{code}
+{code:java}
+                TableScan
+                  alias: t1
+                  filterExpr: a BETWEEN DATE'2014-03-13' AND '2014-03-14' (type: boolean)
+{code}
+vs
+{code:java}
+select * from t1 where a between date_add('2014-03-14', -1) and '2014-03-14'
+{code}
+{code:java}
+                TableScan
+                  alias: t1
+                  filterExpr: CAST( a AS DATE) BETWEEN DATE'2014-03-13' AND DATE'2014-03-14' (type: boolean)
+{code}
+Moreover, if vectorization is turned off the results of the above queries are different which leads to data corruption.

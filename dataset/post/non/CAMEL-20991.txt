@@ -1,0 +1,91 @@
+camel-jbang - export error when there is placeholder in a kamelet endpoint url with a bean
+Trying to export the following route, with {{--ignore-loading-error}}
+{code:java}
+camel export --ignore-loading-error --runtime=quarkus --dir=ceq-app1 Http2Jms.java
+{code}
+{code:java}
+import org.apache.camel.builder.RouteBuilder;
+
+public class Http2Jms extends RouteBuilder {
+  @Override
+  public void configure() throws Exception {
+    rest()
+      .post("/message")
+      .id("rest")
+      .to("direct:jms");
+
+    from("direct:jms")
+      .log("Sending message to JMS {{broker}}: ${body}")
+      .to("kamelet:jms-amqp-10-sink?remoteURI=RAW({{broker}})&destinationName={{queue}}&destinationType=Queue");
+    }
+}
+{code}
+There is an error
+{code:java}
+Caused by: org.apache.camel.ResolveEndpointFailedException: Failed to resolve endpoint: jms://Queue:%7B%7Bqueue%7D%7D?connectionFactory=%23bean%3AconnectionFactoryBean-1 due to: Error binding property (connectionFactory=#bean:connectionFactoryBean-1) with name: connectionFactory on bean: jms://Queue:%7B%7Bqueue%7D%7D?connectionFactory=%23bean%3AconnectionFactoryBean-1 with value: #bean:connectionFactoryBean-1
+at org.apache.camel.impl.engine.AbstractCamelContext.doGetEndpoint(AbstractCamelContext.java:835)
+at org.apache.camel.impl.engine.AbstractCamelContext.getEndpoint(AbstractCamelContext.java:735)
+at org.apache.camel.support.CamelContextHelper.resolveEndpoint(CamelContextHelper.java:128)
+at org.apache.camel.reifier.SendReifier.resolveEndpoint(SendReifier.java:47)
+at org.apache.camel.reifier.SendReifier.createProcessor(SendReifier.java:37)
+at org.apache.camel.reifier.ProcessorReifier.makeProcessor(ProcessorReifier.java:886)
+at org.apache.camel.reifier.ProcessorReifier.addRoutes(ProcessorReifier.java:622)
+at org.apache.camel.reifier.RouteReifier.doCreateRoute(RouteReifier.java:231)
+... 34 more
+Caused by: org.apache.camel.PropertyBindingException: Error binding property (connectionFactory=#bean:connectionFactoryBean-1) with name: connectionFactory on bean: jms://Queue:%7B%7Bqueue%7D%7D?connectionFactory=%23bean%3AconnectionFactoryBean-1 with value: #bean:connectionFactoryBean-1
+at org.apache.camel.support.PropertyBindingSupport.doSetPropertyValue(PropertyBindingSupport.java:544)
+at org.apache.camel.support.PropertyBindingSupport.doBuildPropertyOgnlPath(PropertyBindingSupport.java:420)
+at org.apache.camel.support.PropertyBindingSupport.doBindProperties(PropertyBindingSupport.java:300)
+at org.apache.camel.support.PropertyBindingSupport$Builder.bind(PropertyBindingSupport.java:1958)
+at org.apache.camel.support.DefaultEndpoint.setProperties(DefaultEndpoint.java:424)
+at org.apache.camel.support.DefaultEndpoint.configureProperties(DefaultEndpoint.java:396)
+at org.apache.camel.support.DefaultComponent.setProperties(DefaultComponent.java:422)
+at org.apache.camel.component.seda.SedaComponent.createEndpoint(SedaComponent.java:273)
+at org.apache.camel.support.DefaultComponent.createEndpoint(DefaultComponent.java:171)
+at org.apache.camel.impl.engine.AbstractCamelContext.doGetEndpoint(AbstractCamelContext.java:801)
+... 41 more
+Caused by: java.lang.IllegalStateException: Cannot create bean: #class:org.apache.qpid.jms.JmsConnectionFactory
+at org.apache.camel.model.BeanModelHelper.lambda$bind$2(BeanModelHelper.java:293)
+at org.apache.camel.util.function.Suppliers$1.get(Suppliers.java:48)
+at org.apache.camel.support.SupplierRegistry.lookupByNameAndType(SupplierRegistry.java:48)
+at org.apache.camel.support.SimpleRegistry.lookupByName(SimpleRegistry.java:41)
+at org.apache.camel.support.DefaultRegistry.lookupByName(DefaultRegistry.java:222)
+at org.apache.camel.support.CamelContextHelper.lookup(CamelContextHelper.java:195)
+at org.apache.camel.support.CamelContextHelper.mandatoryLookup(CamelContextHelper.java:235)
+at org.apache.camel.support.PropertyBindingSupport.resolveBean(PropertyBindingSupport.java:1624)
+at org.apache.camel.support.PropertyBindingSupport.resolveValue(PropertyBindingSupport.java:887)
+at org.apache.camel.support.PropertyBindingSupport.doSetPropertyValue(PropertyBindingSupport.java:530)
+... 50 more
+Caused by: org.apache.camel.PropertyBindingException: Error binding property (remoteURI=@@[broker]@@) with name: remoteURI on bean: org.apache.qpid.jms.JmsConnectionFactory@797fcf9 with value: @@[broker]@@
+at org.apache.camel.support.PropertyBindingSupport.setPropertiesOnTarget(PropertyBindingSupport.java:218)
+at org.apache.camel.model.BeanModelHelper.lambda$bind$2(BeanModelHelper.java:281)
+... 59 more
+Caused by: java.lang.IllegalArgumentException: Invalid remote URI: @@[broker]@@
+at org.apache.qpid.jms.JmsConnectionFactory.createURI(JmsConnectionFactory.java:366)
+at org.apache.qpid.jms.JmsConnectionFactory.setRemoteURI(JmsConnectionFactory.java:405)
+at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+at org.apache.camel.impl.engine.IntrospectionSupport.setProperty(IntrospectionSupport.java:606)
+at org.apache.camel.impl.engine.DefaultBeanIntrospection.setProperty(DefaultBeanIntrospection.java:206)
+at org.apache.camel.support.PropertyBindingSupport.doSetSimplePropertyViaReflection(PropertyBindingSupport.java:919)
+at org.apache.camel.support.PropertyBindingSupport.setSimplePropertyViaReflection(PropertyBindingSupport.java:818)
+at org.apache.camel.support.PropertyBindingSupport.doSetPropertyValue(PropertyBindingSupport.java:568)
+at org.apache.camel.support.PropertyBindingSupport.doBuildPropertyOgnlPath(PropertyBindingSupport.java:420)
+at org.apache.camel.support.PropertyBindingSupport.doBindProperties(PropertyBindingSupport.java:300)
+at org.apache.camel.support.PropertyBindingSupport$Builder.bind(PropertyBindingSupport.java:1958)
+at org.apache.camel.support.PropertyBindingSupport.setPropertiesOnTarget(PropertyBindingSupport.java:197)
+... 60 more
+Caused by: java.net.URISyntaxException: Illegal character in path at index 2: @@[broker]@@
+at java.base/java.net.URI$Parser.fail(URI.java:2995)
+at java.base/java.net.URI$Parser.checkChars(URI.java:3166)
+at java.base/java.net.URI$Parser.parseHierarchical(URI.java:3248)
+at java.base/java.net.URI$Parser.parse(URI.java:3207)
+at java.base/java.net.URI.<init>(URI.java:645)
+at org.apache.qpid.jms.JmsConnectionFactory.createURI(JmsConnectionFactory.java:364)
+
+{code}
+ 
+
+Somehow the --ignore-loading-error doesn't influence the KameletMain loading the kamelet.
+
+The workaround is to replace the placeholders in the kamelet endpoint with any value, then export, then add the placeholder back in the route in the exported file in src/main/java.

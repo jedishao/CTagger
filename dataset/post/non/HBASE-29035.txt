@@ -1,0 +1,13 @@
+Amount of region cached in the region metrics not updated for a region immediately after it is flushed with cacheOnWrite turned on
+An issue has been observed where if a new region is created and flushed with the configuration "hbase.rs.cacheblocksonwrite" is set to true, then, the region metrics does not reflect the amount of region cached for this new region. It starts reflecting the correct metric when this region is reopened for whatever reason.
+
+ 
+
+The steps to reproduce this issue are as follows:
+ * Create a table {{create 'tprefetch', 'cf'}}
+ * {{{}{}}}Insert a record in the table {{put 'tprefetch', 'row1', 'cf:col1', 'aaaaa'}}
+ * {{{}{}}}{{{}flush 'tprefetch'{}}}
+
+After the flush, query the region metrics for this region and it will show that the region is 05 cached. This leads to the cacheAwareLoadBalancer take incorrect decisions whenever a region server is restarted.
+
+{{}}

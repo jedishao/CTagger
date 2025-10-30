@@ -1,0 +1,32 @@
+Error During Shutdown: IncompatibleClassChangeError in RedissonClientProducer with Quarkus 3.18.x
+### Redis version
+
+7.0
+
+### Redisson version
+
+3.44.0
+
+### Redisson configuration
+
+quarkus.redisson.threads=16
+
+### What is the Expected behavior?
+
+RedissonClientProduce bean is to be destroyed during the application shutdown.
+
+### What is the Actual behavior?
+
+During application shutdown, an error occurs when attempting to destroy the RedissonClientProducer bean:
+
+[2025-02-19 09:08:14.417 EST] [ERROR] [Shutdown thread] [io.quarkus.redisson.client.runtime.RedissonClientProducer_Bean:destroy:-1] Error occurred while destroying instance of CLASS bean [types=[io.quarkus.redisson.client.runtime.RedissonClientProducer, java.lang.Object], qualifiers=[@Default, @Any], target=io.quarkus.redisson.client.runtime.RedissonClientProducer]: java.lang.IncompatibleClassChangeError: Found interface io.quarkus.runtime.shutdown.ShutdownConfig, but class was expected [Error Occurred After Shutdown]
+
+### Additional information
+
+In Quarkus 3.18.x, ShutdownConfig was changed from a class to an interface with different method signatures, leading to this incompatibility.
+
+RedissonClientProducer in Redisson:
+https://github.com/redisson/redisson/blob/master/redisson-quarkus/redisson-quarkus-30/cdi/runtime/src/main/java/io/quarkus/redisson/client/runtime/RedissonClientProducer.java#L93
+
+ShutdownConfig in Quarkus 3.18.x:
+https://github.com/quarkusio/quarkus/blob/3.18.4/core/runtime/src/main/java/io/quarkus/runtime/shutdown/ShutdownConfig.java

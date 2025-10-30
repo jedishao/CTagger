@@ -1,0 +1,24 @@
+Last cast exception on Accord SELECT
+{code}
+java.lang.ClassCastException: class org.apache.cassandra.db.ReadQuery$1 cannot be cast to class org.apache.cassandra.db.SinglePartitionReadQuery$Group (org.apache.cassandra.db.ReadQuery$1 and org.apache.cassandra.db.SinglePartitionReadQuery$Group are in unnamed module of loader org.apache.cassandra.distributed.shared.InstanceClassLoader @22bac7bc)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.createNamedReads(TransactionStatement.java:246)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.createNamedReads(TransactionStatement.java:276)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.createTxn(TransactionStatement.java:352)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.execute(TransactionStatement.java:401)
+	at org.apache.cassandra.distributed.impl.CoordinatorHelper.unsafeExecuteInternal(CoordinatorHelper.java:67)
+	at org.apache.cassandra.distributed.impl.CoordinatorHelper.unsafeExecuteInternal(CoordinatorHelper.java:47)
+	at org.apache.cassandra.distributed.impl.Coordinator.unsafeExecuteInternal(Coordinator.java:126)
+	at org.apache.cassandra.distributed.impl.Coordinator.lambda$executeWithResult$0(Coordinator.java:63)
+	at org.apache.cassandra.concurrent.FutureTask.call(FutureTask.java:61)
+{code}
+
+{code}
+      test(cluster -> {
+          cluster.schemaChange("CREATE TABLE distributed_test_keyspace.basic_sai0 (pk0 smallint,pk1 float,ck0 int,ck1 int,ck2 uuid,ck3 ascii,ck4 float,ck5 uuid,ck6 inet,ck7 varint,static0 smallint static,static1 decimal static,static2 int static,static3 text static,static4 inet static,regular0 uuid,regular1 timestamp,regular2 inet,regular3 int,regular4 int, PRIMARY KEY ((pk0,pk1), ck0, ck1, ck2, ck3, ck4, ck5, ck6, ck7)) WITH transactional_mode = 'full' AND CLUSTERING ORDER BY (ck0 DESC,ck1 ASC,ck2 ASC,ck3 ASC,ck4 DESC,ck5 ASC,ck6 ASC,ck7 DESC);");
+          cluster.coordinator(1).executeWithResult("BEGIN TRANSACTION" +
+                                                   "  SELECT * FROM distributed_test_keyspace.basic_sai0 WHERE pk0 = ? AND pk1 = ? AND ck0 > ? AND ck6 > ? AND ck6 < ? AND ck1 < ? AND ck3 > ? AND ck0 < ? AND ck5 < ? AND ck7 = ? AND regular2 = ? AND regular0 < ? AND regular4 > ? AND static2 = ? AND static4 = ? AND static3 > ? AND static3 < ? ALLOW FILTERING;" +
+                                                   "COMMIT TRANSACTION;",
+                                                   ConsistencyLevel.SERIAL,
+                                                   (short)-32660,(float)0.5788803,(int)2105525379,java.net.InetAddress.getByAddress(new byte[]{17, -117, 47, -90}),java.net.InetAddress.getByAddress(new byte[]{-118, 89, 5, -79}),(int)-1546700704,"pedrwke",(int)-1210338967,UUID.fromString("ccc04675-f0da-1ebd-71b1-dfb69aa7e4cc"),new java.math.BigInteger("-6356538733487056784"),java.net.InetAddress.getByAddress(new byte[]{0, 1, -5, 91}),UUID.fromString("004db8ad-db11-0416-0d55-af62cdc88e84"),(int)-2145730135,(int)-2145730135,java.net.InetAddress.getByAddress(new byte[]{0, 1, -5, 91}),"!㦷?Ꙃ?񯘠?撄婱?꬞뉴⸘?","!㦷?Ꙃ?񯘠?撄婱?꬞뉴⸘?");
+      });
+{code}

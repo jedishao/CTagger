@@ -1,0 +1,86 @@
+Reverse scan with tags throws ArrayIndexOutOfBoundsException with DBE
+Facing ArrayIndexOutOfBoundsException when performing reverse scan on a table with 30K+ records in single hfile.
+
+Exception is happening  when block changes during seekBefore call.
+{code:java}
+Caused by: java.lang.ArrayIndexOutOfBoundsException
+    at org.apache.hadoop.hbase.util.ByteBufferUtils.copyFromBufferToArray(ByteBufferUtils.java:1326)
+    at org.apache.hadoop.hbase.nio.SingleByteBuff.get(SingleByteBuff.java:213)
+    at org.apache.hadoop.hbase.io.encoding.DiffKeyDeltaEncoder$DiffSeekerStateBufferedEncodedSeeker.decode(DiffKeyDeltaEncoder.java:431)
+    at org.apache.hadoop.hbase.io.encoding.DiffKeyDeltaEncoder$DiffSeekerStateBufferedEncodedSeeker.decodeNext(DiffKeyDeltaEncoder.java:502)
+    at org.apache.hadoop.hbase.io.encoding.BufferedDataBlockEncoder$BufferedEncodedSeeker.seekToKeyInBlock(BufferedDataBlockEncoder.java:1012)
+    at org.apache.hadoop.hbase.io.hfile.HFileReaderImpl$EncodedScanner.loadBlockAndSeekToKey(HFileReaderImpl.java:1605)
+    at org.apache.hadoop.hbase.io.hfile.HFileReaderImpl$HFileScannerImpl.seekBefore(HFileReaderImpl.java:719)
+    at org.apache.hadoop.hbase.regionserver.StoreFileScanner.seekBeforeAndSaveKeyToPreviousRow(StoreFileScanner.java:645)
+    at org.apache.hadoop.hbase.regionserver.StoreFileScanner.seekToPreviousRowWithoutHint(StoreFileScanner.java:570)
+    at org.apache.hadoop.hbase.regionserver.StoreFileScanner.seekToPreviousRow(StoreFileScanner.java:506)
+    at org.apache.hadoop.hbase.regionserver.ReversedKeyValueHeap.next(ReversedKeyValueHeap.java:126)
+    at org.apache.hadoop.hbase.regionserver.StoreScanner.next(StoreScanner.java:693)
+    at org.apache.hadoop.hbase.regionserver.KeyValueHeap.next(KeyValueHeap.java:151){code}
+ 
+
+Steps to reproduce:
+
+Create a table with DataBlockEncoding.DIFF and block size as 1024, write some 30K+ puts with setTTL, then do a reverse scan.
+{code:java}
+@Test
+public void testReverseScanWithDBEWhenCurrentBlockUpdates() throws IOException {
+byte[] family = Bytes.toBytes("0");
+
+Configuration conf = new Configuration(TEST_UTIL.getConfiguration());
+conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1);
+
+try (Connection connection = ConnectionFactory.createConnection(conf)) {
+testReverseScanWithDBE(connection, DataBlockEncoding.DIFF, family, 1024, 30000);
+for (DataBlockEncoding encoding : DataBlockEncoding.values()) {
+testReverseScanWithDBE(connection, encoding, family, 1024, 30000);
+}
+}
+}
+
+private void testReverseScanWithDBE(Connection conn, DataBlockEncoding encoding, byte[] family, int blockSize, int maxRows)
+throws IOException {
+LOG.info("Running test with DBE={}", encoding);
+TableName tableName = TableName.valueOf(TEST_NAME.getMethodName() + "-" + encoding);
+TEST_UTIL.createTable(TableDescriptorBuilder.newBuilder(tableName)
+.setColumnFamily(
+ColumnFamilyDescriptorBuilder.newBuilder(family).setDataBlockEncoding(encoding).setBlocksize(blockSize).build())
+.build(), null);
+
+Table table = conn.getTable(tableName);
+
+byte[] val1 = new byte[10];
+byte[] val2 = new byte[10];
+Bytes.random(val1);
+Bytes.random(val2);
+
+for (int i = 0; i < maxRows; i++) {
+table.put(new Put(Bytes.toBytes(i)).addColumn(family, Bytes.toBytes(1), val1)
+.addColumn(family, Bytes.toBytes(2), val2).setTTL(600_000));
+}
+
+TEST_UTIL.flush(table.getName());
+
+Scan scan = new Scan();
+scan.setReversed(true);
+
+try (ResultScanner scanner = table.getScanner(scan)) {
+for (int i = maxRows - 1; i >= 0; i--) {
+Result row = scanner.next();
+assertEquals(2, row.size());
+
+Cell cell1 = row.getColumnLatestCell(family, Bytes.toBytes(1));
+assertTrue(CellUtil.matchingRows(cell1, Bytes.toBytes(i)));
+assertTrue(CellUtil.matchingValue(cell1, val1));
+
+Cell cell2 = row.getColumnLatestCell(family, Bytes.toBytes(2));
+assertTrue(CellUtil.matchingRows(cell2, Bytes.toBytes(i)));
+assertTrue(CellUtil.matchingValue(cell2, val2));
+}
+}
+
+}
+{code}
+ 
+
+HBASE-27580 has fixed the issue for seekBefore in rewind function flow, but similar change is required in setCurrentBlock function flow also.

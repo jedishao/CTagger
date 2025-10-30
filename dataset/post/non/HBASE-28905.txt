@@ -1,0 +1,16 @@
+Skip excessive evaluations of LINK_NAME_PATTERN and REF_NAME_PATTERN regular expressions
+To test if a file is a link file, HBase checks if its file name matches the regex
+{code:java}
+^(?:((?:[_\p{Digit}\p{IsAlphabetic}]+))(?:\=))?((?:[_\p{Digit}\p{IsAlphabetic}][-_.\p{Digit}\p{IsAlphabetic}]*))=((?:[a-f0-9]+))-([0-9a-f]+(?:(?:_SeqId_[0-9]+_)|(?:_del))?)$
+{code}
+To test if an HFile has a "reference name," HBase checks if its file name matches the regex
+{code:java}
+^([0-9a-f]+(?:(?:_SeqId_[0-9]+_)|(?:_del))?|^(?:((?:[_\p{Digit}\p{IsAlphabetic}]+))(?:\=))?((?:[_\p{Digit}\p{IsAlphabetic}][-_.\p{Digit}\p{IsAlphabetic}]*))=((?:[a-f0-9]+))-([0-9a-f]+(?:(?:_SeqId_[0-9]+_)|(?:_del))?)$)\.(.+)$
+{code}
+Matching against these big regexes is computationally expensive. HBASE-27474 introduced (in 2.6.0) [code in a hot path|https://github.com/apache/hbase/blob/1602c531b245b4d455b48161757cde2ec3d1930b/hbase-server/src/main/java/org/apache/hadoop/hbase/io/hfile/HFileReaderImpl.java#L1716] in {{HFileReaderImpl}} that checks whether an HFile is a link or reference file while deciding whether to cache blocks from that file. In flamegraphs taken at my company during performance tests, this meant that these regex evaulations take 2-3% of the CPU time on a busy RegionServer.
+
+Later, the hot-path invocation of the regexes was removed in HBASE-28596 in branch-2 and later, but not branch-2.6, so only the 2.6.x series suffers the performance regression. Nonetheless, all invocations of these regexes are still unnecessarily expensive and can be fast-failed easily.
+
+The link name pattern contains a literal "=", so any string that does not contain a "=" can be assumed to not match the regex. The reference name pattern contains a literal ".", so any string that does not contain a "." can be assumed to not match the regex. This optimization is mostly helpful in 2.6.x, but is valid in all branches.
+
+Running performance tests of this optimization removed the regex evaluations from my flamegraphs entirely, and reduced query latency by 15%. Some charts are attached.

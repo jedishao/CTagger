@@ -1,0 +1,20 @@
+DELETE endpoint in REST API does not support deleting binary row keys/columns
+h2. Notes
+
+This is the first time I have raised an issue in the ASF Jira. Please let me know if there's anything I need to adjust on the issue to fit in with your development flow.
+
+I have marked the priority as "blocker" because this issue blocks me as a user of the HBase REST API from deploying an effective solution for our setup. Please feel free to change this if the Priority field has another meaning to you.
+
+I have also chosen 2.4.17 as the affected version because this is the version I am running, however looking at the source code on GitHub in the default branch, I think many other versions would be affected.
+h2. Description of Issue
+
+The DELETE operation in the [HBase REST API|https://hbase.apache.org/1.2/apidocs/org/apache/hadoop/hbase/rest/package-summary.html#operation_delete] requires specifying row keys and column families/offsets in the URI (i.e. as UTF-8 text). This makes it impossible to specify a delete operation via the REST API for a binary row key or column family/offset, as single bytes with a decimal value greater than 127 are not valid in UTF-8.
+
+Percent-encoding these "high" values does not work around the issue, as the HBase REST API uses Java's {{URLDecoder.Decode(percentEncodedString, "UTF-8")}} function, which replaces any percent-encoded byte in the range {{%80}} to {{%FF}} with the [replacement character|https://en.wikipedia.org/wiki/Specials_(Unicode_block)#Replacement_character]. Even if this were not the case, the row-key is ultimately [converted to a byte array|https://github.com/apache/hbase/blob/rel/2.4.17/hbase-rest/src/main/java/org/apache/hadoop/hbase/rest/RowSpec.java#L60-L100] using UTF-8 encoding, wherein code points >127 are encoded across multiple bytes, corrupting the user-supplied row key.
+h2. Proposed Solution
+
+I do not believe it is possible to allow encoding of arbitrary bytes in the URL for the DELETE endpoint without breaking compatibility for any users who may have been unknowingly UTF-8 encoding their binary row keys. Even if it were possible, the syntax would likely be terse.
+
+Instead, I propose a new version of the DELETE endpoint that would accept row keys and column families/offsets in the request _body_ (using Base64 encoding for the JSON and XML formats, and bare binary for protobuf). This new endpoint would follow the same conventions as the PUT operations, except that cell values would not need to be specified (unless the user is performing a check-and-delete operation).
+
+As an additional benefit, using the request body could potentially allow for deleting multiple rows in a single request, which would drastically improve the efficiency of my use case.

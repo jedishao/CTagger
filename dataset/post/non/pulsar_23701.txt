@@ -1,0 +1,120 @@
+[Doc] Document why topic level output stats are not equal to the sum of all subscriptions
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### What issue do you find in Pulsar docs?
+
+For example, here is a typical stats:
+
+```json
+{
+  "msgRateIn" : 0.0,
+  "msgThroughputIn" : 0.0,
+  "msgRateOut" : 0.0,
+  "msgThroughputOut" : 0.0,
+  "bytesInCounter" : 347722,
+  "msgInCounter" : 20000,
+  "systemTopicBytesInCounter" : 0,
+  "bytesOutCounter" : 869285,
+  "msgOutCounter" : 50000,
+  "bytesOutInternalCounter" : 0,
+  "averageMsgSize" : 0.0,
+  "msgChunkPublished" : false,
+  "storageSize" : 347722,
+  "backlogSize" : 0,
+  "backlogQuotaLimitSize" : 10737418240,
+  "backlogQuotaLimitTime" : -1,
+  "oldestBacklogMessageAgeSeconds" : 0,
+  "publishRateLimitedTimes" : 0,
+  "earliestMsgPublishTimeInBacklogs" : 0,
+  "offloadedStorageSize" : 0,
+  "lastOffloadLedgerId" : 0,
+  "lastOffloadSuccessTimeStamp" : 0,
+  "lastOffloadFailureTimeStamp" : 0,
+  "ongoingTxnCount" : 0,
+  "abortedTxnCount" : 0,
+  "committedTxnCount" : 0,
+  "publishers" : [ ],
+  "waitingPublishers" : 0,
+  "subscriptions" : {
+    "my-sub" : {
+      "msgRateOut" : 0.0,
+      "msgThroughputOut" : 0.0,
+      "bytesOutCounter" : 347722,
+      "msgOutCounter" : 20000,
+      "msgRateRedeliver" : 0.0,
+      "messageAckRate" : 0.0,
+      "chunkedMessageRate" : 0.0,
+      "msgBacklog" : 0,
+      "backlogSize" : 0,
+      "earliestMsgPublishTimeInBacklog" : 0,
+      "msgBacklogNoDelayed" : 0,
+      "blockedSubscriptionOnUnackedMsgs" : false,
+      "msgDelayed" : 0,
+      "msgInReplay" : 0,
+      "unackedMessages" : 0,
+      "type" : "Exclusive",
+      "msgRateExpired" : 0.0,
+      "totalMsgExpired" : 0,
+      "lastExpireTimestamp" : 0,
+      "lastConsumedFlowTimestamp" : 1733816089076,
+      "lastConsumedTimestamp" : 0,
+      "lastAckedTimestamp" : 0,
+      "lastMarkDeleteAdvancedTimestamp" : 1733816089120,
+      "consumers" : [ ],
+      "isDurable" : true,
+      "isReplicated" : false,
+      "allowOutOfOrderDelivery" : false,
+      "consumersAfterMarkDeletePosition" : { },
+      "drainingHashesCount" : 0,
+      "drainingHashesClearedTotal" : 0,
+      "drainingHashesUnackedMessages" : 0,
+      "nonContiguousDeletedMessagesRanges" : 0,
+      "nonContiguousDeletedMessagesRangesSerializedSize" : 0,
+      "delayedMessageIndexSizeInBytes" : 0,
+      "subscriptionProperties" : { },
+      "filterProcessedMsgCount" : 0,
+      "filterAcceptedMsgCount" : 0,
+      "filterRejectedMsgCount" : 0,
+      "filterRescheduledMsgCount" : 0,
+      "durable" : true,
+      "replicated" : false
+    }
+  },
+  "replication" : { },
+  "deduplicationStatus" : "Disabled",
+  "nonContiguousDeletedMessagesRanges" : 0,
+  "nonContiguousDeletedMessagesRangesSerializedSize" : 0,
+  "delayedMessageIndexSizeInBytes" : 0,
+  "compaction" : {
+    "lastCompactionRemovedEventCount" : 0,
+    "lastCompactionSucceedTimestamp" : 0,
+    "lastCompactionFailedTimestamp" : 0,
+    "lastCompactionDurationTimeInMills" : 0
+  },
+  "ownerBroker" : "localhost:8080"
+}
+```
+
+Take `msgOutCounter` for example, the topic's `msgOutCounter` is 5000 but the sum of all subscriptions' `msgOutCounter` is only 20000. It would be confusing to users.
+
+
+### What is your suggestion?
+
+Here is the reason:
+
+The topic level `msgOutCounter` represents messages dispatched to both durable subscriptions (consumers if you don't change the duration type to non-durable manually) and non-durable subscriptions (readers).
+ 
+When you queries the stats, the non-durable subscription won't be shown if the reader has been closed. For the same reason, if you unsubscribes a consumer, the durable subscription will also not be shown in the stats. However, the topic's `msgOutCounter` will still be counted for the dispatched messages before. That's why it could be greater than the sum of `msgOutCounter` of all subscriptions in the stats.
+
+The same is applied for `bytesOutCounter`
+
+### Any reference?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

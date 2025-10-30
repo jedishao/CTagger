@@ -1,0 +1,18 @@
+Support `FIRST`, `AFTER` and `LAST` options for nested fields
+Follow-up of https://github.com/trinodb/trino/pull/20914. The PR supports position options only for top level columns. 
+
+Quote from https://github.com/trinodb/trino/pull/20914#pullrequestreview-2450175022: 
+
+The nested case is somewhat confusing. At first glance, it's not clear what `y` refers to in this statement:
+
+```sql
+ALTER TABLE t ADD COLUMN a.b.c BIGINT AFTER y
+```
+
+It's meant to be a field within `a.b`, but that's not immediately obvious. It could, as well, be a top-level column and the statement could be a short hand for creating all the required nested fields with the root `a` after `y`.
+
+The following structure would be more natural, but it only works with `AFTER` and it's incompatible with how nested columns are handled in general:
+
+```sql
+ALTER TABLE t ADD COLUMN c BIGINT AFTER a.b.y
+```

@@ -1,0 +1,75 @@
+ XdsSecurityClientServerTest.tlsClientServer_useSystemRootCerts_validationContext is flaky
+@erm-g 
+https://github.com/grpc/grpc-java/actions/runs/11745673719/job/32723647320?pr=11673
+
+```
+XdsSecurityClientServerTest > tlsClientServer_useSystemRootCerts_validationContext[enableSpiffe=true] FAILED
+    io.grpc.StatusRuntimeException: UNAVAILABLE: io exception
+    Channel Pipeline: [SslHandler#0, ProtocolNegotiators$ClientTlsHandler#0, WriteBufferingAndExceptionHandler#0, DefaultChannelPipeline$TailContext#0]
+        at app//io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:268)
+        at app//io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:249)
+        at app//io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:167)
+        at app//io.grpc.testing.protobuf.SimpleServiceGrpc$SimpleServiceBlockingStub.unaryRpc(SimpleServiceGrpc.java:340)
+        at app//io.grpc.xds.XdsSecurityClientServerTest.unaryRpc(XdsSecurityClientServerTest.java:668)
+        at app//io.grpc.xds.XdsSecurityClientServerTest.tlsClientServer_useSystemRootCerts_validationContext(XdsSecurityClientServerTest.java:238)
+
+        Caused by:
+        javax.net.ssl.SSLHandshakeException: General OpenSslEngine problem
+            at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.handshakeException(ReferenceCountedOpenSslEngine.java:1927)
+            at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.wrap(ReferenceCountedOpenSslEngine.java:848)
+            at java.base/javax.net.ssl.SSLEngine.wrap(SSLEngine.java:564)
+            at io.netty.handler.ssl.SslHandler.wrap(SslHandler.java:1131)
+            at io.netty.handler.ssl.SslHandler.wrapNonAppData(SslHandler.java:975)
+            at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1511)
+            at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1338)
+            at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1387)
+            at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:530)
+            at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:469)
+            at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+            at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+            at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1407)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+            at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:918)
+            at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:799)
+            at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:501)
+            at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:399)
+            at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:994)
+            at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+            at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+            at java.base/java.lang.Thread.run(Thread.java:840)
+
+            Caused by:
+            sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+                at java.base/sun.security.validator.PKIXValidator.doBuild(PKIXValidator.java:439)
+                at java.base/sun.security.validator.PKIXValidator.engineValidate(PKIXValidator.java:306)
+                at java.base/sun.security.validator.Validator.validate(Validator.java:264)
+                at java.base/sun.security.ssl.X509TrustManagerImpl.checkTrusted(X509TrustManagerImpl.java:285)
+                at java.base/sun.security.ssl.X509TrustManagerImpl.checkServerTrusted(X509TrustManagerImpl.java:144)
+                at io.netty.handler.ssl.EnhancingX509ExtendedTrustManager.checkServerTrusted(EnhancingX509ExtendedTrustManager.java:69)
+                at io.netty.handler.ssl.ReferenceCountedOpenSslClientContext$ExtendedTrustManagerVerifyCallback.verify(ReferenceCountedOpenSslClientContext.java:235)
+                at io.netty.handler.ssl.ReferenceCountedOpenSslContext$AbstractCertificateVerifier.verify(ReferenceCountedOpenSslContext.java:797)
+                at io.netty.internal.tcnative.CertificateVerifierTask.runTask(CertificateVerifierTask.java:36)
+                at io.netty.internal.tcnative.SSLTask.run(SSLTask.java:48)
+                at io.netty.internal.tcnative.SSLTask.run(SSLTask.java:42)
+                at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.runAndResetNeedTask(ReferenceCountedOpenSslEngine.java:1533)
+                at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.access$700(ReferenceCountedOpenSslEngine.java:94)
+                at io.netty.handler.ssl.ReferenceCountedOpenSslEngine$TaskDecorator.run(ReferenceCountedOpenSslEngine.java:1505)
+                at io.netty.handler.ssl.SslHandler.runDelegatedTasks(SslHandler.java:1651)
+                at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1497)
+                ... 19 more
+
+                Caused by:
+                sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+                    at java.base/sun.security.provider.certpath.SunCertPathBuilder.build(SunCertPathBuilder.java:148)
+                    at java.base/sun.security.provider.certpath.SunCertPathBuilder.engineBuild(SunCertPathBuilder.java:129)
+                    at java.base/java.security.cert.CertPathBuilder.build(CertPathBuilder.java:297)
+                    at java.base/sun.security.validator.PKIXValidator.doBuild(PKIXValidator.java:434)
+
+3079 tests completed, 1 failed, 7 skipped
+                    ... 34 more
+```
+
+Given this code just went in, seems highly flaky.

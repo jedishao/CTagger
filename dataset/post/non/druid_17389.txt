@@ -1,0 +1,28 @@
+Exception on range partitioning during compaction
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+Druid 30.0.1
+
+### Description
+
+I noticed an exception in the task logs for a coordinator issued compaction for a table with a lot of large rows, mostly from one column with a JSON encoded string.  The processing continued as this seems to be a problem with the stats collection as shown by the exception
+
+`java.lang.NullPointerException: Cannot invoke "java.util.Map.get(Object)" because "ingestionStatsAndErrors" is null
+	at org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask.getRowStatsAndUnparseableEventsForRunningTasks(ParallelIndexSupervisorTask.java:1651) ~[druid-indexing-service-28.0.1.jar:28.0.1]
+	at org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask.doGetRowStatsAndUnparseableEventsParallelMultiPhase(ParallelIndexSupervisorTask.java:1623) ~[druid-indexing-service-28.0.1.jar:28.0.1]
+	at org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask.doGetRowStatsAndUnparseableEvents(ParallelIndexSupervisorTask.java:1724) ~[druid-indexing-service-28.0.1.jar:28.0.1]
+	at org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask.doGetLiveReports(ParallelIndexSupervisorTask.java:1760) ~[druid-indexing-service-28.0.1.jar:28.0.1]
+	at org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask.getLiveReports(ParallelIndexSupervisorTask.java:1795) ~[druid-indexing-service-28.0.1.jar:28.0.1]`
+
+The full exception is attached to this issue
+
+This cluster is running on OpenShift using the Druid Operator with 
+1 broker
+1 coordinator/overlord
+1 router
+7 historicals
+4 middle managers
+
+[task-compaction-log.log](https://github.com/user-attachments/files/17476138/task-compaction-log.log)

@@ -1,0 +1,18 @@
+Zombie repair session blocks further incremental repairs due to SSTable lock
+We have experienced the following bug in C* 4.1.3 at least twice:
+
+Somtimes, a failed incremental repair session keeps future incremental repair sessions from running. These future sessions fail with the following message in the log file:
+{code:java}
+PendingAntiCompaction.java:210 - Prepare phase for incremental repair session c8b65260-cb53-11ee-a219-3d5d7e5cdec7 has failed because it encountered intersecting sstables belonging to another incremental repair session (02d7c1a0-cb3a-11ee-aa89-a1b2ad548382). This is caused by starting an incremental repair session before a previous one has completed. Check nodetool repair_admin for hung sessions and fix them. {code}
+This happens, even though there are no active repair sessions on any node ({{{}nodetool repair_admin list{}}} prints {{{}no sessions{}}}).
+
+When running {{{}nodetool repair_admin list --all{}}}, the offending session is listed as failed:
+{code:java}
+id                                   | state     | last activity | coordinator           | participants                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | participants_wp                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+02d7c1a0-cb3a-11ee-aa89-a1b2ad548382 | FAILED    | 5454 (s)      | /192.168.108.235:7000 | 192.168.108.224,192.168.108.96,192.168.108.97,192.168.108.225,192.168.108.226,192.168.108.98,192.168.108.99,192.168.108.227,192.168.108.100,192.168.108.228,192.168.108.229,192.168.108.101,192.168.108.230,192.168.108.102,192.168.108.103,192.168.108.231,192.168.108.221,192.168.108.94,192.168.108.222,192.168.108.95,192.168.108.223,192.168.108.241,192.168.108.242,192.168.108.243,192.168.108.244,192.168.108.104,192.168.108.105,192.168.108.235                            
+{code}
+This still happens after canceling the repair session, regardless of whether it is canceled on the coordinator node or on all nodes (using {{{}--force{}}}).
+
+I attached all lines from the C* system log that refer to the offending session. It seems like another repair session was started while this session was still running (possibly due to a bug in Cassandra Reaper), but the session was failed right after that but still seems to hold a lock on some of the SSTables.
+
+The problem can be resolved by restarting the nodes affected by this (which typically means doing a rolling restart of the whole cluster), but this is obviously not ideal...

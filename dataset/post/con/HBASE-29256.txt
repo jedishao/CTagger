@@ -1,0 +1,9 @@
+Multiple Split Procedures on same region stuck indefinitely waiting for Exclusive Lock
+Multiple Split Procedures on same region got stuck indefinitely waiting for Exclusive Lock help by the first Split Procedure created on the region and that procedure wasnt scheduled for almost a week till HMaster restart happened.
+
+First SplitProcedure created failed to update procedure store 
+{color:#4c9aff}_ERROR [PEWorker-25] region.RegionProcedureStore - Failed to update proc pid=966118, state=RUNNABLE:SPLIT_TABLE_REGION_PREPARE, locked=true; SplitTableRegionProcedure table=_tablename_, parent=_parent-XXX_, daughterA=_daughter1-xxx_, daughterB=_daughter2-xxx_ java.io.InterruptedIOException: No ack received after 25s and a timeout of 25s at org.apache.hadoop.hdfs.DataStreamer.waitForAckedSeqno(DataStreamer.java:938) at org.apache.hadoop.hdfs.DFSOutputStream.flushOrSync(DFSOutputStream.java:692) at org.apache.hadoop.hdfs.DFSOutputStream.hflush(DFSOutputStream.java:580)_{color}
+
+All the rest of the SplitProcedures were waiting on the Exclusive lock held by above pid, and the first one never got rescheduled till a HMaster restart.
+
+{color:#4c9aff}_assignment.SplitTableRegionProcedure - LOCK_EVENT_WAIT serverLocks={}, namespaceLocks={{default=exclusiveLockOwner=NONE, sharedLockCount=1, waitingProcCount=0}}, tableLocks={{tsdb=exclusiveLockOwner=NONE, sharedLockCount=1, waitingProcCount=0}}, regionLocks={{parent-XXX=exclusiveLockOwner=966118, sharedLockCount=0, waitingProcCount=8043}}, peerLocks={}, metaLocks={}_{color}

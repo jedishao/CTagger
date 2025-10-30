@@ -1,0 +1,24 @@
+Better error message for an empty quoted identifier
+SemanticAnalyzer throws a StringIndexOutOfBoundsException when a quoted identifier is empty. It is likely to happen when a template system fails to fill a database name or table name. We should return a better message so that a user can easily identify where is wrong.
+
+ 
+{code:java}
+0: jdbc:hive2://hive-hiveserver2:10000/defaul> SELECT * FROM ``;
+Error: Error while compiling statement: FAILED: StringIndexOutOfBoundsException String index out of range: 0 (state=42000,code=40000) {code}
+This is the stacktrace on HiveServer2.
+{code:java}
+org.apache.hive.service.cli.HiveSQLException: Error while compiling statement: FAILED: StringIndexOutOfBoundsException String index out of range: 0
+     at org.apache.hive.service.cli.operation.Operation.toSQLException(Operation.java:376) ~[hive-service-4.0.0-beta-2-SNAPSHOT.jar:4.0.0-beta-2-SNAPSHOT]
+     at org.apache.hive.service.cli.operation.SQLOperation.prepare(SQLOperation.java:214) ~[hive-service-4.0.0-beta-2-SNAPSHOT.jar:4.0.0-beta-2-SNAPSHOT]
+...
+ Caused by: java.lang.StringIndexOutOfBoundsException: String index out of range: 0
+     at java.lang.String.charAt(String.java:658) ~[?:1.8.0_275]
+     at org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.unescapeIdentifier(BaseSemanticAnalyzer.java:608) ~[hive-exec-4.0.0-beta-2-SNAPSHOT.jar:4.0.0-beta-2-SNAPSHOT]
+     at org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.getDbTableNamePair(BaseSemanticAnalyzer.java:424) ~[hive-exec-4.0.0-beta-2-SNAPSHOT.jar:4.0.0-beta-2-SNAPSHOT]{code}
+ 
+
+ 
+
+ 
+
+ 

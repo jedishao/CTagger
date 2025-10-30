@@ -1,0 +1,64 @@
+performance degradation when no handler
+i have noticed that when we publish messages on addresses with no handlers, it is actually more expensive than publishing messages on addresses with simple consumers.
+
+the bellow example demonstrates
+
+```
+    @Test
+    void noHandlers() {
+
+        var vertx = Vertx.vertx();
+
+        var eventBus = vertx.eventBus();
+
+        AtomicLong atomicLong = new AtomicLong();
+        eventBus.localConsumer("test", event -> {
+            atomicLong.incrementAndGet();
+        });
+        eventBus.publish("test", "payload");
+
+        eventBus.publish("test", "payload");
+
+        eventBus.publish("test", "payload");
+
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 100000; i++) {
+            eventBus.publish("test", "payload");
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("time with consumer: "+ (end - start));
+
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 100000; i++) {
+            eventBus.publish("no addr", "payload");
+        }
+        end = System.currentTimeMillis();
+        System.out.println("time with consumer: "+ (end - start));
+    }
+```
+which outputs on my machine
+```
+time with consumer: 185
+time with no consumer: 895
+
+```
+
+i believe this boils down to the way the no handlers is modelled by throwing exceptions and concatenating strings in `EventBusImpl.deliverMessageLocally` 
+
+
+```
+    ConcurrentCyclicSequence<HandlerHolder> handlers = handlerMap.get(msg.address());
+    boolean messageLocal = isMessageLocal(msg);
+    if (handlers != null) {
+       ...
+      return null;
+    } else {
+      if (metrics != null) {
+        metrics.messageReceived(msg.address(), !msg.isSend(), messageLocal, 0);
+      }
+      return new ReplyException(ReplyFailure.NO_HANDLERS, "No handlers for address " + msg.address);
+    }
+```
+
+

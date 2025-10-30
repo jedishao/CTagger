@@ -1,0 +1,59 @@
+[native] migrate to docker bake setup from compose based build
+<!--- Provide a general summary of the feature request or improvement in the Title above -->
+<!--- Look through existing open and closed feature proposals to see if someone has asked for the feature before -->
+
+## Expected Behavior or Use Case
+This is just a minor improvement over the current docker compose based two stage build. We can do it in one command with bake file and expose extra cmake flags as a variable. That makes it more convenient for folks using custom builds to build in CI flows (like GHA)
+
+## Presto Component, Service, or Connector
+Presto native build
+
+## Possible Implementation
+```hcl
+// bake variables can be overriden via env
+// https://docs.docker.com/build/bake/overrides/#environment-variables
+variable "OS" {
+  default = "centos"
+}
+
+variable "BASE_IMAGE" {
+  default = equal("centos", OS) ? "quay.io/centos/centos:stream9": "ubuntu:22.04"
+}
+
+variable "EXTRA_CMAKE_FLAGS" {
+  default = "-DPRESTO_ENABLE_TESTING=OFF -DPRESTO_ENABLE_PARQUET=ON -DPRESTO_ENABLE_S3=ON -DPRESTO_ENABLE_GCS=ON -DPRESTO_STATS_REPORTER_TYPE=PROMETHEUS"
+}
+
+target "ubuntu-native-dependency" {
+  context = "presto/presto-native-execution/"
+  dockerfile = "scripts/dockerfiles/ubuntu-22.04-dependency.dockerfile"
+}
+
+target "centos-native-dependency" {
+  context = "presto/presto-native-execution/"
+  dockerfile = "scripts/dockerfiles/centos-dependency.dockerfile"
+}
+
+target "default" {
+  context = "presto/presto-native-execution/"
+  dockerfile = "scripts/dockerfiles/prestissimo-runtime.dockerfile"
+  tags = ["presto-native-local:latest"]
+  contexts = {
+    depimage = "target:${OS}-native-dependency" # requires changes in base platform agnostic docker file
+  }
+  args = {
+    BASE_IMAGE = "${BASE_IMAGE}"
+    # A few files in Velox require significant memory to compile and link.
+    # Build requires 18GB of memory for 2 threads.
+    NUM_THREADS = 4
+    EXTRA_CMAKE_FLAGS = "${EXTRA_CMAKE_FLAGS}"
+  }
+}
+```
+
+We should also move the setup of adapters from centos and ubuntu specific dockerfiles to the base platform agnostic dockerfile. Expose the setup args as build variables which again will be exposed via bake variables
+
+## Context
+<!--- Why do you need this feature or improvement? What is your use case? What are you trying to accomplish? -->
+<!--- Providing context helps us come up with a solution that is most useful in the real world -->
+I had to build the native image with few other flags on, did it using bake on CI, felt it would have been easier if the main repo was also on bake instead of docker compose, and few params made configurable.

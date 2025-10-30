@@ -1,0 +1,13 @@
+Batch size guardrail ignores primary key size
+{color:#1f2328}The size of a mutation does not consider the primary key size. In the context of BATCHed mutations, this means that INSERTs, DELETEs, and UPDATEs for tables with a simple PRIMARY KEY and no clustering columns would be equal to zero (or almost zero depending on the version). Consequently, the batch_size_fail_threshold_in_kb has no effect for such tables, and it cannot protect the cluster from being overloaded.{color}
+
+{color:#1f2328}A test that reproduces the problem in 3.11 - [https://github.com/szymon-miezal/cassandra/commit/50b27c1e9030ce5ace6a6486a9876493c4ad41ae#diff-8cb249caec219439da461a4369f20530bb7d6cc0467c7e46f16288e22b574e61R43] {color}
+
+{color:#1f2328}There are a few ways it could be solved:{color}
+ * {color:#1f2328}Modifying the existing batch_size_fail_threshold_in_kb to take into account the primary keys size (it has the disadvantage of changing the semantic of the guardrail thus introducing a regression).{color}
+ * {color:#1f2328}Adding a new guardrail e.g. batch_size_with_pk_fail_threshold_in_kb that is going to be calculated taking primary key into account.{color}
+ * Adding a -D switch that by default would be {{false}}{color:#1f2328} meaning that in case the new formula (which takes PK into account) yields value over the error threshold it will gracefully tell us about it in an additional log message. Changing the flag value to {color}{{true}}{color:#1f2328} would be equivalent to the new formula and error will be thrown in case we get over the threshold.{color}
+
+{{{color:#1f2328}I have a preference for going with an option that adds a new guardrail.{color}}}
+
+ 

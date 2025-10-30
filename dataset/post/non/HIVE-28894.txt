@@ -1,0 +1,29 @@
+UNIX_TIMESTAMP returns different value for some JDKs
+The following query returns different timestamp values depending on which JDK version is used.
+{code:sql}
+select unix_timestamp('1400-11-08 08:00:00 ICT', 'yyyy-MM-dd HH:mm:ss z')
+{code}
+
+Java version: 1.8.0_421, vendor: Oracle Corporation, runtime: /opt/jdks/jdk1.8.0_421/jre
+{noformat}
+-17960569590
+{noformat}
+
+Java version: 1.8.0_262, vendor: Azul Systems, Inc., runtime: /opt/jdks/zulu8.48.0.51-ca-jdk8.0.262-linux_x64/jre
+{noformat}
+-17960569600
+{noformat}
+
+The problem was observed while running udf5.q file where locally some results appeared shifted by 10 seconds.
+
+To reproduce the problem it suffices to download the aforementioned JDKs set the JAVA_HOME variable to point to the JDK and run the udf5.q file.
+
+{noformat}
+export JAVA_HOME=/opt/jdks/zulu8.48.0.51-ca-jdk8.0.262-linux_x64/
+mvn test -Dtest=TestMiniLlapLocalCliDriver -Dqfile=udf5.q -Dtest.output.overwrite
+
+export JAVA_HOME=/opt/jdks/jdk1.8.0_421
+mvn test -Dtest=TestMiniLlapLocalCliDriver -Dqfile=udf5.q -Dtest.output.overwrite
+{noformat}
+
+Note that the zulu distribution is the one that is currently used in Jenkins CI to run the tests.

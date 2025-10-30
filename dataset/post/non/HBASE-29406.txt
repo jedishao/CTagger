@@ -1,0 +1,19 @@
+Skip Copying Bulkloaded Files to Backup Location in Continuous Backup
+Context:
+In our current continuous backup design, we stream WALs and bulkloaded files to the backup location after a full backup. However, we've observed that replaying bulkloaded files during PITR (Point-In-Time Recovery) is not practical due to performance overhead.
+
+As a result, we are considering an alternate approach: asking users to take an incremental backup immediately after performing a bulkload. This would ensure that bulkloaded files are backed up through the existing incremental backup mechanism, making it unnecessary to stream them separately.
+
+Why we may skip copying bulkloaded files:
+ * Bulkloaded files are not reused during PITR or incremental backup recovery paths.
+
+ * Asking users to trigger an incremental backup post-bulkload will naturally include these files.
+
+ * Avoids duplicate effort: currently, the files may be copied both via continuous backup and again during incremental backup.
+
+ * Reduces performance impact, especially since the current implementation synchronously copies bulkloaded files via the replication endpoint.
+
+Goal of this JIRA:
+ * Track the design and implementation of changes required to stop copying bulkloaded files during continuous backup.
+
+ * Evaluate and update affected areas such as the replication endpoint, backup streaming logic, and any related metadata handling.

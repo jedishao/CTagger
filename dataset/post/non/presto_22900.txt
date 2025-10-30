@@ -1,0 +1,163 @@
+Use distinct semantics for functions that do distincting
+Use distinct rather than equals for functions that do distincting.  Currently using these functions on complex types (rows, arrays, maps) with null elements will result in an exception like "ARRAY comparison not supported for arrays with null elements" or  "ROW comparison not supported for fields with null elements".  However, these functions are really doing "distincts" and should match the group by or distinct semantics to be more internally coherent and prevent undesired user query failures.
+
+ I don't think we need to change map functions (e.g. map_agg, multimap_agg) to use distinct semantics because indeterminate map keys (nulls or complex types containing nulls) are not allowed. 
+
+Note: For any changes in Presto java we need to have corresponding changes in Prestissimo/velox to ensure consistent behavior.
+
+Functions include:
+
+- [x] set_agg -- needs changes in velox. currently velox is even more strict than presto about nulls in the input
+- [x] set_union -- already has these semantics in velox  
+- [x] array_distinct -- not yet implemented in velox for complex types
+- [x] array_intersect -- not yet implemeted in velox for complex types
+- [x] array_union -- already has these semantics in velox
+- [x] array_except -- not yet implemented in velox for complex types
+- [ ] arrays_overlap -- not yet implemented in velox for complex types
+
+The following functions need changes, but are sql functions that at some point transform the array values to a map. These will fail with error due to null map keys rather than invalid row/array comparizon. They cannot be fixed without changing the underlying sql function not to use maps or implementing them directly instead of as sql functions
+- [ ] array_duplicates -- not yet implemented in velox for complex types
+- [ ] array_has_duplicates -- not yet implemented in velox for complex types
+- [ ] array_least_frequent -- not yet implemented in velox for complex types
+
+## Expected Behavior or Use Case
+
+The expected behavior is that these functions should behave similar to group by so that ROW(1,null) would be considered the same as ROW(1,null) for all of these functions. As an example:
+
+`array_distinct(array[ROW(1, null), ROW(1,null)])  -- array[ROW(1,null)]`
+
+Examples of current behavior
+**set_union**
+```
+Presto Java:
+presto:di> SELECT set_union(x) from (VALUES (ARRAY[ row(null, 2)], 2), (ARRAY[row(null, 2)], 3))t(x, y);
+Query 20240506_201139_83584_yxsh8 failed: ROW comparison not supported for fields with null elements
+
+Prestisssimo:
+presto:default> SELECT set_union(x) from (VALUES (ARRAY[ row(null, 2)], 2), (ARRAY[row(null, 2)], 3))t(x, y);
+           _col0           
+
+---------------------------
+
+ [{field0=null, field1=2}] 
+
+
+```
+
+**array_distinct**
+```
+Presto Java
+presto:di> SELECT array_distinct(ARRAY[ARRAY[1,2], ARRAY[1, null]]);
+Query 20240506_201246_83714_yxsh8 failed: ARRAY comparison not supported for arrays with null elements
+
+presto:di> SELECT array_distinct(x) from (VALUES (ARRAY[row(1,2), row(null, 2)], 2), (ARRAY[row(1,null)], 3))t(x, y);
+Query 20240506_201300_83743_yxsh8 failed: ROW comparison not supported for fields with null elements
+
+Prestissimo:
+presto:default> SELECT array_distinct(x) from (VALUES (ARRAY[row(1,2), row(null, 2)], 2), (ARRAY[row(1,null)], 3))t(x, y);
+Query 20240506_195745_12397_wqx7w failed:  Scalar function presto.default.array_distinct not registered with arguments: (ARRAY<ROW<"":INTEGER,"":INTEGER>>). Found function registered with the following signatures:
+
+((array(boolean)) -> array(boolean))
+
+((array(bigint)) -> array(bigint))
+
+((array(integer)) -> array(integer))
+
+((array(smallint)) -> array(smallint))
+
+((array(tinyint)) -> array(tinyint))
+
+((array(real)) -> array(real))
+
+((array(double)) -> array(double))
+
+((array(varchar)) -> array(varchar))
+
+((array(varbinary)) -> array(varbinary))
+
+((array(timestamp)) -> array(timestamp))
+
+((array(date)) -> array(date))
+
+presto:default> SELECT array_distinct(x) from (values ARRAY[ARRAY[1,2], ARRAY[1, null]]) t(x);
+
+Query 20240506_200201_12412_wqx7w failed:  Scalar function presto.default.array_distinct not registered with arguments: (ARRAY<ARRAY<INTEGER>>). Found function registered with the following signatures:
+
+((array(boolean)) -> array(boolean))
+
+((array(bigint)) -> array(bigint))
+
+((array(integer)) -> array(integer))
+
+((array(smallint)) -> array(smallint))
+
+((array(tinyint)) -> array(tinyint))
+
+((array(real)) -> array(real))
+
+((array(double)) -> array(double))
+
+((array(varchar)) -> array(varchar))
+
+((array(varbinary)) -> array(varbinary))
+
+((array(timestamp)) -> array(timestamp))
+
+((array(date)) -> array(date))
+```
+
+**array_union**
+
+```
+java:
+presto:di> SELECT array_union(x,y) from (VALUES (ARRAY[row(null, 2)], ARRAY[row(null, 2)]))t(x,y);
+Query 20240506_203154_03162_7rxuy failed: ROW comparison not supported for fields with null elements
+
+Prestissimo:
+presto:default> SELECT array_union(x,y) from (VALUES (ARRAY[row(null, 2)], ARRAY[row(null, 2)]))t(x,y);
+
+_col0
+
+---------------------------
+
+[{field0=null, field1=2}]
+```
+**set_agg**
+```
+Java
+presto:di> SELECT set_agg(x) from (VALUES (ARRAY[ row(null, 2)], 2), (ARRAY[row(null, 2)], 3))t(x, y);
+Query 20240603_155545_25987_yswnv failed: ROW comparison not supported for fields with null elements
+
+SELECT set_agg(x) from (VALUES (ARRAY[1, null], 2), (ARRAY[2, null], 3))t(x, y);
+         _col0          
+------------------------
+ [[1, null], [2, null]] 
+(1 row)
+
+Prestissimo
+presto:default> SELECT set_agg(x) from (VALUES (ARRAY[ row(null, 2)], 2), (ARRAY[row(null, 2)], 3))t(x, y);
+Query 20240603_154854_17394_4mk78 failed: !decoded.base()->containsNullAt(indices[index]) ARRAY comparison not supported for values that contain nulls
+
+presto:default> SELECT set_agg(x) from (VALUES (ARRAY[1, null], 2), (ARRAY[2, null], 3))t(x, y);
+Query 20240603_155036_17429_4mk78 failed: !decoded.base()->containsNullAt(indices[index]) ARRAY comparison not supported for values that contain nulls
+```
+
+**array_duplicates/array_has_duplicates**
+```
+Java
+presto:di> select array_duplicates(ARRAY[ROW(1,null), ROW(1, null)]);
+Query 20240603_155934_26172_yswnv failed: map key cannot be null or contain nulls
+
+presto:di> select array_has_duplicates(ARRAY[ROW(1,null), ROW(1, null)]);
+Query 20240603_160054_26269_yswnv failed: map key cannot be null or contain nulls
+```
+
+## Presto Component, Service, or Connector
+functions
+
+## Possible Implementation
+See issue in Trino https://github.com/trinodb/trino/issues/560
+And PRs with implementation for some functions: https://github.com/trinodb/trino/pull/559 and https://github.com/trinodb/trino/pull/9841
+
+## Context
+Currently users get errors when performing executing these functions on complex types (e.g. rows) containing null values.  We should instead compare with distinct semantics so that nulls are considered not distinct from itself.

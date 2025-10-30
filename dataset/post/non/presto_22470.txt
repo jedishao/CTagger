@@ -1,0 +1,10 @@
+Fix CSE to propagate top level CSE into IF/CASE etc
+Common subexpression elimination in Presto does not process the CASE/IF bodies because they are conditional. So we miss things like:
+
+SELECT f(x) AS c1,
+CASE WHEN f(x) = 1 then 1
+when f(x) = 2 then 2
+...
+END
+
+Where f(x) is evaluted many times. But since f(x) is a toplevel unconditional eval, we can CSE the f(x) in the WHEN clauses.

@@ -1,0 +1,63 @@
+UnsupportedOperationException after Netty 4.1.101 update
+### What version of gRPC-Java are you using?
+1.56.1 - > 1.59.0
+### What is your environment?
+Linux, jdk 8
+
+### What did you expect to see?
+works as before
+
+### What did you see instead?
+```
+java.lang.IllegalStateException: RPC failed with status Status{code=UNKNOWN, description=null, cause=java.lang.UnsupportedOperationException
+    at io.grpc.netty.AbstractHttp2Headers.isEmpty(AbstractHttp2Headers.java:40)
+    at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$FrameReadListener.onHeadersRead(DefaultHttp2ConnectionDecoder.java:419)
+    at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$FrameReadListener.onHeadersRead(DefaultHttp2ConnectionDecoder.java:352)
+    at io.netty.handler.codec.http2.Http2InboundFrameLogger$1.onHeadersRead(Http2InboundFrameLogger.java:56)
+    at io.netty.handler.codec.http2.DefaultHttp2FrameReader$2.processFragment(DefaultHttp2FrameReader.java:476)
+    at io.netty.handler.codec.http2.DefaultHttp2FrameReader.readHeadersFrame(DefaultHttp2FrameReader.java:484)
+    at io.netty.handler.codec.http2.DefaultHttp2FrameReader.processPayloadState(DefaultHttp2FrameReader.java:253)
+    at io.netty.handler.codec.http2.DefaultHttp2FrameReader.readFrame(DefaultHttp2FrameReader.java:159)
+    at io.netty.handler.codec.http2.Http2InboundFrameLogger.readFrame(Http2InboundFrameLogger.java:41)
+    at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder.decodeFrame(DefaultHttp2ConnectionDecoder.java:188)
+    at io.netty.handler.codec.http2.Http2ConnectionHandler$FrameDecoder.decode(Http2ConnectionHandler.java:393)
+    at io.netty.handler.codec.http2.Http2ConnectionHandler.decode(Http2ConnectionHandler.java:453)
+    at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+    at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:468)
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+    at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+    at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+    at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+    at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+    at java.lang.Thread.run(Thread.java:825)
+```
+
+### Steps to reproduce the bug
+
+Just update 
+'io.grpc:grpc-netty:1.56.1'
+'io.netty:netty-codec:4.1.94.Final'
+'io.netty:netty-codec-http:4.1.94.Final'
+
+to 
+'io.grpc:grpc-netty:1.59.0'
+'io.netty:netty-codec:4.1.101.Final'
+'io.netty:netty-codec-http:4.1.101.Final'
+
+for security issues, then the error occurred.
+
+Not sure if it's a similar issue like reported in https://github.com/grpc/grpc-java/issues/7953
+which fixed by https://github.com/grpc/grpc-java/pull/7967.
+
+Btw, we must use grpc-netty but **NOT** grpc-netty-shaded since we need to run on s390x env. Thanks!

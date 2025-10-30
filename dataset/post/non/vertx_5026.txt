@@ -1,0 +1,85 @@
+FileResolvingImpl does not resolve files from JAR built with spring-boot-maven-plugin 3.2.0
+### Version
+
+4.5.0
+
+### Context
+
+Let's consider this code:
+```kotlin
+fun main() {
+    val resolver = FileResolverImpl()
+    resolver.resolveFile("test.txt") // the file present in resources folder
+    println("All good")
+}
+```
+
+being built into JAR with the following config of spring-boot-maven-plugin:
+```kotlin
+<plugin>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-maven-plugin</artifactId>
+    <version>3.2.0</version>
+    <configuration>
+        <mainClass>ski.gagar.frb.MainKt</mainClass>
+    </configuration>
+    <executions>
+        <execution>
+            <phase>package</phase>
+            <goals>
+                <goal>repackage</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+```
+
+When I build and run it:
+```kt
+mvn clean package
+java -jar target\file-resolver-bug-1.0-SNAPSHOT.jar
+```
+
+I get the followng error:
+```
+Exception in thread "main" java.lang.reflect.InvocationTargetException
+        at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:118)
+        at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+        at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:91)
+        at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:53)
+        at org.springframework.boot.loader.launch.JarLauncher.main(JarLauncher.java:58)
+Caused by: java.lang.StringIndexOutOfBoundsException: Range [5, -1) out of bounds for length 124
+        at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:55)
+        at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:52)
+        at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:213)
+        at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:210)
+        at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:98)
+        at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckFromToIndex(Preconditions.java:112)
+        at java.base/jdk.internal.util.Preconditions.checkFromToIndex(Preconditions.java:349)
+        at java.base/java.lang.String.checkBoundsBeginEnd(String.java:4861)
+        at java.base/java.lang.String.substring(String.java:2830)
+        at io.vertx.core.file.impl.FileResolverImpl.unpackFromJarURL(FileResolverImpl.java:297)
+        at io.vertx.core.file.impl.FileResolverImpl.unpackUrlResource(FileResolverImpl.java:239)
+        at io.vertx.core.file.impl.FileResolverImpl.resolveFile(FileResolverImpl.java:175)
+        at ski.gagar.frb.MainKt.main(Main.kt:7)
+        at ski.gagar.frb.MainKt.main(Main.kt)
+        at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+        ... 4 more
+```
+
+If I downgrade to spring-moot-maven-plugin version 2.7.5, everything works fine.
+
+The reason seems to be that the URL of nested file was changed between versions from `jar:file:/C:/Users/gagar/IdeaProjects/file-resolver-bug/target/file-resolver-bug-1.0-SNAPSHOT.jar/!BOOT-INF/classes/!/test.txt` to `jar:nested:/C:/Users/gagar/IdeaProjects/file-resolver-bug/target/file-resolver-bug-1.0-SNAPSHOT.jar/!BOOT-INF/classes/!/test.txt
+` and [implementation of unpackFromJarURL](https://github.com/eclipse-vertx/vert.x/blame/221f1e2b0726b9fe0f36dceb4ca364a3f2b37903/src/main/java/io/vertx/core/file/impl/FileResolverImpl.java#L264-L323) highly relies on it to be `jar:file` (the constant `4`  there).
+
+### Do you have a reproducer?
+
+[A reproducer is a simple project hosted on GitHub (or another forge supporting git clone operation) that has a build file that can be executed to reproduce the issue.
+
+Reproducers are very helpful for contributors and will likely help them fixing your bug faster.
+
+* Link to github project/gist](https://github.com/gagarski/file-resolver-bug)
+
+### Steps to reproduce
+
+Described above, build and run the repro project

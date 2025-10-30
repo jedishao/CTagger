@@ -1,0 +1,42 @@
+Improve CQLTester to make it trivial to run the tests with different configs, and to add randomness to the test
+When creating a test many authors default to hard coding values as the barrier to make the test generic feels too high; to lower this barrier we should add an extension class to CQLTester that enables randomized testing without having to worry about which framework to use.
+
+This should setup the single node cluster with different configs to improve coverage.
+
+Here is a sample error message when a test fails
+
+{code}
+java.lang.AssertionError: Property error detected:
+Config Seed: -3611771839852432544 -- To rerun do -Dcassandra.test.cqltester.fuzzed.seed.org.apache.cassandra.cql3.validation.operations.InsertTest=-3611771839852432544
+Config:
+	---
+	partitioner: OrderPreservingPartitioner
+	commitlog_sync: batch
+	commitlog_disk_access_mode: mmap_index_only
+	memtable_allocation_type: offheap_buffers
+	sstable:
+	  selected_format: bti
+	disk_access_mode: mmap
+	
+Error:
+	commitlog_disk_access_mode = mmap_index_only is not supported. Please use 'auto' when unsure.
+{code}
+
+And if the test fails
+
+{code}
+java.lang.AssertionError: Property error detected:
+Config Seed: -5023694648830703272 -- To rerun do -Dcassandra.test.cqltester.fuzzed.seed.org.apache.cassandra.cql3.validation.operations.InsertTest=-5023694648830703272
+Seed: -1088015559108807046 -- To rerun do -Dcassandra.test.cqltester.fuzzed.seed.org.apache.cassandra.cql3.validation.operations.InsertTest.testInsertZeroDuration=-1088015559108807046
+Config:
+	---
+	partitioner: OrderPreservingPartitioner
+	commitlog_sync: periodic
+	commitlog_sync_period: 10000ms
+	commitlog_disk_access_mode: direct
+	memtable_allocation_type: offheap_objects
+	sstable:
+	  selected_format: bti
+	disk_access_mode: mmap_index_only
+Caused by: java.lang.NullPointerException
+{code}

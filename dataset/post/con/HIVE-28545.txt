@@ -1,0 +1,4 @@
+Remove global lock on HMSHandler.getMSForConf which is prone to deadlock
+We add the global lock on HMSHandler.getMSForConf by HIVE-27117, which is aim to address the flaky test: TestCompactionMetrics.testInitiatorFailuresCountedCorrectly, however this global lock could contribute to another deadlock problem. Imaging this, if there is no idle connection in the connection pool, and HMSHandler needs getMS to commit or. rollback the transaction, a new client chimes in and takes over this global lock to initialize the ObjectStore, the initialization will be pending as there is no available connection, which prevents others to get the global lock to free the occupied connection, I wrote a test to demonstrate this case.
+
+This global lock could result to performance penalty which can block other clients in concurrent workloads. In worst cases, it can make other clients read timeout.

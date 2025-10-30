@@ -1,0 +1,100 @@
+[Bug] Incorrect Protocol Version used by the System client for the same Pulsar version
+### Search before asking
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+Pulsar version - 3.0.7
+
+### Minimal reproduce step
+
+Not able to reproduce
+
+### What did you expect to see?
+
+System client should be able to create reader on system topic with correct protocol version - 21 and also read events from the system topic to init topic policy cache. 
+
+Observations:
+Issue started happening when there was bundle reassignment happened on one of the broker, broker-x. There were few topics under the same namespace which got unloaded from broker-y and for few topic ownership went to the broker-z which was able to create reader successfully on system topic for the same namespace.  but ownership for few topics from the same namespace went to broker-x and produce to these topics started failing as broker-x wasnt able to update the policy cache due to the below mentioned issue.
+Also, broker-z was the owner of the __change_events of this namespace. and broker x was trying to communicate with broker-z here.  
+
+### What did you see instead?
+
+System client was unable to read events for the system topic and failed at "getLastMessageID" due to incorrect protocol version being considered for the communication. And due to this, producer creation at the client side also failed.
+
+MITIGATION:
+mitigation was to delete the __change_events topic and unloaded the main topic so that connection restablishment can be done.
+
+
+### Anything else?
+
+Client logs:
+`"org.apache.pulsar.client.api.PulsarClientException$LookupException: {\"errorMsg\":\"Topic creation encountered an exception by initialize topic policies service. topic_name=persistent://v/ig_prod_124/prod-topic-partition-0 error_message=The command **GetLastMessageId** is not supported for the **protocol version 0**. The consumer is d092f, topic persistent://v/ig_prod_124/__change_events, subscription reader-7845d24b8\",\"reqId\":140926384056832682, \"remote\":\"[xx.xx.xx.xx/xx.xx.xx.xx:6650\](http://zz.zz.zz.zz/zz.zz.zz.zz:6650%5C)", \"local\":\"/[xx.xx.xx.xx:35022](http://xx.xx.xx.xx:35022/)\"}",`
+
+Broker logs:
+`09:44:55.704 [pulsar-io-4-7] INFO  org.apache.pulsar.broker.systopic.NamespaceEventsSystemTopicFactory - Create topic policies system topic client persistent://v/ig_prod_124/__change_events
+09:44:55.706 [pulsar-io-4-2] INFO  org.apache.pulsar.client.impl.ConsumerImpl - [persistent://v/ig_prod_124/__change_events][reader-fb81be4b70] Subscribing to topic on cnx [id: 0xe6dfe821, L:/10.52.185.179:58192 - R:10.54.90.242/10.54.90.242:6650], consumerId 39400
+09:44:55.707 [pulsar-io-4-4] INFO  org.apache.pulsar.client.impl.ConsumerImpl - [persistent://v/ig_prod_124/__change_events][reader-fb81be4b70] Subscribed to topic on 10.54.90.242/10.54.90.242:6650 -- consumer: 39400
+09:44:55.707 [pulsar-io-4-4] ERROR org.apache.pulsar.client.impl.ConsumerImpl - [persistent://v/ig_prod_124/__change_events][reader-fb81be4b70] Failed getLastMessageId command
+09:44:55.707 [pulsar-io-4-4] ERROR org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService - [persistent://varadhi/ig_prod_varadhi_ns_1265/__change_events] Failed to check the move events for the system topic
+org.apache.pulsar.client.api.PulsarClientException$NotSupportedException: The command `GetLastMessageId` is not supported for the protocol version 0. The consumer is d2b2a, topic persistent://v/ig_prod_124/__change_events, subscription reader-fb81be4b70
+	at org.apache.pulsar.client.impl.ConsumerImpl.internalGetLastMessageIdAsync(ConsumerImpl.java:2550) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.client.impl.ConsumerImpl.internalGetLastMessageIdAsync(ConsumerImpl.java:2538) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.client.impl.ConsumerImpl.getLastMessageIdAsync(ConsumerImpl.java:2512) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.client.impl.ConsumerImpl.hasMessageAvailableAsync(ConsumerImpl.java:2452) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.client.impl.ReaderImpl.hasMessageAvailableAsync(ReaderImpl.java:219) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.broker.systopic.TopicPoliciesSystemTopicClient$TopicPolicyReader.hasMoreEventsAsync(TopicPoliciesSystemTopicClient.java:192) ~[org.apache.pulsar-pulsar-broker-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService.initPolicesCache(SystemTopicBasedTopicPoliciesService.java:433) ~[org.apache.pulsar-pulsar-broker-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService.lambda$prepareInitPoliciesCacheAsync$11(SystemTopicBasedTopicPoliciesService.java:360) ~[org.apache.pulsar-pulsar-broker-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at java.util.concurrent.CompletableFuture$UniCompose.tryFire(CompletableFuture.java:1150) ~[?:?]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[?:?]
+	at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147) ~[?:?]
+	at org.apache.pulsar.client.impl.PulsarClientImpl.lambda$createSingleTopicReaderAsync$15(PulsarClientImpl.java:729) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at java.util.concurrent.CompletableFuture$UniRun.tryFire(CompletableFuture.java:787) ~[?:?]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[?:?]
+	at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147) ~[?:?]
+	at org.apache.pulsar.client.impl.ConsumerImpl.lambda$connectionOpened$18(ConsumerImpl.java:865) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at java.util.concurrent.CompletableFuture$UniRun.tryFire(CompletableFuture.java:787) ~[?:?]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[?:?]
+	at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147) ~[?:?]
+	at org.apache.pulsar.client.impl.ClientCnx.handleSuccess(ClientCnx.java:538) ~[org.apache.pulsar-pulsar-client-original-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:252) ~[org.apache.pulsar-pulsar-common-3.0.7-SNAPSHOT.jar:3.0.7-SNAPSHOT]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:346) ~[io.netty-netty-codec-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:318) ~[io.netty-netty-codec-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.handler.flush.FlushConsolidationHandler.channelRead(FlushConsolidationHandler.java:152) ~[io.netty-netty-handler-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:442) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1407) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:918) ~[io.netty-netty-transport-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:799) ~[io.netty-netty-transport-classes-epoll-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:501) ~[io.netty-netty-transport-classes-epoll-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:399) ~[io.netty-netty-transport-classes-epoll-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:994) ~[io.netty-netty-common-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[io.netty-netty-common-4.1.111.Final.jar:4.1.111.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.111.Final.jar:4.1.111.Final]
+	at java.lang.Thread.run(Thread.java:840) ~[?:?]
+09:44:55.709 [pulsar-io-4-4] ERROR org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService - [varadhi/ig_prod_varadhi_ns_1265] Failed to create reader on __change_events topic
+java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException$NotSupportedException: The command `GetLastMessageId` is not supported for the protocol version 0. The consumer is d2b2a, topic persistent://v/ig_prod_124/__change_events, subscription reader-fb81b4b70`
+
+In this screenshot, we can see for 280 objects, the protocol version is 21 only but for one 1 object it is 0
+<img width="1714" alt="Image" src="https://github.com/user-attachments/assets/bcaca733-c528-45b9-9353-796c49e953f9" />
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,45 @@
+Cannot split hbase:quota table when quota enforcement is enabled
+When quotas are enabled, splitting the quota table fails due to the namespace region quotas system being partially initialized.
+
+{noformat}
+2024-11-28T14:11:38,672 ERROR [PEWorker-2 {}]
+procedure2.ProcedureExecutor(1844): CODE-BUG: Uncaught runtime
+exception: pid=7, state=RUNNABLE:SPLIT_TABLE_REGION_PRE_OPERATION,
+hasLock=true; SplitTableRegionProcedure table=hbase:quota,
+parent=3c1dbd551845ed2e8033b76570c6d8f6,
+daughterA=a8f5e70728d93859d7c3d95aa5a0f63b,
+daughterB=c71f49ad7e689a57742a9fe65b918d08
+java.lang.NullPointerException: Cannot invoke
+"java.util.concurrent.atomic.AtomicInteger.addAndGet(int)" because the
+return value of "java.util.Map.get(Object)" is null
+at org.apache.hadoop.hbase.namespace.NamespaceTableAndRegionInfo.incRegionCountForTable(NamespaceTableAndRegionInfo.java:101)
+~[classes/:?]
+at org.apache.hadoop.hbase.namespace.NamespaceStateManager.checkAndUpdateNamespaceRegionCount(NamespaceStateManager.java:95)
+~[classes/:?]
+at org.apache.hadoop.hbase.namespace.NamespaceAuditor.checkQuotaToSplitRegion(NamespaceAuditor.java:116)
+~[classes/:?]
+at org.apache.hadoop.hbase.quotas.MasterQuotaManager.onRegionSplit(MasterQuotaManager.java:544)
+~[classes/:?]
+at org.apache.hadoop.hbase.master.assignment.SplitTableRegionProcedure.preSplitRegion(SplitTableRegionProcedure.java:607)
+~[classes/:?]
+at org.apache.hadoop.hbase.master.assignment.SplitTableRegionProcedure.executeFromState(SplitTableRegionProcedure.java:298)
+~[classes/:?]
+at org.apache.hadoop.hbase.master.assignment.SplitTableRegionProcedure.executeFromState(SplitTableRegionProcedure.java:98)
+~[classes/:?]
+at org.apache.hadoop.hbase.procedure2.StateMachineProcedure.execute(StateMachineProcedure.java:188)
+~[classes/:?]
+at org.apache.hadoop.hbase.procedure2.Procedure.doExecute(Procedure.java:941)
+~[classes/:?]
+at org.apache.hadoop.hbase.procedure2.ProcedureExecutor.execProcedure(ProcedureExecutor.java:1825)
+~[classes/:?]
+at org.apache.hadoop.hbase.procedure2.ProcedureExecutor.executeProcedure(ProcedureExecutor.java:1503)
+~[classes/:?]
+at org.apache.hadoop.hbase.procedure2.ProcedureExecutor$WorkerThread.runProcedure(ProcedureExecutor.java:2154)
+~[classes/:?]
+at org.apache.hadoop.hbase.trace.TraceUtil.trace(TraceUtil.java:216)
+~[classes/:?]
+at org.apache.hadoop.hbase.procedure2.ProcedureExecutor$WorkerThread.run(ProcedureExecutor.java:2181)
+~[classes/:?]
+{noformat}
+
+See discussion on the dev list, https://lists.apache.org/thread/gdnjb1ys8m93lowykdrh4m7o55mgw3vo

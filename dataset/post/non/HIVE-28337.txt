@@ -1,0 +1,11 @@
+Process timestamps at UTC timezone instead of local timezone in MetaStoreUtils
+Currently in MetaStoreUtils, the conversion to/from timestamp and string makes use of LocalDateTime in the local time zone while processing timestamps. This causes issue with representing timestamps *as mentioned below*. Instead, while dealing with timestamps it is proposed to use java.time.Instant to represent a point on the time-line, which would overcome the issue with representing such timestamps. Accordingly the test class for MetaStoreUtils (TestMetaStoreUtils) has also been modified to account for these changes.
+
+
+
++Failing scenario:+
+Timestamps in time-zones which observe daylight savings during which the clock is set forward(typicallly 2:00 AM - 3:00 AM)
+
+Example: 2417-03-26T02:08:43 in Europe/Paris is invalid, and would get converted to 2417-03-26T03:08:43 by Timestamp.valueOf() method, when instead we want to represent the original timestamp without conversion.
+
+This is happening due to representing timestamp as LocalDateTime in TestMetaStoreUtils, which is independent of the time-zone of the timestamp. This LocalDateTime timestamp when combined with time-zone is leading to invalid timestamp.

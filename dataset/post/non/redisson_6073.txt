@@ -1,0 +1,83 @@
+graalvm: java.lang.NullPointerException
+### Redis version
+
+7.2.0
+
+### Redisson version
+
+3.34.1
+
+### Redisson configuration
+
+```
+spring:
+  data:
+    redis:
+      host: 10.10.10.10
+      password: 123456
+      database: 2
+```
+
+### What is the Expected behavior?
+
+no error message
+
+### What is the Actual behavior?
+
+```
+2024-08-06 08:56:32.117 ERROR 2954621 --- [isson-netty-1-6] org.redisson.RedissonRemoteService       : Can't process the remote service request with id com.test.DistributeJobTest.count
+
+java.util.concurrent.CompletionException: java.lang.NullPointerException
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:332)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:347)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:874)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2179)
+        at org.redisson.command.RedisExecutor.handleSuccess(RedisExecutor.java:648)
+        at org.redisson.command.RedisExecutor.handleResult(RedisExecutor.java:624)
+        at org.redisson.command.RedisExecutor.checkAttemptPromise(RedisExecutor.java:601)
+        at org.redisson.command.RedisExecutor.lambda$execute$5(RedisExecutor.java:201)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2179)
+        at org.redisson.client.handler.CommandDecoder.completeResponse(CommandDecoder.java:530)
+        at org.redisson.client.handler.CommandDecoder.handleResult(CommandDecoder.java:524)
+        at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:444)
+        at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:218)
+        at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:146)
+        at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:122)
+        at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:530)
+        at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1407)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:918)
+        at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:994)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.base@21.0.4/java.lang.Thread.runWith(Thread.java:1596)
+        at java.base@21.0.4/java.lang.Thread.run(Thread.java:1583)
+        at org.graalvm.nativeimage.builder/com.oracle.svm.core.thread.PlatformThreads.threadStartRoutine(PlatformThreads.java:896)
+        at org.graalvm.nativeimage.builder/com.oracle.svm.core.thread.PlatformThreads.threadStartRoutine(PlatformThreads.java:872)
+Caused by: java.lang.NullPointerException: null
+        at org.redisson.RedissonRemoteService.lambda$subscribe$7(RedissonRemoteService.java:300)
+        at java.base@21.0.4/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863)
+        ... 39 common frames omitted
+```
+
+### Additional information
+
+[demo.zip](https://github.com/user-attachments/files/16505752/demo.zip)
+
+/apps/apache-maven-3.9.4/bin/mvn clean native:compile -Pnative -DskipTests

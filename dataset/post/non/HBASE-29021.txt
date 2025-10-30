@@ -1,0 +1,52 @@
+When StoreFileTracker is FILE, unable to recognize StoreFileListFile after upgrade from 2.5 to 2.6
+h1. Symptoms
+
+After upgrading from HBase 2.5.10 to HBase 2.6.1, I observed an inconsistent read across versions.
+
+Before the upgrade, I created a table with one row. Invoking a count command returns 1. After upgrading to 2.6.1, execute the same count command, it returns 0.
+{code:java}
+count 'test'
+
+Old Version Result:
+1 row(s)
+Took 0.5582 seconds
+=> 1
+
+New Version Result: 
+0 row(s)
+Took 1.4439 seconds
+=> 0 {code}
+h1. Reproduce
+
+It can be reproduced deterministically with the following steps
+
+Step1: Start up the HBase cluster in 2.5.10 and execute the following commands
+{code:java}
+create 'test', 'cf', CONFIGURATION => {'hbase.store.file-tracker.impl' => 'FILE'}
+put 'test', 'row', 'cf:q', 'value'{code}
+Step2: Execute the count command in the old version
+{code:java}
+count 'test'
+
+1 row(s)
+Took 0.5582 seconds
+=> 1 {code}
+Step3: Stop the entire cluster, upgrade to 2.6.1 and execute the same count command
+{code:java}
+count 'test'
+
+0 row(s)
+Took 0.0842 seconds
+=> 0{code}
+h1. Analysis
+
+The names of {{StoreFileListFile}} differ between the two versions:
+ * In 2.5.10: {{f1}} or {{f2}}
+ * In 2.6.1: {{{}f1.{timestamp{}}}} or {{{}f2.{timestamp{}}}}
+
+The addition of a timestamp to the file name was introduced in HBASE-26791.
+
+It can be resolved by handling missing timestamps by setting them to 0.
+
+However, in the case of downgrading versions, the above approach does not work. A workaround is available:
+ * Change the storefile tracker implementation from {{FILE}} > {{MIGRATION > DEFAULT}} before downgrading.

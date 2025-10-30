@@ -1,0 +1,2 @@
+Avoid prepared statement invalidation race when committing schema changes
+We currently invalidate the prepared statement cache before making the schema change “live", creating a small window where we might re-prepare a statement with the old schema. This causes us to use the wrong epoch when coordinating a request, making replicas think the coordinator is behind and failing the request until the node is bounced (or prepared statement cache invalidated)

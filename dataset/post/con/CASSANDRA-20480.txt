@@ -1,0 +1,7 @@
+Avoid system keyspace truncation record access blocking on interval tree builds
+A call to SystemKeyspace::removeEndpoint may block for extended periods of time behind an interval tree build since it does a blocking flush, explained in a bit more detail here:
+https://issues.apache.org/jira/browse/CASSANDRA-19597
+This in turn takes the synchronized monitor lock on SystemKeyspace.class and blocks various other methods from executing, including in particular SystemKeyspace::getTruncationRecord, which is called on various hot paths to determine whether to drop/filter mutations, (Commitlog replay, Hints, Batchlog and also committing Paxos transactions)
+This can cause a continuous stream of timeouts while operations are on-going ( which are making calls to removeEndpoint).
+The vast majority of the time the truncation record would not have changed, since it's only updated when one truncates which is typically rare.
+If we factor out the synchronization of the truncation record to a monitor on a static field, we avoid this problem, whilst still preventing various concurrency problems when operating on the SystemKeyspace field truncationRecords.

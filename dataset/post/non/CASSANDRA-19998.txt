@@ -1,0 +1,83 @@
+Compaction/Scrub throws "AssertionError: Illegal bounds
+*Issue:*
+
+Compactions and scrubs are failing with the following error:
+
+ 
+{code:java}
+java.lang.AssertionError: Illegal bounds [1698255698..792484184); size: 1039216223
+        at org.apache.cassandra.io.util.Memory.checkBounds(Memory.java:345)
+        at org.apache.cassandra.io.util.Memory.setByteBuffer(Memory.java:420)
+        at org.apache.cassandra.io.sstable.IndexSummary.fillTemporaryKey(IndexSummary.java:164)
+        at org.apache.cassandra.io.sstable.IndexSummary.binarySearch(IndexSummary.java:121)
+        at org.apache.cassandra.io.sstable.format.SSTableReader.getIndexScanPosition(SSTableReader.java:1268)
+        at org.apache.cassandra.io.sstable.format.big.BigTableScanner.seekToCurrentRangeStart(BigTableScanner.java:202)
+        at org.apache.cassandra.io.sstable.format.big.BigTableScanner.access$400(BigTableScanner.java:52)
+        at org.apache.cassandra.io.sstable.format.big.BigTableScanner$KeyScanningIterator.computeNext(BigTableScanner.java:329)
+        at org.apache.cassandra.io.sstable.format.big.BigTableScanner$KeyScanningIterator.computeNext(BigTableScanner.java:306)
+        at org.apache.cassandra.utils.AbstractIterator.hasNext(AbstractIterator.java:47)
+        at org.apache.cassandra.io.sstable.format.big.BigTableScanner.hasNext(BigTableScanner.java:285)
+        at org.apache.cassandra.utils.MergeIterator$OneToOne.computeNext(MergeIterator.java:463)
+        at org.apache.cassandra.utils.AbstractIterator.hasNext(AbstractIterator.java:47)
+        at org.apache.cassandra.db.partitions.UnfilteredPartitionIterators$2.hasNext(UnfilteredPartitionIterators.java:163)
+        at org.apache.cassandra.db.transform.BasePartitions.hasNext(BasePartitions.java:92)
+        at org.apache.cassandra.db.compaction.CompactionIterator.hasNext(CompactionIterator.java:238)
+        at org.apache.cassandra.db.compaction.CompactionTask.runMayThrow(CompactionTask.java:199){code}
+ 
+
+This issue is observed on nodes running *Ubuntu 22.04.4* . The errors typically occur during compactions and scrubs, with an additional *OutOfMemoryError* when a scrub is performed:
+
+ 
+{code:java}
+java.lang.OutOfMemoryError: Direct buffer memory
+        at java.base/java.nio.Bits.reserveMemory(Bits.java:175) 
+{code}
+*Current Mitigation:*
+
+1. Disable zone reclaim mode:
+
+
+{code:java}
+echo 0 > /proc/sys/vm/zone_reclaim_mode{code}
+ 
+
+ 
+
+2. Disable transparent hugepage defragmentation:
+   
+{code:java}
+   echo never > /sys/kernel/mm/transparent_hugepage/defrag{code}
+ 
+
+ 
+
+3. If the scrub doesn't resolve the issue, perform the following steps:
+   - Stop the node.
+   - Remove the `{*}*Summary.db`{*} files for the affected table.
+   - Restart the node.
+
+*Environment Details:*
+
+- Cassandra version: 4.0.12, 4.0.13
+- Kernel version:Linux 6.5.0-1018-azure (Ubuntu 22.04.2)
+- JVM version:
+{code:java}
+   java version "11.0.22.0.101" 2024-04-12 LTS
+   Java Runtime Environment Zing24.02.100.0+5{code}
+*Additional Details:*
+
+- The issue is mitigated by running a scrub. If a scrub triggers an *OutOfMemoryError* (OOM) as shown, further mitigation steps are required.
+
+I
+{code:java}
+NFO  [CompactionExecutor:1] 2024-10-02 16:33:34,463 OutputHandler.java:48 - Starting scrub with reinsert overflowed TTL option
+INFO  [CompactionExecutor:1] 2024-10-02 16:33:34,463 OutputHandler.java:48 - Scrubbing BigTableReader(path='/app/cassandra/data/ca_catalog_bedrock_staging/ipf_exception_log-22e63cb07fe311eba5421dc1f7829055/nb-1613-big-Data.db') (31.295MiB)
+ERROR [CompactionExecutor:1] 2024-10-02 16:33:35,524 CassandraDaemon.java:577 - Exception in thread Thread[CompactionExecutor:1,1,main]
+java.lang.OutOfMemoryError: Direct buffer memory
+        at java.base/java.nio.Bits.reserveMemory(Bits.java:175)
+        at java.base/java.nio.DirectByteBuffer.<init>(DirectByteBuffer.java:138
+ 
+{code}
+ 
+
+ 

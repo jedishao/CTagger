@@ -1,0 +1,58 @@
+[improve][broker] Improve the extensibility of the TopicBundleAssignmentStrategy interface class
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+During the lookup process of the pulsar broker, the hash value needs to be calculated based on the topic name. For example:
+
+1. Bundle obtaining triggered by a lookup request:
+
+   Lookup -> NamespaceService#getBrokerServiceUrlAsync -> NamespaceService#getBundleAsync ->
+   NamespaceBundles#findBundle -> TopicBundleAssignmentStrategy#**findBundle** -> NamespaceBundles#getBundle(long hash)
+
+2. When loading a topic, the broker needs to determine whether it owns the topic partition.
+
+   PulsarService#loadNamespaceTopics -> NamespaceBundle#includes ->  NamespaceBundleFactory#**getLongHashCode** -> NamespaceBundle.keyRange#contains(long hash)
+
+The current code implementation has the following problems:
+
+1. **The hash algorithm is fixed.** When the load balancing algorithm is extended, the bundle to which the partition belongs cannot be adjusted. As a result, other algorithms such as RoundRobin cannot be extended.
+
+   The `NamespaceBundleFactory#getLongHashCode` method uses a fixed algorithm to calculate the hash value. Therefore, it is difficult to extend the implementation of the `TopicBundleAssignmentStrategy` interface class that uses different hash algorithms without modifying the `NamespaceBundleFactory#getLongHashCode` method, which violates the open and closed principles.
+
+![image](https://github.com/user-attachments/assets/6f4ccdc1-dad8-46cd-bd19-7b74f8760afd)
+
+2. **Bad code smell (shot-like modification)**: The hash algorithm is implemented in the `findBundle` and `getLongHashCode` methods. The system must ensure that the calculated hash results are the same. Otherwise, split-brain occurs in the cluster. Therefore, if the hash algorithm needs to be modified, the code has a bad smell.
+
+   - Lookup request:
+
+     Take the default implementation class `ConsistentHashingTopicBundleAssigner` of the `TopicBundleAssignmentStrategy` interface class as an example. During the lookup process, the hash value is calculated in `ConsistentHashingTopicBundleAssigner#findBundle`.
+
+     https://github.com/apache/pulsar/blob/1967a9309586286580ac0f3b75a34e1f70e63f75/pulsar-broker/src/main/java/org/apache/pulsar/common/naming/ConsistentHashingTopicBundleAssigner.java#L25-L40
+
+   - When a topic is loaded, the hash value is calculated in the `NamespaceBundleFactory#getLongHashCode` method to determine whether the current broker owns the topic.
+
+     https://github.com/apache/pulsar/blob/1967a9309586286580ac0f3b75a34e1f70e63f75/pulsar-broker/src/main/java/org/apache/pulsar/broker/namespace/NamespaceService.java#L204
+
+     https://github.com/apache/pulsar/blob/1967a9309586286580ac0f3b75a34e1f70e63f75/pulsar-broker/src/main/java/org/apache/pulsar/common/naming/NamespaceBundleFactory.java#L78-L79
+
+     https://github.com/apache/pulsar/blob/1967a9309586286580ac0f3b75a34e1f70e63f75/pulsar-broker/src/main/java/org/apache/pulsar/common/naming/NamespaceBundleFactory.java#L294-L296
+
+### Solution
+
+It is recommended that the implementation of the `NamespaceBundleFactory#getLongHashCode` method be moved to the implementation class of the interface `TopicBundleAssignmentStrategy`. Therefore, we may add a new method `long getHashCode(String name)`  to the `TopicBundleAssignmentStrategy` interface class. The implementation of the hash algorithm is no longer fixed in the `NamespaceBundleFactory#getLongHashCode` method. Instead, the `getHashCode` method implemented by different algorithms is invoked.
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

@@ -1,0 +1,16 @@
+Kafka Event Listener fails to send logs because max.request.size is fixed at 5242880
+I am using the stack dbt + Trino, and I wanted to set up an audit logging flow for Trino query logs. I have chosen Kafka Event Listener to use, with `publishCreatedEvent=true` and `publishCompletedEvent=true`. The target broker is ensured to have `replica.fetch.max.bytes` and `message.max.bytes` = 32mb, which is very generous.
+
+However, after several days, I realize that some of the logs are missing somehow. I have checked the coordinator logs, and found the following exception 
+
+```java
+org.apache.kafka.common.errors.RecordTooLargeException: The message is 13113824 bytes when serialized which is larger then 5242880, which is the value of the max.request.size
+```
+
+Then, I checked `io.trino.plugin.eventlistener.kafka.producer.BaseKafkaProducerFactory` and found that `max.request.size` is fixed at 5242880 in the function `baseConfig`
+
+```java
+kafkaClientConfig.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, "5242880");
+```
+
+Therefore, I think we should have a configuration for `max.request.size` in `kafka-event-listener.properties`. Moreover, I think a configuration for `batch.size` is also needed, since it may help optimize throughput by sending messages in larger batches.

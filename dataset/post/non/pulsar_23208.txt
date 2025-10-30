@@ -1,0 +1,262 @@
+[Bug] Excessive log warnings about "An OpAddEntry's ledger is empty."
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+released versions since #22221
+
+### Minimal reproduce step
+
+start a standalone Pulsar with `managedLedgerMaxEntriesPerLedger=10000 managedLedgerMinLedgerRolloverTimeMinutes=0`
+```
+managedLedgerMaxEntriesPerLedger=10000 managedLedgerMinLedgerRolloverTimeMinutes=0 docker/pulsar/scripts/apply-config-from-env.py conf/standalone.conf
+PULSAR_STANDALONE_USE_ZOOKEEPER=1 bin/pulsar standalone -nss -nfw 2>&1 | tee standalone.log
+```
+
+Create a topic with 10 partitions. Produce & consume messages with pulsar-perf. It might require `--message-key-generation-mode autoIncrement` as a parameter to `pulsar-perf` and also disabling batching with `--disable-batching` so that all partitions rollover at the same time.
+I happened to use a test class in https://github.com/lhotari/pulsar-playground/tree/master/src/main/java/com/github/lhotari/pulsar/playground . I'll add it later.
+
+### What did you expect to see?
+
+No warning logs when there's no problem. 
+
+### What did you see instead?
+
+Example of the logs showing up.
+
+```
+2024-08-21T07:16:00,118+0300 [BookKeeperClientWorker-OrderedExecutor-3-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-8] Closing ledger 53 for being full
+2024-08-21T07:16:00,118+0300 [BookKeeperClientWorker-OrderedExecutor-3-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-9] Closing ledger 54 for being full
+2024-08-21T07:16:00,118+0300 [BookKeeperClientWorker-OrderedExecutor-2-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-7] Closing ledger 52 for being full
+2024-08-21T07:16:00,118+0300 [BookKeeperClientWorker-OrderedExecutor-13-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-0] Closing ledger 56 for being full
+2024-08-21T07:16:00,119+0300 [BookKeeperClientWorker-OrderedExecutor-2-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-6] Closing ledger 55 for being full
+2024-08-21T07:16:00,126+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] Creating a new ledger after closed 53
+2024-08-21T07:16:00,126+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] Creating a new ledger after closed 54
+2024-08-21T07:16:00,126+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] Creating a new ledger after closed 52
+2024-08-21T07:16:00,126+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] Creating a new ledger after closed 56
+2024-08-21T07:16:00,126+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-6] Creating a new ledger after closed 55
+2024-08-21T07:16:00,136+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000062 (v. Optional.empty)
+2024-08-21T07:16:00,136+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000063 (v. Optional.empty)
+2024-08-21T07:16:00,136+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000064 (v. Optional.empty)
+2024-08-21T07:16:00,136+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000065 (v. Optional.empty)
+2024-08-21T07:16:00,136+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000066 (v. Optional.empty)
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000062 (v. Optional.empty)
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 62
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000063 (v. Optional.empty)
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 63
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000064 (v. Optional.empty)
+2024-08-21T07:16:00,146+0300 [BookKeeperClientWorker-OrderedExecutor-3-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] Created new ledger 62
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 64
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000065 (v. Optional.empty)
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 65
+2024-08-21T07:16:00,146+0300 [BookKeeperClientWorker-OrderedExecutor-4-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] Created new ledger 64
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000066 (v. Optional.empty)
+2024-08-21T07:16:00,146+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 66
+2024-08-21T07:16:00,146+0300 [BookKeeperClientWorker-OrderedExecutor-3-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] Created new ledger 63
+2024-08-21T07:16:00,146+0300 [BookKeeperClientWorker-OrderedExecutor-4-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] Created new ledger 65
+2024-08-21T07:16:00,146+0300 [BookKeeperClientWorker-OrderedExecutor-5-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-6] Created new ledger 66
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-0] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-7] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-6] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-6] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-6] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-0-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-6] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-8] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,156+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-9] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,225+0300 [BookKeeperClientWorker-OrderedExecutor-13-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-1] Closing ledger 58 for being full
+2024-08-21T07:16:00,225+0300 [BookKeeperClientWorker-OrderedExecutor-1-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-5] Closing ledger 57 for being full
+2024-08-21T07:16:00,226+0300 [BookKeeperClientWorker-OrderedExecutor-0-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-2] Closing ledger 61 for being full
+2024-08-21T07:16:00,231+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] Creating a new ledger after closed 58
+2024-08-21T07:16:00,235+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] Creating a new ledger after closed 57
+2024-08-21T07:16:00,235+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-2] Creating a new ledger after closed 61
+2024-08-21T07:16:00,239+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000067 (v. Optional.empty)
+2024-08-21T07:16:00,244+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000068 (v. Optional.empty)
+2024-08-21T07:16:00,244+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000069 (v. Optional.empty)
+2024-08-21T07:16:00,245+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000067 (v. Optional.empty)
+2024-08-21T07:16:00,245+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 67
+2024-08-21T07:16:00,245+0300 [BookKeeperClientWorker-OrderedExecutor-5-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] Created new ledger 67
+2024-08-21T07:16:00,249+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000068 (v. Optional.empty)
+2024-08-21T07:16:00,249+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 68
+2024-08-21T07:16:00,249+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000069 (v. Optional.empty)
+2024-08-21T07:16:00,249+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 69
+2024-08-21T07:16:00,249+0300 [BookKeeperClientWorker-OrderedExecutor-6-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] Created new ledger 68
+2024-08-21T07:16:00,249+0300 [BookKeeperClientWorker-OrderedExecutor-6-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-2] Created new ledger 69
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-2] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-2] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-2] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-2] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-5] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,254+0300 [bookkeeper-ml-scheduler-OrderedScheduler-1-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-1] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,331+0300 [BookKeeperClientWorker-OrderedExecutor-0-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-3] Closing ledger 60 for being full
+2024-08-21T07:16:00,331+0300 [BookKeeperClientWorker-OrderedExecutor-1-0] INFO  org.apache.bookkeeper.mledger.impl.OpAddEntry - [public/test_ns1724213540668/persistent/test-partition-4] Closing ledger 59 for being full
+2024-08-21T07:16:00,340+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] Creating a new ledger after closed 59
+2024-08-21T07:16:00,340+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] Creating a new ledger after closed 60
+2024-08-21T07:16:00,350+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000070 (v. Optional.empty)
+2024-08-21T07:16:00,350+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleting path: /ledgers/idgen/ID-0000000071 (v. Optional.empty)
+2024-08-21T07:16:00,359+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000070 (v. Optional.empty)
+2024-08-21T07:16:00,359+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 70
+2024-08-21T07:16:00,359+0300 [metadata-store-21-1] INFO  org.apache.pulsar.metadata.impl.AbstractMetadataStore - Deleted path: /ledgers/idgen/ID-0000000071 (v. Optional.empty)
+2024-08-21T07:16:00,359+0300 [metadata-store-21-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [bk0test] for ledger: 71
+2024-08-21T07:16:00,359+0300 [BookKeeperClientWorker-OrderedExecutor-7-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] Created new ledger 70
+2024-08-21T07:16:00,360+0300 [BookKeeperClientWorker-OrderedExecutor-7-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] Created new ledger 71
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,370+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,371+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,371+0300 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-3] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,371+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+2024-08-21T07:16:00,371+0300 [bookkeeper-ml-scheduler-OrderedScheduler-3-0] WARN  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/test_ns1724213540668/persistent/test-partition-4] An OpAddEntry's ledger is empty.
+```
+
+### Anything else?
+
+In the code where this is logged, there's a comment "This scenario should not happen."
+https://github.com/apache/pulsar/blob/15b88d250818bada5c1a94f5c54ef7806f88a500/managed-ledger/src/main/java/org/apache/bookkeeper/mledger/impl/ManagedLedgerImpl.java#L1679-L1698
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

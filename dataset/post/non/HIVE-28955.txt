@@ -1,0 +1,24 @@
+Tests using HiveConfForTest and Tez engine consume large amounts of disk space
+Some tests that use HiveConfForTest and Tez as the underlying engine consume large amounts of disk space (in the order of GBs) when run.
+
+One vivid example is TestTxnCommandsWithSplitUpdateAndVectorization which creates files and directories under ql/target directory summing up to ~5GB of data.
+
+{code:bash}
+mvn clean test -Dtest=TestTxnCommandsWithSplitUpdateAndVectorization
+cd target
+du -csh *TestTxn*
+{code}
+
+{noformat}
+87M	org.apache.hadoop.hive.ql.TestTxnCommandsWithSplitUpdateAndVectorization-1747139827364
+87M	org.apache.hadoop.hive.ql.TestTxnCommandsWithSplitUpdateAndVectorization-1747139840720
+87M	org.apache.hadoop.hive.ql.TestTxnCommandsWithSplitUpdateAndVectorization-1747139843358
+87M
+...
+87M org.apache.hadoop.hive.ql.TestTxnCommandsWithSplitUpdateAndVectorization-1747140109446
+4.8G	total
+{noformat}
+
+All of the above contain a localized hive-exec.jar that ends up in a different directory since each instance of HiveConfForTest [passes a unique value for "hive.user.install.directory"|https://github.com/apache/hive/blob/8324ae424a69c32fe8fd32d15f11f31ea635198a/common/src/test/org/apache/hadoop/hive/conf/HiveConfForTest.java#L53].
+
+The problem becomes worse taking into account that many other tests are affected which leads to lots of wasted disk space.

@@ -1,0 +1,36 @@
+Unexpected results from map_normalized
+map_normalized function doesn't seem to have any special handling for the case when total sum of the values is zero. Thus we get the following results:
+
+```
+presto:di> select map_normalize(map(array['1', '2'], array[1, -1]));
+           _col0
+---------------------------
+ {1=Infinity, 2=-Infinity}
+
+presto:di> select map_normalize(map(array['1', '2'], array[null, 0]));
+      _col0
+-----------------
+ {1=null, 2=NaN}
+
+presto:di> select map_normalize(map(array['1', '2'], array[0, 0]));
+     _col0
+----------------
+ {1=NaN, 2=NaN}
+
+presto:di> select map_normalize(map(array['1', '2', '3'], array[0, 1, -1]));
+              _col0
+----------------------------------
+ {1=NaN, 2=Infinity, 3=-Infinity}
+```
+
+I wonder if this is intentional.
+
+The docs don't clarify that case:
+
+https://prestodb.io/docs/current/functions/map.html#map_normalize
+
+"Returns the map with the same keys but all non-null values are scaled proportionally so that the sum of values becomes 1. Map entries with null values remain unchanged."
+
+Yet, the sum of the values in results is clearly not 1.
+
+CC: @tdcmeehan @rschlussel @aditi-pandit @steveburnett @kaikalur 

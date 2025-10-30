@@ -1,0 +1,71 @@
+Columns from UNNEST expression are not included in Column Lineage
+**Details:**
+I am using the Trino OpenLineage Event Listener.
+I kindly ask you to fix the case when, during the formation of column lineage, columns present in the UNNEST expression are not included in ["columnLineage"]["fields"]["output_column"]["inputFields"].
+
+**For example:**
+SELECT some_column, ep.key AS new_column_for_key, ep.value.string_value AS new_column_for_value FROM table, UNNEST(event_params) AS ep
+->
+the 'inputFields' lists for new_column_for_key and new_column_for_value will be empty, which is incorrect. The inputFields list should include one column event_params.
+
+**Attached is a JSON file with the query plan and column lineage.**
+[Trino_OPenLineageEventListener.json](https://github.com/user-attachments/files/17219815/Trino_OPenLineageEventListener.json)
+
+**SQL example:**
+```
+SELECT
+       DATE_ADD('day', -1, CURRENT_DATE) AS partition_date,
+       help.date AS date,
+       CAST (help.user_pseudo_id AS varchar) AS user_pseudo_id,
+       help.page_location,
+       help.category1,
+       help.event_name,
+       help.user_source,
+       help.user_medium,
+       help.platform,
+       f_blog_posts.title,
+       f_blog_posts.id,
+       f_blog_posts_likes.count_likes
+FROM (
+SELECT
+    date,
+    user_pseudo_id,
+    user_id,
+    page_location,
+    event_name,
+    user_source,
+    user_medium,
+    device_category,
+    platform,
+    SPLIT_PART(SPLIT_PART(page_location, '?', 1), '/', CARDINALITY(SPLIT(SPLIT_PART(page_location, '?', 1), '/')) - 1) AS category1
+FROM (
+SELECT
+        CAST(DATE_PARSE(event_date, '%Y%m%d') AS DATE) AS date,
+        user_pseudo_id,
+        user_id,
+        (CASE WHEN ep.key = 'page_location' THEN ep.value.string_value END) AS page_location,
+        event_name,
+        traffic_source.source AS user_source,
+        traffic_source.medium AS user_medium,
+        device.category AS device_category,
+        CASE
+            WHEN device.operating_system = 'Android' THEN 'web android'
+            WHEN device.operating_system = 'iOS' THEN 'web ios'
+            ELSE 'desktop'
+        END AS platform
+    FROM "lakehouse".analytics_150948805.events,
+    UNNEST (event_params) AS ep
+    WHERE "_partitiontime" between  CURRENT_DATE - INTERVAL '1' DAY AND CURRENT_DATE + INTERVAL '5' DAY
+    and event_name IN ('page_view', 'session_start', 'first_visit', 'view_item', 'blog_scroll_ga4', 'add_to_cart', 'view_item_list', 'banner_view')
+    AND platform = 'WEB'
+    AND (CASE WHEN ep.key = 'page_location' THEN ep.value.string_value END) LIKE '%/blog/%') AS prep) AS help
+LEFT JOIN "lakehouse".mysql_export.f_blog_posts AS f_blog_posts ON f_blog_posts.link = help.category1
+LEFT JOIN (
+    SELECT
+        DATE(created_at) AS date_create,
+        blog_post_id,
+        COUNT(created_at) AS count_likes
+    FROM "lakehouse".mysql_export.f_blog_posts_likes
+    GROUP BY 1, 2
+) AS f_blog_posts_likes ON f_blog_posts_likes.blog_post_id = f_blog_posts.id AND f_blog_posts_likes.date_create = help.date
+WHERE f_blog_posts.whom = 'seller'

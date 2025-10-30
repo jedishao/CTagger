@@ -1,0 +1,63 @@
+druid-kubernetes-extensions unable to perform rolling update
+### Affected Version
+
+27.0.0
+
+### Description
+I've tried to update my existing druid instance to use `druid-kubernetes-extensions` ([extension](https://druid.apache.org/docs/latest/development/extensions-core/kubernetes/)), but I have realized that this doesn't allow rolling update. In fact it seems like it will be generating errors and restarting services as long as there is any pod still running without `druid.discovery.type=k8s` enabled. 
+
+I think the problem stems from [this lines of code](https://github.com/apache/druid/blob/b95035f183e193f24ceee57cc41d295918fe87ac/extensions-core/kubernetes-extensions/src/main/java/org/apache/druid/k8s/discovery/DefaultK8sApiClient.java#L83-L84) triggering exception when druid service pod is detected, but doesn't have labels required by this extension. 
+
+What I get in logs of services that I already updated is as follows:
+```
+2023-10-18T15:47:52,296 ERROR [org.apache.druid.k8s.discovery.K8sDruidNodeDiscoveryProvider$NodeRoleWatchercoordinator] org.apache.druid.k8s.discovery.K8sDruidNodeDiscoveryProvider$NodeRoleWatcher - Expection while watching for NodeRole [COORDINATOR].
+org.apache.druid.java.util.common.RE: Expection in listing pods, code[0] and error[null].
+	at org.apache.druid.k8s.discovery.DefaultK8sApiClient.listPods(DefaultK8sApiClient.java:94) ~[?:?]
+	at org.apache.druid.k8s.discovery.K8sDruidNodeDiscoveryProvider$NodeRoleWatcher.watch(K8sDruidNodeDiscoveryProvider.java:229) ~[?:?]
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515) ~[?:?]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:264) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[?:?]
+	at java.lang.Thread.run(Thread.java:829) ~[?:?]
+Caused by: io.kubernetes.client.openapi.ApiException: java.net.SocketTimeoutException: connect timed out
+	at io.kubernetes.client.openapi.ApiClient.execute(ApiClient.java:908) ~[?:?]
+	at io.kubernetes.client.openapi.apis.CoreV1Api.listNamespacedPodWithHttpInfo(CoreV1Api.java:30930) ~[?:?]
+	at io.kubernetes.client.openapi.apis.CoreV1Api.listNamespacedPod(CoreV1Api.java:30818) ~[?:?]
+	at org.apache.druid.k8s.discovery.DefaultK8sApiClient.listPods(DefaultK8sApiClient.java:83) ~[?:?]
+	... 6 more
+Caused by: java.net.SocketTimeoutException: connect timed out
+	at java.net.PlainSocketImpl.socketConnect(Native Method) ~[?:?]
+	at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:412) ~[?:?]
+	at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:255) ~[?:?]
+	at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:237) ~[?:?]
+	at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:392) ~[?:?]
+	at java.net.Socket.connect(Socket.java:609) ~[?:?]
+	at okhttp3.internal.platform.Platform.connectSocket(Platform.kt:128) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.RealConnection.connectSocket(RealConnection.kt:295) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.RealConnection.connect(RealConnection.kt:207) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.ExchangeFinder.findConnection(ExchangeFinder.kt:226) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.ExchangeFinder.findHealthyConnection(ExchangeFinder.kt:106) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.ExchangeFinder.find(ExchangeFinder.kt:74) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.RealCall.initExchange$okhttp(RealCall.kt:255) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.ConnectInterceptor.intercept(ConnectInterceptor.kt:32) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:109) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.cache.CacheInterceptor.intercept(CacheInterceptor.kt:95) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:109) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.http.BridgeInterceptor.intercept(BridgeInterceptor.kt:83) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:109) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.http.RetryAndFollowUpInterceptor.intercept(RetryAndFollowUpInterceptor.kt:76) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:109) ~[okhttp-4.9.3.jar:?]
+	at io.kubernetes.client.util.credentials.TokenFileAuthentication.intercept(TokenFileAuthentication.java:72) ~[?:?]
+	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:109) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.RealCall.getResponseWithInterceptorChain$okhttp(RealCall.kt:201) ~[okhttp-4.9.3.jar:?]
+	at okhttp3.internal.connection.RealCall.execute(RealCall.kt:154) ~[okhttp-4.9.3.jar:?]
+	at io.kubernetes.client.openapi.ApiClient.execute(ApiClient.java:904) ~[?:?]
+	at io.kubernetes.client.openapi.apis.CoreV1Api.listNamespacedPodWithHttpInfo(CoreV1Api.java:30930) ~[?:?]
+	at io.kubernetes.client.openapi.apis.CoreV1Api.listNamespacedPod(CoreV1Api.java:30818) ~[?:?]
+	at org.apache.druid.k8s.discovery.DefaultK8sApiClient.listPods(DefaultK8sApiClient.java:83) ~[?:?]
+	... 6 more
+2023-10-18T15:48:12,120 INFO [main] org.apache.druid.discovery.BaseNodeRoleWatcher - Cache for node role [coordinator] not initialized yet; getAllNodes() might not return full information.
+```
+
+
+I have tested this extension on test environment with exactly same configuration, but with all services started with `druid.discovery.type=k8s` and it runs smoothly, so it seems like the only difference that makes it fail is what I've described above.

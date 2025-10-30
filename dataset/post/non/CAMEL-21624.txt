@@ -1,0 +1,60 @@
+Issue with Kafka Appender when using multiline YAML configuration for bootstrap.servers
+Hello, 
+
+I recently encountered an issue in my application that uses Apache Camel 4.9.0 along with the Kafka component (camel-kafka) for message processing. The issue arises due to the interaction between Camel’s Kafka configuration and Kafka Appender when *bootstrap.servers is defined using a {_}multiline syntax in a YAML configuration file{_}.*
+
+Environment:
+• Apache Camel Version: 4.9.0
+• Spring Boot Version: 3.4.1
+• Kafka Clients Version: 3.8.1
+• Java Version: 17
+
+Steps to Reproduce:
+1. Define bootstrap.servers in application.yaml using multiline syntax:
+
+{code:java}
+camel:
+ component:
+   kafka:
+     brokers: >-
+       broker1:9092,
+       broker2:9092{code}
+
+2. Use the following setup in logback-spring.xml to configure Kafka Appender:
+{code:java}
+<springProperty name="brokers" source="camel.component.kafka.brokers" />
+<appender name="KAFKA" class="ch.qos.logback.classic.net.KafkaAppender">
+<kafkaProp>
+       bootstrap.servers=${brokers}
+</kafkaProp>
+</appender>{code}
+
+3. Run the application.
+
+Observed Behavior:
+
+The application fails to start with the following error:
+
+_*org.apache.camel.RuntimeCamelException: org.apache.kafka.common.config.ConfigException: Invalid url in bootstrap.servers:  broker2:9092*_
+
+Expected Behavior:
+
+The bootstrap.servers property should be processed correctly, even if defined in a multiline YAML syntax, as it worked with older Kafka Clients versions (e.g., 3.7.x).
+
+After investigating, I suspect the following change in Kafka Clients 3.8.x:
+• Starting with Kafka Clients 3.8.x, stricter validation for _bootstrap.servers_ was introduced via KAFKA-17584. This validation now rejects newline characters or other formatting inconsistencies.
+• While this is expected behavior, the way Camel propagates the camel.component.kafka.brokers property to Kafka Appender through logback-spring.xml seems to preserve newline characters, which results in invalid configuration values.
+
+Additional Notes:
+• When I updated my YAML configuration to write *bootstrap.servers on a single line* (e.g., broker1:9092,broker2:9092), the issue was resolved.
+• _Applications that use Spring Kafka directly without Camel are not affected by this issue._
+
+ 
+
+When configuring numerous brokers in the _bootstrap.servers_ property, it is difficult to read and manage when placed on a single line.
+
+ 
+
+Is this behavior intentional or should Camel consider providing a more flexible way to handle multiline configs in the future?
+
+Thank you!

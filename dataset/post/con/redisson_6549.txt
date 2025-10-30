@@ -1,0 +1,23 @@
+Add Distributed Intention Lock Mechanism
+### Background:
+In event-driven microservice architectures, asynchronous decoupling improves performance but introduces concurrency challenges in one-to-many producer-consumer relationships:
+
+**Downstream Parallelism:** Multiple downstream consumers need to process events concurrently (similar to row-level locks).
+**Upstream Mutual Exclusion:** Upstream producers must exclusively update shared resources while blocking all downstream operations (similar to table-level locks).
+**Limitation of Existing Solutions:** Using a single RedissonLock for both upstream and downstream forces sequential execution, creating performance bottlenecks.
+
+### Inspiration: Traditional Database Locking
+The MySQL Intention Lock mechanism provides a reference:
+
+Intention Lock: Declares a hierarchical locking intent (e.g., table-level) while allowing concurrent row-level locks.
+Mutual Exclusion Rules: Table-level locks conflict with row-level locks, but row-level locks can coexist.
+
+As modern distributed systems evolve towards event-driven architectures, distributed intention locking mechanisms with hierarchical resource control capabilities have become a critical necessity for achieving efficient concurrency and data consistency.
+
+### Proposed Solution: RedissonIntentLock
+Extend Redisson’s locking mechanism with a hierarchical lock design:
+
+**Lock Type**	------------- **Behavior Analogy**	   -------------   **Mutual Exclusion Rules**
+RedissonLock------------- Exclusive Lock (Table)-------------Conflicts with all RedissonIntentLock instances and other RedissonLock instances
+
+RedissonIntentLock-------------Intention Lock (Row)------------- Conflicts only with RedissonLock; multiple RedissonIntentLock instances can coexist

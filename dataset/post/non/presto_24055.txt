@@ -1,0 +1,44 @@
+width_bucket() does not seem to process NULL in the array elements properly.
+These return 0:
+SELECT width_bucket(-1, c0) from (VALUES ARRAY[NULL]) t(c0);
+SELECT width_bucket(-1, c0) from (VALUES ARRAY[NULL, 1]) t(c0);
+SELECT width_bucket(-1, c0) from (VALUES ARRAY[1, NULL, 4]) t(c0);
+SELECT width_bucket(-1, c0) from (VALUES ARRAY[NULL, 1, NULL, 4]) t(c0);
+
+These return 1:
+SELECT width_bucket(1, c0) from (VALUES ARRAY[NULL]) t(c0);
+
+These return 2:
+SELECT width_bucket(1, c0) from (VALUES ARRAY[NULL, 1]) t(c0);
+SELECT width_bucket(1, c0) from (VALUES ARRAY[1, NULL, 4]) t(c0);
+
+These return 3:
+SELECT width_bucket(1, c0) from (VALUES ARRAY[NULL, 1, NULL, 4]) t(c0);
+
+These fail with "Bin values are not sorted in ascending order":
+SELECT width_bucket(-1, c0) from (VALUES ARRAY[1, NULL]) t(c0);
+SELECT width_bucket(-1, c0) from (VALUES ARRAY[1, NULL, 4, NULL]) t(c0);
+SELECT width_bucket(1, c0) from (VALUES ARRAY[1, NULL]) t(c0);
+SELECT width_bucket(1, c0) from (VALUES ARRAY[1, NULL, 4, NULL]) t(c0);
+
+And so on.
+There is no check for null elements in the code and unclear how the function should behave if it encounters one.
+From strict perspective it seems like the function should fail whenever it finds a null element because "Bin values are not sorted in ascending order".
+What is interesting is depending on the 1st argument and the array, it is not guaranteed that we stumble on a particular NULL due to the binary search nature of the algorithm.
+
+Trying to understand if we should change the function behavior.
+
+## Expected Behavior
+Unclear.
+
+## Current Behavior
+See description.
+
+## Possible Solution
+1. If NULL element encountered - fail the query.
+2. Scan for any null elements beforehand and fail if found - cold be too expensive.
+3. If NULL element encountered - return NULL.
+4. Leave as is, update documentation.
+
+## Steps to Reproduce
+In any environment run the example queries.

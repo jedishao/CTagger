@@ -1,0 +1,50 @@
+Java 17 extensions encapsulation flags not working
+### Affected Version
+Druid 26.0.0
+Java 17
+
+### Description
+We were upgrading druid to use Java 17 instead of Java 8 and everything went alright except adding extensions.
+I need to add the kafka-emitter and prometheus-emitter extensions
+This is the command im using:
+```
+java -classpath "/opt/druid/lib/*" -Ddruid.extensions.directory=/opt/druid/extensions org.apache.druid.cli.Main tools pull-deps --defaultVersion 26.0.0 -c org.apache.druid.extensions.contrib:kafka-emitter
+```
+I tried adding these flags to it:
+```
+--add-exports=java.base/jdk.internal.ref=ALL-UNNAMED --add-exports=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens java.management/sun.management=ALL-UNNAMED
+```
+The error im getting is:
+```
+Exception in thread "main" java.lang.ExceptionInInitializerError
+	at com.google.inject.internal.cglib.reflect.$FastClass$Generator.getProtectionDomain(FastClass.java:73)
+	at com.google.inject.internal.cglib.core.$AbstractClassGenerator.create(AbstractClassGenerator.java:206)
+	at com.google.inject.internal.cglib.reflect.$FastClass$Generator.create(FastClass.java:65)
+	at com.google.inject.internal.BytecodeGen.newFastClassForMember(BytecodeGen.java:252)
+	at com.google.inject.internal.BytecodeGen.newFastClassForMember(BytecodeGen.java:203)
+	at com.google.inject.internal.ProviderMethod.create(ProviderMethod.java:69)
+	at com.google.inject.internal.ProviderMethodsModule.createProviderMethod(ProviderMethodsModule.java:275)
+	at com.google.inject.internal.ProviderMethodsModule.getProviderMethods(ProviderMethodsModule.java:144)
+	at com.google.inject.internal.ProviderMethodsModule.configure(ProviderMethodsModule.java:123)
+	at com.google.inject.spi.Elements$RecordingBinder.install(Elements.java:340)
+	at com.google.inject.spi.Elements$RecordingBinder.install(Elements.java:349)
+	at com.google.inject.spi.Elements.getElements(Elements.java:110)
+	at com.google.inject.internal.InjectorShell$Builder.build(InjectorShell.java:138)
+	at com.google.inject.internal.InternalInjectorCreator.build(InternalInjectorCreator.java:104)
+	at com.google.inject.Guice.createInjector(Guice.java:99)
+	at com.google.inject.Guice.createInjector(Guice.java:73)
+	at org.apache.druid.guice.BaseInjectorBuilder.build(BaseInjectorBuilder.java:66)
+	at org.apache.druid.cli.Main.main(Main.java:96)
+Caused by: java.lang.reflect.InaccessibleObjectException: Unable to make protected final java.lang.Class java.lang.ClassLoader.defineClass(java.lang.String,byte[],int,int,java.security.ProtectionDomain) throws java.lang.ClassFormatError accessible: module java.base does not "opens java.lang" to unnamed module @5a6d67c3
+	at java.base/java.lang.reflect.AccessibleObject.checkCanSetAccessible(AccessibleObject.java:354)
+	at java.base/java.lang.reflect.AccessibleObject.checkCanSetAccessible(AccessibleObject.java:297)
+	at java.base/java.lang.reflect.Method.checkCanSetAccessible(Method.java:199)
+	at java.base/java.lang.reflect.Method.setAccessible(Method.java:193)
+	at com.google.inject.internal.cglib.core.$ReflectUtils$1.run(ReflectUtils.java:52)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:318)
+	at com.google.inject.internal.cglib.core.$ReflectUtils.<clinit>(ReflectUtils.java:42)
+	... 18 more
+
+```
+Related to this issue: https://github.com/apache/druid/issues/15369
+Not sure which flags i'm supposed to add to mitigate this issue

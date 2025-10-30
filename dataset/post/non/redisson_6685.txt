@@ -1,0 +1,137 @@
+Inconsistent Command Result Filtering in Spring Data Redis Transactions/Pipelines
+## Summary
+
+Redisson's Spring Data Redis integration filters out "OK" responses from certain commands during transaction/pipeline execution, while other Redis clients (Lettuce and Jedis) do not perform this filtering. This inconsistency breaks client substitutability in Spring Data Redis and leads to different result counts when executing the same operations.
+
+## Problem Description
+
+When using `RedisTemplate.execute(SessionCallback)` with transactions or pipelines, Redisson removes "OK" responses from commands listed in `commandsToRemove`, while Lettuce and Jedis preserve all responses. This causes the returned result collections to have different sizes, breaking application compatibility when switching between Redis client implementations.
+
+### Affected Commands
+The following commands have their "OK" responses filtered out by Redisson:
+- `SET`
+- `RESTORE` 
+- `LTRIM`
+- `SETEX`
+- `SETRANGE`
+- `FLUSHDB`
+- `LSET`
+- `MSET`
+- `HMSET`
+- `RENAME`
+
+### Code Location
+The filtering logic is implemented in:
+- File: `redisson-spring-data-27/src/main/java/org/redisson/spring/data/connection/RedissonConnection.java`
+- Lines: 728-729 (commandsToRemove list)
+- Lines: 1615-1632 (filterResults method)
+
+## Steps to Reproduce
+
+1. Create a Spring Data Redis application that uses `RedisTemplate.execute(SessionCallback)`
+2. Execute multiple commands in a transaction/pipeline, including commands that return "OK"
+3. Count the results returned from the session callback
+4. Switch the Redis client from Redisson to Lettuce or Jedis
+5. Execute the same operations and observe different result counts
+
+## Expected Behavior
+
+All Redis clients should behave consistently when used through Spring Data Redis abstractions. Either:
+1. All clients should filter "OK" responses, or
+2. No clients should filter "OK" responses
+
+The current behavior violates the principle of client substitutability in the Spring Data Redis ecosystem.
+
+## Current Behavior
+
+- **Redisson**: Filters out "OK" responses from the listed commands
+- **Lettuce/Jedis**: Preserves all responses including "OK"
+
+## Proposed Solutions
+
+### Option 1: Configuration-based Filtering (Recommended)
+Add a configuration option to control whether "OK" responses should be filtered:
+```java
+// Example configuration
+redissonConnection.setFilterOkResponses(false); // Default: false for compatibility
+```
+
+### Option 2: Remove Filtering Completely
+Remove the filtering logic entirely to match Lettuce/Jedis behavior.
+
+### Option 3: Document the Difference
+If the filtering is intentional and cannot be changed, clearly document this behavioral difference in the Spring Data Redis integration documentation.
+
+## Impact
+
+This inconsistency affects:
+- Applications migrating between Redis clients
+- Multi-client environments
+- Testing scenarios where different clients are used
+- Spring Boot applications using auto-configuration
+
+
+```java
+@Test
+@DisplayName("02. RedisTemplate Transaction")
+@Tag("transaction")
+void testRedisTemplateTransactionWithSessionCallback() throws InterruptedException {
+
+    if (!supportsTransactions()) {
+        Loggers.info(SpringDataRedisDaoTestBase.this, "unsupport");
+        return;
+    }
+
+    RedisTemplate<String, Object> redisTemplate = createStringRedisTemplate(connectionFactory);
+
+    final String stringKey = "TX_test_string";
+    final String hashKey = "TX_test_hash";
+    final String hashField = "field1";
+    final String stringValue = "test123";
+    final String hashValue = "test456";
+
+    redisTemplate.delete(Arrays.asList(stringKey, hashKey));
+
+    //execute a transaction
+    List<Object> txResults = redisTemplate.execute(new SessionCallback<List<Object>>() {
+        @Override
+        public List<Object> execute(RedisOperations operations) throws DataAccessException {
+            operations.multi();
+            operations.opsForValue().set(stringKey, stringValue);
+            operations.opsForHash().put(hashKey, hashField, hashValue);
+            return operations.exec();
+        }
+    });
+
+    assertNotNull(txResults);
+
+
+    if (RedisClientType.REDISSON.equals(getClientType())){
+        assertEquals(1, txResults.size());
+    }else {
+        //  [true, true]
+        assertEquals(2, txResults.size());
+    }
+
+    waitForDataSync();
+
+    assertEquals(stringValue, redisTemplate.opsForValue().get(stringKey));
+    assertEquals(hashValue, redisTemplate.opsForHash().get(hashKey, hashField));
+
+    redisTemplate.delete(Arrays.asList(stringKey, hashKey));
+}
+```
+
+
+## Environment
+
+- **Redisson Version**: 3.50.0 (current master branch)
+- **Spring Data Redis**: 2.7.x
+- **Affected Clients**: Lettuce, Jedis (consistent behavior)
+- **Java Version**: 8+
+
+## Additional Context
+
+This issue was discovered during codebase analysis where the `commandsToRemove` list and `filterResults()` method were found to implement behavior that differs from other Redis clients in the Spring Data Redis ecosystem. The filtering appears to be specific to Redisson's implementation and is not documented as an intentional design choice.
+
+The inconsistency particularly impacts applications that rely on counting transaction/pipeline results or processing them sequentially, as the different result array sizes can cause IndexOutOfBoundsException or logic errors.

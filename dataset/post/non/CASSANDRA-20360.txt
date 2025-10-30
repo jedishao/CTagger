@@ -1,0 +1,10 @@
+Improve performance of DistributedSchema.validate for large schemas
+Currently DistributedSchema validates on every instantiation: [https://github.com/apache/cassandra/blob/486a6276034df40f8ac0ec9bd1d1f727b39f62c7/src/java/org/apache/cassandra/schema/DistributedSchema.java#L405]
+
+ 
+
+Keyspaces.forEach delegates to AbstractBTreeMap.values, which copies the array: [https://github.com/apache/cassandra/blob/486a6276034df40f8ac0ec9bd1d1f727b39f62c7/src/java/org/apache/cassandra/utils/btree/AbstractBTreeMap.java#L109]
+
+ 
+
+This can be fixed by having AbstractBTreeMap.values return a view instead of a copy. Patch is available, preparing to push.

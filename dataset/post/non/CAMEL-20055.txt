@@ -1,0 +1,39 @@
+Session and port mapping is not maintained in subsequent requests from ESB
+I am facing issue when calling 3rd party like HLR from ESB using cxf client. This issue is basically the mixup of port and sessionId. The same port ans sessionId is not maintained for subsequent http calls to third party in one transactions.
+
+Please refer below:
+|Seq.|HLR cmd|Location url|Src port|Dest
+port|
+|7513|LGI req| |42183|8001|
+|7526|LGI resp|http://10.165.247.66:8001/0cuULJQ45BkWJKwTpOMEtXuRCM7GD6ALNE5fbITZ995iQgHY39svGrdcb2llr8MV|8001|42183|
+|7519|LGI req| |42184|8001|
+|7524|LGI resp|http://10.165.247.66:8001/0iWkRseOiI5hRWWI1YQU9wibmfillVdJ3ci0Fg9oG9dlDyeVXBmVbfvgRZtPkkT0|8001|42184|
+|7529|RMV_KI|http://10.165.247.66:8001/0iWkRseOiI5hRWWI1YQU9wibmfillVdJ3ci0Fg9oG9dlDyeVXBmVbfvgRZtPkkT0|42183|8001|
+|7539|ADD_KI|http://10.165.247.66:8001/0iWkRseOiI5hRWWI1YQU9wibmfillVdJ3ci0Fg9oG9dlDyeVXBmVbfvgRZtPkkT0|42183|8001|
+
+ 
+
+ESB start using source Port *42183* for request with sessionId responded on port 42184 hence HLR rejects this request with Invalid session because they do not expect this request on source port 42183 but on port 42184.
+
+*THis is how third party end point is defined in our project camle-context.xml:*
+
+ 
+{code:java}
+<!-- End Point for the HLRAdapter_SOAPService -->
+<cxf:cxfEndpoint id="ESB_to_HLRSoapServer" address="{{HLRSoapServerURL}}"
+   wsdlURL="/wsdl/provider/HSS/HSS9860.wsdl" xmlns:tns="www.huawei.com/HSS9860"
+   endpointName="tns:HSS9860" serviceName="tns:HSS9860">
+   <cxf:properties>
+      <entry key="dataFormat" value="PAYLOAD" />
+      <entry key="receiveTimeout" value="20000" />
+      <entry key="connectionTimeout" value="20000" />
+   </cxf:properties>
+   <cxf:inInterceptors>
+      <ref bean="gzipInterceptor" />
+   </cxf:inInterceptors>
+</cxf:cxfEndpoint>{code}
+
+
+
+
+Please let me know if you need more details

@@ -1,0 +1,28 @@
+NPE when Host header has protocol prefix
+### Version
+
+This happens on Vertx 4.4.6.
+
+This **did not** happen on Vertx 4.3.7.
+
+### Context
+
+If you send a `Host` header with a protocol prefix (like `http://` or `https://`) the function `HostAndPortImpl.parseHostAndPort(String s, int schemePort)` is unable to parse the host and port which causes a NullPointerException further down the line in the public constructor of `HostAndPortImpl`.
+
+I am aware that the `Host` header should not have the protocol prefix, however, this is how the system is currently implemented and it would be impossible for us to change it now due to business constraints. 
+
+It would be greatly appreciated if we could work to make Vertx be resilient to having the protocol on the host header, as it was in the past.
+
+### Do you have a reproducer?
+
+I do not have a reproducer that I can share since this is happening in proprietary code.
+
+### Steps to reproduce
+
+1. Send an HTTP request with the Host header with the protocol included.
+
+### Extra
+
+(Shouldn't matter, but:)
+macOS M1 Pro
+openJDK 19.0.1

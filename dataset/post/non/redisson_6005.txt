@@ -1,0 +1,16 @@
+Destroy should automatically remove all listeners on the object
+<!--
+Upgrade to Redisson PRO https://redisson.pro with advanced features.
+-->
+
+**Is your feature request related to a problem? Please describe.**
+
+We ran into an issue very similar to #5465 where some bad code was creating ephemeral RMapCache and RLocalCachedMap objects, adding listeners, then destroying the objects a bit later, with the expectation that the listeners would be removed automatically. AFAICT, those listeners were in fact not removed on destroy(), which matches what I see in the code.
+
+**Describe the solution you'd like**
+
+Any object that supports both addListener() and destroy() should track the listeners on itself (including when they are removed) and automatically remove them when destroy() is called.
+
+**Describe alternatives you've considered**
+
+Users can accomplish this themselves by adding wrappers around RMapCache, et al, to do this themselves, but those classes have hundreds of methods to wrap, which is rather annoying and error-prone. 

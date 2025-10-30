@@ -1,0 +1,8 @@
+Accord: Fix recovery when one shard is committed/stable and another is preaccepted
+If one shard is committed/stable, but another is only preaccepted/accepted, we must propose+stabilise on the remaining shards to ensure we create a correct edge with recovery of earlier transactions on those shards
+
+Also fix:
+     - CFK.visit removes transitive dependencies too eagerly across epoch change
+     - Topology slicing must declare whether we share/slice node ownership (to assist above)
+     - apply cleanup to builder consistently, and construct the same value we would produce by purge (so that replay is idempotent)
+     - Invoke ExecuteTxn.LocalExecute callbacks on originating CommandStore, and add slow timeout once committed to help ensure progress if local store cannot serve the read

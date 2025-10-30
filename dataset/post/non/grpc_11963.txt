@@ -1,0 +1,29 @@
+AssertionError when sending gRPC call with HTTP/2 and QUIC enabled using Cronet
+
+In my android application, I am using the ExperimentalCronetEngine to enable HTTP/2 and QUIC support, but I encountered an issue during the execution. When initializing the Cronet engine with the following code:
+
+engine = ExperimentalCronetEngine.Builder(applicationContext /* Android Context */)
+    .enableHttp2(true)
+    .enableQuic(true)
+    .build();
+
+
+Dependencies:
+	•	io.grpc:grpc-okhttp:1.71.0
+	•	io.grpc:grpc-stub:1.71.0
+	•	io.grpc:grpc-cronet:1.71.0@aar
+	•	org.chromium.net:cronet-api:119.6045.31
+	•	org.chromium.net:cronet-embedded:119.6045.31
+
+send call after:
+
+I received the following error message:
+W  java.lang.AssertionError
+2025-03-14 13:03:47.217 22196-22495 System.err             xxxxx              W  	at org.chromium.net.impl.CronetMetrics.<init>(CronetMetrics.java:104)
+2025-03-14 13:03:47.217 22196-22495 System.err              xxxxxx              W  	at org.chromium.net.impl.CronetBidirectionalStream.onMetricsCollected(CronetBidirectionalStream.java:682)
+
+The error seems related to the CronetMetrics initialization and the collection of metrics for the bidirectional stream. It is triggered after sending the gRPC call, when Cronet tries to collect metrics for the stream.
+
+
+
+

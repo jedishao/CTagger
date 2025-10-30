@@ -1,0 +1,94 @@
+size() method of RListReactive that is returned from RlistMultimapReactive.get(V) returns false information
+### Redis version
+
+7.2.0-v13
+
+### Redisson version
+
+3.41.0
+
+### Redisson configuration
+
+```
+@Testcontainers
+@EnableAutoConfiguration
+@SpringBootTest(classes = { AbstractRedisIntegrationTest.Config.class })
+public class AbstractRedisIntegrationTest {
+
+    static final GenericContainer<?> redis = new GenericContainer<>(
+            DockerImageName.parse("redis/redis-stack-server").withTag("7.2.0-v13"))
+            .withExposedPorts(6379);
+
+    static {
+        redis.start();
+    }
+
+    @DynamicPropertySource
+    static void registerRedisProperties(DynamicPropertyRegistry registry) {
+        registry.add("redis.host", redis::getHost);
+        registry.add("redis.port", () -> redis.getMappedPort(6379));
+    }
+
+    @Configuration
+    static class Config {
+
+        @Primary
+        @Bean
+        public RedissonClient redissonClient(
+                @Value("${redis.host}") String host,
+                @Value("${redis.port}") String port
+        ) {
+            org.redisson.config.Config config = new org.redisson.config.Config();
+            config.setCodec(JsonJacksonCodec.INSTANCE)
+                    .useSingleServer()
+                    .setAddress(String.format("redis://%s:%s", host, port));
+
+            return Redisson.create(config);
+        }
+
+        @Primary
+        @Bean
+        public RedissonReactiveClient redissonReactiveClient(RedissonClient redissonClient) {
+            return redissonClient.reactive();
+        }
+    }
+}
+```
+
+### What is the Expected behavior?
+
+Given this test scenario.
+
+```
+    @Test
+    void test() {
+        RListMultimapReactive<String, Integer> listMultimap = redissonReactiveClient.getListMultimap("test");
+        listMultimap.putAll("a", List.of(1, 2, 3, 4, 5))
+                .map(putAllResult -> listMultimap.putAll("b", List.of(6, 7)))
+                .block();
+        System.out.println("size a = " + listMultimap.get("a").size().block());
+        System.out.println("size b = " + listMultimap.get("b").size().block());
+        System.out.println("size nonExistingKey = " + listMultimap.get("nonExistingKey").size().block());
+    }
+```
+
+the output should be:
+```
+size a = 5
+size b = 2
+size nonExistingKey = 0
+```
+
+### What is the Actual behavior?
+
+The returned size of the values for ANY key is always the size of the values for the first inserted entry into the RlistMultimapReactive.
+
+```
+size a = 5
+size b = 5
+size nonExistingKey = 5
+```
+
+### Additional information
+
+_No response_

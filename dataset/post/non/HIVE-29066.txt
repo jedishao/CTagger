@@ -1,0 +1,15 @@
+PARTITION_NAME_WHITELIST_PATTERN is not honouring session level configuration
+Steps to repro (ensure _metastore.partition.name.whitelist.pattern_ or _hive.metastore.partition.name.whitelist.pattern_ is not present in hive-site.xml):
+{code:java}
+set metaconf:metastore.partition.name.whitelist.pattern=[^9]*;
+
+create table t1 (id int) partitioned by (pcol string);
+alter table t1 add partition (pCol='2025-06-09');{code}
+*What is happening:* *Query is passing.*
+
+ 
+
+*The expect outcome should be* 
+{code:java}
+Error: Error while compiling statement: FAILED: Execution Error, return code 40000 from org. apache.hadoop.hive.ql.ddl.DDLTask. MetaException(message:Partition value ' 2025-06-09' contains a character not matched by whitelist pattern '[^9]*'. (configure with metastore.partition.name.whitelist.pattern)); Query ID: raghav_20250703214
+146_1fcab256-2425-4e9e-8ac0-ec2d53e2d1b0 (state=08S01, code=40000) {code}

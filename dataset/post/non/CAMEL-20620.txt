@@ -1,0 +1,22 @@
+camel-platform-http-vertx - Path parameters should not leak back to calling client
+The path parameters from vertx are stored directly as headers, which means
+
+                    from("platform-http:/greeting/{name}?matchOnUriPrefix=true")
+
+That the {name} becomes a path parameter with key name, that then is stored in the Camel message as a header. This is convenient as you can then grab header.name. But the response to the client often would include this value. 
+
+We should make the header filter strategy to skip path parameters, and there is also a * as an all catching path parameter that is returned such as
+
+~/workspace ❯ curl -i http://0.0.0.0:8080/api/v3/pet/123                                                                                                                                  44s
+HTTP/1.1 200 OK
+*: /pet/123
+Accept: */*
+User-Agent: curl/8.1.2
+transfer-encoding: chunked
+Content-Type: application/json
+
+{
+  "pet": "donald the dock"
+}
+
+

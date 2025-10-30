@@ -1,0 +1,133 @@
+Issue with Injected Projection Type on Trino Table Based on Hive Connector
+## Issue with Injected Projection Type on Trino Table Based on Hive Connector
+
+### Table Creation
+
+I've created a Trino table with injected projection type based on the Hive connector using the following DDL:
+
+```sql
+CREATE TABLE hive.default.injected_table_issue (
+    id varchar,
+    department varchar WITH (partition_projection_type = 'INJECTED')
+)
+WITH (
+    external_location = 's3://bucket/v1/injected_table_issue',
+    format = 'PARQUET',
+    partition_projection_enabled = true,
+    partition_projection_location_template = 's3a://bucket/v1/injected_table_issue/${department}',
+    partitioned_by = ARRAY['department']
+);
+```
+
+### Issue
+
+When attempting to run any query, it fails with the following error message:
+
+```sql
+select * from hive.default.injected_table_issue where department = 'any_dept';
+```
+
+```
+Query 20240806_112351_00004_zpw6c failed: Column projection for column 'department' failed. Injected projection requires single predicate for its column in where clause.
+```
+
+However, using `DevelopmentServer` allows me to query without any exceptions.
+
+### Configuration
+
+#### hive.properties
+
+```properties
+connector.name=hive
+hive.metastore.uri=thrift://hive-metastore:9083
+hive.s3.path-style-access=true
+hive.s3.endpoint=https://s3.us-west-2.amazonaws.com
+hive.s3.aws-access-key=${s3_access_key}
+hive.s3.aws-secret-key=${s3_secret_key}
+hive.non-managed-table-writes-enabled=true
+hive.storage-format=PARQUET
+hive.recursive-directories=true
+hive.allow-register-partition-procedure=true
+hive.partition-projection-enabled=true
+```
+
+### Docker Compose Configuration
+
+I am using Docker Compose to run the queries with the following configuration:
+
+```yaml
+version: '3.7'
+services:
+  trino:
+    hostname: trino
+    image: 'trinodb/trino:453'
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./etc:/etc/trino
+    environment:
+      CATALOG_MANAGEMENT: static
+    networks:
+      - trino-network
+
+  metastore_db:
+    image: postgres:16.3
+    hostname: metastore_db
+    environment:
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: hive
+      POSTGRES_DB: metastore
+    networks:
+      - trino-network
+
+  hive-metastore:
+    hostname: hive-metastore
+    image: 'starburstdata/hive:3.1.2-e.18'
+    ports:
+      - '9083:9083'
+    environment:
+      HIVE_METASTORE_DRIVER: org.postgresql.Driver
+      HIVE_METASTORE_JDBC_URL: jdbc:postgresql://metastore_db:5432/metastore
+      HIVE_METASTORE_USER: hive
+      HIVE_METASTORE_PASSWORD: hive
+      S3_PATH_STYLE_ACCESS: "true"
+      HIVE_METASTORE_WAREHOUSE_DIR: s3://${bucket}/
+      S3_ENDPOINT: https://s3.amazonaws.com
+      S3_ACCESS_KEY: "${s3_access_key}"
+      S3_SECRET_KEY: "${s3_secret_key}"
+      REGION: us-west-2
+      GOOGLE_CLOUD_KEY_FILE_PATH: ""
+      AZURE_ADL_CLIENT_ID: ""
+      AZURE_ADL_CREDENTIAL: ""
+      AZURE_ADL_REFRESH_URL: ""
+      AZURE_ABFS_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_ACCESS_KEY: ""
+      AZURE_WASB_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_OAUTH: ""
+      AZURE_ABFS_OAUTH_TOKEN_PROVIDER: ""
+      AZURE_ABFS_OAUTH_CLIENT_ID: ""
+      AZURE_ABFS_OAUTH_SECRET: ""
+      AZURE_ABFS_OAUTH_ENDPOINT: ""
+      AZURE_WASB_ACCESS_KEY: ""
+      HIVE_METASTORE_USERS_IN_ADMIN_ROLE: "admin"
+    depends_on:
+      - metastore_db
+    networks:
+      - trino-network
+
+volumes:
+  minio-data:
+    driver: local
+
+networks:
+  trino-network:
+    driver: bridge
+```
+
+### Request
+
+I am looking for assistance to resolve this issue. Any insights or suggestions would be greatly appreciated.
+
+Note: Ensure that ${s3_access_key}, ${s3_secret_key}, and ${bucket} are specified correctly to make it work.
+
+Thank you!

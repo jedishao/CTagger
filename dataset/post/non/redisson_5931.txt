@@ -1,0 +1,39 @@
+ClusterConnectionManager seems to lose track of the cluster
+### Redis version
+
+6.x
+
+### Redisson version
+
+3.30.0
+
+### Redisson configuration
+
+```
+        Config config = new Config();
+        config.setCheckLockSyncedSlaves(false);
+        config.useClusterServers()
+                .addNodeAddress(String.format("redis://%s:%d", props.host(), props.port()))
+                .setScanInterval(2000)
+                .setReadMode(ReadMode.MASTER) 
+                .setSubscriptionMode(SubscriptionMode.MASTER);
+```
+
+### What is the Expected behavior?
+
+   RedisCluster redisCluster = ((RedisCluster) redissonClient.getRedisNodes(redisNodes));
+   redisCluster.getMasters() reports the same master nodes as running `CLUSTER NODES`
+   redisCluster.getSlaves() reports the same standby nodes as running `CLUSTER NODES`
+
+### What is the Actual behavior?
+
+As the cluster continues to change its topology, at some point the number of masters falls our of sync with `CLUSTER NODES` and at some point the redissonClient gets wedged and thinks the master(s) its connected to does not have slots assigned. Running `CLUSTER NODES` from the same host as redisson shows a healthy cluster with slot ranges assigned.
+
+retarting the jvm running redisson repairs everything since its seems to boostrap initially from the data in `CLUSTER NODES` but somehow diverges over time.
+
+all the master and standby nodes report roughly the same number of connections, so some part of the topolgy change is occurring correctly.
+
+
+### Additional information
+
+_No response_

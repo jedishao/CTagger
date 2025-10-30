@@ -1,0 +1,43 @@
+Redis shows 100% CPU with Redisson library version 3.23.3.
+Randomly Redis shows 100% CPU and all clients connected to that Redis instance become unresponsive. Clients need to be restarted for Redis to come back to normal CPU usage. We see this issue sometimes once a week and other times every few hours - so there is no consistent pattern in terms of use case or user action.
+
+We worked with AWS as we use AWS managed Redis cache and their support engineer reviewed Redis configuration and confirmed there is nothing wrong with Redis and it is reaching 100% as large number of EVAL requests are coming from the client. Since we don't call EVAL directly from our code, assumption is that Redisson library is making these calls.
+
+We see this error in the log file but I am assuming this is coming once Redis has reached 100% CPU and is an after effect:
+
+ _Unable to send PING command over channel: [id: 0xcc4dc043, L:/172.22.161.142:57028 - R:172.22.39.212/172.22.39.212:6379]
+  org.redisson.client.RedisTimeoutException: Command execution timeout for command: (PING), params: [], Redis client: [addr=rediss://172.22.39.212:6379]
+  	at org.redisson.client.RedisConnection.lambda$async$0(RedisConnection.java:256)
+  	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.run(HashedWheelTimer.java:715)
+  	at io.netty.util.concurrent.ImmediateExecutor.execute(ImmediateExecutor.java:34)
+  	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:703)
+  	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:790)
+  	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:503)
+  	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+  	at java.base/java.lang.Thread.run(Thread.java:833)_
+
+We don't see anything logged before this error message so not able to figure out what is causing the issue. We also looked at the thread dumps and do not see anything obvious there. All netty threads were in WAITING state and other Redisson threads are either Running or in WAITING state.
+
+**### Expected behavior**
+We should not be having RedisTimeoutException in the logs and Redis should not reach 100% CPU..
+
+### **Actual behavior**
+100% CPU utilisation followed by RedisTimeoutException
+
+**### Steps to reproduce or test case**
+Completely random - sometimes it does not happen for a week and other times we see it every few hours in our production environments.
+
+### **Redis version**
+7
+
+### **Redisson version**
+3.23.3
+
+### **Redisson configuration**
+config.useClusterServers().addNodeAddress(nodeAddress).setReadMode(ReadMode.SLAVE).setSubscriptionMode(
+SubscriptionMode.MASTER).setTimeout(5000).setRetryAttempts(5).setRetryInterval(
+2000).setMasterConnectionMinimumIdleSize(2).setMasterConnectionPoolSize(
+24).setSlaveConnectionMinimumIdleSize(2).setSlaveConnectionPoolSize(
+12).setSubscriptionConnectionMinimumIdleSize(2).setSubscriptionConnectionPoolSize(
+5).setSubscriptionsPerConnection(5);
+

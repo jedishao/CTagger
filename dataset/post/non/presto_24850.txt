@@ -1,0 +1,53 @@
+ALTER TABLE schema1.name RENAME TO shema2.new_name is allowed without checking permissions of user in schema2
+## Your Environment
+* Presto version used: 0.287
+* Storage: S3
+* Data source and connector used: hive
+* hive.security = sql-standard
+
+## Expected Behavior
+Given a prestodb with the following schemas created:
+- schema1 who has as owner_role role1, example: 
+CREATE SCHEMA schema1 WITH (location = 's3://mybucket/presto/schema1')
+ALTER DATABASE schema1 SET OWNER ROLE role1
+
+- schema2 who has as owner_role role2, example: 
+CREATE SCHEMA schema2 WITH (location = 's3://mybucket/presto/schema2')
+ALTER DATABASE schema2 SET OWNER ROLE role2
+
+Given a user user1 who has the role role1 but not the role2:
+
+THE EXPECTED BEHAVIOUR WOULD BE:
+1.- User1 can create table schema1.table1 --> This works fine
+2.- User1 can not create table schema2.table1 --> This works fine. Returns permission error. 
+3.- User1 can rename table schema1.table1 to schema1.table2 --> This works fine
+4.- User1 should not be able to rename table schema1.table1 to schema2.table2 -> This is not working since it allows this table creation !!!!
+
+
+## Current Behavior
+As stated abouve, point 4 fails. 
+User1 should not be able to rename table schema1.table1 to schema2.table2. Instead of that behaviour, currently it is allowed!! 
+
+## Possible Solution
+I think the error is here: 
+[https://github.com/prestodb/presto/blob/d22d3c244840673546ccdebcd704814382af2462/p[…]com/facebook/presto/hive/security/SqlStandardAccessControl.java](https://github.com/prestodb/presto/blob/d22d3c244840673546ccdebcd704814382af2462/presto-hive/src/main/java/com/facebook/presto/hive/security/SqlStandardAccessControl.java#L229)
+There, the only check performed to rename a table is to check that the user is owner of the table, but I should also be checked that the user is database Owner, similar to the code performed to check if it can create a table, i.e:
+  if (!isDatabaseOwner(transaction, identity, metastoreContext, tableName.getSchemaName())) {
+            denyCreateTable(tableName.toString());
+
+## Steps to reproduce
+CREATE SCHEMA schema1 WITH (location = 's3://mybucket/presto/schema1');
+ALTER DATABASE schema1 SET OWNER ROLE role1;
+
+CREATE SCHEMA schema2 WITH (location = 's3://mybucket/presto/schema2');
+ALTER DATABASE schema2 SET OWNER ROLE role2;
+
+GRANT role1 to user user1;
+CREATE table hive.schema1.table1 (col varchar, col2 int);
+insert into hive.schema1.table1 values ('test1', 2), ('test2', 3);
+
+ALTER TABLE hive.schema1.table1 RENAME TO hive.schema2.table2;  --> This should fail, but it does not
+
+## Context
+This is a potential security breach in my presto environment where I have different roles for different schemas. The users can create tables in schemas where they should not be able to create nor operate anything!
+

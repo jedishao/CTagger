@@ -1,0 +1,18 @@
+Support TopN predicate pushdown when using json_extract in SELECT
+Currently doing a query like:
+
+```sql
+SELECT json_extract(some_str, '$.some_number') FROM catalog.default.table ORDER BY timestamp LIMIT 1;
+```
+
+A breakpoint on the connector's `applyTopN` is not called.
+
+I found a workaround of doing:
+
+```sql
+SELECT json_extract(some_str, '$.some_number') FROM (
+  SELECT * FROM catalog.default.table ORDER BY timestamp LIMIT 1
+);
+```
+
+But this is bad as most people won't ever understand this, especially simple users of SQL dashboards with trino as the backend.

@@ -1,0 +1,37 @@
+Document offheap memory used by Cassandra
+There are many places where Cassandra uses offheap memory and several methods to do it, it would be nice to have a summary doc about this usage.
+
+A draft version:
+||Case||Off-heap memory type||Way to monitor||Related configuration||
+|offheap_buffers memtables|Direct byte buffer|JMX: MemtableOffHeapSize|memtable_offheap_space|
+|offheap_object memtables|Native allocator|JMX: MemtableOffHeapSize|memtable_offheap_space|
+|Chunk cache|Native allocator|org.apache.cassandra.metrics:
+type=BufferPool,scope=chunk-cache,name=UsedSize nodetool info, “Chunk Cache” property|file_cache_enabled
+file_cache_size|
+|Hints| | | |
+|Repair Merkle trees| | |repair_session_space|
+|Bloom filters|Native allocator|JMX: BloomFilterOffHeapMemoryUsed
+nodetool tablestats (“Bloom filter off heap memory used” property)|depends on bloom_filter_fp_chance table property|
+|Index summaries|Native allocator|JMX: IndexSummaryOffHeapMemoryUsed
+nodetool tablestats (“Index summary off heap memory used” property)|index_summary_capacity_in_mb|
+|Compression metadata|Native allocator|JMX: CompressionMetadataOffHeapMemoryUsed
+nodetool tablestats (”Compression metadata off heap memory used” property)|Depends on chunk_length_in_kb table property|
+|Direct IO commitlog | | | |
+|Compression| | | |
+|Netty PooledByteBufAllocator|Unsafe.allocateMemory|io.netty.util.internal.PlatformDependent#usedDirectMemory| |
+| | | | |
+| | | | |
+
+Off-heap memory types: 
+||Type||Allocation logic||Monitoring||Limit||
+|Direct byte buffer| ByteBuffer.allocateDirect(size)|JMX: java.nio:name=direct,type=BufferPool|-XX:MaxDirectMemorySize|
+|Native allocator|org.apache.cassandra.utils.memory.MemoryUtil#allocate
+com.sun.jna.Native#malloc|nodetool info 
+"Off Heap Memory (MB)" row
+MemtableOffHeapSize 
++ BloomFilterOffHeapMemoryUsed
++ IndexSummaryOffHeapMemoryUsed 
++ CompressionMetadataOffHeapMemoryUsed| |
+|Unsafe.allocateMemory|Unsafe.allocateMemory| | |
+
+ 

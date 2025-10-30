@@ -1,0 +1,17 @@
+CalcitePlanner throws NullPointerException when column name case in ColumnStatisticsObj differs from the table schema
+{code}
+create external table ice01(a int, b string, c int) stored by iceberg
+  tblproperties('format-version'='2');
+
+insert into ice01 values (1, 'a', 1), (2, 'b', 2), (3, 'c', 3), (4, 'd', 4), (5, 'e', 5);    
+analyze table ice01 compute statistics for columns A, C;
+
+select * from ice01;
+{code}
+
+ERROR:
+{code}
+java.lang.NullPointerException
+	at org.apache.hadoop.hive.ql.optimizer.calcite.RelOptHiveTable.updateColStats(RelOptHiveTable.java:673)
+	at org.apache.hadoop.hive.ql.optimizer.calcite.RelOptHiveTable.getColStat(RelOptHiveTable.java:740)
+{code}

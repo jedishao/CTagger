@@ -1,0 +1,49 @@
+[Bug] Inconsistent behaviour for allowAutoTopicCreationType
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Run a standalone cluster in Docker
+
+Pulsar: 3.1.0
+
+### Minimal reproduce step
+
+ docker script environment
+```
+-e PULSAR_PREFIX_allowAutoTopicCreationType=partitioned
+```
+
+and none such env(thus default `non-partitioned`)
+
+
+### What did you expect to see?
+
+Both CreationType `should` auto create same RETRY/DLQ rule topic. `<topicname>-<subscriptionname>-RETRY`
+
+ref:
+https://github.com/apache/pulsar-site/pull/651
+https://pulsar.apache.org/docs/3.1.x/concepts-messaging/#retry-letter-topic
+
+### What did you see instead?
+
+Write some code to consume topic, for example：
+
+```
+consumeFunc(topicname, subscriptionname, xxxHandler)
+```
+
+When using `non-partitioned` configuration server, it auto create topic as respected.
+
+But when using `partitioned` config server, it auto create topic `subName-RETRY/DLQ` which may conflict when multi topics has same subName. 
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

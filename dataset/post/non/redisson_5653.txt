@@ -1,0 +1,40 @@
+Messages getting lost from redis delayed queue with redisson client
+We are facing this issue with redisson under high write load. We are on the redisson version 3.23.5 and Java 17 and spring boot 3.x
+
+I am using this code snippet-
+
+`public TestRedisDelay(RedissonClient managedClient, String queuePrefix, ObjectMapper objectMapper) {
+    this.destinationQueue = managedClient.getBlockingQueue(queuePrefix + "test");
+    this.delayedQueue = managedClient.getDelayedQueue(this.destinationQueue);
+
+    this.objectMapper = objectMapper;
+  }
+
+public void pushToDelayedQueue(TestRequest testRequest) {
+      try {
+        String jsonTestRequest = objectMapper.writeValueAsString(testRequest);
+        this.delayedQueue.offer(jsonTestRequest, 5L, TimeUnit.MINUTES);
+      } catch (Exception e) {
+        log.error("ERR_CONVERTING_TO_JSON_NODE :: {} :: REQ- {}", e.getMessage(), testRequest);
+      }
+  }
+
+public TestRequest fetchRequests() {
+      TestRequest testRequest = null;
+      try {
+        String revampedQueueRequest = destinationQueue.poll();
+        if(!Strings.isEmpty(revampedQueueRequest)) {
+          testRequest = objectMapper.readValue(revampedQueueRequest, TestRequest.class);
+        }
+      } catch (Exception e) {
+        log.error("ERR_FETCHING FROM QUEUE :: {}", e.getMessage());
+      }
+
+    return testRequest;
+  }`
+
+When I am testing this with a 20-30TPS request for 30-40 minutes, it is starting to break.
+I am using AWS Elasticache t3.small instance for redis.
+
+_Originally posted by @Alok-Kumar-9 in https://github.com/redisson/redisson/issues/4481#issuecomment-1962711829_
+            

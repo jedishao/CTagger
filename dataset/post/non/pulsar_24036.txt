@@ -1,0 +1,50 @@
+[Enhancement] Configurable dispatch rate limiter backoff to reduce the 1-second latency penalty when limits are reached
+### Search before asking
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+The current dispatch rate limiter implementation introduces a fixed 1-second additional latency when the rate limit is reached. This delay is hardcoded as `MESSAGE_RATE_BACKOFF_MS = 1000` in the `PersistentTopic` class:
+https://github.com/apache/pulsar/blob/e547beaa6dad72359bb5b8d30ce9fa80a6989f71/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/persistent/PersistentTopic.java#L240
+
+
+### Solution
+
+Simply making `MESSAGE_RATE_BACKOFF_MS` configurable would be insufficient for several reasons:
+
+1. **Token Replenishment Frequency**: Tokens are currently added to the rate limiter once per second. If the backoff time were reduced (e.g., to 100ms) without changing the token addition frequency, dispatchers would check for available tokens too frequently, wasting CPU resources.
+
+2. **Implementation Differences**:
+   - **Classic RateLimiterImpl**: Uses a scheduled job to add permits periodically (controlled by `ratePeriod`).
+   - **PIP-322 AsyncTokenBucket**: Calculates tokens on-demand when the limiter is used (controlled by `addTokensResolutionNanos`), enabling better scaling to millions of rate limiter instances without any overhead of scheduled jobs.
+
+The backoff mechanism is triggered in the `AbstractBaseDispatcher` class:
+https://github.com/apache/pulsar/blob/e547beaa6dad72359bb5b8d30ce9fa80a6989f71/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/AbstractBaseDispatcher.java#L417-L428
+
+Possible solution:
+- Making `MESSAGE_RATE_BACKOFF_MS` configurable in dispatch rate limiter configurations.
+  - One possibility would be to internally configure it based on the rate period. However currently rate period's time unit is fixed to seconds for configuration:
+     - https://github.com/apache/pulsar/blob/master/pulsar-client-admin-api/src/main/java/org/apache/pulsar/common/policies/data/DispatchRate.java
+     - Another problem is that for users, it's more natural to configure the rate for 1 second or 1 minute. It could be better way to configure the backoff time.
+
+Fairness (as defined in [fair queuing](https://en.wikipedia.org/wiki/Fair_queuing) and [fairness measure](https://en.wikipedia.org/wiki/Fairness_measure)) Considerations:
+
+The current fixed 1-second backoff, which matches the 1-second token replenishment interval, may inadvertently provide some level of fairness in resource allocation. Changing this ratio could impact the fairness properties of the system.
+
+Fairness is currently unaddressed in Pulsar's dispatch rate limiting. Addressing fairness is crucial to improving Pulsar's rate limiting and capacity management capabilities as described in the [Pulsar 4.0 blog post](https://pulsar.apache.org/blog/2024/10/24/announcing-apache-pulsar-4-0/#rate-limiting-and-capacity-management-in-modern-messaging-platforms).
+
+To make Pulsar competitive with Confluent's Kora, which according to the [Kora paper](https://www.vldb.org/pvldb/vol16/p3822-povzner.pdf) includes features like "backpressure and auto-tuning" and "dynamic quota management," we need to enhance Pulsar's approach to fairness in resource allocation, including in dispatch rate limiting.
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

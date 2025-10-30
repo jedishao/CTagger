@@ -1,0 +1,42 @@
+NPE in AffectedRangesImpl#intersects when other has different keyspaces than local
+This error was found on Accord branch.
+
+{code}
+ org.apache.cassandra.simulator.SimulationException: Failed on seed 0xfa3d51da237d56e5; Failure creating the simulation
+Caused by: java.lang.AssertionError: Errors detected during simulation
+	Suppressed: java.lang.NullPointerException
+		at org.apache.cassandra.tcm.sequences.LockedRanges$AffectedRangesImpl.intersects(LockedRanges.java:337)
+		at org.apache.cassandra.tcm.sequences.LockedRanges.intersects(LockedRanges.java:97)
+		at org.apache.cassandra.tcm.transformations.PrepareLeave.execute(PrepareLeave.java:108)
+		at org.apache.cassandra.tcm.AbstractLocalProcessor.executeStrictly(AbstractLocalProcessor.java:167)
+		at org.apache.cassandra.tcm.AbstractLocalProcessor.commit(AbstractLocalProcessor.java:77)
+		at org.apache.cassandra.distributed.test.log.TestProcessor.commit(TestProcessor.java:62)
+		at org.apache.cassandra.tcm.Commit$Handler.doVerb(Commit.java:368)
+		at org.apache.cassandra.net.InboundSink.lambda$new$0(InboundSink.java:102)
+		at org.apache.cassandra.net.InboundSink$Filtered.accept(InboundSink.java:70)
+		at org.apache.cassandra.net.InboundSink$Filtered.accept(InboundSink.java:56)
+		at org.apache.cassandra.net.InboundSink.accept(InboundSink.java:122)
+{code}
+
+In debugger I see the following
+
+{code}
+other = {LockedRanges$AffectedRangesImpl@92088} "AffectedRangesImpl{map={ReplicationParams{class=org.apache.cassandra.locator.MetaStrategy, dc0=2, dc2=2, dc1=2}=[(-9223372036854775808,-9223372036854775808]]}}"
+ map = {HashMap@93801}  size = 1
+  {ReplicationParams@92097} "ReplicationParams{class=org.apache.cassandra.locator.MetaStrategy, dc0=2, dc2=2, dc1=2}" -> {HashSet@92098}  size = 1
+{code}
+
+{code}
+map = {HashMap@92092}  size = 3
+ {ReplicationParams@93810} "ReplicationParams{class=org.apache.cassandra.locator.SimpleStrategy, replication_factor=2}" -> {HashSet@93811}  size = 3
+ {ReplicationParams@93812} "ReplicationParams{class=org.apache.cassandra.locator.SimpleStrategy, replication_factor=3}" -> {HashSet@93813}  size = 4
+ {ReplicationParams@93814} "ReplicationParams{class=org.apache.cassandra.locator.NetworkTopologyStrategy, dc0=3, dc2=3, dc1=3}" -> {HashSet@93815}  size = 7
+{code}
+
+Locally we are missing the meta keyspace so can’t find it from the map and NPE.
+
+The reason for this is that the current node is starting up
+
+{code}
+StorageService.instance.operationMode == STARTING
+{code}

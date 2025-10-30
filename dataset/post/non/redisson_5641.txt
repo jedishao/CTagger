@@ -1,0 +1,23 @@
+Redisson throws NPE after upgrading to version 3.25.0 and higher
+Redisson throws NullPointerException after upgrading to version 3.25.0 or higher.
+
+`
+java.lang.NullPointerException: Cannot invoke "java.util.concurrent.CompletableFuture.join()" because "connectionFuture" is null
+	at org.redisson.command.RedisExecutor.handleError(RedisExecutor.java:614)
+	at org.redisson.command.RedisExecutor.execute(RedisExecutor.java:200)
+	at org.redisson.command.CommandAsyncService.async(CommandAsyncService.java:605)
+	at org.redisson.command.CommandAsyncService.readAsync(CommandAsyncService.java:357)
+	at org.redisson.RedissonBucket.getAsync(RedissonBucket.java:141)
+	at org.redisson.RedissonBucket.get(RedissonBucket.java:136)
+`
+
+The exception occurs relatively rare (< 0.1% error rate) so it becomes more visible with high load.
+At peak, our application makes 28k req/min and has up to 300 active cache connections.
+
+The latest working version is 3.24.3. The issue occurs on every newer version including the latest one (3.26.1)
+
+**Redis version**
+ElastiCache engine version 7.0.7
+
+**Redisson version**
+3.26.1

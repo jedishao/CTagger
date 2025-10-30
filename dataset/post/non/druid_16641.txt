@@ -1,0 +1,39 @@
+Failed to return status for realtime ingestion tasks
+Realtime ingestion task failure with error message "failed to return status"
+
+### Affected Version
+all versions.
+
+### Description
+
+Please include as much detailed information about the problem as possible.
+- Cluster size
+- Configurations in use
+- Steps to reproduce the problem
+- The error message or stack traces encountered. Providing more context, such as nearby log messages or even entire logs, can be helpful.
+- Any debugging that you have already done
+
+
+**[Description]**
+There was occasional ingestion task failure, error message is "failed to return status". The related code is in `SeekableStreamSupervisor.java`:
+`      
+if (results.get(i).isError() || results.get(i).valueOrThrow() == null) {
+    killTask(taskId, "Task[%s] failed to return status, killing task", taskId);
+}
+`
+
+By adding som logs, found the failure is from `ChatHandlerResource.java`:
+`
+throw new ServiceUnavailableException(StringUtils.format("Can't find chatHandler for handler[%s]", handlerId));
+`
+
+**[Analysis]**
+By analyzing the overlord log and ingestion task log, found that Jetty server looks started and the http endpoint is ready to be serving, but the ingestion task is still in starting up and the `ChatHandler` was not found.
+
+When the chatHandler will be registered? Get the answer in `SeekableStreamIndexTaskRunner::runInternal()`:
+`
+    toolbox.getChatHandlerProvider().register(task.getId(), this, false);
+`
+
+**[Solution]**
+If the `ChatHandlerResource` can wait for the ingestion task startup finished, the http service will be safe.

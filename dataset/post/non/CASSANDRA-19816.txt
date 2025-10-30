@@ -1,0 +1,127 @@
+nodetoolResult failed in Cassandra Dtest before cluster upgrade but succeed after cluster upgrade
+*What happened*
+Cassandra `nodetoolResult` behaves differently in dtest `runbeforeClusterUpgrade` and `runAfterClusterUpgrade`.
+ 
+
+*How to reproduce:*
+Put the following test under `cassandra/test/distributed/org/apache/cassandra/distributed/upgrade/`, and build dtest jars for version `5.0-beta1` and `5.1`.
+{code:java}
+package org.apache.cassandra.distributed.upgrade;
+
+public class demoUpgradeTest extends UpgradeTestBase {
+    @Test
+    public void firstDemoTest() throws Throwable {
+        new TestCase()
+        .nodes(2)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
+        .upgradesToCurrentFrom(v3X)
+        .setup((cluster) -> {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck))");
+        })
+        .runbeforeClusterUpgrade((cluster) -> {
+	        cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
+        }).run();
+    }
+
+    @Test
+    public void secondDemoTest() throws Throwable {
+        new TestCase()
+        .nodes(2)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
+        .upgradesToCurrentFrom(v3X)
+        .setup((cluster) -> {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck))");
+        })
+        .runafterClusterUpgrade((cluster) -> {
+            cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
+        }).run();
+    }
+}{code}
+
+Run the test with:
+{code:java}
+$ ant test-jvm-dtest-some -Duse.jdk11=true -Dtest.name=org.apache.cassandra.distributed.upgrade.demoUpgradeTest{code}
+ 
+`secondDemoTest` passes, but `firstDemoTest` fails with the following output:
+ 
+{code:java}
+java.lang.AssertionError: Error in test '5.0-beta2 -> [5.1]' while upgrading to '5.1'; successful upgrades []
+ 
+at org.apache.cassandra.distributed.upgrade.UpgradeTestBase$TestCase.run(UpgradeTestBase.java:396)
+at org.apache.cassandra.distributed.upgrade.demoUpgradeTest.secondDemoTest(demoUpgradeTest.java:56)
+at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        ...
+ 
+Caused by: java.lang.AssertionError: nodetool command [cms, initialize] was not successful
+stdout:
+nodetool: Found unexpected parameters: [cms, initialize]
+See 'nodetool help' or 'nodetool help <command>'.
+ 
+stderr:
+ 
+Notifications:
+Error:
+io.airlift.airline.ParseArgumentsUnexpectedException: Found unexpected parameters: [cms, initialize]
+at io.airlift.airline.Cli.validate(Cli.java:194)
+at io.airlift.airline.Cli.parse(Cli.java:132)
+        ...{code}
+ 
+NodetoolResult command cannot recognize its parameters before the upgrade. When they executes on different versions of node before and after the upgrade, they call the same method on the delegate node with different versions. However, before the upgrade, the nodetoolResult command always fails to execute.
+ 
+Here is the configuration property of the delegate nodes for the above two test cases. Both configurations are very similar except for `version` and `generation`:
+{code:java}
+this = {AbstractCluster$Wrapper@15093} "node1"
+ config = {InstanceConfig@15098} "..."
+ delegate = {Instance@15099} "node1"
+ version = {Versions$Version@15100} 
+  version = {Semver@15118} "5.0-beta1"
+  classpath = {URL[1]@15119} 
+ isShutdown = false
+ broadcastAddress = {InetSocketAddress@15101} "/127.0.0.1:7012"
+ generation = 0
+ this$0 = {UpgradeableCluster@15102} 
+withNotifications = true
+commandAndArgs = {String[2]@15094} ["cms", "initialize"]{code}
+ 
+{code:java}
+this = {AbstractCluster$Wrapper@28321} "node1"
+ config = {InstanceConfig@28326} "..."
+ delegate = {Instance@28327} "node1"
+ version = {Versions$Version@28328} 
+  version = {Semver@28343} "5.1"
+  classpath = {URL[1]@28344} 
+ isShutdown = false
+ broadcastAddress = {InetSocketAddress@28329} "/127.0.0.1:7012"
+ generation = 1
+ this$0 = {UpgradeableCluster@28330} 
+withNotifications = true
+commandAndArgs = {String[2]@28322} ["cms", "initialize"]{code}
+ 
+And the code in `nodetoolResult` only have some minor difference in `SecurityManager` for version [`5.0-beta1`]([https://github.com/apache/cassandra/blob/87fd1fa88a0c859cc32d9f569ad09ad0b345e465/test/distributed/org/apache/cassandra/distributed/impl/Instance.java#L987]) and [`5.1`]([https://github.com/apache/cassandra/blob/9679206f7443328b8688e35f6f09ce284d4bfe21/test/distributed/org/apache/cassandra/distributed/impl/Instance.java#L1050):]
+
+ 
+{code:java}
+// install security manager to get informed about the exit-code
+System.setSecurityManager(new SecurityManager()
+{
+    public void checkExit(int status)
+    {
+        throw new SystemExitException(status);
+    }
+    public void checkPermission(Permission perm)
+    {
+    }
+    public void checkPermission(Permission perm, Object context)
+    {
+    }
+});
+{code}
+ 
+{code:java}
+SecurityManager before = System.getSecurityManager();
+// install security manager to get informed about the exit-code
+ClusterUtils.preventSystemExit();{code}
+The expected behavior should be that `nodetoolResult` behaves consistently before and after the upgrade.
+ 

@@ -1,0 +1,37 @@
+Allow custom deserialization for user defined types
+The trino-client module contains a hardcoded list of "StandardTypes" in ClientStandardTypes  which
+are mapped to TypeDecoders in `JsonDecodingUtils#createTypeDecoder`.
+For any other type this `createTypeDecoder` will use a  `BASE_64_DECODER` fallback and thus user defined
+types need to provide a base64 encoded representation, but this representation is a non human-readable (understandable) format. 
+
+Example: (trino v465)
+I have a created a plugin with a udt called `tsrange` which defines the method
+
+```java
+import com.fasterxml.jackson.annotation.JsonValue;
+
+...
+    @JsonValue
+    public String toBase64() {
+        return Base64.getEncoder().encodeToString(toString().getBytes());
+    }
+```
+
+This will be the `tsrange` vs `varchar` representation in the trino-cli
+```sql
+trino> SELECT
+    -> tsrange '[2024-01-01 20:00:00,2024-01-02 21:00:00)' as actual_representation,
+    -> cast(tsrange '[2024-01-01 20:00:00,2024-01-02 21:00:00)' as varchar) varchar_representation;
+              actual_representation              |          varchar_representation           
+-------------------------------------------------+-------------------------------------------
+ 5b 32 30 32 34 2d 30 31 2d 30 31 20 32 30 3a 30 | [2024-01-01 20:00:00,2024-01-02 21:00:00) 
+ 30 3a 30 30 2c 32 30 32 34 2d 30 31 2d 30 32 20 |                                           
+ 32 31 3a 30 30 3a 30 30 29                      |                                           
+(1 row)
+```
+
+For obvious reasons I would prefer my type to be displayed just like the varchar representation (and without the need
+to be casted as varchar), however currently there doesn't seem to be a mechanism in trinos SPI that would allow such thing.
+
+Ideally, I think trinos SPI should allow you to create udts along with custom encoder/decoder implementations such that
+a plugin developer (in this case me) can decide how the type will be displayed.  

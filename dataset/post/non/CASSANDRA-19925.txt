@@ -1,0 +1,31 @@
+should show error when altering table with Non-frozen UDTs with nested non-frozen collections
+Cassandra version: 5.0.0 GA
+
+Given this type
+{code:java}
+CREATE TYPE testType
+    (
+        userids SET<UUID>
+    );
+{code}
+If I try to create this table
+{code:java}
+CREATE TABLE test
+(
+    id     INT PRIMARY KEY,
+    myType testType
+);
+{code}
+It shows an error: "Non-frozen UDTs with nested non-frozen collections are not supported"
+
+But if I create the table without the type and then alter the table:
+{code:java}
+CREATE TABLE test
+(
+    id     INT PRIMARY KEY
+);
+alter TABLE test add myType testType;
+{code}
+It does not show that error, which it should.
+-------
+Also the output of `describe test;` shows that it successfully altered the table.

@@ -1,0 +1,39 @@
+“NoSuchMethodErrors” due to multiple versions of com.fasterxml.jackson.core:jackson-databind
+## Issue description
+
+Hi, there are multiple versions of **_com.fasterxml.jackson.core:jackson-databind_** in **_druid-server:26.0.0_**. As shown in the following dependency tree, according to Maven "nearest wins" strategy, only **_com.fasterxml.jackson.core:jackson-databind:2.10.5.1_** can be loaded, **_com.fasterxml.jackson.core:jackson-databind:2.9.9_** and **_com.fasterxml.jackson.core:jackson-databind:2.10.5_** will be shadowed.
+
+However, several methods defined in shadowed version **_com.fasterxml.jackson.core:jackson-databind:2.9.9_** are referenced by client project via **_org.apache.druid:druid-processing:26.0.0_** but missing in the actually loaded version **_com.fasterxml.jackson.core:jackson-databind:2.10.5.1_**.
+
+For instance, the following missing method(defined in **_com.fasterxml.jackson.core:jackson-databind:2.9.9_** and **_com.fasterxml.jackson.core:jackson-databind:2.10.5_**) are actually referenced by **_druid-server_**, which will introduce a runtime error(i.e., "NoSuchMethodError") into druid-server.
+
+1. **_<com.fasterxml.jackson.databind.ser.std.ToStringSerializer: void serialize(java.lang.Object,com.fasterxml.jackson.core.JsonGenerator,com.fasterxml.jackson.databind.SerializerProvider)>_**
+```
+paths--
+<org.apache.druid.jackson.DruidServiceSerializer: void serialize(org.apache.druid.discovery.DruidService,com.fasterxml.jackson.core.JsonGenerator,com.fasterxml.jackson.databind.SerializerProvider)> org.apache.druid:druid-server:26.0.0;
+<com.fasterxml.jackson.databind.ser.std.ToStringSerializer: void serialize(java.lang.Object,com.fasterxml.jackson.core.JsonGenerator,com.fasterxml.jackson.databind.SerializerProvider)>
+```
+
+Suggested fixing solutions:
+Change direct dependency com.fasterxml.jackson.core:jackson-databind from **_2.10.5.1_** to **_2.9.9_**. Because version **_2.9.9_** includes the above missing methods and is compatible with other versions of **_com.fasterxml.jackson.core:jackson-databind_** in the project.
+
+Please let me know if you agree to this solution? I can submit a PR to fix it.
+
+Thank you very much for your attention.
+Best regards,
+
+
+## Dependency tree --
+<pre><code>
+[INFO] |  |  |  \- commons-collections:commons-collections:jar:3.2.2:compile
+[INFO] |  |  \- (org.apache.commons:commons-collections4:jar:4.2:compile - omitted for duplicate)
+[INFO] |  +- net.thisptr:jackson-jq:jar:0.0.10:compile
+[INFO] |  |  +- org.jruby.joni:joni:jar:2.1.27:compile
+[INFO] |  |  |  \- org.jruby.jcodings:jcodings:jar:1.0.43:compile
+[INFO] |  |  \- <b>(com.fasterxml.jackson.core:jackson-databind:jar:2.10.5.1:compile - version managed from 2.9.9; omitted for duplicate)</b>
+[INFO] |  +- com.jayway.jsonpath:json-path:jar:2.3.0:compile
+[INFO] |  |  +- net.minidev:json-smart:jar:2.3:compile
+[INFO] |  |  |  \- net.minidev:accessors-smart:jar:1.2:compile
+[INFO] |  |  |     \- (org.ow2.asm:asm:jar:9.3:compile - version managed from 5.0.4; omitted for duplicate)
+[INFO] |  |  \- (org.slf4j:slf4j-api:jar:1.7.36:compile - version managed from 1.7.25; omitted for duplicate)
+</code></pre>

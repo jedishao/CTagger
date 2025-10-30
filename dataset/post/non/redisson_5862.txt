@@ -1,0 +1,79 @@
+NPE at org.redisson.client.handler.CommandPubSubDecoder.messageDecoder(CommandPubSubDecoder.java:212)
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+
+**Actual behavior**
+
+exception_name :
+java.lang.NullPointerException
+exception_stacktrace :
+at org.redisson.client.handler.CommandPubSubDecoder.messageDecoder(CommandPubSubDecoder.java:212)
+	at org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:416)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:377)
+	at org.redisson.client.handler.CommandPubSubDecoder.decodeCommand(CommandPubSubDecoder.java:71)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:134)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:91)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:502)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:278)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1434)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:965)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:163)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:648)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:583)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:500)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:462)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:897)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:750)
+
+**Steps to reproduce or test case**
+Unable to locate specific replication steps, but there is an error message in the project log, unable to locate the root case
+**Redis version**
+Redis4.0
+**Redisson version**
+3.12.5
+
+**Redisson configuration**
+    public RedissonClient redissonClient(RedisSingleProperties properties) {
+        Config config = new Config();
+        ((SingleServerConfig)((SingleServerConfig)((SingleServerConfig)((SingleServerConfig)((SingleServerConfig)config.useSingleServer().setAddress("redis://" + properties.getHost() + ":" + properties.getPort()).setPassword((String)Optional.of(properties).map(RedisSingleProperties::getPassword).filter(StringUtils::isNotBlank).orElse((Object)null))).setDatabase(properties.getDatabase()).setTimeout((Integer)Optional.of(properties).map(RedisSingleProperties::getTimeout).map(Integer::valueOf).orElse(3000))).setRetryAttempts(properties.getMaxAttempts())).setRetryInterval(properties.getMaxWaitMillis())).setConnectTimeout(properties.getConnectionTimeout())).setConnectionMinimumIdleSize(properties.getMinIdle()).setConnectionPoolSize(properties.getMaxIdle()).setSubscriptionConnectionMinimumIdleSize(properties.getMinIdle()).setSubscriptionConnectionPoolSize(properties.getMaxIdle());
+        config.setNettyThreads(128).setThreads(64);
+        return Redisson.create(config);
+    }
+
+The detailed redisSingleProperties items are as follows:
+host = ******
+port = 6379
+password = *****
+timeout = 2000
+maxAttempts = 6
+soTimeout = 10000
+connectionTimeout = 2000
+maxActive = 5
+maxIdle = 5
+minIdle = 1
+maxWaitMillis = 10000
+database = 1
+
+With my current abilities, I am unable to find a solution. Please help me take a look at this issue.

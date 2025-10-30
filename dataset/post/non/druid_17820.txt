@@ -1,0 +1,23 @@
+Excessive Memory Usage by LookupCoordinatorManager in master nodes Due to keeping a copy of each Lookups per process
+Excessive Memory Usage by LookupCoordinatorManager in master nodes Due to keeping a copy of each Lookups per process 
+
+### Affected Version
+
+The Druid version where the problem was encountered is 24.0.0
+
+### Description
+
+I encountered a severe memory usage issue in master nodes when using lookups. The [LookupCoordinatorManager](https://github.com/apache/druid/blob/24.0.0/server/src/main/java/org/apache/druid/server/lookup/cache/LookupCoordinatorManager.java) keeps **a copy** of each static lookup in the member `knownOldState`  for **each running process on query and data servers** (historical, middleManager, peon, broker, router) in the cluster. As a result, the memory consumption scales **linearly** with the number of processes, causing excessive heap usage on master nodes and `ExitOnOutOfMemoryError` crashes.
+
+## Observed Behavior
+- I added lookups with a **total size of 100MB**.
+- My cluster has **at least running 14 processes** on data and query servers without counting peon processes.
+- The lookup memory consumption on the master node reached more than **3.6GB** (`100MB x 2 x 14`), leading to OOM java exception
+- Heap dump analysis using **Eclipse Memory Analyzer (MAT)** showed that `org.apache.druid.server.lookup.cache.LookupCoordinatorManager` is consuming 90% of the heap. (attaches some screenshots of the heap dump analysis)
+
+![Image](https://github.com/user-attachments/assets/2da3a46f-3eb3-424c-b94d-076c7e4a55b0)
+
+## Expected Behavior
+- `LookupCoordinatorManager` should **not duplicate** lookups unnecessarily for each process.
+- Lookups should have a **shared or optimized memory footprint** across processes.
+- The memory overhead for lookups should remain **proportional** to their actual size, not process count.

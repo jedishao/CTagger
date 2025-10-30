@@ -1,0 +1,27 @@
+dtutil cancel command fails with NullPointerException
+The hadoop dtutil cancel command gives NullPointerException.
+{code}
+java.lang.NullPointerException
+	at org.apache.hadoop.security.authentication.util.KerberosName.getShortName(KerberosName.java:422)
+	at org.apache.hadoop.security.User.<init>(User.java:48)
+	at org.apache.hadoop.security.User.<init>(User.java:43)
+	at org.apache.hadoop.security.UserGroupInformation.createRemoteUser(UserGroupInformation.java:1418)
+	at org.apache.hadoop.security.UserGroupInformation.createRemoteUser(UserGroupInformation.java:1402)
+	at org.apache.hadoop.security.token.delegation.AbstractDelegationTokenIdentifier.getUser(AbstractDelegationTokenIdentifier.java:80)
+	at org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier.getUser(DelegationTokenIdentifier.java:81)
+	at org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier.toString(DelegationTokenIdentifier.java:91)
+	at java.base/java.lang.String.valueOf(String.java:2951)
+	at java.base/java.lang.StringBuilder.append(StringBuilder.java:168)
+	at org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier.stringifyToken(DelegationTokenIdentifier.java:123)
+	at org.apache.hadoop.hdfs.DFSClient$Renewer.cancel(DFSClient.java:804)
+	at org.apache.hadoop.security.token.Token.cancel(Token.java:527)
+	at org.apache.hadoop.security.token.DtFileOperations.removeTokenFromFile(DtFileOperations.java:283)
+	at org.apache.hadoop.security.token.DtUtilShell$Remove.execute(DtUtilShell.java:320)
+	at org.apache.hadoop.tools.CommandShell.run(CommandShell.java:72)
+	at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:81)
+	at org.apache.hadoop.security.token.DtUtilShell.main(DtUtilShell.java:361)
+{code}
+
+This is because it is trying to create a User and in User.java we are calling [this|https://github.com/apache/hadoop/blob/ea6e0f7cd58d0129897dfc7870aee188be80a904/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/security/User.java#L48] line.
+
+But due to this direct call it doesn't initialize the auth_to_local rules and causes NPE in [here|https://github.com/apache/hadoop/blob/ea6e0f7cd58d0129897dfc7870aee188be80a904/hadoop-common-project/hadoop-auth/src/main/java/org/apache/hadoop/security/authentication/util/KerberosName.java#L422] in KerberosName.java

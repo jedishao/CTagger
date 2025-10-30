@@ -1,0 +1,90 @@
+STOMP wrong CONNECTED headers response
+With latest vertx  4.5.11 i think the stomp protocol is not respected during the connect exchange because vertx add some default header followed by \n this will prevent client from reading headers
+
+The stomp client i use => https://github.com/stomp-js/stompjs/tree/develop
+The client code (line 661) => https://github.com/stomp-js/stompjs/blob/develop/bundles/stomp.umd.js
+The issue i open for more context => https://github.com/stomp-js/stompjs/issues/640
+
+My vertx STOMP server look like 
+
+```
+
+        StompServerHandler stompServerHandler = StompServerHandler.create(vertx);
+
+        StompServer server = StompServer.create(vertx, new StompServerOptions()
+
+                        .setHeartbeat(new JsonObject().put("x", 2000).put("y", 2000))
+                        .setPort(-1) // Disable the TCP port, optional
+                        .setWebsocketBridge(true)// Enable the web socket support
+
+                        .setWebsocketPath("/stomp"))
+                // Configure the web socket path, /stomp by default
+                .handler(stompServerHandler)
+                /*.writingFrameHandler(sf -> {
+                    System.out.println(sf.frame());
+                })*/;
+                
+        vertx.createHttpServer(
+                        new HttpServerOptions().setWebSocketSubProtocols(Arrays.asList("v10.stomp", "v11.stomp", "v12.stomp"))
+                )
+
+                .webSocketHandler(server.webSocketHandler())
+
+                .listen(8082)
+                .subscribe();
+
+```
+
+And my JS client code
+
+````
+<script>
+	import { Client } from '@stomp/stompjs'
+
+	let message
+
+	let data = []
+
+	var url = 'ws://localhost:8082/stomp'
+
+	const client = new Client({
+		brokerURL: url,
+		debug: (str) => {
+			console.log(str)
+		},
+		heartbeatOutgoing: 4000,
+		heartbeatIncoming: 4000,
+
+		onConnect: () => {
+			client.subscribe('/foo', frame => {
+				message = null
+				data.unshift(JSON.parse(frame.body))
+				data = data
+			})
+
+			client.subscribe('/foo2', frame => {
+				console.log(frame)
+			})
+		}
+	})
+
+	client.heartbeatOutgoing = 4000 // client will send heartbeats every 20000ms
+	client.heartbeatIncoming = 4000
+
+	client.activate()
+
+	// setInterval(() => client.publish({}))
+
+	function send() {
+		client.publish({
+			destination: '/foo',
+			body: JSON.stringify({ data: message })
+		})
+
+		client.publish({
+			destination: '/foo2',
+			body: JSON.stringify({ data: message })
+		})
+	}
+</script>
+````

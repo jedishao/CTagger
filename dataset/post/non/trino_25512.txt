@@ -1,0 +1,90 @@
+Skip row type without fields in Iceberg
+Iceberg allows a column with struct type without fields, even though the row type in Trino requires at least 1 field. 
+We should skip such unsupported columns instead of failures. We can reproduce by adding the following test to TestIcebergV2:
+```java
+    @Test
+    void testRowWithoutField()
+    {
+        try (TestTable table = newTrinoTable("test_row_without_field", "(id int)")) {
+            Table icebergTable = loadTable(table.getName());
+            icebergTable.updateSchema().addColumn("nested", Types.StructType.of()).commit();
+
+            assertQueryReturnsEmptyResult("SELECT * FROM " + table.getName());
+        }
+    }
+```
+
+```sh
+io.trino.testing.QueryFailedException: Row type must have at least 1 field
+
+	at io.trino.testing.AbstractTestingTrinoClient.execute(AbstractTestingTrinoClient.java:138)
+	at io.trino.testing.DistributedQueryRunner.executeInternal(DistributedQueryRunner.java:565)
+	at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:548)
+	at io.trino.sql.query.QueryAssertions$QueryAssert.lambda$new$1(QueryAssertions.java:317)
+	at com.google.common.base.Suppliers$NonSerializableMemoizingSupplier.get(Suppliers.java:198)
+	at io.trino.sql.query.QueryAssertions$QueryAssert.result(QueryAssertions.java:436)
+	at io.trino.sql.query.QueryAssertions$QueryAssert.returnsEmptyResult(QueryAssertions.java:389)
+	at io.trino.testing.AbstractTestQueryFramework.assertQueryReturnsEmptyResult(AbstractTestQueryFramework.java:462)
+	at io.trino.plugin.iceberg.TestIcebergV2.testRowWithoutField(TestIcebergV2.java:1538)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.concurrent.ForkJoinTask.doExec$$$capture(ForkJoinTask.java:507)
+	at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java)
+	at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1458)
+	at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2034)
+	at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:189)
+	Suppressed: java.lang.Exception: SQL: SELECT * FROM test_row_without_fieldow946ef15c
+		at io.trino.testing.DistributedQueryRunner.executeInternal(DistributedQueryRunner.java:572)
+		... 13 more
+Caused by: java.lang.IllegalArgumentException: Row type must have at least 1 field
+	at io.trino.spi.type.RowType.makeSignature(RowType.java:195)
+	at io.trino.spi.type.RowType.from(RowType.java:153)
+	at io.trino.plugin.iceberg.TypeConverter.toTrinoType(TypeConverter.java:105)
+	at io.trino.plugin.iceberg.IcebergUtil.lambda$getColumnMetadatas$6(IcebergUtil.java:410)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:215)
+	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:636)
+	at io.trino.plugin.iceberg.IcebergUtil.getColumnMetadatas(IcebergUtil.java:414)
+	at io.trino.plugin.iceberg.IcebergMetadata.getTableMetadata(IcebergMetadata.java:935)
+	at io.trino.spi.connector.ConnectorMetadata.getTableSchema(ConnectorMetadata.java:234)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.getTableSchema(ClassLoaderSafeConnectorMetadata.java:265)
+	at io.trino.tracing.TracingConnectorMetadata.getTableSchema(TracingConnectorMetadata.java:233)
+	at io.trino.metadata.MetadataManager.getTableSchema(MetadataManager.java:473)
+	at io.trino.tracing.TracingMetadata.getTableSchema(TracingMetadata.java:295)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:2284)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:520)
+	at io.trino.sql.tree.Table.accept(Table.java:60)
+	at io.trino.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:539)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.analyzeFrom(StatementAnalyzer.java:4906)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:3082)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:520)
+	at io.trino.sql.tree.QuerySpecification.accept(QuerySpecification.java:155)
+	at io.trino.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:539)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:547)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:1550)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:520)
+	at io.trino.sql.tree.Query.accept(Query.java:130)
+	at io.trino.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:539)
+	at io.trino.sql.analyzer.StatementAnalyzer.analyze(StatementAnalyzer.java:499)
+	at io.trino.sql.analyzer.StatementAnalyzer.analyze(StatementAnalyzer.java:488)
+	at io.trino.sql.analyzer.Analyzer.analyze(Analyzer.java:98)
+	at io.trino.sql.analyzer.Analyzer.analyze(Analyzer.java:87)
+	at io.trino.execution.SqlQueryExecution.analyze(SqlQueryExecution.java:285)
+	at io.trino.execution.SqlQueryExecution.<init>(SqlQueryExecution.java:218)
+	at io.trino.execution.SqlQueryExecution$SqlQueryExecutionFactory.createQueryExecution(SqlQueryExecution.java:884)
+	at io.trino.dispatcher.LocalDispatchQueryFactory.lambda$createDispatchQuery$0(LocalDispatchQueryFactory.java:158)
+	at io.trino.$gen.Trino_testversion____20250406_232606_71.call(Unknown Source)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:128)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:74)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:80)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1575)
+```

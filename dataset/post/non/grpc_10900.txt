@@ -1,0 +1,40 @@
+Ability to propagate `cause` when using `StatusProto.toStatusException`
+<!-- Please answer these questions before submitting a feature request. -->
+
+### Is your feature request related to a problem?
+<!-- A clear and concise description of what the problem is. Ex. I'm always frustrated when [...] -->
+
+When converting a `com.google.rpc.Status` to an `io.grpc.StatusException` I can't find a way to propagate a `cause` with the resulting `StatusException`.
+
+Currently `StatusProto.toStatusException` is defined as:
+
+```java
+  public static StatusException toStatusException(com.google.rpc.Status statusProto) {
+    return toStatus(statusProto).asException(toMetadata(statusProto));
+  }
+```
+
+However, using this method there doesn't seem to be any way of providing a `cause`.
+
+### Describe the solution you'd like
+<!-- A clear and concise description of what you want to happen. -->
+
+My ideal would be to make `StatusProto.toStatus` public, which would allow creating the status and calling `asException` something callers could do themselves. This would also be helpful in scenarios where callers require a `Status` instead of a `StatusException`.
+
+```java
+  private static Status toStatus(com.google.rpc.Status statusProto) {
+    Status status = Status.fromCodeValue(statusProto.getCode());
+    checkArgument(status.getCode().value() == statusProto.getCode(), "invalid status code");
+    return status.withDescription(statusProto.getMessage());
+  }
+```
+
+### Describe alternatives you've considered
+<!-- A clear and concise description of any alternative solutions or features you've considered. -->
+
+It feels a little clunky, but I'd be open to having an extra parameter on `toStatusException` for the `cause`, or another solution depending on the preferences of `grpc-java` maintainers.
+
+I've also tried calling `initCause` on the resulting StatusException, but that isn't possible because the cause is set to `null` in the `asException` code, so `initCause` throws an `IllegalArgumentException`.
+
+### Additional context
+<!-- Add any other context about the feature request here. -->

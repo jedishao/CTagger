@@ -1,0 +1,15 @@
+Fix the issue of datasize becoming negative due to overflow during addition
+I encountered an issue in production where, with a large amount of data and more than four windowing functions, the execution plan shows a negative {{width}} value for windowing functions beyond the fourth. Additionally, during execution on the Tez engine, the number of reducers for that stage is set to 2. Upon reviewing the Hive {{Statistics}} code, I found that when {{datasize}} exceeds the maximum value of a {{{}long{}}}, it wraps around and becomes negative.
+
+```
+public void addBasicStats(Statistics stats) {
+dataSize += stats.dataSize;
+numRows += stats.numRows;
+basicStatsState = inferColumnStatsState(basicStatsState, stats.basicStatsState);
+}
+
+@Deprecated
+public void addToDataSize(long rds) {
+dataSize += rds;
+}
+```

@@ -1,0 +1,10 @@
+Only allow one TableProcedureInterface for a single table to run at the same time for some special procedure types
+We have a table lock in the MasterProcedureScheduler, which is designed to only allow one procedure to run at the same time when they require exclusive lock.
+
+But there is a problem that for availability, usually we can not always hold the exclusive lock through the whole procedure life time, as if so, we can not execute region assignment for this table too. The solution is to set holdLock to false, which means we will release the table lock after one execution cycle.
+
+In this way, it is possible that different table procedures may execute at the same time, which could mess things up.
+
+Especially that, in HBASE-28522, we find out that it is even impossible for DisableTableProcedure to hold the exclusive lock all the time. If the steps for DisableTableProcedure can be overlapped with other procedures like ModifyTableProcedure or even EnableTableProcedure, things will be definationly messed up...
+
+So we need to find another way to ensure that for a single table, only one of these procedures can be executed at the same time.

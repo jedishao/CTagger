@@ -1,0 +1,67 @@
+Window operation with NaN frame bound of range frames
+<!--- Provide a general summary of the issue in the Title above -->
+<!--- Look through existing open and closed issues to see if someone has reported the issue before -->
+In Presto, NaN is considered to be larger than Infinity and any floating-point numbers.
+```
+select nan() > infinity(), nan() > 10.0; -- true, true
+```
+
+However, when NaN appear in the frame bound of range frames of window operations, it is treated differently. For example, for the two queries below, I'd expect they return the same result because the window frames should both be empty.
+```
+SELECT
+    SUM(c0) OVER (
+        ORDER BY
+            s0 asc
+        RANGE BETWEEN 0.0 PRECEDING AND infinity() PRECEDING   
+    )
+FROM (
+    VALUES
+        (1, 1.0),
+        (2, 1.0),
+        (3, 1.0)
+) t(c0, s0); -- NULL, NULL, NULL
+
+
+SELECT
+    SUM(c0) OVER (
+        ORDER BY
+            s0 asc
+        RANGE BETWEEN 0.0 PRECEDING AND nan() PRECEDING   
+    )
+FROM (
+    VALUES
+        (1, 1.0),
+        (2, 1.0),
+        (3, 1.0)
+) t(c0, s0); -- 6, 6, 6
+```
+
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used: Presto 0.290
+* Storage (HDFS/S3/GCS..):
+* Data source and connector used:
+* Deployment (Cloud or On-prem):
+* [Pastebin](https://pastebin.com/) link to the complete debug logs:
+
+## Expected Behavior
+<!--- Tell us what should happen -->
+
+## Current Behavior
+<!--- Tell us what happens instead of the expected behavior -->
+
+## Possible Solution
+<!--- Not obligatory, but suggest a fix/reason for the bug or a workaround -->
+
+## Steps to Reproduce
+<!--- Provide a link to a live example, or an unambiguous set of steps to -->
+<!--- reproduce this bug. Include code to reproduce, if relevant -->
+
+
+## Screenshots (if appropriate)
+
+## Context
+<!--- How has this issue affected you? -->
+<!--- Providing context helps us come up with a solution that is most useful in the real world -->
+

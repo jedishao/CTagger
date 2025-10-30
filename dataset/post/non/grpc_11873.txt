@@ -1,0 +1,51 @@
+What is the correct way to read all gRPC headers and trailers, including ":status"?
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+I'm trying to implement an interceptor for logging in gRPC servers and clients.\
+In the interceptor I'd like to log all the headers and trailers.\
+I tried using the following code to read all the key-values from the `Metadata` and convert them to a string representation to print them to the screen:
+```java
+    private String metadataToString(final Metadata metadata) {
+        if (metadata == null) {
+            return "";
+        }
+
+        var sb = new StringBuilder();
+
+        for (String key : metadata.keys())
+        {
+            var metadataKey = Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER);
+
+            sb.append(
+                String.format(
+                    "%s: %s\n",
+                    key,
+                    metadata.get(metadataKey)));
+        }
+
+        return sb.toString();
+    }
+```
+I tested it in a client interceptor to log the headers and the trailers. This works fine if the gRPC request is successful.\
+But if the request fails, then apparently the framework automatically adds a trailer with the key `:status`. And in that case, the code above fails with the following exception:
+```
+java.lang.IllegalArgumentException: Invalid character ':' in key name ':status'
+        at com.google.common.base.Preconditions.checkArgument(Preconditions.java:273)
+        at io.grpc.Metadata$Key.validateName(Metadata.java:754)
+        at io.grpc.Metadata$Key.<init>(Metadata.java:762)
+        at io.grpc.Metadata$Key.<init>(Metadata.java:671)
+        at io.grpc.Metadata$AsciiKey.<init>(Metadata.java:971)
+        at io.grpc.Metadata$AsciiKey.<init>(Metadata.java:966)
+        at io.grpc.Metadata$Key.of(Metadata.java:708)
+        at io.grpc.Metadata$Key.of(Metadata.java:704)
+        at com.travix.supplier.ancillary.service.bundles.interceptors.logging.client.GrpcLoggingClientCallListener.metadataToString(GrpcLoggingClientCallListener.java:81)
+```
+What is the reason for this, am I doing something wrong? It seems surprising that the framework would include a key with an illegal value, so I suspect that I implemented it incorrectly.\
+I found this piece of code in the repository: https://github.com/grpc/grpc-java/blob/572f4332a75367e0d0e1cb096198839b68787670/core/src/main/java/io/grpc/internal/Http2ClientStream.java#L66  
+I tried copying this `HTTP_STATUS_LINE_MARSHALLER` into my library and create the key with that, but I still got the same exception.\
+If anyone can tell what I'm doing wrong, and what would be the correct way to implement this, that'd be appreciated!

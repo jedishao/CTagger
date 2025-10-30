@@ -1,0 +1,41 @@
+Minimize the heap consumption when registering metrics
+The problem is only reproducible on the x86 machine, the problem is not reproducible on the arm64. A quick analysis showed a lot of MetricName objects stored in the heap, although the real cause could be related to something else, the MetricName object requires extra attention.
+
+To reproduce run the command run locally:
+{code}
+ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ReadRepairTest
+{code}
+
+The error:
+
+{code:java}
+[junit-timeout] Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+[junit-timeout]     at java.base/java.lang.StringLatin1.newString(StringLatin1.java:769)
+[junit-timeout]     at java.base/java.lang.StringBuffer.toString(StringBuffer.java:716)
+[junit-timeout]     at org.apache.cassandra.CassandraBriefJUnitResultFormatter.endTestSuite(CassandraBriefJUnitResultFormatter.java:191)
+[junit-timeout]     at org.apache.tools.ant.taskdefs.optional.junit.JUnitTestRunner.fireEndTestSuite(JUnitTestRunner.java:854)
+[junit-timeout]     at org.apache.tools.ant.taskdefs.optional.junit.JUnitTestRunner.run(JUnitTestRunner.java:578)
+[junit-timeout]     at org.apache.tools.ant.taskdefs.optional.junit.JUnitTestRunner.launch(JUnitTestRunner.java:1197)
+[junit-timeout]     at org.apache.tools.ant.taskdefs.optional.junit.JUnitTestRunner.main(JUnitTestRunner.java:1042)
+[junit-timeout] Testsuite: org.apache.cassandra.distributed.test.ReadRepairTest-cassandra.testtag_IS_UNDEFINED
+[junit-timeout] Testsuite: org.apache.cassandra.distributed.test.ReadRepairTest-cassandra.testtag_IS_UNDEFINED Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0 sec
+[junit-timeout] 
+[junit-timeout] Testcase: org.apache.cassandra.distributed.test.ReadRepairTest:readRepairRTRangeMovementTest-cassandra.testtag_IS_UNDEFINED:    Caused an ERROR
+[junit-timeout] Forked Java VM exited abnormally. Please note the time in the report does not reflect the time until the VM exit.
+[junit-timeout] junit.framework.AssertionFailedError: Forked Java VM exited abnormally. Please note the time in the report does not reflect the time until the VM exit.
+[junit-timeout]     at jdk.internal.reflect.GeneratedMethodAccessor4.invoke(Unknown Source)
+[junit-timeout]     at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[junit-timeout]     at java.base/java.util.Vector.forEach(Vector.java:1365)
+[junit-timeout]     at jdk.internal.reflect.GeneratedMethodAccessor4.invoke(Unknown Source)
+[junit-timeout]     at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[junit-timeout]     at jdk.internal.reflect.GeneratedMethodAccessor4.invoke(Unknown Source)
+[junit-timeout]     at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[junit-timeout]     at java.base/java.util.Vector.forEach(Vector.java:1365)
+[junit-timeout]     at jdk.internal.reflect.GeneratedMethodAccessor4.invoke(Unknown Source)
+[junit-timeout]     at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[junit-timeout]     at jdk.internal.reflect.GeneratedMethodAccessor4.invoke(Unknown Source)
+[junit-timeout]     at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[junit-timeout] 
+[junit-timeout] 
+[junit-timeout] Test org.apache.cassandra.distributed.test.ReadRepairTest FAILED (crashed)BUILD FAILED
+ {code}

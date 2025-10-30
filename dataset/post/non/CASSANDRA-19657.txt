@@ -1,0 +1,32 @@
+Use more appropriate GC logging
+Our GC default setting spam the gc log resulting in unnecessary IO, cpu usage, and makes them less effective to use with tools like GCEasy.  Here's some examples of what our defaults log:
+
+{noformat}
+[2024-05-22T09:14:45.558-0700][0.022s][11668][9219][trace] Trying to allocate at address 0x00000006c0000000 heap of size 0x100000000
+[2024-05-22T09:14:45.559-0700][0.022s][11668][9219][debug] Running G1 PreTouch with 4 workers for 4 work units pre-touching 4294967296B.
+[2024-05-22T09:23:33.653-0700][121.363s][12868][21251][trace] GC(15) | 255|0x00000007bf000000, 0x00000007bf000000, 0x00000007c0000000|  0%| F|  |TAMS 0x00000007bf000000, 0x00000007bf000000| Untracked
+[2024-05-22T09:23:33.528-0700][121.238s][12868][21251][trace] GC(15) | 178|0x0000000772000000, 0x0000000773000000, 0x0000000773000000|100%| E|CS|TAMS 0x0000000772000000, 0x0000000772000000| Complete
+[2024-05-22T09:24:01.731-0700][149.441s][12868][21251][debug] GC(16) Heap before GC invocations=16 (full 0): garbage-first heap   total 4194304K, used 1918824K [0x00000006c0000000, 0x00000007c0000000)
+[2024-05-22T09:24:01.731-0700][149.441s][12868][21251][debug] GC(16)   region size 16384K, 108 young (1769472K), 3 survivors (49152K)
+[2024-05-22T09:24:01.731-0700][149.441s][12868][21251][debug] GC(16)  Metaspace       used 63070K, capacity 65566K, committed 65680K, reserved 1105920K
+[2024-05-22T09:24:01.731-0700][149.441s][12868][21251][debug] GC(16)   class space    used 7274K, capacity 8432K, committed 8448K, reserved 1048576K
+{noformat}
+
+Quickly looking at the breakdown of trace, debug, and info:
+
+{noformat}
+grep trace logs/gc.log | wc -l
+    7771
+grep debug logs/gc.log | wc -l
+     188
+grep info logs/gc.log | wc -l
+    1065
+{noformat}
+
+In summary, we're seeing almost 9K worth of debug and trace log lines for every 1K of INFO, and the debug and trace doesn't have any value for a user that would leave it unset.  Really interested users might want this, but they should know how to enable it.
+
+We should use the INFO settings by default: 
+
+{noformat}
+JVM_OPTS="$JVM_OPTS -Xlog:gc=info:file=${CASSANDRA_LOG_DIR}/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10485760"
+{noformat}

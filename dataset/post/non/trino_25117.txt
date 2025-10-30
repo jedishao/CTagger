@@ -1,0 +1,23 @@
+Predicate pushdown through exclude_columns
+Currently, predicates are not pushed down to table scan when we use `exclude_columns`.
+
+```sql
+SELECT * 
+FROM TABLE(exclude_columns(
+  input => TABLE(tpch.sf1.customer), 
+  columns => DESCRIPTOR(c_comment)
+))
+WHERE c_custkey = 1
+```
+
+Of course, we can write as follows:
+
+```sql
+SELECT * 
+FROM TABLE(exclude_columns(
+  input => TABLE(SELECT * FROM tpch.sf1.customer WHERE c_custkey = 1), 
+  columns => DESCRIPTOR(c_comment)
+))
+```
+
+However, it would be great if predicates will be pushd down through `exclude_columns` even in the first case.

@@ -1,0 +1,69 @@
+[Bug] NoClassDefFoundError: org/apache/pulsar/client/api/PulsarClientException$FeatureNotSupportedException in pulsar client v3.0.7
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+Broker version: 3.0.7 (same issue with broker version 3.0.6)
+**Client version: 3.0.7**
+
+### Minimal reproduce step
+
+# gradle.build
+```
+ implementation group: 'org.apache.pulsar', name: 'pulsar-client-all', version: 3.0.7
+ ```
+ 
+ # Java class
+```
+class Scratch {
+    public static void main(String[] args) {
+        try {
+            ClientBuilder clientBuilder = PulsarClient.builder();
+            clientBuilder.serviceUrl("pulsar://localhost:6650");
+            // stepping through with a debugger, at this step it fails
+            PulsarClient client = clientBuilder.build();
+            // this is not reached
+            Consumer<byte[]> consumer = client.newConsumer().topic("public/default/xyz").subscriptionName("scratch").subscribe();
+            consumer.receive();
+        } catch (PulsarClientException e) {
+            throw new RuntimeException(e);
+        }
+    }
+```
+
+### What did you expect to see?
+
+Client should be successfully created and consumer started. This works with client version 3.0.6 but not on the 3.0.7
+
+### What did you see instead?
+
+Client is not created successfully. See Stacktrace below:
+
+```
+Exception in thread "main" java.lang.NoClassDefFoundError: org/apache/pulsar/client/api/PulsarClientException$FeatureNotSupportedException
+	at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:214)
+	at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:160)
+	at org.apache.pulsar.client.impl.ClientBuilderImpl.build(ClientBuilderImpl.java:63)
+	at com.streamvisor.example.Scratch.main(scratch_1.java:16)
+Caused by: java.lang.ClassNotFoundException: org.apache.pulsar.client.api.PulsarClientException$FeatureNotSupportedException
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:520)
+	... 4 more
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

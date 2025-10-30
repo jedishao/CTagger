@@ -1,0 +1,16 @@
+ASTSingleTableModel returned a deleted partition as expected due to static column delete not checking if the partition is removed
+ASTSingleTableModel was created in CASSANDRA-20156 and is used to validate that C* returns the correct response. Last night a false positive was listed
+
+
+{code}
+1: INSERT INTO ks1.tbl (pk0, ck0, s0, v0, v1, v2, v3) VALUES (false, false, 'S' + '#', 0x7b, '21:54:38.042512095', -1220695853 + 487670685, 00000000-0000-1a00-b300-000000000000) -- on node1
+10: UPDATE ks1.tbl SET s0='\u001C{c|\u001Dz' + '\u0006rO\u0007``', v0=0xfffa8e324eb60d5510, v1='05:09:16.823129832', v2=519617565, v3=00000000-0000-1e00-b100-000000000000 WHERE pk0 = true AND ck0 = true -- on node1
+27: DELETE FROM ks1.tbl WHERE pk0 = false AND ck0 = false -- on node1
+69: DELETE s0 FROM ks1.tbl WHERE pk0 = false -- on node1
+72: SELECT * FROM ks1.tbl WHERE token(pk0) = token(false) -- by token, on node1, fetch size 1
+
+Caused by: java.lang.AssertionError: Unexpected results for query: SELECT * FROM ks9.tbl WHERE token(pk0) = token(false) Caused by: java.lang.AssertionError: No rows returned Expected: pk0 | ck0 | s0 | v0 | v1 | v2 | v3 false | null | null | null | null | null | null
+{code}
+
+
+The issue is the delete static column didn’t check if the partition is no longer referenced, so the read path included it as expected.  The read path should have also filtered out this case as well

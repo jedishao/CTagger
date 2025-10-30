@@ -1,0 +1,66 @@
+Ask to add buffer failed
+## Problem Description:
+In the process of writing data in Druid, if the number of bytes in the data exceeds `Integer.MAX_VALUE & ~PAGE_SIZE`, there is a high likelihood of a request buffer failure due to improper segmentation. This leads to the error message below and stops the writing process, resulting in data loss.
+
+```
+2023-10-04T01:24:25,649 ERROR [task-runner-0-priority-0] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Encountered exception while running task.
+java.util.concurrent.ExecutionException: java.lang.RuntimeException: org.apache.druid.java.util.common.IAE: Asked to add buffers[2,148,799,687] larger than configured max[2,147,483,647]
+        at com.google.common.util.concurrent.AbstractFuture$Sync.getValue(AbstractFuture.java:299) ~[guava-16.0.1.jar:?]
+        at com.google.common.util.concurrent.AbstractFuture$Sync.get(AbstractFuture.java:286) ~[guava-16.0.1.jar:?]
+        at com.google.common.util.concurrent.AbstractFuture.get(AbstractFuture.java:116) ~[guava-16.0.1.jar:?]
+        at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.checkPublishAndHandoffFailure(SeekableStreamIndexTaskRunner.java:945) ~[druid-indexing-service-24.0.1.jar:24.0.1]
+        at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.runInternal(SeekableStreamIndexTaskRunner.java:608) ~[druid-indexing-service-24.0.1.jar:24.0.1]
+        at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.run(SeekableStreamIndexTaskRunner.java:266) ~[druid-indexing-service-24.0.1.jar:24.0.1]
+        at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask.run(SeekableStreamIndexTask.java:154) ~[druid-indexing-service-24.0.1.jar:24.0.1]
+        at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:477) ~[druid-indexing-service-24.0.1.jar:24.0.1]
+        at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:449) ~[druid-indexing-service-24.0.1.jar:24.0.1]
+        at java.util.concurrent.FutureTask.run(FutureTask.java:264) ~[?:?]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[?:?]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[?:?]
+        at java.lang.Thread.run(Thread.java:834) ~[?:?]
+Caused by: java.lang.RuntimeException: org.apache.druid.java.util.common.IAE: Asked to add buffers[2,148,799,687] larger than configured max[2,147,483,647]
+        at org.apache.druid.segment.realtime.appenderator.StreamAppenderator.mergeAndPush(StreamAppenderator.java:923) ~[druid-server-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.realtime.appenderator.StreamAppenderator.lambda$push$1(StreamAppenderator.java:748) ~[druid-server-24.0.1.jar:24.0.1]
+        at com.google.common.util.concurrent.Futures$1.apply(Futures.java:713) ~[guava-16.0.1.jar:?]
+        at com.google.common.util.concurrent.Futures$ChainingListenableFuture.run(Futures.java:861) ~[guava-16.0.1.jar:?]
+        ... 3 more
+Caused by: org.apache.druid.java.util.common.IAE: Asked to add buffers[2,148,799,687] larger than configured max[2,147,483,647]
+        at org.apache.druid.java.util.common.io.smoosh.FileSmoosher.addWithSmooshedWriter(FileSmoosher.java:168) ~[druid-core-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.IndexMergerV9.makeColumn(IndexMergerV9.java:628) ~[druid-processing-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.IndexMergerV9.makeIndexFiles(IndexMergerV9.java:334) ~[druid-processing-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.IndexMergerV9.merge(IndexMergerV9.java:1303) ~[druid-processing-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.IndexMergerV9.multiphaseMerge(IndexMergerV9.java:1120) ~[druid-processing-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.IndexMergerV9.mergeQueryableIndex(IndexMergerV9.java:1062) ~[druid-processing-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.realtime.appenderator.StreamAppenderator.mergeAndPush(StreamAppenderator.java:859) ~[druid-server-24.0.1.jar:24.0.1]
+        at org.apache.druid.segment.realtime.appenderator.StreamAppenderator.lambda$push$1(StreamAppenderator.java:748) ~[druid-server-24.0.1.jar:24.0.1]
+        at com.google.common.util.concurrent.Futures$1.apply(Futures.java:713) ~[guava-16.0.1.jar:?]
+        at com.google.common.util.concurrent.Futures$ChainingListenableFuture.run(Futures.java:861) ~[guava-16.0.1.jar:?]
+        ... 3 more
+2023-10-04T01:24:25,657 INFO [task-runner-0-priority-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Task completed with status: {
+  "id" : "index_kafka_table111_f9d383d734d46c8_bggfdmbf",
+  "status" : "FAILED",
+  "duration" : 364218,
+  "errorMsg" : "java.util.concurrent.ExecutionException: java.lang.RuntimeException: org.apache.druid.java.util.comm...",
+  "location" : {
+    "host" : null,
+    "port" : -1,
+    "tlsPort" : -1
+  }
+}
+```
+
+## Writing Principle:
+
+### Incremental indexing of serialized memory
+In the process of writing incremental indexes in Druid, when the amount of data in memory reaches a certain threshold, it needs to be flushed to disk. Before flushing to the hard drive, the incremental index in memory needs to be serialized. If the size of serialization exceeds `fileSizeLimit = Integer.MAX_VALUE & ~PAGE_SIZE`, the write position will be reset, and it will be recorded in headerOutLong.
+
+### Pre-writing temporary files
+Druid calculates the appropriate bagSize using headerOutLong, the number of rows, and the total number of bytes, and then generates a byte array. This byte array is pre-written to temporary files, which are stored in the completedFiles list.
+
+### Merge temporary files to generate a segment
+Druid merges the list of files (completedFiles) into relatively larger smoosh files. The merging logic involves iterating through completedFiles and requires that `specBytes.size() + serdeficator.getSerializedSize()` not exceed `Integer.MAX`. Due to the initial division point of headerOutLong not taking into account specBytes.size() and the order of writing, there is a certain probability that `specBytes.size() + serdeficator.getSerializedSize()` may exceed `Integer.MAX_VALUE`, leading to a request buffer failure.
+
+## Recommendation:
+Reduce the value of `fileSizeLimit`, for example, change it to: `fileSizeLimit = (Integer.MAX_VALUE & ~PAGE_SIZE)*0.8`, or expose `fileSizeLimit` as a configurable property.
+
+The above is just my personal understanding. If there are any deficiencies, please feel free to correct them.

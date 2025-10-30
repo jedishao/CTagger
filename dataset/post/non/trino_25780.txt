@@ -1,0 +1,30 @@
+Trino forgets vended-credentials in S3FileSystem::deleteObjects
+Hi, 
+
+
+## Problem
+
+When executing `expire_snapshots` on an iceberg table with Trino 475, we're encountering missing credentials errors that didn't occur on Trino 467. The root cause seems to be in `S3FileSystem::delete_objects` where the second call to `overrideConfiguration()` on the builder overwrites the `credentialsProvider` set by the first call. 
+
+## Reproduction
+
+`expire_snapshots` on an iceberg table on an s3-compatible storage with a rest catalog & "iceberg.rest-catalog.vended-credentials-enabled" = 'true' using Trino 475
+
+## Details
+
+In `src/main/java/io/trino/filesystem/s3/S3FileSystem.java`, two consecutive calls to `Builder::overrideConfiguration` occur:
+
+1. First call: `overrideConfiguration(context::applyCredentialProviderOverride)`, sets credential, essential for vended-credentials to work in iceberg 
+2. Second call: `overrideConfiguration(disableStrongIntegrityChecksums())`, a workaround for missing strong integrity checks in some storage providers:
+
+
+The second `overrideConfiguration` nulls the previously set `credentialsProvider` in the `awsRequestOverrideConfig`. This then causes the delete request to fail with:
+
+
+> software.amazon.awssdk.core.exception.SdkClientException: Unable to load credentials from any of the providers in the chain AwsCredentialsProviderChain(credentialsProviders=[SystemPropertyCredentialsProvider(), EnvironmentVariableCredentialsProvider(), WebIdentityTokenCredentialsProvider(), ProfileCredentialsProvider(profileName=default, profileFile=ProfileFile(sections=[])), ContainerCredentialsProvider(), InstanceProfileCredentialsProvider()]) : [SystemPropertyCredentialsProvider(): Unable to load credentials from system settings. Access key must be specified either via environment variable (AWS_ACCESS_KEY_ID) or system property (aws.accessKeyId)., EnvironmentVariableCredentialsProvider(): Unable to load credentials from system settings. Access key must be specified either via environment variable (AWS_ACCESS_KEY_ID) or system property (aws.accessKeyId)., WebIdentityTokenCredentialsProvider(): Either the environment variable AWS_WEB_IDENTITY_TOKEN_FILE or the javaproperty aws.webIdentityTokenFile must be set., ProfileCredentialsProvider(profileName=default, profileFile=ProfileFile(sections=[])): Profile file contained no credentials for profile 'default': ProfileFile(sections=[]), ContainerCredentialsProvider(): Interrupted waiting to refresh a cached value., InstanceProfileCredentialsProvider(): Interrupted waiting to refresh a cached value.]
+ 
+
+## Related issues
+
+https://github.com/lakekeeper/lakekeeper/issues/1055
+https://github.com/trinodb/trino/issues/24955 / https://github.com/trinodb/trino/pull/24954

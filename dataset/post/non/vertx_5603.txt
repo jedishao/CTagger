@@ -1,0 +1,34 @@
+The documentation of the hostsRefreshPeriod attribute in AddressResolverOptions is incorrect
+### Version
+
+5.0.0
+
+### Context
+
+According to [https://vertx.io/docs/apidocs/io/vertx/core/dns/AddressResolverOptions.html#setHostsRefreshPeriod(int)](https://vertx.io/docs/apidocs/io/vertx/core/dns/AddressResolverOptions.html#setHostsRefreshPeriod(int))
+> Set the hosts configuration refresh period in millis, 0 disables it. 
+
+The time unit is millis,  but the code says time is in nanoseconds
+
+ [https://github.com/eclipse-vertx/vert.x/blob/e48689074f843c5c7e44a5d79b61aa40f1480dec/vertx-core/src/main/java/io/vertx/core/dns/impl/DnsAddressResolverProvider.java#L103](https://github.com/eclipse-vertx/vert.x/blob/e48689074f843c5c7e44a5d79b61aa40f1480dec/vertx-core/src/main/java/io/vertx/core/dns/impl/DnsAddressResolverProvider.java#L103)
+
+[https://github.com/eclipse-vertx/vert.x/blob/e48689074f843c5c7e44a5d79b61aa40f1480dec/vertx-core/src/main/java/io/vertx/core/dns/impl/DnsAddressResolverProvider.java#L221](https://github.com/eclipse-vertx/vert.x/blob/e48689074f843c5c7e44a5d79b61aa40f1480dec/vertx-core/src/main/java/io/vertx/core/dns/impl/DnsAddressResolverProvider.java#L221)
+```java
+private void ensureHostsFileFresh(long refreshPeriodNanos) {
+    long prev = refreshTimestamp.get();
+    long now = System.nanoTime();
+    if ((now - prev) >= refreshPeriodNanos && refreshTimestamp.compareAndSet(prev, now)) {
+      refreshHostsFile();
+    }
+  }
+```
+
+The actual unit should be nanoseconds.
+
+### Steps to reproduce
+
+_No response_
+
+### Do you have a reproducer?
+
+_No response_

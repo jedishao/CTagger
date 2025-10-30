@@ -1,0 +1,27 @@
+Row ID support
+Row ID is a binary key for a row that is globally unique across the warehouse. It identifies a specific row at a specific version of a partition’s data. A row_id will continue to locate the same row in the warehouse until there is a mutation to the underlying partition. 
+
+## Expected Behavior or Use Case
+
+Row IDs resolve to the same value across compute engines. In this way they can be used as a strong-equality comparison across compute engines.
+
+## Presto Component, Service, or Connector
+<!--- Tell us to which service or component this request is related to -->
+
+## Possible Implementation
+
+row_number:row_group_id:data_version:partition_id:tbl_id:table_guid.substring(0, 6):spec_version
+
+Row IDs will be binary encoded. There is no delimiter in the actual row_id. It’s just binary compressed fixed width fields (except for the variable width row_group_id)
+
+data_version:partition_id:tbl_id:table_guid.substring(0, 6):spec_version has the same value for all rows in a partition 
+
+The XLDB reader libraries will supply  row_number:row_group_id as independent pieces  accessed alongside rows.
+
+data_version:partition_id:tbl_id:table_guid.substring(0, 6):spec_version: This component will be exposed as a binary field in the Partition object. It currently is fixed width 26 bytes. 
+
+In essence there are two pieces: one to locate the partition and one to locate the row within the partition. The partition ID is passed into the reader library from above while the reader supplies the row ID within the partition. The reader passes back the row ID alongside the other columns. 
+
+## Context
+
+A row_id would introduce an automatic skew mitigation, giving each row a unique key to be shuffled on. 

@@ -1,0 +1,64 @@
+TestBucketCacheRefCnt.testInBucketCache fails if block found after eviction
+{code:java}
+      HFileBlock blk = createBlock(200, 1020, alloc);
+      BlockCacheKey key = createKey("testHFile-00", 200);
+      cache.cacheBlock(key, blk);
+      assertTrue(blk.refCnt() == 1 || blk.refCnt() == 2);
+
+      Cacheable block1 = cache.getBlock(key, false, false, false);
+      assertTrue(block1.refCnt() >= 2);
+      assertTrue(((HFileBlock) block1).getByteBuffAllocator() == alloc);
+
+      Cacheable block2 = cache.getBlock(key, false, false, false);
+      assertTrue(((HFileBlock) block2).getByteBuffAllocator() == alloc);
+      assertTrue(block2.refCnt() >= 3);
+
+      cache.evictBlock(key);
+      assertTrue(blk.refCnt() >= 1);
+      assertTrue(block1.refCnt() >= 2);
+      assertTrue(block2.refCnt() >= 2);
+
+      // Get key again
+      Cacheable block3 = cache.getBlock(key, false, false, false);
+      if (block3 != null) {
+        assertTrue(((HFileBlock) block3).getByteBuffAllocator() == alloc);
+        assertTrue(block3.refCnt() >= 3);
+        assertFalse(block3.release());
+      }
+
+{code}
+
+
+In starting of the cache the block is stored in ramCache and later we drain it to backingMap async. This test work fine if we only interact with ramCache but sometime drain get completed just before we try to get the block again after eviction. Wheneve the block moves to backingMap it start the ref from fresh so either 1 or 2. And because of this Assertion in the if fails. 
+
+Stack trace - 
+
+{noformat}
+java.lang.AssertionError
+	at org.junit.Assert.fail(Assert.java:87)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at org.junit.Assert.assertTrue(Assert.java:53)
+	at org.apache.hadoop.hbase.io.hfile.bucket.TestBucketCacheRefCnt.testInBucketCache(TestBucketCacheRefCnt.java:249)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at org.junit.internal.runners.statements.FailOnTimeout$CallableStatement.call(FailOnTimeout.java:288)
+	at org.junit.internal.runners.statements.FailOnTimeout$CallableStatement.call(FailOnTimeout.java:282)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.lang.Thread.run(Thread.java:750)
+{noformat}

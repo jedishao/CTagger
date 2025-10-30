@@ -1,0 +1,36 @@
+TestHFileCompressionZstd fails with IllegalArgumentException: Illegal bufferSize
+HADOOP-18810 added io.compression.codec.zstd.buffersize in core-default.xml with default value as 0.
+
+So ZSTD buffer size will be returned as 0 based on core-default.xml,
+{code:java}
+  static int getBufferSize(Configuration conf) {
+    return conf.getInt(ZSTD_BUFFER_SIZE_KEY,
+      conf.getInt(CommonConfigurationKeys.IO_COMPRESSION_CODEC_ZSTD_BUFFER_SIZE_KEY,
+        // IO_COMPRESSION_CODEC_ZSTD_BUFFER_SIZE_DEFAULT is 0! We can't allow that.
+        ZSTD_BUFFER_SIZE_DEFAULT));
+  }
+{code}
+HBASE-26259 added a value check, but got reverted in HBASE-26959.
+
+ 
+
+This issue will also occur during region flush and abort the RegionServer.
+
+ 
+
+TestHFileCompressionZstd and other zstd related test cases are are also failing,
+{code:java}
+java.lang.IllegalArgumentException: Illegal bufferSize
+	at org.apache.hadoop.io.compress.CompressorStream.<init>(CompressorStream.java:42)
+	at org.apache.hadoop.io.compress.BlockCompressorStream.<init>(BlockCompressorStream.java:56)
+	at org.apache.hadoop.hbase.io.compress.aircompressor.ZstdCodec.createOutputStream(ZstdCodec.java:106)
+	at org.apache.hadoop.hbase.io.compress.Compression$Algorithm.createPlainCompressionStream(Compression.java:454)
+	at org.apache.hadoop.hbase.io.encoding.HFileBlockDefaultEncodingContext.<init>(HFileBlockDefaultEncodingContext.java:99)
+	at org.apache.hadoop.hbase.io.hfile.NoOpDataBlockEncoder.newDataBlockEncodingContext(NoOpDataBlockEncoder.java:85)
+	at org.apache.hadoop.hbase.io.hfile.HFileBlock$Writer.<init>(HFileBlock.java:846)
+	at org.apache.hadoop.hbase.io.hfile.HFileWriterImpl.finishInit(HFileWriterImpl.java:304)
+	at org.apache.hadoop.hbase.io.hfile.HFileWriterImpl.<init>(HFileWriterImpl.java:185)
+	at org.apache.hadoop.hbase.io.hfile.HFile$WriterFactory.create(HFile.java:312)
+	at org.apache.hadoop.hbase.io.compress.HFileTestBase.doTest(HFileTestBase.java:73)
+	at org.apache.hadoop.hbase.io.compress.aircompressor.TestHFileCompressionZstd.test(TestHFileCompressionZstd.java:54)
+{code}

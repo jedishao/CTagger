@@ -1,0 +1,28 @@
+[Postgres] Use schema names instead of db names
+The Hiveserver2 side support for JDBC storage handler uses a select query to fetch the table/column metadata. something like this.
+select * from <tbl_name> limit 1; --> where the tbl_name is schemaName.tableName where schemaName is the value if hive.sql.schema on the table.
+
+https://github.com/apache/hive/blob/master/jdbc-handler/src/main/java/org/apache/hive/storage/jdbc/dao/GenericJdbcDatabaseAccessor.java#L125-L129
+https://github.com/apache/hive/blob/master/jdbc-handler/src/main/java/org/apache/hive/storage/jdbc/dao/GenericJdbcDatabaseAccessor.java#L557-L563
+
+So natively in Postgres, the following happens from PSQL (same is true for oracle where database and schemas are different, on MySQL seems to treat them as one and same)
+
+{noformat}
+hive_hms_testing=> select * from public."TXNS" limit 1;
+ TXN_ID | TXN_STATE | TXN_STARTED | TXN_LAST_HEARTBEAT | TXN_USER | TXN_HOST | TXN_AGENT_INFO | TXN_META_INFO | TXN_HEARTBEAT_COUNT | TXN_TYPE 
+--------+-----------+-------------+--------------------+----------+----------+----------------+---------------+---------------------+----------
+(0 rows)
+
+hive_hms_testing=> select * from "TXNS" limit 1;
+ TXN_ID | TXN_STATE | TXN_STARTED | TXN_LAST_HEARTBEAT | TXN_USER | TXN_HOST | TXN_AGENT_INFO | TXN_META_INFO | TXN_HEARTBEAT_COUNT | TXN_TYPE 
+--------+-----------+-------------+--------------------+----------+----------+----------------+---------------+---------------------+----------
+(0 rows)
+
+hive_hms_testing=> select * from hive_hms_testing."TXNS" limit 1;
+ERROR:  relation "hive_hms_testing.TXNS" does not exist
+LINE 1: select * from hive_hms_testing."TXNS" limit 1;
+                      ^
+hive_hms_testing=> 
+{noformat}
+
+so schemaname cannot be the name of the database. if a schema name is not specified, then all tables in the database, across all schemas are listed. But if user wants to limit to a certain schema, they have to use the schemaname in "connector.remoteDbName" which then needs to be used as "hive.sql.schema" for the table.

@@ -1,0 +1,55 @@
+to_unix_timestamp udf produces inconsistent results in different jdk versions
+In HIVE-27999 we update the CI docker image which upgrades jdk8 from {*}1.8.0_262-b19{*} to *1.8.0_392-b08*. This upgrade cause 3 timestamp related tests failed:
+
+*1. Testing / split-02 / PostProcess / testTimestampToString[zoneId=Europe/Paris, timestamp=2417-03-26T02:08:43] – org.apache.hadoop.hive.metastore.utils.TestMetaStoreUtils*
+{code:bash}
+Error
+expected:<2417-03-26 0[2]:08:43> but was:<2417-03-26 0[3]:08:43>
+Stacktrace
+org.junit.ComparisonFailure: expected:<2417-03-26 0[2]:08:43> but was:<2417-03-26 0[3]:08:43>
+	at org.apache.hadoop.hive.metastore.utils.TestMetaStoreUtils.testTimestampToString(TestMetaStoreUtils.java:85)
+{code}
+
+*2. Testing / split-01 / PostProcess / testCliDriver[udf5] – org.apache.hadoop.hive.cli.split24.TestMiniLlapLocalCliDriver*
+{code:bash}
+Error
+Client Execution succeeded but contained differences (error code = 1) after executing udf5.q 
+263c263
+< 1400-11-08 07:35:34
+---
+> 1400-11-08 07:35:24
+272c272
+< 1800-11-08 07:35:34
+---
+> 1800-11-08 07:35:24
+434c434
+< 1399-12-31 23:35:34
+---
+> 1399-12-31 23:35:24
+443c443
+< 1799-12-31 23:35:34
+---
+> 1799-12-31 23:35:24
+452c452
+< 1899-12-31 23:35:34
+---
+> 1899-12-31 23:35:24
+{code}
+
+*3. Testing / split-19 / PostProcess / testStringArg2 – org.apache.hadoop.hive.ql.udf.generic.TestGenericUDFToUnixTimestamp*
+{code:bash}
+Stacktrace
+org.junit.ComparisonFailure: expected:<-17984790[40]0> but was:<-17984790[39]0>
+	at org.junit.Assert.assertEquals(Assert.java:117)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at org.apache.hadoop.hive.ql.udf.generic.TestGenericUDFToUnixTimestamp.runAndVerify(TestGenericUDFToUnixTimestamp.java:70)
+	at org.apache.hadoop.hive.ql.udf.generic.TestGenericUDFToUnixTimestamp.testStringArg2(TestGenericUDFToUnixTimestamp.java:167)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+{code}
+
+It maybe a jdk bug and fixed in the new release, because we could get the same result from Spark:
+{code:sql}
+spark-sql> select to_unix_timestamp(to_timestamp("1400-02-01 00:00:00 ICT", "yyyy-MM-dd HH:mm:ss z"), "US/Pacific");
+-17984790390
+{code}

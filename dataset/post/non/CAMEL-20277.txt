@@ -1,0 +1,17 @@
+camel-grpc: gRPC proxy with streaming
+For now it is possible to create gRPC proxy using the following configuration:
+
+ 
+{code:java}
+from("grpc://localhost:1101" +
+    "/org.apache.camel.component.grpc.PingPong"
+)
+    .toD("grpc://remotehost:1101" +
+        "/org.apache.camel.component.grpc.PingPong" +
+        "?method=${header.CamelGrpcMethodName}"
+    ) {code}
+But that approach has major drawback: for server-streaming methods response stream will be collected to list. It means that client of that proxy will start to see stream of responses only after server completed the stream. It may be unacceptable especially for proxy - stream may consists of small messages but be huge by itself.
+
+ 
+
+I started from investigation of streamRepliesTo parameter, but there is no option to connect route defined by that parameter with consumer's StreamObserver.

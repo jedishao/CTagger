@@ -1,0 +1,15 @@
+recordMethodName is incorrectly recording "other" when the stream is cancelled before the call is started
+https://github.com/grpc/grpc-java/blob/142e378cea0aa90aae36fec55f90c30ede95f965/opentelemetry/src/main/java/io/grpc/opentelemetry/OpenTelemetryMetricsModule.java#L528
+
+From the above we can see that the method name recorded is using `isGeneratedMethod` which is set first in `serverCallStarted` to a volatile variable, but in some cases where the stream is closed before the call is even started or there can be a race condition this function can be called before even the `serverCallStarted` method is being called and because of that "other" is recorded in place.
+
+```
+grpc_server_call_sent_total_compressed_message_size_bytes_count{grpc_method="RTBService/GetOrtbResponse",grpc_status="CANCELLED"} 28613
+grpc_server_call_sent_total_compressed_message_size_bytes_count{grpc_method="RTBService/GetOrtbResponse",grpc_status="OK"} 5965630
+grpc_server_call_sent_total_compressed_message_size_bytes_count{grpc_method="RTBService/GetOrtbResponse",grpc_status="UNKNOWN"} 28
+grpc_server_call_sent_total_compressed_message_size_bytes_count{grpc_method="other",grpc_status="CANCELLED"} 168
+
+grpc_server_call_started_total{grpc_method="RTBService/GetOrtbResponse"} 5994439.0
+```
+
+As we can from the above, all adds up to the server call started, but there is an extra `other` which should ideally come under `RTBService/GetOrtbResponse` of `CANCELLED`

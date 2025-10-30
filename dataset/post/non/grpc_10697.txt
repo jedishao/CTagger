@@ -1,0 +1,32 @@
+Behaviour change in io.grpc.stub.ClientCalls.blockingServerStreamingCall between 1.56 and 1.59
+### What version of gRPC-Java are you using?
+
+Upgrading 1.56.0 to 1.59.0 in https://github.com/apache/spark/pull/43942/files#diff-6f545c33f2fcc975200bf208c900a600a593ce6b170180f81e2f93b3efb6cb3eR94
+
+### What is your environment?
+
+Ubuntu Linux, scala 2.13, JDK 17.
+
+### What did you expect to see?
+
+When calling a server side streaming call on a client blocking stub, the behaviour with 1.56 was that the call would not actually be send to the server until first `.hasNext()` was called.
+
+
+### What did you see instead?
+
+Now with 1.59 the request seems to be sent as soon as the server side streaming call is called on the stub.
+
+### Steps to reproduce the bug
+
+In 1.59: https://github.com/juliuszsompolski/apache-spark/commit/4cd744a075a58578bd94eee8cebeaf27aceb22ab
+```
+val iter = client.executePlan(request) // this already sends a request to the server.
+```
+
+In 1.56: https://github.com/juliuszsompolski/apache-spark/commit/1a9ed2eddcbb57bb00f996a35fbeef61720881d6
+Edit: this actually happened only during the first call, so maybe the channel was not yet initialized yet before the first request, while in 1.59 the channel gets initialized? 
+```
+val iter1 = client.executePlan(request1)
+iter1.hasNext() // only this triggered the request to be sent to server in 1.56
+val iter2 = client.executePlan(request2) // but this sends the request to the server.
+```

@@ -1,0 +1,82 @@
+upgrade_tests.upgrade_through_versions_test consistently failing on circleci
+This suite is consistently failing in  [4.0|https://app.circleci.com/pipelines/github/driftx/cassandra/1454/workflows/0357136e-cee3-42e4-900b-3347fc8d42d3/jobs/71008/tests] and [4.1|https://app.circleci.com/pipelines/github/driftx/cassandra/1453/workflows/dd1732df-271c-43bc-bc5f-8577c605c746/jobs/71009/tests] with the following stack trace:
+{noformat}
+self = <ccmlib.node.Node object at 0x7f4c01e32eb8>
+process = <subprocess.Popen object at 0x7f4c018feb00>
+
+    def _update_pid(self, process):
+        """
+        Reads pid from cassandra.pid file and stores in the self.pid
+        After setting up pid updates status (UP, DOWN, etc) and node.conf
+        """
+        pidfile = os.path.join(self.get_path(), 'cassandra.pid')
+    
+        start = time.time()
+        while not (os.path.isfile(pidfile) and os.stat(pidfile).st_size > 0):
+            if (time.time() - start > 30.0):
+                common.error("Timed out waiting for pidfile to be filled (current time is {})".format(datetime.now()))
+                break
+            else:
+                time.sleep(0.1)
+    
+        try:
+>           with open(pidfile, 'rb') as f:
+E           FileNotFoundError: [Errno 2] No such file or directory: '/tmp/dtest-_8rdmjs0/test/node1/cassandra.pid'
+
+../env3.6/lib/python3.6/site-packages/ccmlib/node.py:2100: FileNotFoundError
+
+During handling of the above exception, another exception occurred:
+
+self = <upgrade_tests.upgrade_through_versions_test.TestProtoV5Upgrade_AllVersions_RandomPartitioner_EndsAt_Trunk_HEAD object at 0x7f4c01419438>
+
+    def test_parallel_upgrade(self):
+        """
+        Test upgrading cluster all at once (requires cluster downtime).
+        """
+>       self.upgrade_scenario()
+
+upgrade_tests/upgrade_through_versions_test.py:387: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+upgrade_tests/upgrade_through_versions_test.py:491: in upgrade_scenario
+    self.upgrade_to_version(version_meta, internode_ssl=internode_ssl)
+upgrade_tests/upgrade_through_versions_test.py:580: in upgrade_to_version
+    jvm_args=['-Dcassandra.disable_max_protocol_auto_override=true'])  # prevent protocol capping in mixed version clusters
+../env3.6/lib/python3.6/site-packages/ccmlib/node.py:906: in start
+    if not self._wait_for_running(process, timeout_s=7):
+../env3.6/lib/python3.6/site-packages/ccmlib/node.py:931: in _wait_for_running
+    self._update_pid(process)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ccmlib.node.Node object at 0x7f4c01e32eb8>
+process = <subprocess.Popen object at 0x7f4c018feb00>
+
+    def _update_pid(self, process):
+        """
+        Reads pid from cassandra.pid file and stores in the self.pid
+        After setting up pid updates status (UP, DOWN, etc) and node.conf
+        """
+        pidfile = os.path.join(self.get_path(), 'cassandra.pid')
+    
+        start = time.time()
+        while not (os.path.isfile(pidfile) and os.stat(pidfile).st_size > 0):
+            if (time.time() - start > 30.0):
+                common.error("Timed out waiting for pidfile to be filled (current time is {})".format(datetime.now()))
+                break
+            else:
+                time.sleep(0.1)
+    
+        try:
+            with open(pidfile, 'rb') as f:
+                if common.is_modern_windows_install(self.get_base_cassandra_version()):
+                    self.pid = int(f.readline().strip().decode('utf-16').strip())
+                else:
+                    self.pid = int(f.readline().strip())
+        except IOError as e:
+>           raise NodeError('Problem starting node %s due to %s' % (self.name, e), process)
+E           ccmlib.node.NodeError: Problem starting node node1 due to [Errno 2] No such file or directory: '/tmp/dtest-_8rdmjs0/test/node1/cassandra.pid'
+
+../env3.6/lib/python3.6/site-packages/ccmlib/node.py:2106: NodeError
+{noformat}
+It's not clear whether this reproduces locally or just on circleci.
+
+We should address these failures before next 4.0.12 and 4.1.4 releases.

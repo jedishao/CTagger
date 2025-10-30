@@ -1,0 +1,67 @@
+Watchdog doesn't renew RLock intermittently which leads to premature release of RLock
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+
+Expected sequence : 
+
+1. Thread 1 acquires RLock with default lockWatchdogTimeout of 30 seconds. 
+2. Redisson renews expiration on RLock for 5 minutes. 
+3. Other threads try to acquire RLock for 5 minutes but fail because of expiration renewals. 
+4. Thread 1 successfully releases RLock after 5 minutes. 
+5. Another thread successfully acquires the lock. 
+
+**Actual behavior**
+
+Sometimes step 2 fails to happen for more than 30 seconds which results in another thread acquiring the same lock. Renew expiration doesn't happen for over 30 seconds which releases the lock. 
+
+**Steps to reproduce or test case**
+
+Three separate pods try to acquire the same RLock every minute in the following way:
+
+```
+val channelLock = redissonLock.getLock(channelLock)
+if (channelLock.tryLock(10, TimeUnit.SECONDS) {
+   subscribeToChannel() // takes around 5 minutes to complete
+   channelLock.unlock()
+}
+```
+
+When failure happens, multiple threads end up subscribing to the same channel because channel lock is released before 5 minutes is up. 
+
+**Redis version**
+
+Elasticache engine version 7.1.0
+
+**Redisson version**
+
+6.27.1
+
+**Redisson configuration**
+
+```
+useClusterServers().apply {
+                    password = redisPassword
+                    // The AWS elasticache cluster only gives one main config endpoint
+                    // Redisson determines from that endpoint how many nodes the redis cluster has
+                    // Note: Mutable list since internal methods may call ClusterServersConfig.addNodeAddress()
+                    nodeAddresses = mutableListOf(redisUrl)
+                    this.retryAttempts = retryAttempts
+                    // Redisson doesn't play nice with values that are not rounded to closest 100ms, see https://github.com/redisson/redisson/blob/09795b9b94c42e7a6985ecc1c804e5ca974f135f/redisson/src/main/java/org/redisson/connection/ServiceManager.java#L233-L246
+                    val redissonTimerRounding = Duration.ofMillis(100)
+                    val max100MsJitters = retryMaxJitter.dividedBy(redissonTimerRounding)
+                    val retryJitter = redissonTimerRounding.multipliedBy((-max100MsJitters..max100MsJitters).random())
+                    // Adjust retry attempts and interval with jitter to avoid RedisNodeNotFoundException on failover
+                    // See https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+                    // When all pods use the same retry interval, the Redis nodes get overwhelmed with requests
+                    // Exponential backoff is not available in Redisson
+                    this.retryInterval = (retryInterval + retryJitter).toMillis().toInt()
+                    logger.debug { "Retry jitter calculated to be $retryJitter for this pod, for total retry interval of ${this.retryInterval}" }
+                    // Ping connection interval is also the ping timeout
+                    // During deploys of many pods or Redis node failover, pings may timeout due to heavy traffic on the node
+                    // Allow more time than the default of 30s
+                    pingConnectionInterval = pingInterval.toMillis().toInt()
+                }
+```

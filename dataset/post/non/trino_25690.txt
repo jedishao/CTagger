@@ -1,0 +1,132 @@
+Regression: Graceful shutdown doesn't work as expected in 474+
+Test was done in a cluster with 2 workers with the following configuration:
+
+`shutdown.grace-period = 2m` (default)
+```
+# etc/access_control-rules.json
+
+{
+  "system_information": [
+    {
+      "user": "admin",
+      "allow": ["read", "write"]
+    }
+  ]
+}
+```
+
+Steps to reproduce:
+1) `select count(*) from tpch.sf1000.orders`
+
+2) SSH to one of the workers and execute: `curl --user admin: -v -XPUT --data '"SHUTTING_DOWN"' -H "Content-type: application/json" "http://localhost:8889/v1/info/state"`
+
+In `472` query finishes successfully after about 6 minutes.
+In `474+` query fails after 2 minutes with the following error: 
+```
+io.trino.spi.TrinoException: Expected response code from http://192.168.21.155:8889/v1/task/20250428_201841_00004_n8wvm.1.0.0/status to be 200, but was 500
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1"/>
+<title>Error 500 org.eclipse.jetty.io.EofException</title>
+</head>
+<body>
+<h2>HTTP ERROR 500 org.eclipse.jetty.io.EofException</h2>
+<table>
+<tr><th>URI:</th><td>http://192.168.21.155:8889/v1/task/20250428_201841_00004_n8wvm.1.0.0/status</td></tr>
+<tr><th>STATUS:</th><td>500</td></tr>
+<tr><th>MESSAGE:</th><td>org.eclipse.jetty.io.EofException</td></tr>
+</table>
+<h3>Caused by:</h3><pre>org.eclipse.jetty.io.EofException
+	at org.eclipse.jetty.server.internal.HttpChannelState.onClose(HttpChannelState.java:506)
+	at org.eclipse.jetty.server.internal.HttpConnection.close(HttpConnection.java:621)
+	at org.eclipse.jetty.util.IO.close(IO.java:615)
+	at org.eclipse.jetty.util.IO.close(IO.java:630)
+	at org.eclipse.jetty.io.ManagedSelector$CloseConnections.update(ManagedSelector.java:1000)
+	at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.processUpdates(ManagedSelector.java:577)
+	at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.produce(ManagedSelector.java:544)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.produceTask(AdaptiveExecutionStrategy.java:514)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:258)
+	at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:201)
+	at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:311)
+	at org.eclipse.jetty.util.thread.MonitoredQueuedThreadPool$1.run(MonitoredQueuedThreadPool.java:73)
+	at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:979)
+	at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1209)
+	at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1164)
+	at java.base/java.lang.Thread.run(Thread.java:1575)
+</pre>
+
+</body>
+</html>
+
+	at io.trino.server.remotetask.SimpleHttpResponseHandler.onSuccess(SimpleHttpResponseHandler.java:62)
+	at io.trino.server.remotetask.SimpleHttpResponseHandler.onSuccess(SimpleHttpResponseHandler.java:27)
+	at com.google.common.util.concurrent.Futures$CallbackListener.run(Futures.java:1139)
+	at io.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:79)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1575)
+```
+
+and that's the error seen in logs of the worker
+```
+2025-04-28T20:21:03.426Z	INFO	lifecycle-stopper-0	org.eclipse.jetty.server.Server	Stopped oejs.Server@5c9e3d01{STOPPING}[12.0.18,sto=0]
+2025-04-28T20:21:03.450Z	INFO	lifecycle-stopper-0	org.eclipse.jetty.server.AbstractConnector	Stopped http@3c65f00e{HTTP/1.1, (http/1.1, h2c)}{0.0.0.0:8889}
+2025-04-28T20:21:03.465Z	INFO	lifecycle-stopper-0	org.eclipse.jetty.ee10.servlet.ServletContextHandler	Stopped oeje10s.ServletContextHandler@67c2b55d{ROOT,/,b=null,a=AVAILABLE,vh=[@https,@http],h=GzipHandler@5fd4e67f{STOPPED,min=32,inflate=-1}}
+2025-04-28T20:21:03.488Z	ERROR	task-notification-2	io.airlift.concurrent.BoundedExecutor	BoundedExecutor state corrupted due to underlying executor failure
+2025-04-28T20:21:03.489Z	ERROR	task-notification-2	com.google.common.util.concurrent.AbstractFuture	RuntimeException while executing runnable CallbackListener{io.airlift.jaxrs.AsyncResponseHandler$1@4c38257b} with executor io.airlift.concurrent.BoundedExecutor@1d9862af
+java.util.concurrent.RejectedExecutionException: Task io.airlift.concurrent.BoundedExecutor$$Lambda/0x00007fdc013e0af8@347b21f9 rejected from java.util.concurrent.ThreadPoolExecutor@5d9d8e46[Terminated, pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 282]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$AbortPolicy.rejectedExecution(ThreadPoolExecutor.java:2082)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.reject(ThreadPoolExecutor.java:841)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.execute(ThreadPoolExecutor.java:1377)
+	at io.airlift.concurrent.BoundedExecutor.execute(BoundedExecutor.java:64)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1307)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:1070)
+	at com.google.common.util.concurrent.AbstractFuture.set(AbstractFuture.java:794)
+	at com.google.common.util.concurrent.AbstractCatchingFuture.run(AbstractCatchingFuture.java:126)
+	at com.google.common.util.concurrent.DirectExecutor.execute(DirectExecutor.java:31)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1307)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:1070)
+	at com.google.common.util.concurrent.AbstractFuture.setFuture(AbstractFuture.java:863)
+	at com.google.common.util.concurrent.TimeoutFuture$Fire.run(TimeoutFuture.java:125)
+	at com.google.common.util.concurrent.DirectExecutor.execute(DirectExecutor.java:31)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1307)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:1070)
+	at com.google.common.util.concurrent.AbstractFuture.set(AbstractFuture.java:794)
+	at com.google.common.util.concurrent.AbstractTransformFuture$TransformFuture.setResult(AbstractTransformFuture.java:265)
+	at com.google.common.util.concurrent.AbstractTransformFuture.run(AbstractTransformFuture.java:176)
+	at com.google.common.util.concurrent.DirectExecutor.execute(DirectExecutor.java:31)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1307)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:1070)
+	at com.google.common.util.concurrent.AbstractFuture.set(AbstractFuture.java:794)
+	at com.google.common.util.concurrent.AbstractCatchingFuture.run(AbstractCatchingFuture.java:126)
+	at com.google.common.util.concurrent.DirectExecutor.execute(DirectExecutor.java:31)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1307)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:1070)
+	at com.google.common.util.concurrent.AbstractFuture.setFuture(AbstractFuture.java:863)
+	at com.google.common.util.concurrent.TimeoutFuture$Fire.run(TimeoutFuture.java:125)
+	at com.google.common.util.concurrent.DirectExecutor.execute(DirectExecutor.java:31)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1307)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:1070)
+	at com.google.common.util.concurrent.AbstractFuture.set(AbstractFuture.java:794)
+	at com.google.common.util.concurrent.AbstractTransformFuture$TransformFuture.setResult(AbstractTransformFuture.java:265)
+	at com.google.common.util.concurrent.AbstractTransformFuture.run(AbstractTransformFuture.java:176)
+	at com.google.common.util.concurrent.DirectExecutor.execute(DirectExecutor.java:31)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1307)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:1070)
+	at com.google.common.util.concurrent.AbstractFuture.set(AbstractFuture.java:794)
+	at com.google.common.util.concurrent.SettableFuture.set(SettableFuture.java:49)
+	at io.trino.execution.FutureStateChange.lambda$fireStateChange$1(FutureStateChange.java:80)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1575)
+
+
+2025-04-28T20:21:07.621Z	WARN	http-client-node-manager-40	io.trino.metadata.RemoteNodeState	Error fetching node state from http://192.168.21.155:8889/v1/info/state: Server refused connection: http://192.168.21.155:8889/v1/info/state
+2025-04-28T20:21:10.682Z	INFO	LifeCycleManager Shutdown Hook	io.airlift.bootstrap.LifeCycleManager	JVM is shutting down, cleaning up
+2025-04-28T20:21:10.683Z	INFO	LifeCycleManager Shutdown Hook	io.airlift.bootstrap.LifeCycleManager	JVM is shutting down, cleaning up
+
+```
+
+<br>
+
+

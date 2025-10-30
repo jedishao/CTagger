@@ -1,0 +1,41 @@
+Support hadoop client authentication through keytab configuration.
+*Shield references to {{UserGroupInformation}} Class.*
+
+The current HDFS client keytab authentication code is as follows:
+{code:java}
+Configuration conf = new Configuration();
+conf.addResource(new Path("/usr/local/service/hadoop/etc/hadoop/hdfs-site.xml"));
+conf.addResource(new Path("/usr/local/service/hadoop/etc/hadoop/core-site.xml"));
+UserGroupInformation.setConfiguration(conf);
+UserGroupInformation.loginUserFromKeytab("foo", "/var/krb5kdc/foo.keytab");
+FileSystem fileSystem = FileSystem.get(conf);
+FileStatus[] fileStatus = fileSystem.listStatus(new Path("/"));
+for (FileStatus status : fileStatus) {
+    System.out.println(status.getPath());
+} {code}
+This feature supports configuring keytab information in core-site.xml or hdfs site.xml. The authentication code is as follows:
+{code:java}
+Configuration conf = new Configuration();
+conf.addResource(new Path("/usr/local/service/hadoop/etc/hadoop/hdfs-site.xml"));
+conf.addResource(new Path("/usr/local/service/hadoop/etc/hadoop/core-site.xml"));
+FileSystem fileSystem = FileSystem.get(conf);
+FileStatus[] fileStatus = fileSystem.listStatus(new Path("/"));
+for (FileStatus status : fileStatus) {
+    System.out.println(status.getPath());
+} {code}
+The config of core-site.xml related to authentication is as follows:
+{code:java}
+<configuration>
+    <property>
+        <name>hadoop.security.authentication</name>
+        <value>kerberos</value>
+    </property>
+    <property>
+        <name>hadoop.client.keytab.principal</name>
+        <value>foo</value>
+    </property>
+    <property>
+        <name>hadoop.client.keytab.file.path</name>
+        <value>/var/krb5kdc/foo.keytab</value>
+    </property>
+</configuration> {code}

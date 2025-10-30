@@ -1,0 +1,47 @@
+Add Grpc.newManagedChannel(String, ChannelCredentials, NameResolverRegistry)
+As of https://github.com/grpc/grpc-java/pull/10590, the behavior of ManagedChannelImplBuilder#nameResolverFactory has changed -- it now wraps the provided `resolverFactory` into an [NameResolverFactoryToProviderFacade](https://github.com/grpc/grpc-java/blob/v1.61.1/core/src/main/java/io/grpc/internal/ManagedChannelImplBuilder.java#L387-L388) that returns the *first* registered NameResolverProvider's scheme as its `defaultScheme()`. As a result, lookups of any other registered schemes fail.
+
+Here's a code sample of something that used to work pre-1.60.0 (apologies for the Scala code):
+
+```scala
+case class Resolver(scheme: String) extends NameResolverProvider {
+  override def isAvailable: Boolean = true
+  override def priority(): Int = 5
+  override def newNameResolver(targetUri: URI, args: NameResolver.Args): NameResolver = new NameResolver {
+    override def getServiceAuthority: String = "foo"
+    override def shutdown(): Unit = {}
+  }
+  override def getDefaultScheme: String = scheme
+}
+
+val registry = new NameResolverRegistry()
+registry.register(Resolver("s1"))
+registry.register(Resolver("s2"))
+registry.register(Resolver("s3"))
+
+NettyChannelBuilder
+  .forTarget("s2://test")
+  .usePlaintext
+  .nameResolverFactory(registry.asFactory())
+  .build()
+```
+
+After upgrading to GRPC 1.60, `.build()` throws the following exception:
+
+```shell
+java.lang.IllegalArgumentException: Could not find a NameResolverProvider for s2://test
+	at io.grpc.internal.ManagedChannelImpl.getNameResolver(ManagedChannelImpl.java:741)
+	at io.grpc.internal.ManagedChannelImpl.getNameResolver(ManagedChannelImpl.java:771)
+	at io.grpc.internal.ManagedChannelImpl.<init>(ManagedChannelImpl.java:635)
+	at io.grpc.internal.ManagedChannelImplBuilder.build(ManagedChannelImplBuilder.java:662)
+	at io.grpc.ForwardingChannelBuilder2.build(ForwardingChannelBuilder2.java:254)
+
+```
+
+Setting an IDE breakpoint in ManagedChannelImpl#getNameResolver shows:
+
+<img width="502" alt="Screenshot 2024-03-28 at 2 54 17 PM" src="https://github.com/grpc/grpc-java/assets/1360529/55ef09dc-df30-4e52-b6fe-9f5ab2edb65b">
+
+So what's happening is that there's technically no longer a provider for `s2`, because the singular wrapper class `NameResolverFactoryToProviderFacade` has a registered scheme of `s1`.
+
+Is there anything I can do to work around this? thanks!

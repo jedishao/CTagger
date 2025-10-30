@@ -1,0 +1,40 @@
+RedisConnectionException: SlaveConnectionPool no available Redis entries
+RedisConnectionException: SlaveConnectionPool no available Redis entries. Master entry host: 192.168.xx.xx/192.168.xx.xx:6379 Disconnected hosts: [192.168.xx.xx/192.168.xx.xx:6379].
+
+Redisson Version: 3.20.0
+Redis Server: AWS ElastiCache Redis, 2 Shards(each have 1 master and 2 salves)
+Redisson Configuration: 
+**********	
+clusterServersConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 1000
+  timeout: 1000
+  retryAttempts: 1
+  retryInterval: 100
+  failedSlaveReconnectionInterval: 3000
+  failedSlaveCheckInterval: 60000
+  subscriptionsPerConnection: 5
+  loadBalancer:
+    class: org.redisson.connection.balancer.RoundRobinLoadBalancer
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  slaveConnectionMinimumIdleSize: 24
+  slaveConnectionPoolSize: 64
+  masterConnectionMinimumIdleSize: 24
+  masterConnectionPoolSize: 64
+  readMode: SLAVE
+  subscriptionMode: SLAVE
+  keepAlive: true
+  nodeAddresses:
+    - "redis://xxxxx.amazonaws.com.cn:6379”
+  scanInterval: 2000
+threads: 16
+nettyThreads: 32
+transportMode: NIO
+**********
+
+In our production environment, the AWS ElastiCache Redis had a failover, and switched the slave node to master node in one minute.
+
+As a rule, I think the redisson client can recognize the topological structure of server side after the failover, but it’s not. It seems many read requests send to the new master node and reported errors. The IP address in the error messages is the new master node.
+
+So why this happend? Should I need to upgrade the redisson version? Do you have some advises? Thanks!  @mrniko 

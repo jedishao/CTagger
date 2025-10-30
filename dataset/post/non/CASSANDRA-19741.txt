@@ -1,0 +1,69 @@
+Cassandra GossipHelper incorrectly get tokens when gossip is disabled
+h2. What happened
+
+Cassandra dtest schemaChange failed when gossip mode is disabled.
+h2. How to reproduce:
+
+Put the following test under {{{}cassandra/test/distributed/org/apache/cassandra/distributed/upgrade/{}}}, and build dtest jars.
+
+ 
+{code:java}
+package org.apache.cassandra.distributed.upgrade;
+public class demoUpgradeTest extends UpgradeTestBase {
+    @Test
+    public void demoTest() throws Throwable {
+        new TestCase()
+        .nodes(2)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK))
+        .upgradesToCurrentFrom(v3X)
+        .setup((cluster) -> {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))"));
+        })
+        .runAfterNodeUpgrade((cluster, node) -> {
+         // let's do nothing here.
+        }).run();
+    }
+} {code}
+Run the test with:
+{code:java}
+$ ant test-jvm-dtest-some-Duse.jdk11=true -Dtest.name=org.apache.cassandra.distributed.upgrade.demoUpgradeTest {code}
+You will see the following failure:
+
+ 
+{code:java}
+java.lang.AssertionError: Error in test '5.0-beta2 -> [5.1]' while upgrading to '5.1'; successful upgrades []    at org.apache.cassandra.distributed.upgrade.UpgradeTestBase$TestCase.run(UpgradeTestBase.java:396)
+    at org.apache.cassandra.distributed.upgrade.demoUpgradeTest.demoTest(demoUpgradeTest.java:43)
+Caused by: java.lang.IndexOutOfBoundsException: Index: 0
+    at java.base/java.util.Collections$EmptyList.get(Collections.java:4483)
+    at com.google.common.collect.Iterables.get(Iterables.java:776) {code}
+This failure specailly arise in the version 5.1. In the previous version 5.0, If a node that is not a seed could not find any peers to gossip to, it will directly throw an exception:
+
+[org.apache.cassandra.gms.Gossiper.java|https://github.com/apache/cassandra/blob/732fb758c6e3ebee2baacfa91413e0b9a2d9d6b1/src/java/org/apache/cassandra/gms/Gossiper.java#L2075]
+{code:java}
+while (true)
+{
+    ...
+    slept += 1000;
+    if (slept > shadowRoundDelay)
+    {
+        // if we got here no peers could be gossiped to. If we're a seed that's OK, but otherwise we stop. See CASSANDRA-13851
+        if (!isSeed)
+            throw new RuntimeException("Unable to gossip with any peers");
+        inShadowRound = false;
+        break;
+    }
+} {code}
+In the version 5.1, with gossip mode disabled, the system will try to read state for the local host from system keyspaces. However, since no token is previously saved, line 310 in
+
+[org.apache.cassandra.tcm.compatibility.GossipHelper.java|https://github.com/apache/cassandra/blob/6263fb3a64d5dcbe7deec91ca92c9f60f8673dfd/src/java/org/apache/cassandra/tcm/compatibility/GossipHelper.java#L310]
+{code:java}
+Collection<Token> tokens = SystemKeyspace.getSavedTokens(); {code}
+will return a token of size 0. And when
+{code:java}
+epstate.addApplicationState(STATUS_WITH_PORT, vf.normal(tokens)); {code}
+in the next line is executed, it will cause the IndexOutOfBoundsException.The expected behavior should be that either force enable gossip mode for dtest, or save the tokens automatically in system keyspaces when gossip mode is not enabled.
+
+ 
+
+ 

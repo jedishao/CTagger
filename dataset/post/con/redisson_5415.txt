@@ -1,0 +1,51 @@
+V3.24.1：Unable to acquire subscription lock after 3ms.
+I am using Redisson V3.24.1's delayed queue function.
+
+When the thread (a while (true) method) for consuming a delayed queue pulls an expired task from the delayed queue for the first time, 
+it will report the following error.
+
+> org.redisson.client.RedisTimeoutException: Unable to acquire subscription lock after 3ms. Try to increase 'subscriptionTimeout', 'subscriptionsPerConnection', 'subscriptionConnectionPoolSize' parameters.
+	at org.redisson.pubsub.PublishSubscribeService.lambda$timeout$12(**_PublishSubscribeService.java:328_**)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.run(**_HashedWheelTimer_**.java:715)
+	at io.netty.util.concurrent.ImmediateExecutor.execute(ImmediateExecutor.java:34)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:703)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:790)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:503)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:750)
+
+**The error only occurred once.**
+But there seems to be a problem with the timer for checking expired tasks in Redisson.
+
+After I added a delay task into the delayed queue, 
+![image](https://github.com/redisson/redisson/assets/51226938/375f4d2a-b29a-4611-b493-2f5c315de897)
+![image](https://github.com/redisson/redisson/assets/51226938/510dbdf9-be9f-4ded-9d81-64649786eae0)
+![image](https://github.com/redisson/redisson/assets/51226938/b347fae6-d954-4bef-b55b-2d7504261f25)
+the score is 1699342789736 ==> 2023-11-07 15:39:49
+
+Redisson has never taken expired tasks out of the **[redisson_delay_queue_timeout:{vuln:delay_queue:default:default:VULN_CACHE}]** queue and moved them to the target queue.
+
+This situation prevents the consuming thread from pulling any expired tasks from the target queue.
+
+I am trying to locate the problem based on the above error information,
+
+![image](https://github.com/redisson/redisson/assets/51226938/0b3714c7-df12-4923-9fa9-d70510d87536)
+![image](https://github.com/redisson/redisson/assets/51226938/07bd1f4d-d7d4-4c60-8301-4143a69886ff)
+
+for this:
+
+> long newTimeout = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+**I want to know why the timeout is calculated in this way, rather than being customized through configuration.
+And I want to know why Redisson's timer cannot correctly determine the expiration tasks in the [redisson_delay_queue_timeout] queue.**
+
+The following is redisson client config code:
+
+> public RedissonClient redissonClient() {
+Config config = new Config();
+config.useSingleServer()
+.setAddress("redis://127.0.0.1:6322");
+return Redisson.create(config);
+}
+
+Could you please help me fix it? Thank you

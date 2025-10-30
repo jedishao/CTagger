@@ -1,0 +1,41 @@
+[native] task/getDetail?id=xyz crashes with std::out_of_range: out of range in dynamic array
+Looks like the crash happens in Task::toJson when accessing driverObj[index++]:
+
+```
+  folly::dynamic driverObj = folly::dynamic::array;
+  int index = 0;
+  for (auto& driver : drivers_) {
+    if (driver) {
+      driverObj[index++] = driver->toJson();
+    }
+  }
+```
+
+We should use driverObj.push_back(driver->toJson()); or change driverObj to folly::dynamic::object.
+
+```
+GET task/getDetail?id=xyz
+
+terminate called after throwing an instance of 'std::out_of_range'
+  what():  out of range in dynamic array
+
+E0213 00:38:52.602445   556 ExceptionTracer.cpp:220] Exception type: std::out_of_range (36 frames)
+    @ 000000000419580c __cxa_throw
+                       ./fbcode/folly/experimental/exception_tracer/ExceptionTracerLib.cpp:75
+    @ 0000000004266966 void folly::throw_exception<std::out_of_range>(std::out_of_range&&)
+                       fbcode/folly/lang/Exception.h:43
+    @ 000000000417fa02 void folly::detail::throw_exception_<std::out_of_range, char const*>(char const*)
+                       fbcode/folly/lang/Exception.h:89
+    @ 000000000456d0fb folly::dynamic::atImpl(folly::dynamic const&) const &
+                       fbcode/folly/lang/Exception.h:115
+    @ 000000000f48d9ec facebook::velox::exec::Task::toJson() const
+                       fbcode/folly/json/dynamic-inl.h:779
+    @ 000000000fa0911f facebook::presto::PrestoTask::toJson() const
+                       ./fbcode/github/presto-trunk/presto-native-execution/presto_cpp/main/PrestoTask.cpp:731
+    @ 000000000f9f9e25 facebook::presto::PrestoServerOperations::taskOperation[abi:cxx11](facebook::presto::ServerOperation const&, proxygen::HTTPMessage*)
+                       ./fbcode/github/presto-trunk/presto-native-execution/presto_cpp/main/PrestoServerOperations.cpp:208
+    @ 000000000f9f7557 facebook::presto::PrestoServerOperations::runOperation(proxygen::HTTPMessage*, proxygen::ResponseHandler*)
+                       ./fbcode/github/presto-trunk/presto-native-execution/presto_cpp/main/PrestoServerOperations.cpp:90
+```
+
+CC: @tangjiangling @spershin 

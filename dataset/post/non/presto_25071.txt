@@ -1,0 +1,59 @@
+OFFSET and LIMIT combination gives inconsistent output
+<!--- Provide a general summary of the issue in the Title above -->
+When running a query that uses OFFSET and LIMIT clauses together, we see output is incorrect at times and is inconsistent across different runs. If only OFFSET is used, the results are correct in all runs I tried.
+<!--- Look through existing open and closed issues to see if someone has reported the issue before -->
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used: Latest master
+* Storage (HDFS/S3/GCS..): Local filesystem
+* Data source and connector used: hive
+* Deployment (Cloud or On-prem):
+* [Pastebin](https://pastebin.com/) link to the complete debug logs:
+
+## Expected Behavior
+<!--- Tell us what should happen -->
+The OFFSET clause should skip the required rows whether or not LIMIT clause is present in the query.
+
+## Current Behavior
+<!--- Tell us what happens instead of the expected behavior -->
+When a combination of OFFSET and LIMIT clause are used, query returns inconsistent results
+
+## Possible Solution
+<!--- Not obligatory, but suggest a fix/reason for the bug or a workaround -->
+
+## Steps to Reproduce
+<!--- Provide a link to a live example, or an unambiguous set of steps to -->
+<!--- reproduce this bug. Include code to reproduce, if relevant -->
+1. Create an external table on local with below DDL - 
+```
+CREATE TABLE hive.default.stutos ( "accountid_key" varchar, "accountid" varchar, "applicationid" varchar, "app_name" varchar, "app_environment" varchar, "endpoint_name" varchar, "endpointid" varchar, "type" varchar, "linkedtoidentity" varchar, "status" varchar, "email" varchar, "gecos" varchar, "last_revalidation_by_serial" varchar, "last_revalidation_date" varchar, "last_access_date" varchar, "rec_status" varchar, "rec_source" varchar, "rec_created_date" varchar, "rec_updated_date" varchar, "rec_deleted_date" varchar, "active_riskscore" varchar, "transactional_rule" varchar, "priority" varchar, "multiple_infractions" varchar, "server_id" varchar, "account_name" varchar, "is_password_less" varchar, "is_mfa_enabled" varchar, "failedlogincount" varchar, "changepwdcount" varchar, "lastpwdchangetimestamp" varchar, "pwdexpirationdate" varchar, "usage" varchar, "description" varchar, "certificationtimestamp" varchar, "lastrevalidationdate" varchar, "functional_role" varchar, "is_privileged_acct" varchar, "is_functional_acct" varchar, "activation_date" varchar, "deactivation_date" varchar, "expiration_date" varchar, "lastlogintimestamp" varchar, "acct_owner" varchar, "rplex" varchar, "system_name" varchar, "ip_address" varchar, "pwd_change_date" varchar, "phr_change_date" varchar, "acct_owner_email" varchar, "revoke_date" varchar, "last_acc_login_date" varchar, "log_date" varchar ) WITH ( format = 'CSV', external_location = 'file:///Users/pratyakshsharma/Downloads/offset_test' );
+```
+2. Use the attached file as data source
+3. Run below queries - 
+```
+select accountid from hive.default.stutos ORDER BY accountid OFFSET 0 limit 1000; - this will give inconsistent results as shown in the screenshots attached.
+
+select accountid from hive.default.stutos ORDER BY accountid OFFSET <n>; replace n with any number and the results are always correct when LIMIT clause is absent
+```
+4.
+
+## Screenshots (if appropriate)
+
+<img width="920" alt="Image" src="https://github.com/user-attachments/assets/2f664194-40fc-414f-a683-a6e8837600d7" />
+
+<img width="1021" alt="Image" src="https://github.com/user-attachments/assets/832867b8-5ac0-4715-9d13-6b41b45fb374" />
+
+<img width="831" alt="Image" src="https://github.com/user-attachments/assets/3cbf118a-703a-4cc8-a9f9-48c77e845f24" />
+
+<img width="825" alt="Image" src="https://github.com/user-attachments/assets/c628b264-26d3-482e-8d40-414acceb6c9d" />
+
+<img width="850" alt="Image" src="https://github.com/user-attachments/assets/f0f48a44-ecaa-43b9-91a4-ca21fab08910" />
+
+<img width="840" alt="Image" src="https://github.com/user-attachments/assets/a4b1dd25-77c3-48e4-a94f-3e52c1ade80b" />
+
+## Context
+Incorrect results can affect production workloads and reports where presto is being used.
+<!--- How has this issue affected you? -->
+<!--- Providing context helps us come up with a solution that is most useful in the real world -->
+

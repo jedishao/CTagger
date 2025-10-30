@@ -1,0 +1,62 @@
+presto requires namespaces when using function registration
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used:
+* Storage (HDFS/S3/GCS..):
+* Data source and connector used:
+* Deployment (Cloud or On-prem):
+* [Pastebin](https://pastebin.com/) link to the complete debug logs:
+
+## Expected Behavior
+Issue: While using registerFunctions to register a function in Presto, it requires a format following catalog.schema.function_name. While this makes sense, it begs the following question when implementing a dynamically loading library in Presto Cpp:
+Should we gracefully create a user experience that if a user were to not follow the guidelines in this instance, it does not crash the worker?
+
+## Current Behavior
+Background: When loading functions (types, or anything else for that matter) dynamically, the DynamicLibraryLoader loads the symbols without knowing what is being loaded in the first place. While this is known behavior for the dlopen library, it can lead to abrupt terminations of the worker. While the burden of responsibility does fall on the user to register functions properly, it can be confusing especially when there seems to be no straightforward way for me to declare a default namespace for these registrations. Moreover, another source of confusion can arise from Velox's function registrations which does not require namespaces at this time.  
+
+PR for dynamically loading library in Presto CPP [https://github.com/prestodb/presto/pull/24330]
+
+as an example, if I attempt to register this function dynamically, my worker crashes and leads to the following error:
+
+```
+facebook::velox::registerFunction<
+      facebook::velox::common::dynamicRegistry::Dynamic123Function,
+      int64_t>({"dynamic_3"});
+}
+```
+
+```
+terminate called after throwing an instance of 'facebook::velox::VeloxUserError'
+  what():  Exception: VeloxUserError
+Error Source: USER
+Error Code: INVALID_ARGUMENT
+Reason: Prefix missing for function dynamic_3
+Retriable: False
+Expression: parts.size() == 3
+Function: getFunctionNameParts
+```
+
+## Possible Solution
+after discussing with @aditi-pandit and @czentgr, there seem to be four potential ways to handle this. Which way, if any would be the best way to move forward?
+
+1. Create a wrapper function registry in Presto following roughly this format:
+> facebook::presto::registerFunction<...>(std::string functionName, std::string functionNamespace)
+
+This function can perform some checks and then call the velox function registry with the proper Presto function naming.
+
+
+2. Create a registerNamespace<> function where each user will be required to register a namespace for every dynamic library they wish to load one time. After that, all function registries will follow the namespace name that was registered for this file. 
+
+for the above solution, there is a caveat that the user will have to separate any functions they want to add to a different namespace onto a separate file.   
+
+3. Create a config for a namespace value. this may be unflexible and would lead to having the user restart the server each time they want to make a change to the namespace or use multiple configs somehow.
+
+4. REST API calls to dynamically load namespaces. This was we can deploy without having to restart the presto server. Not sure how we will be able to connect which namespace correspond to which dynamic function registrations.
+
+
+## Steps to Reproduce
+1. cherry-pick the changes in https://github.com/prestodb/presto/pull/24330
+2. cherry pick the velox changes in https://github.com/facebookincubator/velox/pull/11439
+3. Run presto server with sidecar worker, the sidecar worker will crash
+4. to get rid of the error, add "default.namespace." to the function names, they will register successfully.
+

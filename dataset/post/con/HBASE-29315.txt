@@ -1,0 +1,24 @@
+Cancel Split/MergeTableRegionProcedure if table modification is in progress
+When adding new replicas, ModifyTableProcedure roughly does the following:
+ # Edits the table descriptor
+ # Closes and opens all existing regions
+ # Creates replication peer to support the new replica regions
+ # Opens new replica regions
+
+When closing a region in step 2, the act of closing it can trigger a split. When the HMaster runs the SplitTableRegionProcedure, it roughly does:
+ # Close the region to be split
+ # Split the store files
+ # Open the new daughter regions (including replicas)
+
+When a split is done as part of a ModifyTableProcedure that adds replicas, we get the following combination of behavior:
+ # Edit the table descriptor
+ # Close and open all existing regions, adding a SplitTableRegionProcedure to the HMaster's queue
+ # To begin the SplitTableRegionProcedure, close region to be split
+ # Split store files
+ # Open the new daughter regions, including replicas, completing the SplitTableRegionProcedure
+ # Create replication peer to support the new replica regions
+ # Open new replica regions, even though some were already opened in step 5. Double-opening doesn't work, and the open procedures get stuck.
+
+-There are a few ways to correct this problem, but perhaps the most intuitive way is to use the existing lock mechanisms in the procedure system. The ModifyTableProcedure can lock the table from beginning to end, allowing only itself and its child procedures to modify the table. This would enforce in code what is already an implicit assumption in the implementation of the procedure – that nobody else open regions while it's running.-
+
+Discussed over [email|https://lists.apache.org/thread/0x4pxr5jt8cwprq6xhxr6d5g3lctlhhc].

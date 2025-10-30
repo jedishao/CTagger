@@ -1,0 +1,14 @@
+Intra-process client connections cause netty EventLoop deadlock
+We've had a few operational incidents over the past few months where our HMaster stops accepting new connections, but can continue processing requests from existing ones. Finally I was able to get heap and thread dumps to confirm what's happening.
+
+The core trigger is HBASE-24687, where the MobFileCleanerChore is not using ClusterConnection. I've prodded the linked PR to get that resolved and will take it over if I don't hear soon.
+
+In this case, the chore is using the NettyRpcClient to make a local rpc call to the same NettyRpcServer in the process. Due to [NettyEventLoopGroupConfig|https://github.com/apache/hbase/blob/master/hbase-server/src/main/java/org/apache/hadoop/hbase/util/NettyEventLoopGroupConfig.java#L98], we use the same EventLoopGroup for both the RPC Client and the RPC Server.
+
+What happens rarely is that the local client for MobFileCleanerChore gets assigned to RS-EventLoopGroup-1-1. Since we share the EventLoopGroupConfig, and [we don't specify a separate parent group|https://github.com/apache/hbase/blob/master/hbase-server/src/main/java/org/apache/hadoop/hbase/ipc/NettyRpcServer.java#L155], that group is also the group which processes new connections.
+
+What we see in this case is that RS-EventLoopGroup-1-1 gets hung in Socket.accept. Since the client side is on the same EventLoop, it's tasks get stuck in a queue waiting for the executor. So the client can't send the request that the server Socket is waiting for.
+
+Further, the client/chore gets stuck waiting on BlockingRpcCallback.get(). We use an HWT TimerTask to cancel overdue requests, but it only gets scheduled [once NettyRpcConnection.sendRequest0 is executed|https://github.com/apache/hbase/blob/master/hbase-client/src/main/java/org/apache/hadoop/hbase/ipc/NettyRpcConnection.java#L371]. But sendRequest0 [executes on the EventLoop|https://github.com/apache/hbase/blob/master/hbase-client/src/main/java/org/apache/hadoop/hbase/ipc/NettyRpcConnection.java#L393], and thus gets similarly stuck. So we never schedule a timeout and the chore gets stuck forever.
+
+While fixing HBASE-24687 will fix this case, I think we should improve our netty configuration here so we can avoid problems like this if we ever do intra-process RPC calls again (there may already be others, not sure).

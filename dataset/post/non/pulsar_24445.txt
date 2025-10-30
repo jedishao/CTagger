@@ -1,0 +1,55 @@
+[Bug] Memory leak in Pulsar Proxy with TopicName
+### Search before reporting
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that [unsupported versions](https://pulsar.apache.org/contribute/release-policy/#supported-versions) don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### User environment
+
+**Broker Version**: 3.3.2
+**Broker Operating System**: Linux platform-pulsar-broker-0 5.10.237-230.949.amzn2.x86_64 #1 SMP Thu Jun 5 23:30:10 UTC 2025 x86_64 Linux
+**Java Version**: openjdk version "21.0.4" 2024-07-16 LTS
+OpenJDK Runtime Environment Corretto-21.0.4.7.1 (build 21.0.4+7-LTS)
+OpenJDK 64-Bit Server VM Corretto-21.0.4.7.1 (build 21.0.4+7-LTS, mixed mode)
+
+
+
+### Issue Description
+
+Starting in Pulsar 3.3.2 (after upgrading from Pulsar 2.11.3) we noticed an increase in proxy heap memory usage that eventually leads to Proxy getting OOMKilled
+
+I analyzed a recent case with Eclipse MAT 
+![Image](https://github.com/user-attachments/assets/d6b2f6ec-048f-4420-a16c-b9845d57bd93)
+![Image](https://github.com/user-attachments/assets/73123b18-0053-4fa2-beec-74b99cab47d9)
+
+In communication with @lhotari he said
+
+```
+That definitely seems to be a memory leak in the Proxy. Well it's a memory leak in a form of a cache that will never expire.
+It looks like this leak was introduced by https://github.com/apache/pulsar/pull/23052, added in Pulsar 3.0.6 / 3.3.1
+One possible workaround would be to pass JVM option -XX:+UseStringDeduplication so that duplicate java.lang.String instances referred by the cache would be de-duplicated. That doesn't fix the issue, but would reduce the amount of heap memory spent by duplicate domain, tenant and namespace String instances in memory.
+The TopicName cache memory issue should be addressed by using a soft reference cache and by deduplicating the parsed parts which are commonly shared across multiple instances(domain, tenant, namespace). A long time ago when I was in the Gradle build tool team, I solved a similar problem using Guava's Interner class, ( https://github.com/gradle/gradle/blob/master/platforms/core-runtime/base-services/src/main/java/org/gradle/api/internal/cache/StringInterner.java  in Gradle).
+```
+
+### Error messages
+
+```text
+
+```
+
+### Reproducing the issue
+
+In our use case we create a lot of topics which probably leads to this issue.
+
+### Additional information
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

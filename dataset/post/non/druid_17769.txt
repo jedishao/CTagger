@@ -1,0 +1,100 @@
+Enhancing Query Context Handling: Introducing SQL-Level SETTINGS, Raw SQL Support, System Table and Context Validation
+## Related PRs
+
+-  Support of `SET` statement: #17894
+-  Raw SQL on HTTP endpoints: #17937
+- a sys.settings system table and validation of query parameters: #18087
+- [ ] TO DO: SETTINGs subclause on SQL
+
+## Motivation
+
+Query context is part of query request. Under current implementation, query context and SQL are seperated. It makes sense for native query, where query and query context are kept in separated fields. 
+However, for SQL, such design imposes complexity of SQL request -- we have to write SQL in JSON way. 
+```json
+{
+  "query":"SELECT page, COUNT(*) AS Edits FROM wikipedia WHERE \"__time\" BETWEEN TIMESTAMP '2015-09-12 00:00:00' AND TIMESTAMP '2015-09-13 00:00:00' GROUP BY page ORDER BY Edits DESC LIMIT 10",
+  "context":  {
+    "enableParallelMerge": false
+  }
+}
+```
+
+This is NOT the straightforward way to use SQL.
+
+Under the web-cosole, the console helps us encapsulate the query into the JSON, however, there're still problems:
+1. After writting SQL, we have to use 'Edit Context' feature on web-console to customize settings. 
+2. query context is query level instead of client side application level. web-console remembers the edited query context for furture queries, which might not be what we expect. Sometimes we forget to reset the query context, or we have to delete the query context manually. 
+
+Another probloem is that, there's no validation of the query context items. 
+We can put ANYTHING in the query context, if there's typo of query context attribute name, Druid DOES NOT tell us about it.
+
+Last but not the least, we DON'T know which query context properties are supported by Druid, we have to read through different documents to know what query context properties are supported, such as:
+- https://druid.apache.org/docs/latest/querying/searchquery#query-context
+- https://druid.apache.org/docs/latest/querying/query-context
+- https://druid.apache.org/docs/latest/querying/groupbyquery#advanced-configurations
+
+## Proposal
+
+Let's solve these problem together. 
+
+### Firstly, let's introduce a `SETTINGS` subclause in the SQL statement. 
+This subclause accepts a list of key-value pair, where each key is the support query context property while the value is the corresponding value of that property. For example:
+
+```sql
+SELECT * FROM wikipedia
+SETTINGS enableParallelMerge = false, sqlOuterLimit = 10
+```
+
+Since query context now is part of SQL, it's naturally for users to add/append query context properties per query as they want.
+
+Some other databases solves this problem in different ways.
+
+- For OLTP database like MySQL, it provides `SET` statement to allow users to change session level variables. Since Druid has no 'session' concept because queries are executed on HTTP connection, such alternative is NOT applicable for Druid
+- Some databases like StarRocks, allows users customize variables in SQL hint, like:
+```sql
+SELECT /*+ SET_VAR(query_mem_limit = 8589934592) */ name FROM people ORDER BY name;
+```
+This does not require changes of SQL parser, but the biggest disadvantage is it's not user friendly.
+- SQL Server provides a [`OPTION` subclause](https://learn.microsoft.com/en-us/sql/t-sql/queries/option-clause-transact-sql) as query hint, which is similar to the proposal
+```sql
+SELECT * FROM FactResellerSales
+OPTION (LABEL = 'q17');
+```
+
+The proposed change is not easy in Druid as it requires us to customize Calcite by editing the file `sql/src/main/codegen/config.fmpp`
+What the parser does is converting the settings clause into a `QueryContext` object internally.
+
+### Secondly, let's improve the `/druid/v2/sql` endpoint by allowing Druid accept raw text SQL instead of only JSON format.
+
+If the Content-Type is given as `application/json`, which is current behaviour, Druid treats the input as JSON, or it treats the entire input as raw SQL text.
+
+Under this mode, we can send SQLs to Druid in much simpler way:
+
+```text
+curl -X 'POST' -d 'SELECT * FROM wikipedia SETTINGS enableParallelMerge = false, sqlOuterLimit = 10'  http://localhost:8888/druid/v2/sql 
+```
+
+### Thirdly, inside the Druid, let's define a `sys.settings` system table to hold all query context properties.
+
+We should put all query context properties together and register them into this table so that query context properties can be managed in a single place.
+
+The schema of this should be sth as follows:
+
+|  Column Name | Type | Description |
+|----------------|------|------------|
+| name | String | query context property name |
+| type | String | type of this property |
+| default_value | String | The default value of this property is it's not given in user's query |
+| description | String | The description of this property |
+
+With this table:
+- it's very easy for users to know how many properties/what kind of properties are supported in the query context. No need to check documents as the default document pages matches the latest the version which might be different from the version users are using. Querying from sys.settings table always tell them which properties are supported
+- web-console can also use this system table for better code completion and user experience
+
+### Forthly, Druid MUST verify if query context properties given by user queries are valid
+
+When a query comes into Druid, it should verifies if given query context properties are pre-defined and valid. It MUST reject any queries with bad query context settings.
+
+
+The above changes 1,2,3 are independent(so they can be done separately) while the validation of query context attributes might share the same internal data structure of `sys.settings` table.
+

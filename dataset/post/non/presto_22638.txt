@@ -1,0 +1,61 @@
+Iceberg tables do not show partition key in DESCRIBE
+<!--- Provide a general summary of the issue in the Title above -->
+<!--- Look through existing open and closed issues to see if someone has reported the issue before -->
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used: latest master
+* Storage (HDFS/S3/GCS..): S3
+* Data source and connector used: Iceberg
+* Deployment (Cloud or On-prem): On-prem
+
+## Expected Behavior
+Partition key has the value `partition key` in the `Extra` column of the DESCRIBE output like hive:
+```
+presto:tpcds_sf10000_parquet_varchar_iceberg_part> use hive.tpcds_sf10000_parquet_varchar_part;
+USE
+presto:tpcds_sf10000_parquet_varchar_part> describe store_sales;
+        Column         |     Type     |     Extra     | Comment
+-----------------------+--------------+---------------+---------
+ ss_sold_time_sk       | integer      |               |
+....omitted....
+ ss_net_profit         | decimal(7,2) |               |
+ ss_sold_date_sk       | bigint       | partition key |
+(23 rows)
+```
+## Current Behavior
+The partition key has an empty `Extra` value for partitioned Iceberg tables.
+```
+presto:tpcds_sf10000_parquet_varchar_iceberg_part> describe store_sales;;
+        Column         |     Type     | Extra | Comment
+-----------------------+--------------+-------+---------
+ ss_sold_time_sk       | integer      |       |
+ ss_item_sk            | integer      |       |
+....omitted....
+ ss_net_profit         | decimal(7,2) |       |
+ ss_sold_date_sk       | bigint       |       |
+(23 rows)
+
+Query 20240430_054246_00031_fn54c, FINISHED, 3 nodes
+Splits: 6 total, 6 done (100.00%)
+[Latency: client-side: 379ms, server-side: 270ms] [23 rows, 2.59KB] [85 rows/s, 9.59KB/s]
+
+presto:tpcds_sf10000_parquet_varchar_iceberg_part> show create table store_sales;
+                                     Create Table
+---------------------------------------------------------------------------------------
+ CREATE TABLE iceberg.tpcds_sf10000_parquet_varchar_iceberg_part.store_sales (
+    "ss_sold_time_sk" integer,
+    "ss_item_sk" integer,
+ ....omitted....
+    "ss_net_profit" decimal(7,2),
+    "ss_sold_date_sk" bigint
+ )
+ WITH (
+    delete_mode = 'copy-on-write',
+    format = 'PARQUET',
+    format_version = '2',
+    location = 's3a://presto-workload/tpcds-sf10000-parquet-iceberg-part/store_sales',
+    partitioning = ARRAY['ss_sold_date_sk']
+ )
+(1 row)
+```

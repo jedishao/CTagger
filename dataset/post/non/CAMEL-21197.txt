@@ -1,0 +1,37 @@
+URISupport.parseQuery is not decoding correctly
+{color:#000000}Hi team,{color}
+
+{color:#000000}while using *URISupport.parseQuery* the given query was not correctly decoded:{color}
+
+*{color:#000000}Sample JUnit test (org.apache.camel.util.URISupportTest):{color}*
+ 
+{code:java}
+@Test
+public void testParseQueryDFi() throws Exception {
+    Map<String, Object> map = URISupport.parseQuery("Camel-Saga-Complete=direct%3A%2F%2Fsaga1_sagaService_complete");
+    assertEquals(1, map.size());
+    assertEquals("direct://saga1_sagaService_complete", map.get("Camel-Saga-Complete"));
+} {code}
+{color:#000000}If i handover the query 'Camel-Saga-Complete=direct%3A%2F%2Fsaga1_sagaService_complete' 
+i expect the decoded value {color}{color:#000000}for 'Camel-Saga-Complete' as 'direct://saga1_sagaService_complete'.{color}
+
+{color:#000000}I am wrong? Did i understand the utility class wrong?{color}
+
+{color:#000000}Within the code i can see, that the string was adjusted to replace '%', this is {color}
+{color:#000000}causing the issue:{color}
+
+*{color:#000000}URIScanner.addParameter:{color}*
+
+ 
+{code:java}
+if (isRaw) {
+    text = value.toString();
+} else {
+    // need to replace % with %25 to avoid losing "%" when decoding
+    final String s = replacePercent(value.toString());    
+    text = URLDecoder.decode(s, CHARSET);
+}{code}
+ 
+
+{color:#000000}best regards{color}
+{color:#000000}Dirk{color}

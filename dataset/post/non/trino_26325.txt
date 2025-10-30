@@ -1,0 +1,113 @@
+Access Control on groups retrieved from OAuth authentication does not work
+## Current setup
+- Trino 475
+- OAuth authentication with Azure ID
+  - Configuration to retrieve the principal from the token: `http-server.authentication.oauth2.principal-field=oid`
+  - Configuration to retrieve the groups from the token: `deprecated.http-server.authentication.oauth2.groups-field=roles`
+
+
+The issued authorization token contains both of the fields:
+```json
+  "oid": "40193f55-f6b7-4572-8fc0-b8078db97b1a",
+  "roles": [
+    "Trino.Admin",
+    "Trino.ReadOnly"
+  ],
+```
+
+Debug logs from the Coordinator show both of the groups retrieved from the roles for my principal, as expected:
+```
+2025-08-01T18:02:20.229Z    DEBUG    Query-20250801_180219_00014_ynqv7-652    io.trino.security.AccessControl    Invocation of getRowFilters(context=SecurityContext{identity=Identity{user='40193f55-f6b7-4572-8fc0-b8078db97b1a', groups=[Trino.Admin, Trino.ReadOnly], principal=40193f55-f6b7-4572-8fc0-b8078db97b1a}, queryId=20250801_180219_00014_ynqv7}, tableName=c_common.information_schema.tables) succeeded in 34.59us
+```
+
+Access control configuration has rules based on groups:
+```yaml
+  accessControl:
+    type: configmap
+    refreshPeriod: 60s
+    configFile: "rules.json"
+    rules:
+      rules.json: |-
+        {
+          "catalogs": [
+            {
+              "group": "Trino.Admin",
+              "allow": "all"
+            },
+            {
+              "group": "Trino.ReadOnly",
+              "allow": "read-only"
+            },
+            {
+              "user": "superset",
+              "allow": "read-only"
+            }
+          ],
+          "schemas": []
+        }
+```
+
+## Issue
+
+In Trino 474 this setup was working fine, but after upgrading to 475 or 476 we no longer see results for `SHOW SCHEMAS` and `SHOW TABLES` for users logged in with OAuth:
+
+```
+trino> show schemas in c_common;
+ Schema 
+--------
+(0 rows)
+
+Query 20250801_180725_00018_ynqv7, FINISHED, 3 nodes
+Splits: 8 total, 8 done (100.00%)
+0.48 [0 rows, 0B] [0 rows/s, 0B/s]
+```
+
+```
+trino> show tables in c_common.common;
+ Table 
+-------
+(0 rows)
+
+Query 20250801_180809_00019_ynqv7, FINISHED, 3 nodes
+Splits: 8 total, 8 done (100.00%)
+0.50 [0 rows, 0B] [0 rows/s, 0B/s]
+```
+
+Same if querying the underlying tables where schemas and tables are fetched from:
+```
+trino> select * from c_common.information_schema.schemata;
+ catalog_name | schema_name 
+--------------+-------------
+(0 rows)
+
+Query 20250801_182824_00026_ynqv7, FINISHED, 1 node
+Splits: 1 total, 1 done (100.00%)
+0.30 [0 rows, 0B] [0 rows/s, 0B/s]
+```
+
+```
+trino> select * from c_common.information_schema.tables;
+ table_catalog | table_schema | table_name | table_type 
+---------------+--------------+------------+------------
+(0 rows)
+
+Query 20250801_182831_00027_ynqv7, FINISHED, 1 node
+Splits: 1 total, 1 done (100.00%)
+0.54 [0 rows, 0B] [0 rows/s, 0B/s]
+```
+
+However, querying the tables in a given catalog and schema works. This means access control based on groups is still being enforced, even though listing does not work.
+
+Everything works fine for the `superset` user with password authentication.
+
+When comparing the query JSONs between 474 and 475 releases, I've noticed that in the latter groups is empty:
+
+<img width="1512" height="462" alt="Image" src="https://github.com/user-attachments/assets/a9490f33-e5dc-458e-a9f2-428366777ad0" />
+---
+
+Release 457 brings some changes around access control in the PR below:
+- Fix incorrect access denial for access control with impersonation when access is granted via the role. ([#25166](https://github.com/trinodb/trino/issues/25166))
+
+@homar since you worked on it and @kokosing reviewed, can you look at this issue?
+
+We are aware that we are using a deprecated configuration `deprecated.http-server.authentication.oauth2.groups-field=roles`, but it is still supported and Trino seem to be retrieving the groups correctly and allowing to query the tables.

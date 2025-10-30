@@ -1,0 +1,43 @@
+SAI should avoid attempting to index empty values for numerics and types that do not allow them
+See https://issues.apache.org/jira/browse/CASSANDRA-19461?focusedCommentId=17925395&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-17925395
+
+{noformat}
+@Test
+public void testEmptyNonLiteral()
+{
+    createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+    execute("INSERT INTO %s (k, v) VALUES (0, ?)", EMPTY_BYTE_BUFFER);
+    flush();
+    createIndex(String.format(CREATE_INDEX_TEMPLATE, 'v')); // fails!!!
+}
+{noformat}
+
+The index creation will fail with:
+
+{noformat}
+WARN  [SecondaryIndexManagement:1] 2025-02-09 15:11:23,714 SecondaryIndexManager.java:843 - Index build of table_testemptynonliteral_00_v_idx failed. Please run full index rebuild to fix it.
+java.util.concurrent.ExecutionException: java.lang.NullPointerException
+	at org.apache.cassandra.utils.concurrent.AbstractFuture.getWhenDone(AbstractFuture.java:239)
+	at org.apache.cassandra.utils.concurrent.AbstractFuture.get(AbstractFuture.java:246)
+	at org.apache.cassandra.index.sai.StorageAttachedIndex.lambda$getInitializationTask$4(StorageAttachedIndex.java:337)
+	at org.apache.cassandra.concurrent.FutureTask.call(FutureTask.java:61)
+	at org.apache.cassandra.concurrent.FutureTask.run(FutureTask.java:71)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.lang.NullPointerException: null
+	at org.apache.cassandra.db.tries.InMemoryTrie.putRecursive(InMemoryTrie.java:904)
+	at org.apache.cassandra.db.tries.InMemoryTrie.putRecursive(InMemoryTrie.java:897)
+	at org.apache.cassandra.db.tries.InMemoryTrie.putSingleton(InMemoryTrie.java:878)
+	at org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer.add(SegmentTrieBuffer.java:69)
+	at org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder$TrieSegmentBuilder.addInternal(SegmentBuilder.java:90)
+	at org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder.add(SegmentBuilder.java:195)
+	at org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter.addTerm(SSTableIndexWriter.java:208)
+	at org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter.addRow(SSTableIndexWriter.java:99)
+	at org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter.addRow(StorageAttachedIndexWriter.java:257)
+	at org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter.nextUnfilteredCluster(StorageAttachedIndexWriter.java:131)
+	at org.apache.cassandra.index.sai.StorageAttachedIndexBuilder.indexSSTable(StorageAttachedIndexBuilder.java:188)
+	at org.apache.cassandra.index.sai.StorageAttachedIndexBuilder.build(StorageAttachedIndexBuilder.java:118)
+	at org.apache.cassandra.db.compaction.CompactionManager$13.run(CompactionManager.java:1905)
+{noformat}

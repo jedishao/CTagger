@@ -1,0 +1,17 @@
+Introduce a new WALProvider to generate WAL files consumed by Replication
+Under our current Replication implementation, all WAL files will be consumed and the data will be filtered by a table attribute 
+REPLICATION_SCOPE_GLOBAL
+ 
+We are using 2.4.11 version in our production env. And we have a small group table to use the replication to do CDC, however with the growth of the number of other non-replicated tables, we met the log queue accumulation issue and the data lag grew to hours level. 
+ 
+To solve the issue we write the tables, which has CF marked the replication_scope to global, to separated WAL files and let the replication only consume those files. The feature solved our problems and push it to the community. 
+
+In our env, we have 19 tables and only 8 of them need to be replicated. 
+
+There are write heavy tables in the the rest of 11. So that our business benefits a lot from this feature.
+
+ 
+The attached screenshot shows the improvement.
+
+
+ 

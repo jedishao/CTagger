@@ -1,0 +1,153 @@
+HiveMetaStore#getConf blocked when meet high load
+Thousand threads are blocked for long time when metastore meet high load as the following stack shows.
+a. there are 1836 threads(as stack 1 shows) are waiting Lock #0x00007f8bf9477180 which is hold by stack 2.
+
+{code:java}
+# grep "0x00007f8bf9477180" metastore.stack | wc -l
+1836
+{code}
+
+b. there are 105 threads (as stack 2 shows) are waiting Lock #0x00007f8bf805f660 which is hold by stack 3. 
+{code:java}
+# grep "0x00007f8bf805f660" metastore.stack | wc -l
+105
+{code}
+
+c. stack 3 shows that it is time cost operation when init configuration, which hold object  (#hiveConf as the last code snippet)synchronized which is at key path for metastore and impact the performance.
+
+So, IMO, it need to improve and remove the lock competition to improve the performance. FYI.
+
+NOTE: I have deployed one early version, but the newest one include this issue too.
+
+{code:java}
+"pool-12-thread-1482355" #126195588 prio=5 os_prio=0 tid=0x00007f86d507b800 nid=0x21570 waiting for monitor entry [0x00007f875849b000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at org.apache.hadoop.hive.metastore.MetaStoreInit.initConnectionUrlHook(MetaStoreInit.java:95)
+        - waiting to lock <0x00007f8bf9477180> (a java.lang.Class for org.apache.hadoop.hive.metastore.MetaStoreInit)
+        at org.apache.hadoop.hive.metastore.MetaStoreInit.updateConnectionURL(MetaStoreInit.java:62)
+        at org.apache.hadoop.hive.metastore.RawStoreProxy.init(RawStoreProxy.java:87)
+        at org.apache.hadoop.hive.metastore.RawStoreProxy.<init>(RawStoreProxy.java:55)
+        at org.apache.hadoop.hive.metastore.RawStoreProxy.getProxy(RawStoreProxy.java:66)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.newRawStore(HiveMetaStore.java:817)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.getMS(HiveMetaStore.java:795)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.get_database_core(HiveMetaStore.java:1308)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.get_database(HiveMetaStore.java:1240)
+        at sun.reflect.GeneratedMethodAccessor59.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invoke(RetryingHMSHandler.java:276)
+        at com.sun.proxy.$Proxy23.get_database(Unknown Source)
+        at sun.reflect.GeneratedMethodAccessor59.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$MetricHMSProxy.invoke(HiveMetaStore.java:8241)
+        at com.sun.proxy.$Proxy23.get_database(Unknown Source)
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Processor$get_database.getResult(ThriftHiveMetastore.java:11142)
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Processor$get_database.getResult(ThriftHiveMetastore.java:11126)
+        at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:39)
+        at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:39)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor$1.run(HadoopThriftAuthBridge.java:754)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor$1.run(HadoopThriftAuthBridge.java:749)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at javax.security.auth.Subject.doAs(Subject.java:422)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1717)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor.process(HadoopThriftAuthBridge.java:749)
+        at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:286)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+{code}
+
+{code:java}
+"pool-12-thread-1482175" #126193367 prio=5 os_prio=0 tid=0x00007f87567d3000 nid=0x20565 waiting for monitor entry [0x00007f8698ccd000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at org.apache.hadoop.conf.Configuration.getProps(Configuration.java:2415)
+        - waiting to lock <0x00007f8bf805f660> (a org.apache.hadoop.hive.conf.HiveConf)
+        at org.apache.hadoop.conf.Configuration.get(Configuration.java:1235)
+        at org.apache.hadoop.hive.metastore.MetaStoreInit.initConnectionUrlHook(MetaStoreInit.java:96)
+        - locked <0x00007f8bf9477180> (a java.lang.Class for org.apache.hadoop.hive.metastore.MetaStoreInit)
+        at org.apache.hadoop.hive.metastore.MetaStoreInit.updateConnectionURL(MetaStoreInit.java:62)
+        at org.apache.hadoop.hive.metastore.RawStoreProxy.init(RawStoreProxy.java:87)
+        at org.apache.hadoop.hive.metastore.RawStoreProxy.<init>(RawStoreProxy.java:55)
+        at org.apache.hadoop.hive.metastore.RawStoreProxy.getProxy(RawStoreProxy.java:66)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.newRawStore(HiveMetaStore.java:817)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.getMS(HiveMetaStore.java:795)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.get_table_by_view(HiveMetaStore.java:2247)
+        at sun.reflect.GeneratedMethodAccessor100.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invoke(RetryingHMSHandler.java:276)
+        at com.sun.proxy.$Proxy23.get_table_by_view(Unknown Source)
+        at sun.reflect.GeneratedMethodAccessor100.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$MetricHMSProxy.invoke(HiveMetaStore.java:8241)
+        at com.sun.proxy.$Proxy23.get_table_by_view(Unknown Source)
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Processor$get_table_by_view.getResult(ThriftHiveMetastore.java:11812)
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Processor$get_table_by_view.getResult(ThriftHiveMetastore.java:11796)
+        at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:39)
+        at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:39)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor$1.run(HadoopThriftAuthBridge.java:754)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor$1.run(HadoopThriftAuthBridge.java:749)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at javax.security.auth.Subject.doAs(Subject.java:422)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1717)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor.process(HadoopThriftAuthBridge.java:749)
+        at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:286)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+
+{code}
+
+
+{code:java}
+"pool-12-thread-1477440" #126119273 prio=5 os_prio=0 tid=0x00007f86d53fb800 nid=0xa5d runnable [0x00007f86fe5a3000]
+   java.lang.Thread.State: RUNNABLE
+        at java.util.concurrent.ConcurrentHashMap.tryPresize(ConcurrentHashMap.java:2334)
+        at java.util.concurrent.ConcurrentHashMap.putAll(ConcurrentHashMap.java:1082)
+        at java.util.concurrent.ConcurrentHashMap.<init>(ConcurrentHashMap.java:852)
+        at org.apache.hadoop.conf.Configuration.<init>(Configuration.java:716)
+        - locked <0x00007f8bf805f660> (a org.apache.hadoop.hive.conf.HiveConf)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.getConf(HiveMetaStore.java:723)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.setMetaConf(HiveMetaStore.java:744)
+        at sun.reflect.GeneratedMethodAccessor39.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invoke(RetryingHMSHandler.java:276)
+        at com.sun.proxy.$Proxy23.setMetaConf(Unknown Source)
+        at sun.reflect.GeneratedMethodAccessor39.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$MetricHMSProxy.invoke(HiveMetaStore.java:8241)
+        at com.sun.proxy.$Proxy23.setMetaConf(Unknown Source)
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Processor$setMetaConf.getResult(ThriftHiveMetastore.java:11090)
+        at org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore$Processor$setMetaConf.getResult(ThriftHiveMetastore.java:11074)
+        at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:39)
+        at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:39)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor$1.run(HadoopThriftAuthBridge.java:754)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor$1.run(HadoopThriftAuthBridge.java:749)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at javax.security.auth.Subject.doAs(Subject.java:422)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1717)
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor.process(HadoopThriftAuthBridge.java:749)
+        at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:286)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+
+{code}
+
+
+org.apache.hadoop.hive.metastore.HiveMetaStore.HMSHandler#getConf
+{code:java}
+    @Override
+    public Configuration getConf() {
+      Configuration conf = threadLocalConf.get();
+      if (conf == null) {
+        conf = new Configuration(hiveConf);
+        threadLocalConf.set(conf);
+      }
+      return conf;
+    }
+{code}

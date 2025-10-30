@@ -1,0 +1,37 @@
+Pacific/Kanton timezone causes TestTimeZoneUtils.testNamedZones to fail
+
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used:
+* HEAD
+java -version
+openjdk version "1.8.0_302"
+OpenJDK Runtime Environment (Temurin)(build 1.8.0_302-b08)
+OpenJDK 64-Bit Server VM (Temurin)(build 25.302-b08, mixed mode)
+
+
+## Expected Behavior
+test passes
+
+## Current Behavior
+[ERROR] Tests run: 8198, Failures: 1, Errors: 0, Skipped: 1, Time elapsed: 3,007.826 s <<< FAILURE! - in TestSuite
+[ERROR] com.facebook.presto.util.TestTimeZoneUtils.testNamedZones  Time elapsed: 0.037 s  <<< FAILURE!
+java.time.zone.ZoneRulesException: Unknown time-zone ID: Pacific/Kanton
+	at java.time.zone.ZoneRulesProvider.getProvider(ZoneRulesProvider.java:272)
+	at java.time.zone.ZoneRulesProvider.getRules(ZoneRulesProvider.java:227)
+	at java.time.ZoneRegion.ofId(ZoneRegion.java:120)
+	at java.time.ZoneId.of(ZoneId.java:411)
+	at java.time.ZoneId.of(ZoneId.java:359)
+	at com.facebook.presto.util.TestTimeZoneUtils.assertTimeZone(TestTimeZoneUtils.java:108)
+
+
+## Possible Solution
+
+Either upgrade minimum JDK to 8u321 (currently documented as 8u151+ in CONTRIBUTING) or special case it in the test. 
+
+## Steps to Reproduce
+
+Run mvn test on JDK 8u302
+
+See https://www.oracle.com/java/technologies/tzdata-versions.html for details on minimum JDK versions that contain this zone.

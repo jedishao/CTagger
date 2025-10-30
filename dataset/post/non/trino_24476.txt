@@ -1,0 +1,39 @@
+Trino authentication with kerberos does not always follow user mapping pattern
+I have set up authentication with kerberos on my trino server
+
+I have set up `http-server.authentication.krb5.user-mapping.pattern=(.*)(@.*)` so that all users coming from kerberos with this format {username}@bar.com will have @bar.com stripped
+
+But it does not always work as expected
+
+I have a client setting up a powerbi to trino with a connector for whom I am unable to strip the remaining domain with the user mapping pattern
+
+In these logs we can see that trino is not even attempting to set the username correctly:
+
+```
+2024-12-13T10:38:28.741Z	INFO	http-worker-160	stderr	krb5: Entered Krb5Context.acceptSecContext with state=STATE_NEW
+2024-12-13T10:38:28.742Z	INFO	http-worker-160	stderr	krb5: Looking for keys for: HTTP/ppr-trino.domaini.com@MY-WORK-DOMAIN.COM
+2024-12-13T10:38:28.742Z	INFO	http-worker-160	stderr	krb5: Added key: 18, version: 3
+2024-12-13T10:38:28.742Z	INFO	http-worker-160	stderr	krb5: >>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+2024-12-13T10:38:28.743Z	INFO	http-worker-160	stderr	krb5: default_enctypes:aes256-cts aes128-cts
+2024-12-13T10:38:28.743Z	INFO	http-worker-160	stderr	krb5: default etypes for permitted_enctypes: 18 17.
+2024-12-13T10:38:28.743Z	INFO	http-worker-160	stderr	krb5: >>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+2024-12-13T10:38:28.744Z	INFO	http-worker-160	stderr	krb5: MemoryCache: add 1734086308/007473/708BC6B89F33F76CEC8125327EA1E441400B54AD2C1C3DC9C89667315BB97159/my-user@MY-WORK-DOMAIN.COM to my-user@MY-WORK-DOMAIN.COM|HTTP/ppr-trino.domaini.com@MY-WORK-DOMAIN.COM
+2024-12-13T10:38:28.744Z	INFO	http-worker-160	stderr	krb5: >>> KrbApReq: authenticate succeed.
+2024-12-13T10:38:28.744Z	INFO	http-worker-160	stderr	krb5: Krb5Context setting peerSeqNumber to: 2057187908
+2024-12-13T10:38:28.744Z	INFO	http-worker-160	stderr	krb5: >>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+2024-12-13T10:38:28.745Z	INFO	http-worker-160	stderr	krb5: Krb5Context setting mySeqNumber to: 914462711
+2024-12-13T10:38:28.745Z	INFO	http-worker-160	stderr	krb5: >>> Constrained deleg from GSSCaller{UNKNOWN}
+2024-12-13T10:38:28.744Z	INFO	http-worker-160	stderr	krb5: >>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+2024-12-13T10:38:28.745Z	INFO	http-worker-160	stderr	krb5: Krb5Context setting mySeqNumber to: 914462711
+2024-12-13T10:38:28.745Z	INFO	http-worker-160	stderr	krb5: >>> Constrained deleg from GSSCaller{UNKNOWN}
+2024-12-13T10:38:28.758Z	DEBUG	dispatcher-query-26	io.trino.security.AccessControl	Invocation of checkCanSetUser(principal=Optional[my-user@MY-WORK-DOMAIN.COM], userName='my-user@MY-WORK-DOMAIN.COM') succeeded in 52.13us
+2024-12-13T10:38:28.758Z	DEBUG	dispatcher-query-26	io.trino.security.AccessControl	Invocation of checkCanImpersonateUser(identity=Identity{user='my-user', principal=my-user@MY-WORK-DOMAIN.COM}, userName='my-user@MY-WORK-DOMAIN.COM') succeeded in 101.20us
+2024-12-13T10:38:28.759Z	DEBUG	dispatcher-query-26	io.trino.security.AccessControl	Invocation of checkCanExecuteQuery(identity=Identity{user='my-user@MY-WORK-DOMAIN.COM', principal=my-user@MY-WORK-DOMAIN.COM}, queryId=20241213_103828_00118_4ej6g) succeeded in 25.59us
+```
+
+I have myself tried with a python script in my windows host and in this log we can see that trino is in fact setting up the right user with user mapping effective
+
+```
+2024-12-13T15:42:18.727Z  DEBUG  dispatcher-query-34  io.trino.security.AccessControl  Invocation of checkCanSetUser(principal=Optional[bar@MY-WORK_DOMAIN.FR], userName='bar') succeeded in 52.49us
+2024-12-13T15:42:18.728Z  DEBUG  dispatcher-query-34  io.trino.security.AccessControl  Invocation of checkCanExecuteQuery(identity=Identity{user='bar', groups=[rw_testguy, rw_testtest4324143132, rw_testtest5432543254325, ro_testtest, ro_testtest4324143132, ro_testtest543254325243, ro_testtest5432543254325, rw_testtest432432, ro_testtest3, ro_testtest54253523532, ro_testtest2, ro_testtest1, ro_testtest432432, rw_testtest3, rw_testtest2, rw_testtest1, rw_testtest54253523532, rw_testtest543254325243, admin, ro_testguy, rw_testtest], principal=bar@MY-WORK_DOMAIN.FR}, queryId=20241213_154159_00230_kiw5t) succeeded in 51.64us
+```

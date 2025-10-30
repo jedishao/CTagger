@@ -1,0 +1,48 @@
+Schema evolution doesn't work with DWRF format
+After we drop and add columns to a table with DWRF format, query returns wrong results. This is with setting `hive.orc.use-column-names=true`. The same works with ORC as the below tests show.
+
+```
+presto:default> create table test_schema_evolve_orc(c1 int, c2 int) with(format = 'orc');
+CREATE TABLE
+presto:default> insert into test_schema_evolve_orc values(1,2);
+INSERT: 1 row
+
+Query 20241125_092944_00028_e7pyy, FINISHED, 1 node
+Splits: 2 total, 2 done (100.00%)
+[Latency: client-side: 0:01, server-side: 0:01] [0 rows, 0B] [0 rows/s, 0B/s]
+
+presto:default> alter table test_schema_evolve_orc drop column c2;
+DROP COLUMN
+presto:default> alter table test_schema_evolve_orc add column c3 int;
+ADD COLUMN
+presto:default> select * from test_schema_evolve_orc;
+ c1 |  c3
+----+------
+  1 | NULL                  **<---- returns NULL correctly**       
+(1 row)
+```
+
+## Your Environment
+Presto with Hive connector and table with DWRF format.
+
+## Expected Behavior
+For the newly added columns, it should return NULLs for the old rows. 
+
+## Current Behavior
+Its returning data from the old column.
+
+## Possible Solution
+Column name based mapping doesn't seem to be working for the DWRF format.
+
+## Steps to Reproduce
+1.  create table test_schema_evolve_dwrf(c1 int, c2 int) with(format = 'dwrf');
+2.  insert into test_schema_evolve_dwrf values(1,2);
+3.  alter table test_schema_evolve_dwrf drop column c2;
+4.  alter table test_schema_evolve_dwrf add column c3 int;
+5.   select * from test_schema_evolve_dwrf;
+ c1 | c3
+----+----
+  1 |  2                         **<---- returns data from the dropped column c2 for newly added column c3.**
+(1 row)
+
+

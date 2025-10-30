@@ -1,0 +1,94 @@
+Cannot initialize GlueCatalog: ClassNotFoundException org.apache.iceberg.aws.glue.GlueCatalog when using iceberg inputSource
+Cannot initialize GlueCatalog: ClassNotFoundException org.apache.iceberg.aws.glue.GlueCatalog when using iceberg inputSource
+
+### Affected Version
+
+Apache Druid 33.0.0 (also tested with 32.0.0)
+
+### Description
+
+- Druid is deployed on AWS EKS using the [Druid Operator](https://github.com/druid-io/druid-operator)
+- The Iceberg table is registered in **AWS Glue Data Catalog** and stored in **Amazon S3** (Parquet files)
+- Druid cluster includes coordinator, middlemanager, broker, and historical nodes
+- Helm is used for deployment, with extensions loaded via `druid.extensions.loadList` with  ["druid-basic-security","postgresql-metadata-storage","druid-avro-extensions","druid-s3-extensions", "druid-iceberg-extensions", "druid-parquet-extensions" ]
+
+I'm attempting to ingest data from an **Iceberg table stored in S3** and managed by **AWS Glue Catalog**. From the Druid Web Console, I go to:
+
+- **Load Data** → **Other**
+- Paste the ingestion spec JSON manually
+
+When submitting the task, it immediately fails and the following error appears in the coordinator logs (which also runs the Overlord process):
+
+Cannot construct instance of org.apache.druid.iceberg.input.GlueIcebergCatalog,
+problem: Cannot initialize Catalog implementation org.apache.iceberg.aws.glue.GlueCatalog:
+Cannot find constructor for interface org.apache.iceberg.catalog.Catalog
+Caused by: java.lang.ClassNotFoundException: org.apache.iceberg.aws.glue.GlueCatalog
+
+The json spec for ingest:
+{
+    "type" : "index",
+    "spec" : {
+      "dataSchema" : {
+        "dataSource" : "silver",
+        "timestampSpec": {
+          "column": "fec_ticket",
+          "format": "auto"
+        },
+        "dimensionsSpec" : {
+          "dimensions": ["nro_ticket"],
+          "dimensionExclusions" : []
+        },
+        "metricsSpec" : [
+          {
+            "type" : "count",
+            "name" : "count"
+          }
+        ],
+        "granularitySpec" : {
+          "type" : "uniform",
+          "segmentGranularity" : "DAY",
+          "queryGranularity" : "NONE",
+          "intervals" : [ "2024-01-01/2024-01-10" ]
+        }
+      },
+      "ioConfig": {
+        "type": "index",
+        "inputSource": {
+          "type": "iceberg",
+          "tableName": "hd_ticket_track",
+          "namespace": "silver",
+          "icebergCatalog":{ 
+            "type": "glue",
+            "catalogProperties":{
+              "warehouse": "s3a://bucket-silver/silver",
+              "io-impl": "org.apache.iceberg.aws.s3.S3FileIO"
+            }
+          },
+          "warehouseSource": {
+            "type": "s3",
+            "endpointConfig": {
+              "url": "s3.us-east-1.amazonaws.com",
+              "signingRegion": "us-east-1"
+            },
+            "clientConfig": {
+              "protocol": "http",
+              "disableChunkedEncoding": true,
+              "enablePathStyleAccess": true,
+              "forceGlobalBucketAccessEnabled": false
+            }
+          }
+        },
+        "inputFormat": {
+          "type": "parquet"
+        }
+      }
+    }
+  }
+
+I Verified The extension druid-iceberg-extensions is listed in druid.extensions.loadList.
+The following JARs are present in /opt/druid/extensions/druid-iceberg-extensions/:
+- iceberg-api-1.6.1.jar
+- iceberg-core-1.6.1.jar
+- iceberg-aws-1.6.1.jar
+
+The ingestion works fine with CSV inputSource from S3, confirming that S3 and IAM access are correctly configured

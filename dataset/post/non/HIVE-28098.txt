@@ -1,0 +1,25 @@
+Fails to copy empty column statistics of materialized CTE
+HIVE-28080 introduced the optimization of materialized CTEs, but it turned out that it failed when statistics were empty.
+
+This query reproduces the issue.
+{code:java}
+set hive.stats.autogather=false;
+CREATE TABLE src_no_stats AS SELECT '123' as key, 'val123' as value UNION ALL SELECT '99999' as key, 'val99999' as value;
+set hive.optimize.cte.materialize.threshold=2;
+set hive.optimize.cte.materialize.full.aggregate.only=false;
+
+EXPLAIN WITH materialized_cte1 AS (
+  SELECT * FROM src_no_stats
+),
+materialized_cte2 AS (
+  SELECT a.key
+  FROM materialized_cte1 a
+  JOIN materialized_cte1 b ON (a.key = b.key)
+)
+SELECT a.key
+FROM materialized_cte2 a
+JOIN materialized_cte2 b ON (a.key = b.key); {code}
+It throws an error.
+{code:java}
+Error: Error while compiling statement: FAILED: IllegalStateException The size of col stats must be equal to that of schema. Stats = [], Schema = [key] (state=42000,code=40000) {code}
+Attaching a debugger, FSO of materialized_cte2 has empty stats as JoinOperator loses stats.

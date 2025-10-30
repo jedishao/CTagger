@@ -1,0 +1,32 @@
+[native] Query is failing when hive.parquet_dereference_pushdown_enabled=true
+Query is failing when `hive.parquet_dereference_pushdown_enabled=true`
+
+Storage - S3
+
+Presto Version - 0.292-SNAPSHOT
+
+## Steps to Reproduce
+
+```
+presto> CREATE TABLE test_parquet_pushdown_hive (
+    id BIGINT,
+    data1 ROW(nested_field1 varchar, nested_field2 INT)
+) 
+WITH (format = 'PARQUET');
+
+presto> INSERT INTO test_parquet_pushdown_hive VALUES 
+(1, CAST(ROW('value1', 100) AS ROW(nested_field1 varchar, nested_field2 INT))),
+(2, CAST(ROW('value2', 200) AS ROW(nested_field1 varchar, nested_field2 INT)));
+
+presto> SET SESSION hive.parquet_dereference_pushdown_enabled=true;
+
+presto> SELECT data1.nested_field1 FROM hive.reetika_testdb.test_parquet_pushdown_hive;
+```
+
+## Error
+
+```
+VeloxUserError: getColumnName(subfield) == handle->name() (data1 vs. data1$_$_$nested_field1) Required subfield does not match column name
+```
+
+

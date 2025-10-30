@@ -1,0 +1,41 @@
+Multiple query timeouts due to many manifest files in Iceberg
+Trino by default tries to Merge Manifest files during insert. For huge tables with many Manifest files (internally we have tables with over 100k manifest files) we see EXCEEDED_TIME_LIMIT error with the following exception. 
+```
+java.lang.InterruptedException: sleep interrupted
+	at java.base/java.lang.Thread.sleep0(Native Method)
+	at java.base/java.lang.Thread.sleep(Thread.java:509)
+	at org.apache.iceberg.util.Tasks.waitFor(Tasks.java:518)
+	at org.apache.iceberg.util.Tasks.access$800(Tasks.java:42)
+	at org.apache.iceberg.util.Tasks$Builder.runParallel(Tasks.java:358)
+	at org.apache.iceberg.util.Tasks$Builder.run(Tasks.java:201)
+	at org.apache.iceberg.util.Tasks$Builder.run(Tasks.java:196)
+	at org.apache.iceberg.ManifestMergeManager.mergeGroup(ManifestMergeManager.java:134)
+	at org.apache.iceberg.ManifestMergeManager.mergeManifests(ManifestMergeManager.java:83)
+	at org.apache.iceberg.MergingSnapshotProducer.apply(MergingSnapshotProducer.java:862)
+	at org.apache.iceberg.SnapshotProducer.apply(SnapshotProducer.java:242)
+	at org.apache.iceberg.SnapshotProducer.lambda$commit$2(SnapshotProducer.java:392)
+	at org.apache.iceberg.util.Tasks$Builder.runTaskWithRetry(Tasks.java:413)
+	at org.apache.iceberg.util.Tasks$Builder.runSingleThreaded(Tasks.java:219)
+	at org.apache.iceberg.util.Tasks$Builder.run(Tasks.java:203)
+	at org.apache.iceberg.util.Tasks$Builder.run(Tasks.java:196)
+	at org.apache.iceberg.SnapshotProducer.commit(SnapshotProducer.java:390)
+	at io.trino.plugin.iceberg.IcebergUtil.commit(IcebergUtil.java:854)
+```
+Sine the Manifest Merge happens only from co-ordinator, it is fine if this query times out and fails. But the problem is, all other queries in the cluster also began to fail.
+
+Even simple queries fail with OPTIMIZER_TIMEOUT error and the following exception
+```
+2025-01-14T20:49:54.524Z	ERROR	Query-20250114_203951_00612_figxq-7378	io.trino.cost.CachingStatsProvider	Error occurred when computing stats for query 20250114_203951_00612_figxq
+java.lang.RuntimeException: java.lang.InterruptedException: sleep interrupted
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.hasNext(ParallelIterable.java:172)
+	at java.base/java.lang.Iterable.forEach(Iterable.java:74)
+	at io.trino.plugin.iceberg.TableStatisticsReader.makeTableStatistics(TableStatisticsReader.java:171)
+	at io.trino.plugin.iceberg.TableStatisticsReader.getTableStatistics(TableStatisticsReader.java:84)
+	at io.trino.plugin.iceberg.IcebergMetadata.lambda$getTableStatistics$83(IcebergMetadata.java:2877)
+	at java.base/java.util.concurrent.ConcurrentHashMap.computeIfAbsent(ConcurrentHashMap.java:1708)
+	at 
+```
+The underlying issue seems to be, both the operations are using the same common [ThreadPool](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/util/ThreadPools.java#L45) and hence simple queries are not able to proceed. Disabling table statistics gathering might prevent this.
+
+There is a possibility of this happening even if any heavy system table query is running. 
+It would be better if planning phase can use a different executor service rather than a shared one.

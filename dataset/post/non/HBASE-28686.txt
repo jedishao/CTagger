@@ -1,0 +1,12 @@
+MapReduceBackupCopyJob should support custom DistCp options
+h4. Problem
+
+The MapReduceBackupCopyJob class provides no means for updating DistCp job options. This means that you're stuck with defaults, which isn't always desirable. For example, my workplace would like the freedom to deviate from at least two DistCp defaults:
+ # distcp.direct.write — we would like to set this to true, because writing and renaming tmp files is expensive in S3 (where we store our backups).
+ # we would also like control over the number of mappers that DistCp will run
+
+h4. Proposed Solution
+
+It is not the prettiest solution, but I'm proposing that we support DistCp customizations via the given backup client configuration like [this.|https://github.com/HubSpot/hbase/compare/hubspot-2.6...HubSpot:hbase:backup-distcp-options] It's necessary to do this conf -> arg conversion because we still want to use [DistCp's run method|https://github.com/HubSpot/hadoop/blob/c4c25b0ea2be1c8bca31d86962597060b2630f62/hadoop-tools/hadoop-distcp/src/main/java/org/apache/hadoop/tools/DistCp.java#L134-L171], which expects args, so as to not change any error codes. Hadoop actually does something similar, but in the opposite direction — the DistCp job has logic to convert the args back to configurations (lol).
+
+Further, the DistCp API is really unfortunately designed for programmatic use, so it doesn't leave us great alternatives. For example, it doesn't matter what you pass in as DistCpOptions to the constructor if you use the run method, your options will be overwritten based on the args that you pass in. Alternatively, if you pass in the DistCpOptions in the constructor and use DistCp#execute or DistCp#createAndSubmitJob, then you get none of the error specificity!

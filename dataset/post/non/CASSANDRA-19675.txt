@@ -1,0 +1,4 @@
+Avoid streams in the common case for UpdateTransaction creation
+Some recent Accord profiling highlighted some easily addressable inefficiency in the way we create new {{UpdateTransaction}} objects in {{SecondaryIndexManager}} that have existed since the introduction of index groups for SAI. We should be able to clean this up by avoiding stream creation or even iteration over the groups when there is a single index group, which is going to be the most common case with SAI anyway. If we do have to iterate, there should also be no reason to copy the collection of index groups via {{listIndexGroups()}}, although that copying can remain in the method itself for external callers.
+
+ !new_update_txn_streams.png! 

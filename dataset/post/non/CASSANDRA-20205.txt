@@ -1,0 +1,19 @@
+Failed lightweight transaction leaves Paxos in apparently unresolvable state
+In three node Cassandra cluster I am consistently facing the same kind of fatal situation on tables that are solely written using Cassandra's lightweight transactions (CAS).
+
+Whenever a lightweight transaction fails to reach quorum (1/2), e.g. due to high load, any following attempt to write data within a transactions fails, i.e. does not return {{{}"[applied]"=true{}}}.
+
+Using {{{}select * from system.paxos where cf_id=<id of table>{}}}, I see that there are entries, which I assume to be pending transactions.
+
+Further, in {{/var/log/Cassandra/system.log}} I see logs like:
+{quote}INFO [ScheduledTasks:1] 2025-01-12 21:46:53,005 UncommittedTableData.java:567 - Scheduling uncommitted paxos data merge task for {{<any other table>}}
+{quote}
+{quote}INFO [OptionalTasks:1] 2025-01-12 21:46:53,006 PaxosCleanupLocalCoordinator.java:89 - Completing uncommitted paxos instances for {{<table in stalled state>}} on ranges
+{quote}
+However, I can't figure how to resolve the state {{nodetool repair -full <keyspace>}} (and variations), as well as restarting all nodes did not resolve the issue.
+
+_Further information:_
+ * Cassandra version: 4.1.5
+ * OS: Ubuntu 22.04
+ * replication strategy: SimpleStrategy
+ * replication factor: 3

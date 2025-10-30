@@ -1,0 +1,47 @@
+Vertx EventBus And HazelCast Scaling
+### Background
+I am using Vertx 4.4.5 in my project. I have created a few services and achieved a 3k TPS with 11 microservices on an 18 core VM running on Dell R730 with OS RHEL 9. Each request cycle has multiple read and writes on database as well as on Redis. Redis and Database are on the same machine but on different VM.
+
+### Problem
+The message size was around 1kb when the TPS was 3k. Whereas, when I increase the message size to approx. 100kb which is to be considered an average production message size. The TPS dropped to 600. I checked the logs and found that event bus's consumer is getting the message after a few seconds delay. I googled and found that event bus is not designed for large messages so I used shared data to write my 100kb message on an async map and used the event bus to send the apiKey only for identification and fetching purpose. So, on my next service I fetch that data using that apiKey from the shared data map, asynchronously.
+
+### Setup
+The problem is from service A (ApiGateWay) to B (BusinessService) I write all the 100kb in shared data and upon completion of writing the data on shared data
+
+### Config
+```java
+map.put(.., ..).onCompelete(res->{
+if(res.succeed()){
+   eventBus.request(.., .., ..);
+}
+});
+```
+I called the event buss using
+```java
+eventBus.request(.., .., ..);
+```
+to send data to next service, whereas on the other service the consumer receives this message after the same delay which was before when I was using event bus and not shared data. I have also set the message buffer of consumer as well to 10k.
+```java
+eventBus.consumer(.., ..).setMaxBufferedMessages(10000);
+```
+Am I missing something? Some other configs are:
+```config
+WorkerInstances on A -> 100 WorkerPoolSize on A -> 100
+
+WorkerInstances on B -> 100 WorkerPoolSize on B -> 100
+```
+
+I have also tried to scale hazelcast when starting service A and B using
+```config
+ -Dhazelcast.socket.receive.buffer.size=10240 -Dhazelcast.socket.send.buffer.size=10240
+```
+### Load Run Details
+
+Jmeter
+7000 Threads
+100 loop count
+0.7s Ramp up
+1000ms Constant Delay
+
+
+Thanks for your help in advance. Cheers!

@@ -1,0 +1,121 @@
+Redis catalog: How to use the raw decoder to correctly query the predefined BIGINT type value?
+###  Here is my test:
+
+1. Set redis key/value through redis-cli
+```
+127.0.0.1:6379> SET testdb:testrawint:aa 123456789
+OK
+```
+
+2. Create trino-redis catalog
+```
+connector.name=redis
+redis.nodes=127.0.0.1:6379
+redis.password=psswd
+redis.table-description-cache-ttl=1s
+redis.table-description-dir=/etc/redis_raw_test
+
+redis.key-prefix-schema-table=true
+
+```
+
+3. Create redis raw decoder json definition file
+Refer to https://trino.io/docs/current/connector/kafka.html#raw-encoder
+cat /etc/redis_raw_test/testraw.json
+
+```
+{
+   "tableName": "testrawint",
+   "schemaName": "testdb",
+   "key": {
+       "dataFormat": "raw",
+              "fields": [
+            {
+                "name":"redis_key",
+                "type":"VARCHAR",
+                "hidden":"false"
+           }
+       ]
+   },
+   "value": {
+       "dataFormat": "raw",
+       "fields": [
+           {
+                "name":"id",
+                "mapping":"0",
+                "dataFormat": "LONG",
+                "type":"BIGINT"
+           }
+
+       ]
+    }
+}
+```
+
+4. Query this redis key/value using tino-cli
+```
+trino> select * from redisraw.testdb.testrawint;
+      redis_key       |         id
+----------------------+---------------------
+ testdb:testrawint:aa | 3544952156018063160
+(1 row)
+```
+
+You will find that id is **3544952156018063160** instead of **123456789**
+
+5. Change the  json definition file to replace type **BIGINT** to **VARCHAR**
+```
+{
+   "tableName": "testrawint",
+   "schemaName": "testdb",
+   "key": {
+       "dataFormat": "raw",
+              "fields": [
+            {
+                "name":"redis_key",
+                "type":"VARCHAR",
+                "hidden":"false"
+           }
+       ]
+   },
+   "value": {
+       "dataFormat": "raw",
+       "fields": [
+           {
+                "name":"id",
+                "mapping":"0",
+                "dataFormat": "BYTE",
+                "type":"VARCHAR"
+           }
+
+       ]
+    }
+}
+```
+
+And then you can get the correct id value **123456789**
+```
+trino> select * from redisraw.testdb.testrawint;
+      redis_key       |    id
+----------------------+-----------
+ testdb:testrawint:aa | 123456789
+
+```
+
+### Question
+From the above test, i think trino-redis catalog can not use the raw decoder to query BIGINT/SMALLINT(or other numerical types) value.
+
+
+This is because the Redis data in the test is always parsed into string type, and then the string type data is converted into bytes. If this byte is further converted into int type(or other numerical types), it will lead to incorrect results.
+
+https://github.com/trinodb/trino/blob/2bc657e34e6146d91e094907d8aaff4b338955a5/plugin/trino-redis/src/main/java/io/trino/plugin/redis/RedisRecordCursor.java#L225-L235
+
+https://github.com/trinodb/trino/blob/2bc657e34e6146d91e094907d8aaff4b338955a5/lib/trino-record-decoder/src/main/java/io/trino/decoder/raw/RawColumnDecoder.java#L206
+
+https://github.com/trinodb/trino/blob/2bc657e34e6146d91e094907d8aaff4b338955a5/lib/trino-record-decoder/src/main/java/io/trino/decoder/raw/RawColumnDecoder.java#L249-L256
+
+
+**So, I think trino-redis can only use the raw decoder to query the predefined VARCHAR type value.**
+WDYT?
+
+https://trino.io/docs/current/connector/redis.html#raw-decoder BTW, the doc shows the raw-decoder can support numerical values. I think it should be removed.

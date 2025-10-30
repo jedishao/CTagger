@@ -1,0 +1,28 @@
+Add function `$redacted$()`
+In https://github.com/trinodb/trino/pull/24563, we'd like to introduce the redaction of sensitive information in statements like `CREATE CATALOG` in query events and endpoints that expose query text (e.g., `v1/query`).
+
+There is an idea to mask secrets by replacing them with a function call that always fails. For example, the redacted text of:
+
+```sql
+CREATE CATALOG catalogA USING postgresql WITH (
+   "connection-url" = 'jdbc:postgresql://localhost:4000/trino',
+   "connection-user" = 'admin',
+   "connection-password" = '1234'
+)
+```
+
+Would look like this:
+
+```sql
+CREATE CATALOG catalogA USING postgresql WITH (
+   "connection-url" = 'jdbc:postgresql://localhost:4000/trino',
+   "connection-user" = 'admin',
+   "connection-password" = $redacted$()
+)
+```
+
+This approach prevents users from copying the redacted query text and unintentionally creating a catalog with the password `***`.
+
+To summarize: we propose introducing the `$redacted$()` function, which always fails. I’m extracting this proposal into a separate GitHub issue because I believe it requires a syntax review.
+
+cc: @dain @hashhar 

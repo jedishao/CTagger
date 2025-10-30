@@ -1,0 +1,125 @@
+Append REST endpoint invoked with not existing column family or table returns Exception stack trace
+h2. Scenario
+Calling append REST operation with not existing column family or table.
+
+h2. Actual result
+Returns Exception stack trace in response body - *NOK* (x)
+
+h2. Expected result
+Should not return the Exception stack trace in response body.
+
+h2. How to reproduce
+TestRowResource table does NOT exists:
+
+{code:java}
+curl -vi -X PUT \
+-H "Content-type: application/json" \
+-H "Accept: application/json" \
+-d '{"Row":[{"key":"dGVzdHJvdzE=","Cell":[{"column":"YTox","$":"dGVzdHZhbHVlMgo="},{"column":"YToy","$":"dGVzdHZhbHVlMTIK"}]}]}' \                      
+"http://localhost:8080/TestRowResourcea/testrow1?check=append" 
+* Host localhost:8080 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+*   Trying [::1]:8080...
+* Connected to localhost (::1) port 8080
+> PUT /TestRowResourcea/testrow1?check=append HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/8.9.1
+> Content-type: application/json
+> Accept: application/json
+> Content-Length: 123
+> 
+* upload completely sent off: 123 bytes
+< HTTP/1.1 404 Not Found
+HTTP/1.1 404 Not Found
+< X-Frame-Options: DENY
+X-Frame-Options: DENY
+< X-Content-Type-Options: nosniff
+X-Content-Type-Options: nosniff
+< X-XSS-Protection: 1; mode=block
+X-XSS-Protection: 1; mode=block
+< Content-Type: text/plain
+Content-Type: text/plain
+< Transfer-Encoding: chunked
+Transfer-Encoding: chunked
+< 
+
+Not found
+org.apache.hadoop.hbase.TableNotFoundException: TestRowResourcea
+	at java.base/java.lang.Thread.getStackTrace(Thread.java:1619)
+	at org.apache.hadoop.hbase.util.FutureUtils.setStackTrace(FutureUtils.java:144)
+	at org.apache.hadoop.hbase.util.FutureUtils.rethrow(FutureUtils.java:163)
+	at org.apache.hadoop.hbase.util.FutureUtils.get(FutureUtils.java:186)
+	at org.apache.hadoop.hbase.client.TableOverAsyncTable.append(TableOverAsyncTable.java:325)
+	at org.apache.hadoop.hbase.rest.RowResource.append(RowResource.java:702)
+	at org.apache.hadoop.hbase.rest.RowResource.update(RowResource.java:183)
+	at org.apache.hadoop.hbase.rest.RowResource.put(RowResource.java:324)
+
+...
+
+{code}
+
+Create TestRowResource table with column family "a".
+Call append with column family "cf":
+
+{code:java}
+curl -vi -X PUT \
+  -H "Accept: text/xml" \
+  -H "Content-Type: text/xml" \
+  -d '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><CellSet><Row key="cm93NQo="><Cell column="Y2Y6ZQo=">dmFsdWU1Cg==</Cell></Row></CellSet>' \
+  "http://localhost:8080/TestRowResource/testrow1?check=append"
+* Host localhost:8080 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+*   Trying [::1]:8080...
+* Connected to localhost (::1) port 8080
+> PUT /TestRowResource/testrow1?check=append HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/8.9.1
+> Accept: text/xml
+> Content-Type: text/xml
+> Content-Length: 143
+> 
+* upload completely sent off: 143 bytes
+< HTTP/1.1 404 Not Found
+HTTP/1.1 404 Not Found
+< X-Frame-Options: DENY
+X-Frame-Options: DENY
+< X-Content-Type-Options: nosniff
+X-Content-Type-Options: nosniff
+< X-XSS-Protection: 1; mode=block
+X-XSS-Protection: 1; mode=block
+< Content-Type: text/plain
+Content-Type: text/plain
+< Transfer-Encoding: chunked
+Transfer-Encoding: chunked
+< 
+
+Not found
+org.apache.hadoop.hbase.regionserver.NoSuchColumnFamilyException: org.apache.hadoop.hbase.regionserver.NoSuchColumnFamilyException: Column family cf does not exist in region TestRowResource,,1732811650328.776b1d03b9852a83de1f77688b16865d. in table 'TestRowResource', {TABLE_ATTRIBUTES => {METADATA => {'hbase.store.file-tracker.impl' => 'DEFAULT'}}}, {NAME => 'a', INDEX_BLOCK_ENCODING => 'NONE', VERSIONS => '1', KEEP_DELETED_CELLS => 'FALSE', DATA_BLOCK_ENCODING => 'NONE', TTL => 'FOREVER', MIN_VERSIONS => '0', REPLICATION_SCOPE => '0', BLOOMFILTER => 'ROW', IN_MEMORY => 'false', COMPRESSION => 'NONE', BLOCKCACHE => 'true', BLOCKSIZE => '65536 B (64KB)'}, {NAME => 'b', INDEX_BLOCK_ENCODING => 'NONE', VERSIONS => '1', KEEP_DELETED_CELLS => 'FALSE', DATA_BLOCK_ENCODING => 'NONE', TTL => 'FOREVER', MIN_VERSIONS => '0', REPLICATION_SCOPE => '0', BLOOMFILTER => 'ROW', IN_MEMORY => 'false', COMPRESSION => 'NONE', BLOCKCACHE => 'true', BLOCKSIZE => '65536 B (64KB)'}
+	at org.apache.hadoop.hbase.regionserver.HRegion.checkFamily(HRegion.java:5376)
+	at org.apache.hadoop.hbase.regionserver.HRegion.checkFamily(HRegion.java:5363)
+	at org.apache.hadoop.hbase.regionserver.HRegion.checkFamilies(HRegion.java:5357)
+	at org.apache.hadoop.hbase.regionserver.HRegion$BatchOperation.checkAndPrepareMutation(HRegion.java:3508)
+	at org.apache.hadoop.hbase.regionserver.HRegion$BatchOperation.checkAndPrepareMutation(HRegion.java:3515)
+	at org.apache.hadoop.hbase.regionserver.HRegion$MutationBatchOperation$1.visit(HRegion.java:3899)
+	at org.apache.hadoop.hbase.regionserver.HRegion$BatchOperation.visitBatchOperations(HRegion.java:3394)
+	at org.apache.hadoop.hbase.regionserver.HRegion$MutationBatchOperation.checkAndPrepare(HRegion.java:3878)
+	at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:4779)
+	at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:4699)
+	at org.apache.hadoop.hbase.regionserver.HRegion.mutate(HRegion.java:5194)
+	at org.apache.hadoop.hbase.regionserver.HRegion.lambda$append$31(HRegion.java:8087)
+	at org.apache.hadoop.hbase.trace.TraceUtil.trace(TraceUtil.java:216)
+	at org.apache.hadoop.hbase.regionserver.HRegion.append(HRegion.java:8081)
+	at org.apache.hadoop.hbase.regionserver.RSRpcServices.append(RSRpcServices.java:699)
+	at org.apache.hadoop.hbase.regionserver.RSRpcServices.mutate(RSRpcServices.java:2972)
+	at org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:43506)
+	at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:444)
+	at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:124)
+	at org.apache.hadoop.hbase.ipc.RpcHandler.run(RpcHandler.java:102)
+	at org.apache.hadoop.hbase.ipc.RpcHandler.run(RpcHandler.java:82)
+
+...
+
+{code}
+

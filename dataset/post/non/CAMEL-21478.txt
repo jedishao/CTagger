@@ -1,0 +1,28 @@
+camel-rest-openapi: Input and output types binding to java classes using $ref or title of the schema
+Currently, camel resolves the Java class names for RestBindingConfiguration from Schema XML attribute.
+
+Implemented at: org.apache.camel.component.rest.openapi.RestOpenApiProcessor
+
+```
+private RestBindingConfiguration createRestBindingConfiguration(Operation o) throws Exception {
+...
+...
+Schema s = m.getValue().getSchema();
+// $ref is null, so we need to know the schema name via XML
+if (s != null && s.getXml() != null) {
+String ref = s.getXml().getName();
+...
+```
+ 
+But the documentation says Camel can resolve the schema from the schema name: [https://camel.apache.org/manual/rest-dsl-openapi.html#_binding_to_pojo_classes]
+ 
+This improvement suggests adding an `else-if` condition that to above code that uses `$ref` to resolve the schema name if available and another `else-if` condition that uses the `title` attribute (https://github.com/OAI/OpenAPI-Specification/blob/3.0.2/versions/3.0.2.md#schema-object) of the schema to get the class name if available.
+ 
+Also, the current implementation doesn't resolve class names when using the `requestBodies` component directly in the OAS. It only uses `content` attribute.
+ 
+example:
+```
+requestBody:
+  $ref: '#/components/requestBodies/createProduct'
+```
+This improvement suggests the capability to add this also.

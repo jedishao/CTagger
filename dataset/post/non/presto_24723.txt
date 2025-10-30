@@ -1,0 +1,33 @@
+ip_prefix_collapse does not ensure all ipprefix are ipv4 or ipv6
+While implementing `ip_prefix_collapse` in velox @mohsaka correctly pointed out that https://github.com/facebookincubator/velox/pull/11778 does not ensure all of the ipprefixes with in the input after sorting contains either all ipv4 or ipv6. This logic was ported over from Java's implementation defined here https://github.com/prestodb/presto/blob/33ff9521dbd25e2b7b1181cf01391cb899857d65/presto-main/src/main/java/com/facebook/presto/operator/scalar/IpPrefixFunctions.java#L231-L230.
+
+
+
+## Your Environment
+N/A
+
+## Expected Behavior
+When the input receives a mix of ipv4 and ipv6, the UDF should throw an invalid function argument exception.
+
+## Current Behavior
+The UDF incorrectly passes the check can throw unable to convert to ipprefix such as `com.facebook.presto.spi.PrestoException: Cannot cast value to IPPREFIX: 0.0.0.0/129` 
+
+Example test case. Note the expected out is just something random, we expect this to fail
+```
+        assertFunction("IP_PREFIX_COLLAPSE(ARRAY[IPPREFIX '2200::/64', IPPREFIX '1.1.1.1/32', IPPREFIX '::1/32'])",
+                new ArrayType(IPPREFIX),
+                ImmutableList.of("192.168.0.0/23"));
+```
+
+
+## Possible Solution
+Iterate through all of the sorted ipprefixes to ensure they're of all ipv4 or ipv6
+
+## Steps to Reproduce
+```
+        assertFunction("IP_PREFIX_COLLAPSE(ARRAY[IPPREFIX '2200::/64', IPPREFIX '1.1.1.1/32', IPPREFIX '::1/32'])",
+                new ArrayType(IPPREFIX),
+                ImmutableList.of("192.168.0.0/23"));
+```
+
+

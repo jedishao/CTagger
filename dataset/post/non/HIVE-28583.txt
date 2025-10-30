@@ -1,0 +1,54 @@
+In the case of subqueries, HIVE often incorrectly uses MAP-JOIN for large tables.
+Hello. Team.
+ 
+Currently we found that in version 4.0.1, HIVE many many occasions will be wrongly estimated table size, and thus incorrectly use MapJoin to optimise, ultimately leading to a series of problems such as OOM/MapJoinMemoryExhaustionError.
+
+ 
+
+In addition, I have found that the problem is more likely to occur when I use ORC tables with the ZSTD compression algorithm.
+
+ 
+We found a typical scenario as follows:
+{code:java}
+---dataset size
+select
+c1,c2,c3
+from big_table_2;    10~50GB
+ 
+big_table_1   1TB；
+ 
+ 
+----- use map join. and cause oom/MapJoinMemoryExhaustionError
+select
+*
+from 
+big_table_1    t1
+join
+(
+select
+c1,c2,c3
+from big_table_2
+) t2  on xxxxx;  
+ 
+ 
+ 
+----- use smj. no map join. job success
+create table t2 as 
+select
+c1,c2,c3
+from big_table_2;
+
+
+select
+*
+from 
+big_table_1  t1
+join
+t2  on xxxxx;  
+ {code}
+The above SQL can be executed normally in HIVE3.
+Can anyone guide me on how to deal with this kind of problem?
+ 
+ 
+ 
+ 

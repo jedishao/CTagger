@@ -1,0 +1,59 @@
+Type Mismatch in Presto Views Causing Stale View Errors
+## **Description**
+We developed a DB2 connector (JDBC) and implemented getViews() logic to support views. However, when querying views in Presto, a type mismatch between Presto and DB2 causes stale view errors. This issue could potentially affect other connectors if they add support for views in the future.
+
+## **Your Environment**
+* **Presto Version Used:** Latest
+* **Data Source and Connector Used:** DB2 Connector (JDBC connector)
+* **Deployment:** Cloud, On-prem
+
+## **Expected Behavior**
+Presto should use the database's return type for functions like substr(), STDDEV(), MONTH(), DAY(), YEAR(), and others, instead of relying on the type it analyzes on its own. When running DESCRIBE VIEW, Presto correctly displays the data types returned by the database. However, when executing SELECT * FROM view, Presto checks for differences between the source database column types and the types it has analyzed using analyzeView. This mismatch occurs in the isViewStale() method, which causes the error: `View is stale; it must be re-created.`
+
+## **Current Behavior**
+When using `substr()`, DB2 and Presto return different data types, causing view staleness errors.
+- **Example 1:**
+  ```
+  substr(first_name,1,3)
+  ```
+Actual `first_name` column type is `char(20)`
+  - **DB2:** `char(3)` 
+  - **Presto:** `char(20)`
+
+- **Example 2:**
+  ```sql
+  SUBSTR(FIRSTNAME,1,3)
+  ```
+Actual `FIRSTNAME` column type is `varchar(50)`
+  - **DB2:** `char(3)`
+  - **Presto:** `varchar(50)`
+
+This mismatch causes Presto to detect an inconsistency, leading to the error:
+```
+View 'db2.schema.test_view_2' is stale; it must be re-created.
+```
+
+## **Steps to Reproduce**
+1. implement getviews() logic in any jdbc connector.
+2. Create a view:
+   ```
+   CREATE VIEW TEST_VIEW_2 AS 
+   SELECT cust_id, substr(first_name,1,3) as name FROM CUST;
+   ```
+2. Run the query in Presto:
+   ```
+   SELECT * FROM db2.schema.TEST_VIEW_2;
+   ```
+3. Presto processes the view and detects a type mismatch.
+4. The error `View 'db2.tm_lakehouse_engine.test_view_2' is stale; it must be re-created.` appears.
+
+
+
+## **Possible Solution**
+As suggested by @nmahadevuni, swapping the parameters in the canCoerce() call ([StatementAnalyzer.java#L2923](https://github.com/prestodb/presto/blob/master/presto-main/src/main/java/com/facebook/presto/sql/analyzer/StatementAnalyzer.java#L2923)) resolves most of the issues encountered when querying the view.
+
+However:
+- Example 2 still fails unless we set `deprecated.legacy-char-to-varchar-coercion=true`.
+- Enabling this deprecated property fixes Example 2 but breaks Example 1.
+
+A more robust fix is needed to ensure function return types align correctly between DB2 and Presto to prevent stale view errors.

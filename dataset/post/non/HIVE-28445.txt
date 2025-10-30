@@ -1,0 +1,105 @@
+Uber JAR of HiveServer2 JDBC Driver 4.1.0-SNAPSHOT is incompatible with `org.apache.zookeeper.zookeeper:3.9.2`
+- Uber JAR of HiveServer2 JDBC Driver 4.1.0-SNAPSHOT is incompatible with `org.apache.zookeeper.zookeeper:3.9.2`. This is one of the findings from https://github.com/apache/shardingsphere/pull/31526 .
+- Just a simple compile.
+
+{code:bash}
+sdk install java 8.0.422-tem
+sdk use java 8.0.422-tem
+sdk install maven
+git clone git@github.com:apache/hive.git
+cd ./hive/
+git reset --hard b09d76e68bfba6be19733d864b3207f95265d11f
+mvn clean install -DskipTests -T1C 
+mvn clean package -pl packaging -DskipTests -Pdocker
+cd ../
+{code}
+
+- Introduce at will.
+{code:xml}
+<dependency>
+            <groupId>org.apache.hive</groupId>
+            <artifactId>hive-jdbc</artifactId>
+            <version>4.1.0-SNAPSHOT</version>
+            <classifier>standalone</classifier>
+</dependency>
+<dependency>
+                <groupId>org.apache.zookeeper</groupId>
+                <artifactId>zookeeper</artifactId>
+                <version>3.9.2</version>
+</dependency>
+<dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>curator-test</artifactId>
+            <version>5.7.0</version>
+            <scope>test</scope>
+</dependency>
+<dependency>
+    <groupId>org.junit.jupiter</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <version>5.10.3</version>
+    <scope>test</scope>
+</dependency>
+<dependency>
+    <groupId>org.awaitility</groupId>
+    <artifactId>awaitility</artifactId>
+    <version>4.2.0</version>
+    <scope>test</scope>
+</dependency>
+{code}
+
+- Start a Zookeeper Server in the unit test.
+
+{code:java}
+import org.apache.curator.CuratorZookeeperClient;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
+
+public class ZookeeperTest {
+
+    @Test
+    void testZookeeper() throws Exception {
+        TestingServer testingServer = new TestingServer();
+        try (
+                CuratorZookeeperClient client = new CuratorZookeeperClient(testingServer.getConnectString(),
+                        60 * 1000, 500, null,
+                        new ExponentialBackoffRetry(500, 3, 500 * 3))) {
+            client.start();
+            Awaitility.await().atMost(Duration.ofMillis(500 * 60)).ignoreExceptions().until(client::isConnected);
+        }
+    }
+}
+{code}
+- The following Error Log is obtained.
+{code:bash}
+[ERROR] 2024-08-14 13:35:55.349 [SyncThread:0] o.a.z.server.ZooKeeperCriticalThread - Severe unrecoverable error, from thread : SyncThread:0
+java.lang.NoSuchMethodError: 'long org.apache.jute.OutputArchive.getDataSize()'
+	at org.apache.zookeeper.server.persistence.FileTxnLog.append(FileTxnLog.java:291)
+	at org.apache.zookeeper.server.persistence.FileTxnSnapLog.append(FileTxnSnapLog.java:592)
+	at org.apache.zookeeper.server.ZKDatabase.append(ZKDatabase.java:672)
+	at org.apache.zookeeper.server.SyncRequestProcessor.run(SyncRequestProcessor.java:181)
+[ERROR] 2024-08-14 13:35:55.373 [zkservermainrunner] o.a.zookeeper.server.ZooKeeperServer - Error updating DB
+java.io.EOFException: null
+	at java.base/java.io.DataInputStream.readFully(DataInputStream.java:210)
+	at java.base/java.io.DataInputStream.readInt(DataInputStream.java:385)
+	at org.apache.jute.BinaryInputArchive.readInt(BinaryInputArchive.java:96)
+	at org.apache.zookeeper.server.persistence.FileHeader.deserialize(FileHeader.java:67)
+	at org.apache.zookeeper.server.persistence.FileTxnLog$FileTxnIterator.inStreamCreated(FileTxnLog.java:725)
+	at org.apache.zookeeper.server.persistence.FileTxnLog$FileTxnIterator.createInputArchive(FileTxnLog.java:743)
+	at org.apache.zookeeper.server.persistence.FileTxnLog$FileTxnIterator.goToNextLog(FileTxnLog.java:711)
+	at org.apache.zookeeper.server.persistence.FileTxnLog$FileTxnIterator.init(FileTxnLog.java:687)
+	at org.apache.zookeeper.server.persistence.FileTxnLog$FileTxnIterator.<init>(FileTxnLog.java:646)
+	at org.apache.zookeeper.server.persistence.FileTxnLog.read(FileTxnLog.java:466)
+	at org.apache.zookeeper.server.persistence.FileTxnLog.read(FileTxnLog.java:453)
+	at org.apache.zookeeper.server.persistence.FileTxnSnapLog.fastForwardFromEdits(FileTxnSnapLog.java:330)
+	at org.apache.zookeeper.server.ZKDatabase.fastForwardDataBase(ZKDatabase.java:302)
+	at org.apache.zookeeper.server.ZooKeeperServer.shutdown(ZooKeeperServer.java:980)
+	at org.apache.zookeeper.server.ZooKeeperServer.shutdown(ZooKeeperServer.java:928)
+	at org.apache.zookeeper.server.NIOServerCnxnFactory.shutdown(NIOServerCnxnFactory.java:912)
+	at org.apache.zookeeper.server.ZooKeeperServerMain.shutdown(ZooKeeperServerMain.java:223)
+	at org.apache.zookeeper.server.ZooKeeperServerMain.runFromConfig(ZooKeeperServerMain.java:187)
+	at org.apache.zookeeper.server.embedded.ZooKeeperServerEmbeddedImpl$4.run(ZooKeeperServerEmbeddedImpl.java:167)
+{code}

@@ -1,0 +1,23 @@
+Streaming uploads for S3 FileSystem Implementation
+The initial implementation of the S3 FileSystem interface in Presto wrote all data to a file on the local disk before using the AWS SDK's `TransferManager` API to handle the upload. This requires the machine to have disk space equal to the file(s) being written to S3.
+
+PR #22424 Improves this by uploading each file part after a configurable N bytes are written to the temporary storage. This caps the maximum disk utilization at N. However, the performance takes a hit because once the upload commences, no more bytes can be written while the upload is occurring.
+
+An optimal solution would be to queue and execute file part uploads as bytes are written, without blocking the writer. Trino has an implementation similar to this in https://github.com/trinodb/trino/commit/f681708aab96c85a6ab20abfdcca4d7ff04a7744 .
+
+
+## Expected Behavior or Use Case
+
+Don't block writers while uploading file parts to S3
+
+## Presto Component, Service, or Connector
+
+- PrestoS3FileSystem
+
+## Possible Implementation
+
+See above description
+
+## Context
+
+Better S3 FileSystem performance.

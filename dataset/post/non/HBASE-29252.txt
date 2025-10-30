@@ -1,0 +1,23 @@
+Reduce allocations in RowIndexSeekerV1
+I've looked at a lot of allocation profiles of RegionServers doing a read-heavy workload. Some allocations that dominate the chart can be easily avoided.
+
+The following code in the main decode method
+{code:java}
+currentBuffer.asSubByteBuffer(currentBuffer.position(), current.keyLength, tmpPair);
+ByteBuffer key = tmpPair.getFirst().duplicate();
+key.position(tmpPair.getSecond()).limit(tmpPair.getSecond() + current.keyLength);
+current.keyBuffer = key; {code}
+results in a new ByteBuffer for every cell. The reason to have this duplicate ByteBuffer is to hold the result of {{tmpPair.getSecond()}} as its {{position}} state. But this is just an integer that can be more cheaply stored in a different way. We can introduce a {{current.keyOffset}} variable and do this instead:
+{code:java}
+currentBuffer.asSubByteBuffer(currentBuffer.position(), current.keyLength, tmpPair);
+current.keyBuffer = tmpPair.getFirst();
+current.keyOffset = tmpPair.getSecond();{code}
+and then reference {{current.keyOffset}} where we previously referenced {{{}current.keyBuffer.position(){}}}.
+
+ 
+
+Additionally, {{RowIndexSeekerV1.SeekerState}} contains a {{ByteBufferKeyOnlyKeyValue}} field that is replaced on every cell read. This object can be reset and re-used instead.
+
+ 
+
+On the attached profile, allocations of the duplicate {{ByteBuffers}} and {{{}ByteBufferKeyOnlyKeyValue{}}}s collectively account for 35% of allocations profiled. This is probably representative of the behavior of a typical RegionServer doing a heavy amount of scans while using RowIndexV1.

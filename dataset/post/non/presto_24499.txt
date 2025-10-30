@@ -1,0 +1,35 @@
+Solve current limitations executing subqueries in WHERE clause using subqueries in both sides of an operator using the ANY/ALL modifier
+Although Presto is able to execute qureies containing subqueries in the WHERE clause it has some limitations.
+In particular, it seems to be limitations using subqueries in both sides of an operator using the ANY/ALL modifier. Examples:
+
+
+```
+-- condition using subquery in one side of the operator =ANY : **works**
+
+SELECT * FROM tpch.sf1.orders 
+WHERE 2 =ANY (SELECT min(discount) FROM tpch.sf1.lineitem);
+
+
+-- condition using subqueries in both sides of the operator = : **works**
+
+SELECT * FROM tpch.sf1.orders 
+WHERE (SELECT max(discount) FROM tpch.sf1.lineitem) = (SELECT min(discount) FROM tpch.sf1.lineitem);
+
+-- condition using subqueries in both sides of the operator =ANY : **Fails**
+
+SELECT * FROM tpch.sf1.orders 
+WHERE (SELECT max(discount) FROM tpch.sf1.lineitem) =ANY (SELECT min(discount) FROM tpch.sf1.lineitem);
+```
+
+## Expected Behavior or Use Case
+
+The queries that fail should work
+
+## Presto Component, Service, or Connector
+
+The examples are using the tpch connector but It seems to be independent of the connector, it is possible to experience the same with the hive connector.
+
+
+## Context
+
+Tools that rely on Presto to execute certain queries do not have a clear way to identify these not supported scenarios to decide to send the query to Presto or not.

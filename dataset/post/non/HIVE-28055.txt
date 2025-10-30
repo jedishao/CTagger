@@ -1,0 +1,22 @@
+Iceberg: Merge needs to specify target table alias when using table branch
+Merge needs to specify target table alias when using table branch. I can't seem to get it to work without using a table alias. This could be user error or maybe this should be documented.
+
+For example:
+{code:java}
+create database merge_test;
+use merge_test;
+create table target (id int, value string) stored by iceberg stored as parquet tblproperties ('parquet.compression'='SNAPPY', 'format-version'='2');
+create table source (id int, value string) stored by iceberg stored as parquet tblproperties ('parquet.compression'='SNAPPY', 'format-version'='2');
+insert into target values (1, 'val1');
+insert into source values (1, 'val1');
+alter table target create branch branch1;
+alter table source create branch branch1;
+{code}
+
+ 
+
+But this doesn't work:
+{code:java}
+merge into merge_test.target.branch_branch1 using merge_test.source.branch_branch1 s on merge_test.target.branch_branch1.id = s.id when matched then update set value = 'matched';
+
+merge into merge_test.target.branch_branch1 using merge_test.source.branch_branch1 s on branch_branch1.id = s.id when matched then update set value = 'matched';{code}

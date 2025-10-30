@@ -1,0 +1,98 @@
+Redisson can not modify org.redisson.config.{Xxx}ServerConfig properties 
+Redisson didn't provides any method to modify Server Config (SingleServerConfig/MasterSlaveServersConfig/ClusterServersConfig) properties while using `org.springframework.boot.autoconfigure.data.redis.RedisProperties`.
+
+For example: I want to modify `connectionMinimumIdleSize` property of `SingleServerConfig`:
+
+```java
+// Redisson Code:
+
+        } else {
+            config = new Config();
+
+            String singleAddr = prefix + redisProperties.getHost() + ":" + redisProperties.getPort();
+
+            if (hasConnectionDetails()) {
+                ObjectProvider<RedisConnectionDetails> provider = ctx.getBeanProvider(RedisConnectionDetails.class);
+                RedisConnectionDetails b = provider.getIfAvailable();
+                if (b != null && b.getStandalone() != null) {
+                    database = b.getStandalone().getDatabase();
+                    singleAddr = prefix + b.getStandalone().getHost() + ":" + b.getStandalone().getPort();
+                }
+            }
+
+            // Redisson did not parese connectionMinimumIdleSize properties
+            SingleServerConfig c = config.useSingleServer()
+                    .setAddress(singleAddr)
+                    .setDatabase(database)
+                    .setUsername(username)
+                    .setPassword(password)
+                    .setClientName(clientName);
+            if (connectTimeout != null) {
+                c.setConnectTimeout(connectTimeout);
+            }
+            if (connectTimeoutMethod != null && timeout != null) {
+                c.setTimeout(timeout);
+            }
+            initSSL(c);
+        }
+       
+        // Use RedissonAutoConfigurationCustomizer maybe work ???
+        if (redissonAutoConfigurationCustomizers != null) {
+            for (RedissonAutoConfigurationCustomizer customizer : redissonAutoConfigurationCustomizers) {
+                customizer.customize(config);
+            }
+        }
+```
+
+Then I define a `RedissonAutoConfigurationCustomizer` Bean:
+
+```java
+@AutoConfiguration
+public class AppConfig
+{
+    @Bean
+    RedissonAutoConfigurationCustomizer defaultRedissonAutoConfigurationCustomizer()
+    {
+        return new RedissonAutoConfigurationCustomizer()
+        {    
+            @Override
+            public void customize(Config configuration)
+            {
+                // DID NOT WORK: Use useSingleServer() would override pre properties
+                //SingleServerConfig singleServerConfig = configuration.useSingleServer();
+                
+                // DID NOT WORK: compile error, getSingleServerConfig() is protected
+                SingleServerConfig singleServerConfig = configuration.getSingleServerConfig();
+                
+                // modify connectionMinimumIdleSize properties
+                singleServerConfig.setConnectionMinimumIdleSize(10);
+            }
+        };
+    }
+}
+```
+
+As the code show above, `Config.getSingleServerConfig()` is not **public** , so there is no way to modify `connectionMinimumIdleSize` property. Unless `org.redisson.config.Config#get{Xxx}ServerConfig()` change to  **public**.
+
+**Expected behavior**
+Redisson can modify org.redisson.config.{Xxx}ServerConfig properties 
+
+**Actual behavior**
+Redisson can not modify org.redisson.config.{Xxx}ServerConfig properties 
+
+**Steps to reproduce or test case**
+See codes above.
+
+**Redis version**
+7.0
+**Redisson version**
+3.24.3
+**Redisson configuration**
+```
+spring.data.redis:
+  host: 192.168.56.23
+  port: 6379
+  #username: 
+  #password: 
+  clientName: ${spring.application.name}
+```

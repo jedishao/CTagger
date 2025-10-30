@@ -1,0 +1,76 @@
+Netty OutOfDirectMemoryError in LZ4Encoding.decode
+### Redis version
+
+7.0.7
+
+### Redisson version
+
+3.40.2
+
+### Redisson configuration
+
+```
+        Config config = new Config();
+        config.useSingleServer().setAddress(configuration().getRedisConfig().getAddress())
+                .setDatabase(configuration().getRedisConfig().getDatabase())
+                .setConnectionMinimumIdleSize(20)
+                .setConnectionPoolSize(20)
+                .setConnectTimeout(50)
+                .setTimeout(3000)
+                .setRetryInterval(100)
+                .setPassword("password")
+                .setRetryAttempts(1);
+        config.setCodec(new JsonJacksonCodec());
+        config.setNettyThreads(16);
+        return config;
+```
+
+### What is the Expected behavior?
+
+Redisson should be able to decode objects using LZ4Encoding without an error
+
+### What is the Actual behavior?
+
+There is an error. (Interesting thing is that this is working in local but failing when deployed to kubernetes)
+```
+io.netty.util.internal.OutOfDirectMemoryError: failed to allocate 2065842275 byte(s) of direct memory (used: 8388608, max: 734003200)
+ at io.netty.util.internal.PlatformDependent.incrementMemoryCounter(PlatformDependent.java:862)
+ at io.netty.util.internal.PlatformDependent.allocateDirectNoCleaner(PlatformDependent.java:791)
+ at io.netty.buffer.PoolArena$DirectArena.allocateDirect(PoolArena.java:718)
+ at io.netty.buffer.PoolArena$DirectArena.newUnpooledChunk(PoolArena.java:707)
+ at io.netty.buffer.PoolArena.allocateHuge(PoolArena.java:224)
+ at io.netty.buffer.PoolArena.allocate(PoolArena.java:142)
+ at io.netty.buffer.PoolArena.allocate(PoolArena.java:127)
+ at io.netty.buffer.PooledByteBufAllocator.newDirectBuffer(PooledByteBufAllocator.java:403)
+ at io.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:188)
+ at io.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:179)
+ at io.netty.buffer.AbstractByteBufAllocator.buffer(AbstractByteBufAllocator.java:116)
+ at org.redisson.codec.LZ4Codec$1.decode(LZ4Codec.java:73)
+ at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:444)
+ at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:220)
+ at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:148)
+ at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:124)
+ at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:530)
+ at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+ at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+ at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+ at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+ at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+ at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1357)
+ at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+ at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+ at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:868)
+ at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+ at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+ at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+ at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+ at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+ at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+ at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+ at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+ at java.lang.Thread.run(Thread.java:750)
+```
+
+### Additional information
+
+_No response_

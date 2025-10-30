@@ -1,0 +1,47 @@
+ring_hash creates subchannels outside of event loop
+@YifeiZhuang, since this seems likely a regression from https://github.com/grpc/grpc-java/pull/10610 and Larry won't be able to take a look before we do the branch cut, do you want to fix this forward or roll back? In general, this sort of problem is easy to fix, but I've not look at the specific circumstance here.
+
+https://github.com/grpc/grpc-java/actions/runs/6830016259/job/18577243576?pr=10657
+
+```
+io.grpc.xds.FakeControlPlaneXdsIntegrationTest > pingPong_ringHash FAILED
+    java.lang.IllegalStateException: Not called from the SynchronizationContext
+        at com.google.common.base.Preconditions.checkState(Preconditions.java:512)
+        at io.grpc.SynchronizationContext.throwIfNotInThisSynchronizationContext(SynchronizationContext.java:134)
+        at io.grpc.internal.ManagedChannelImpl$LbHelperImpl.createSubchannel(ManagedChannelImpl.java:1465)
+        at io.grpc.internal.ManagedChannelImpl$LbHelperImpl.createSubchannel(ManagedChannelImpl.java:1460)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.xds.ClusterImplLoadBalancer$ClusterImplLbHelper.createSubchannel(ClusterImplLoadBalancer.java:213)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:46)
+        at io.grpc.internal.PickFirstLoadBalancer.acceptResolvedAddresses(PickFirstLoadBalancer.java:76)
+        at io.grpc.LoadBalancer.handleResolvedAddresses(LoadBalancer.java:147)
+        at io.grpc.util.ForwardingLoadBalancer.handleResolvedAddresses(ForwardingLoadBalancer.java:34)
+        at io.grpc.LoadBalancer.acceptResolvedAddresses(LoadBalancer.java:175)
+        at io.grpc.xds.RingHashLoadBalancer$RingHashChildLbState.reactivate(RingHashLoadBalancer.java:538)
+        at io.grpc.xds.RingHashLoadBalancer$RingHashChildLbState.activate(RingHashLoadBalancer.java:543)
+        at io.grpc.xds.RingHashLoadBalancer$RingHashPicker.pickSubchannel(RingHashLoadBalancer.java:430)
+        at io.grpc.xds.ClusterImplLoadBalancer$ClusterImplLbHelper$RequestLimitingSubchannelPicker.pickSubchannel(ClusterImplLoadBalancer.java:318)
+        at io.grpc.xds.ClusterManagerLoadBalancer$1.pickSubchannel(ClusterManagerLoadBalancer.java:135)
+        at io.grpc.internal.ManagedChannelImpl$ChannelStreamProvider.getTransport(ManagedChannelImpl.java:501)
+        at io.grpc.internal.ManagedChannelImpl$ChannelStreamProvider.access$2200(ManagedChannelImpl.java:470)
+        at io.grpc.internal.ManagedChannelImpl$ChannelStreamProvider$1RetryStream.newSubstream(ManagedChannelImpl.java:565)
+        at io.grpc.internal.RetriableStream.createSubstream(RetriableStream.java:259)
+        at io.grpc.internal.RetriableStream.start(RetriableStream.java:391)
+        at io.grpc.internal.ClientCallImpl.startInternal(ClientCallImpl.java:295)
+        at io.grpc.internal.ClientCallImpl.start(ClientCallImpl.java:194)
+        at io.grpc.xds.XdsNameResolver$ConfigSelector$1ClusterSelectionInterceptor$1.start(XdsNameResolver.java:495)
+        at io.grpc.internal.ManagedChannelImpl$ConfigSelectingClientCall.start(ManagedChannelImpl.java:1224)
+        at io.grpc.stub.ClientCalls.startCall(ClientCalls.java:335)
+        at io.grpc.stub.ClientCalls.asyncUnaryRequestCall(ClientCalls.java:311)
+        at io.grpc.stub.ClientCalls.futureUnaryCall(ClientCalls.java:224)
+        at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+        at io.grpc.testing.protobuf.SimpleServiceGrpc$SimpleServiceBlockingStub.unaryRpc(SimpleServiceGrpc.java:340)
+        at io.grpc.xds.FakeControlPlaneXdsIntegrationTest.pingPong_ringHash(FakeControlPlaneXdsIntegrationTest.java:180)
+```

@@ -1,0 +1,37 @@
+Like filter gives extra/unexpected results on multi valued dimension
+When using `Like` filter on multi valued fields, it returns extra/unexpected results. Example query
+```
+SELECT ("col_mvd") FROM "table"
+WHERE "col_mvd" LIKE ('%abc%')
+GROUP BY 1
+ORDER BY "col_mvd"
+LIMIT 10
+```
+
+I think its because the filter returns a bitmap index with matching rows however each row may have multiple values and those values are not match against filter and added to the results. Native search query returns correct results because it does match against actual filter [here](https://github.com/apache/druid/blob/master/processing/src/main/java/org/apache/druid/query/search/SearchQueryRunner.java#L136). Example search query
+```
+{
+  "queryType": "search",
+  "dataSource": "table",
+  "granularity": "hour",
+  "searchDimensions": [
+    "col_mvd"
+  ],
+  "query": {
+    "type": "insensitive_contains",
+    "value": "abc"
+  },
+  "sort" : {
+    "type": "lexicographic"
+  },
+  "intervals": [
+    "2024/2025"
+  ]
+}
+```
+
+### Affected Version
+
+All
+
+

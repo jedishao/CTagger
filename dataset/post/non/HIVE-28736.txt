@@ -1,0 +1,9 @@
+Remove DFS_URI authorization in HMS for CREATE_TABLE event with no explicit LOCATION 
+When the table is created through HMS - e.g. directly via API or via Spark-SQL - the HMS Authorizer of the CREATE_TABLE event involves URL (DFS_URI) Authorization even when explicit location is not specified. This is not consistent with Hiveserver2 authorization during the Create table.
+{noformat}
+scala> spark.sql("CREATE TABLE default.loctest2 (id int, txt string)")
+
+org.apache.spark.sql.AnalysisException: org.apache.hadoop.hive.ql.metadata.HiveException: MetaException(message:Permission denied: user [cdpuser1] does not have [READ] privilege on [[hdfs://jkovacs7217-3.jkovacs7217.root.hwx.site:8020/warehouse/tablespace/external/hive/loctest2, hdfs://jkovacs7217-3.jkovacs7217.root.hwx.site:8020/warehouse/tablespace/external/hive/loctest2/]])
+  at org.apache.spark.sql.hive.HiveExternalCatalog.withClient(HiveExternalCatalog.scala:110)
+  at org.apache.spark.sql.hive.HiveExternalCatalog.createTable(HiveExternalCatalog.scala:244)
+{noformat}

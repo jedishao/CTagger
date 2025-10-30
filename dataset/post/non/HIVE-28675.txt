@@ -1,0 +1,65 @@
+Maximize the removal of redundant columns from GROUP BY clauses
+HIVE-17043 introduced some logic to remove redundant columns from the GROUP BY when the latter contains unique keys. The removal is done in a heuristic manner by considering the first unique key that is part of the GROUP BY. In the presence of multiple keys, the heuristic removal is incomplete and sub-optimal.
+
+Consider the following example in which we have a table with three unique keys.
+{code:sql}
+CREATE TABLE passenger
+(
+    id       INT    NOT NULL,
+    fname    STRING NOT NULL,
+    lname    STRING NOT NULL,
+    passport STRING NOT NULL,
+    UNIQUE (id) DISABLE RELY,
+    UNIQUE (passport) DISABLE RELY,
+    UNIQUE (fname, lname) DISABLE RELY
+)
+{code}
++Example I+
+In the following query, the passport column can be removed from the GROUP BY clause since it is not used in the SELECT clause and the id column is a unique key.
+{code:sql}
+EXPLAIN CBO SELECT id, COUNT(1) FROM passenger GROUP BY id, passport
+{code}
+The optimizer correctly applies this transformation and the query plan is shown below.
+{noformat}
+CBO PLAN:
+HiveAggregate(group=[{0}], agg#0=[count()])
+  HiveTableScan(table=[[default, passenger]], table:alias=[passenger])
+{noformat}
+In the following query, the id column can be removed from the GROUP BY clause since it is not used in the SELECT clause and the passport column is a unique key.
+{code:sql}
+EXPLAIN CBO SELECT passport, COUNT(1) FROM passenger GROUP BY id, passport
+{code}
+The optimizer fails to apply the removal and we can see the aggregate operator is on both id (0-index) and passport (3-index).
+{noformat}
+CBO PLAN:
+HiveProject(passport=[$1], _o__c1=[$2])
+  HiveAggregate(group=[{0, 3}], agg#0=[count()])
+    HiveTableScan(table=[[default, passenger]], table:alias=[passenger])
+{noformat}
+Although the two queries above have a similar structure and the same keys, the removal logic fails to create the expected plan thus it is in a sense incomplete.
+
++Example II+
+
+In the following query, there various column combinations that can be removed from the GROUP BY clause.
+{code:sql}
+EXPLAIN CBO SELECT passport COUNT(1) FROM passenger GROUP BY id, fname, lname, passport
+{code}
+The optimizer picks to remove the fname and lname columns but this is not the optimal choice; we can observe that the id column (0-index) could also be removed.
+{noformat}
+CBO PLAN:
+HiveProject(passport=[$1], _o__c1=[$2])
+  HiveAggregate(group=[{0, 3}], agg#0=[count()])
+    HiveTableScan(table=[[default, passenger]], table:alias=[passenger])
+{noformat}
+The optimizer has multiple options in terms of which columns to retain:
+ * (passport)
+ * (id, passport)
+ * (fname, passport)
+ * (lname, passport)
+ * (id, fname, passport)
+ * (id, lname, passport)
+ * (id, fname, lname, passport)
+
+The seemingly best choice is to keep only the passport column and drop all the rest.
+
+The goal of this ticket is to maximize the number of columns that are removed by choosing the most promising unique key to retain in the GROUP BY clause. By exploring all unique keys we address the completeness issue and by maximizing the removed columns we achieve optimality in the number of columns dropped.

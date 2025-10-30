@@ -1,0 +1,57 @@
+Tomcat Session Manager: CROSSSLOT Keys in request don't hash to the same slot
+### Redis version
+
+6.2.14
+
+### Redisson version
+
+3.33.0
+
+### Redisson configuration
+
+Cluster.  6 master + 2 replica each.
+Using Redisson tomcat session manager.
+
+### What is the Expected behavior?
+
+Our web system runs spring + jsf for administration.  The JSF admin side re-creates the session if the spring side was hit first.  Normally if an admin user accesses the spring side and has their session created there, then goes to the admin, a new session is created.  While not ideal, this has alway been the expected behavior and has worked fine (at least up to redisson 3.27.2)
+
+### What is the Actual behavior?
+
+After upgrading to redisson 3.33.0, if a user first accesses the spring side, and then goes so the jsf side, rather then getting a new session, an exception is throw resulting in a 500 error.  The exception is:
+
+```
+org.redisson.client.RedisException: CROSSSLOT Keys in request don't hash to the same slot. channel: [id: 0xd4af6cea, L:/10.10.10.10:18711 - R:10.1.109.11/10.1.109.11:7000] command: (RENAME), params: [jobs:redisson:tomcat_session:9434A94BE80D5F29382AF982902562A0, jobs:redisson:tomcat_session:958FA4215BC0DE2038BD4B72704DCFB7], promise: java.util.concurrent.CompletableFuture@6d2dce81[Not completed, 1 dependents]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:420)
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:218)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:146)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:122)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:530)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1407)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:918)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:994)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+```
+
+If the user clears their cookies and goes to the JSF section first, then the spring, everything is fine (as spring will re-use the jsf session).
+
+It appears Redisson is attempting to re-use the old session and just rename it (when jsf tries to create a new one)?  If this failure occurs, it would be preferable to simply have a new session created then throwing an exception that would cause a web error.  
+
+
+### Additional information
+
+I'm not sure when this change happened.  Due to a previous cluster bug (where replica->master wasn't being properly updated) I've only been able to run 3.27.2 without issue.

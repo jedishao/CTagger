@@ -1,0 +1,27 @@
+Check release note action fails when PR description including java code
+Currently, the `check_release_note` action fails if we including java codes in PR description, the error message is:
+
+```
+ /home/runner/work/_temp/e211ad2f-239c-4ef7-9bb6-c2b1501bf87d.sh: line 4: syntax error near unexpected token `('
+Error: Process completed with exit code 2.
+```
+
+See the related PR description [here](https://github.com/prestodb/presto/pull/25053).
+
+The java code that would cause `check_release_note` to fail is:
+
+```
+assertUpdate("create table multi_statements_transaction_commit(a int, b varchar)");
+assertUpdate("insert into multi_statements_transaction_commit values(1, '1001'), (2, '1002')", 2);
+
+Session session = assertStartTransaction(getSession(), "start transaction");
+
+assertQuery(session, "select * from multi_statements_transaction_commit", "values(1, '1001'), (2, '1002')");
+assertUpdate(session, "insert into multi_statements_transaction_commit values(3, '1003'), (4, '1004')", 2);
+
+// `Commit` executes successfully
+session = assertEndTransaction(session, "commit");
+
+assertQuery(session, "select * from multi_statements_transaction_commit", "values(1, '1001'), (2, '1002'), (3, '1003'), (4, '1004')");
+assertUpdate(session, "drop table if exists multi_statements_transaction_commit");
+```

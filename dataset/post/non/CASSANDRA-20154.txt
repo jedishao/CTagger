@@ -1,0 +1,42 @@
+BETWEEN where token(Y) > token(Z) returns wrong answer
+Noticed it’s not compliant with the SQL specification for BETWEEN and so doesn’t match what other databases do (tested on Postgres and MySQL).
+
+Here is the [SQL 92 spec|https://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt] (later versions probably don't change something so fundamental).
+
+In particular rule 6 doesn't match the observed behavior which is to swap Y and Z and then return what is in between them which is pretty surprising as a result.
+{noformat}
+6) "X BETWEEN Y AND Z" is equivalent to "X>=Y AND X<=Z".
+{noformat}
+
+{noformat}
+         8.3  <between predicate>
+
+         Function
+
+         Specify a range comparison.
+
+         Format
+
+         <between predicate> ::=
+              <row value constructor> [ NOT ] BETWEEN
+                <row value constructor> AND <row value constructor>
+
+
+         Syntax Rules
+
+         1) The three <row value constructor>s shall be of the same degree.
+
+         2) Let respective values be values with the same ordinal position
+            in the two <row value constructor>s.
+
+         3) The data types of the respective values of the three <row value
+            constructor>s shall be comparable.
+
+         4) Let X, Y, and Z be the first, second, and third <row value con-
+            structor>s, respectively.
+
+         5) "X NOT BETWEEN Y AND Z" is equivalent to "NOT ( X BETWEEN Y AND
+            Z )".
+
+         6) "X BETWEEN Y AND Z" is equivalent to "X>=Y AND X<=Z".
+{noformat}

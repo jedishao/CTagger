@@ -1,0 +1,67 @@
+Possible issue with class definition under JDK 8 for RedissonCacheMeterBinderProvider
+We noticed an issue with our Spring installation that uses Redisson and specfically the `RedissonCacheMeterBinderProvider` class.  This class gets loaded as a Spring Bean and we have post-processors that end up calling `ReflectionUtils.doWithFields` on each of the beans to look for certain annotations.  That method eventually calls `java.lang.reflect.Executable.getParameters` to reflectively load the method parameters and other reflection info.  That method checks to see if the classfile has an actual parameters table with actual parameter names and if it does it uses that table.  If it does not, then it generates default parameters (`arg0`, `arg1`, etc).  The method then verifies that the parameters are valid and non-null/non-empty strings.
+
+In 3.24.2, this behaves as expected as there is no parameter table and it generates default parameter names.
+In 3.24.3 this fails because the class file has a generated parameter table in the class file but the names are empty strings, thus causing the reflection API in JDK 8 to fail.
+
+**Expected behavior**
+`RedissonCacheMeterBinderProvider` can be loaded reflectively.
+
+**Actual behavior**
+`RedissonCacheMeterBinderProvider` fails with:
+```
+java.lang.reflect.MalformedParametersException: Invalid parameter name ""
+	at java.lang.reflect.Executable.verifyParameters(Executable.java:386)
+	at java.lang.reflect.Executable.privateGetParameters(Executable.java:416)
+	at java.lang.reflect.Executable.getParameters(Executable.java:357)
+```
+
+**Steps to reproduce or test case**
+```
+public class RedissonTest {
+
+    @Test
+    public void testRedisson() {
+        for (Method method : RedissonCacheMeterBinderProvider.class.getMethods()) {
+            System.out.println("METHOD: " + method);
+            for (Parameter param : method.getParameters()) {
+                System.out.println("   PARAM: " + param);
+            }
+        }
+    }
+}
+```
+
+This ends up printing two methods before failing with the stack trace and error above: 
+```
+METHOD: public io.micrometer.core.instrument.binder.MeterBinder org.redisson.spring.cache.RedissonCacheMeterBinderProvider.getMeterBinder(org.redisson.spring.cache.RedissonCache,java.lang.Iterable)
+   PARAM: org.redisson.spring.cache.RedissonCache arg0
+   PARAM: java.lang.Iterable<io.micrometer.core.instrument.Tag> arg1
+METHOD: public io.micrometer.core.instrument.binder.MeterBinder org.redisson.spring.cache.RedissonCacheMeterBinderProvider.getMeterBinder(org.springframework.cache.Cache,java.lang.Iterable)
+```
+
+The first is the actual method in the class.  The second appears to be the bridged method from the super class.  That second method does not print the params as the `verifyParmeters` method throws the `MalforedParmetersException`.
+
+Using `javap` on that class: `javap -verbose RedissonCacheMeterBinderProvider.class` produces:
+
+```
+public io.micrometer.core.instrument.binder.MeterBinder getMeterBinder(org.springframework.cache.Cache, java.lang.Iterable);
+....
+   MethodParameters:
+      Name                           Flags
+      <no name>                      synthetic
+      <no name>                      synthetic
+```
+
+If you take the prior version and run `javap` it does not have that parameters table.
+
+One thing I noted is that the manifest in the current version says it was built with JDK 21 whereas the prior version was built with JDK 17 (both compiled down to JDK 8).  I'm guessing something in the new JDK is causing an empty table that fails compatibility with JDK 8.
+
+**Redis version**
+N/A
+
+**Redisson version**
+3.24.3
+
+**Redisson configuration**
+N/A

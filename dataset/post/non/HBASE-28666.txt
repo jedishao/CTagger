@@ -1,0 +1,14 @@
+Dropping unclosed WALTailingReaders leads to leaked sockets
+{{WALEntryStream#prepareReader()}} will, in some cases, reach [the line|https://github.com/apache/hbase/blob/ba15d67a350adb11ae1d4c44d214216406ae0b5a/hbase-server/src/main/java/org/apache/hadoop/hbase/replication/regionserver/WALEntryStream.java#L258]
+{code}
+reader = WALFactory.createTailingReader(fs, nextPath, conf, currentPositionOfEntry > 0 ? currentPositionOfEntry : -1);
+{code}
+when {{reader}} is non-null. In this case, the old object pointed to by {{reader}} becomes un-referenced and is garbage-collected. However, that object was never closed.
+
+At Hubspot we see the effects of this when doing tests that use inter-cluster replication. Machines in the source cluster experience a build-up of sockets. Eventually this causes the machine to run out of TCP kernel memory and start dropping packets. The only workaround currently is to restart the RegionServer process.
+
+I have found that simply putting
+{code}
+closeReader();
+{code}
+immediately before the line quoted above appears to resolve the issue and causes no obvious problems. However, I'm still developing a proper test for this fix.

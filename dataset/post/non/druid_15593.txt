@@ -1,0 +1,223 @@
+"index_hadoop" Ingestion Task Failure on Druid 28.0.0 with AWS EMR 6.9 and Hadoop 3+
+**Environment**
+
+- Apache Druid version: 28.0.0
+- AWS EMR version: 6.9
+- Hadoop version: 3+
+- Previous working environment: Druid 0.22.1 with AWS EMR (Hadoop 2+)
+
+**Issue Description**
+
+We are encountering failures when running index_hadoop tasks on our Druid 28.0.0 cluster. Despite ensuring the presence of Hadoop Dependency jars and installing the necessary extensions, the tasks fail with class not found exceptions.
+
+**Error Log:**
+
+```
+2023-12-20T00:35:50,167 INFO [task-runner-0-priority-0] org.apache.hadoop.mapreduce.Job - Running job: job_1695932718163_2471
+2023-12-20T00:35:53,742 INFO [MonitorScheduler-0] org.apache.druid.java.util.metrics.CpuAcctDeltaMonitor - Detected first run, storing result for next run
+2023-12-20T00:35:57,239 INFO [task-runner-0-priority-0] org.apache.hadoop.mapreduce.Job - Job job_1695932718163_2471 running in uber mode : false
+2023-12-20T00:35:57,240 INFO [task-runner-0-priority-0] org.apache.hadoop.mapreduce.Job -  map 0% reduce 0%
+2023-12-20T00:36:03,437 INFO [task-runner-0-priority-0] org.apache.hadoop.mapreduce.Job - Task Id : attempt_1695932718163_2471_m_000001_0, Status : FAILED
+Error: java.lang.ClassNotFoundException: com.amazonaws.services.s3.model.MultiObjectDeleteException
+	at java.net.URLClassLoader.findClass(URLClassLoader.java:387)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:418)
+	at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:352)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:351)
+	at java.lang.Class.forName0(Native Method)
+	at java.lang.Class.forName(Class.java:348)
+	at org.apache.hadoop.conf.Configuration.getClassByNameOrNull(Configuration.java:2625)
+	at org.apache.hadoop.conf.Configuration.getClassByName(Configuration.java:2590)
+	at org.apache.hadoop.conf.Configuration.getClass(Configuration.java:2686)
+	at org.apache.hadoop.fs.FileSystem.getFileSystemClass(FileSystem.java:3492)
+	at org.apache.hadoop.fs.FileSystem.createFileSystem(FileSystem.java:3527)
+	at org.apache.hadoop.fs.FileSystem.access$300(FileSystem.java:173)
+	at org.apache.hadoop.fs.FileSystem$Cache.getInternal(FileSystem.java:3635)
+	at org.apache.hadoop.fs.FileSystem$Cache.get(FileSystem.java:3582)
+	at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:547)
+	at org.apache.hadoop.fs.Path.getFileSystem(Path.java:373)
+	at org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(HadoopInputFile.java:38)
+	at org.apache.parquet.hadoop.ParquetRecordReader.initializeInternalReader(ParquetRecordReader.java:163)
+	at org.apache.parquet.hadoop.ParquetRecordReader.initialize(ParquetRecordReader.java:140)
+	at org.apache.hadoop.mapreduce.lib.input.DelegatingRecordReader.initialize(DelegatingRecordReader.java:84)
+	at org.apache.hadoop.mapred.MapTask$NewTrackingRecordReader.initialize(MapTask.java:571)
+	at org.apache.hadoop.mapred.MapTask.runNewMapper(MapTask.java:809)
+	at org.apache.hadoop.mapred.MapTask.run(MapTask.java:349)
+	at org.apache.hadoop.mapred.YarnChild$2.run(YarnChild.java:178)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1878)
+	at org.apache.hadoop.mapred.YarnChild.main(YarnChild.java:172)
+
+2023-12-20T00:36:03,479 INFO [task-runner-0-priority-0] org.apache.hadoop.mapreduce.Job - Task Id : attempt_1695932718163_2471_m_000000_0, Status : FAILED
+Error: java.lang.ClassNotFoundException: com.amazonaws.AmazonClientException
+	at java.net.URLClassLoader.findClass(URLClassLoader.java:387)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:418)
+	at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:352)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:351)
+	at java.lang.Class.forName0(Native Method)
+	at java.lang.Class.forName(Class.java:348)
+	at org.apache.hadoop.conf.Configuration.getClassByNameOrNull(Configuration.java:2625)
+	at org.apache.hadoop.conf.Configuration.getClassByName(Configuration.java:2590)
+	at org.apache.hadoop.conf.Configuration.getClass(Configuration.java:2686)
+	at org.apache.hadoop.fs.FileSystem.getFileSystemClass(FileSystem.java:3492)
+	at org.apache.hadoop.fs.FileSystem.createFileSystem(FileSystem.java:3527)
+	at org.apache.hadoop.fs.FileSystem.access$300(FileSystem.java:173)
+	at org.apache.hadoop.fs.FileSystem$Cache.getInternal(FileSystem.java:3635)
+	at org.apache.hadoop.fs.FileSystem$Cache.get(FileSystem.java:3582)
+	at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:547)
+	at org.apache.hadoop.fs.Path.getFileSystem(Path.java:373)
+	at org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(HadoopInputFile.java:38)
+	at org.apache.parquet.hadoop.ParquetRecordReader.initializeInternalReader(ParquetRecordReader.java:163)
+	at org.apache.parquet.hadoop.ParquetRecordReader.initialize(ParquetRecordReader.java:140)
+	at org.apache.hadoop.mapreduce.lib.input.DelegatingRecordReader.initialize(DelegatingRecordReader.java:84)
+	at org.apache.hadoop.mapred.MapTask$NewTrackingRecordReader.initialize(MapTask.java:571)
+	at org.apache.hadoop.mapred.MapTask.runNewMapper(MapTask.java:809)
+	at org.apache.hadoop.mapred.MapTask.run(MapTask.java:349)
+	at org.apache.hadoop.mapred.YarnChild$2.run(YarnChild.java:178)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1878)
+	at org.apache.hadoop.mapred.YarnChild.main(YarnChild.java:172)
+```
+
+**Configuration Details:**
+
+- MiddleManager runtime.properties
+
+```
+druid.indexer.task.defaultHadoopCoordinates=["org.apache.hadoop:hadoop-client-api:3.3.6", "org.apache.hadoop:hadoop-client-runtime:3.3.6", "org.apache.hadoop:hadoop-aws:3.3.6"]
+```
+
+- Common runtime.properties
+
+```
+druid.extensions.loadList=["druid-kafka-indexing-service","druid-datasketches","druid-multi-stage-query","druid-s3-extensions","druid-avro-extensions","druid-parquet-extensions","mysql-metadata-storage","druid-histogram","druid-lookups-cached-global","statsd-emitter", "druid-hdfs-storage"]
+```
+
+- Ingestion Spec:
+
+```json
+{
+    "type": "index_hadoop",
+    "spec": {
+        "dataSchema": {
+            "dataSource": "TBL_1",
+            "parser": {
+                "type": "parquet",
+                "parseSpec": {
+                    "format": "timeAndDims",
+                    "timestampSpec": {
+                        "column": "date_val",
+                        "format": "auto"
+                    },
+                    "columns": [
+                        "COL_A",
+                        "COL_B",
+                        "COL_C",
+                        "COL_D",
+                        "COL_E",
+                        "COL_F",
+                        "COL_G",
+                        "COL_H",
+                        "COL_I",
+                        "COL_J",
+                        "COL_K"
+                    ],
+                    "dimensionsSpec": {
+                        "dimensions": [
+                            "COL_A",
+                            "COL_B",
+                            "COL_C",
+                            "COL_D"
+                        ],
+                        "dimensionExclusions": [],
+                        "spatialDimensions": []
+                    }
+                }
+            },
+            "metricsSpec": [
+                {
+                    "type": "thetaSketch",
+                    "name": "COL_E",
+                    "fieldName": "COL_E",
+                    "isInputThetaSketch": true
+                },
+                {
+                    "type": "thetaSketch",
+                    "name": "COL_F",
+                    "fieldName": "COL_F",
+                    "isInputThetaSketch": true
+                },
+                {
+                    "type": "thetaSketch",
+                    "name": "COL_G",
+                    "fieldName": "COL_G",
+                    "isInputThetaSketch": true
+                },
+                {
+                    "type": "thetaSketch",
+                    "name": "COL_I",
+                    "fieldName": "COL_I",
+                    "isInputThetaSketch": true
+                },
+                {
+                    "type": "thetaSketch",
+                    "name": "COL_J",
+                    "fieldName": "COL_J",
+                    "isInputThetaSketch": true
+                },
+                {
+                    "type": "thetaSketch",
+                    "name": "COL_K",
+                    "fieldName": "COL_K",
+                    "isInputThetaSketch": true
+                }
+            ],
+            "granularitySpec": {
+                "type": "uniform",
+                "segmentGranularity": "DAY",
+                "queryGranularity": "DAY",
+                "intervals": [
+                    "2023-12-05/2023-12-06"
+                ],
+                "rollup": true
+            }
+        },
+        "ioConfig": {
+            "type": "hadoop",
+            "inputSpec": {
+                "type": "static",
+                "inputFormat": "org.apache.druid.data.input.parquet.DruidParquetInputFormat",
+                "paths": "s3://<BUCKET_NAME>/TBL_1/date_key=2023-12-01/"
+            }
+        },
+        "tuningConfig": {
+            "type": "hadoop",
+            "partitionsSpec": {
+                "type": "hashed",
+                "targetPartitionSize": 620000
+            },
+            "forceExtendableShardSpecs": true,
+            "jobProperties": {
+                "mapreduce.job.classloader": "true",
+                "mapreduce.map.memory.mb": "8192",
+                "mapreduce.reduce.memory.mb": "18288",
+                "mapreduce.task.timeout": "1800000",
+                "mapreduce.map.speculative": "false",
+                "mapreduce.reduce.speculative": "false",
+                "mapreduce.input.fileinputformat.split.minsize": "125829120",
+                "mapreduce.input.fileinputformat.split.maxsize": "268435456",
+                "mapreduce.map.java.opts": "-Xmx1639m -Duser.timezone=UTC -Dfile.encoding=UTF-8",
+                "mapreduce.reduce.java.opts": "-Xmx3277m -Duser.timezone=UTC -Dfile.encoding=UTF-8"
+            }
+        }
+    }
+}
+```
+
+**Attempts to Resolve:**
+
+- Verified Hadoop Dependency jars are correctly placed.
+- Ensured all related Druid extensions are loaded.
+
+We seek assistance in resolving these class not found exceptions that are currently hindering our ingestion process. Any insights or suggestions would be greatly appreciated.

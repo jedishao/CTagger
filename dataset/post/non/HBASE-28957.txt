@@ -1,0 +1,12 @@
+Adding support for continuous Backup and Point-in-Time Recovery
+Current solutions like replication and snapshots offer data redundancy but have limitations that prevent effective point-in-time recovery in cases of data corruption or accidental changes. Replication requires maintaining a live cluster that mirrors the original, which incurs substantial costs to keep both clusters operational. Snapshots, on the other hand, do not support point-in-time recovery, leading to potential data loss between snapshots. Incremental snapshots improve this situation but still do not provide full protection, as they only capture data at specific intervals.
+
+Limitations of the Current Incremental Backup Solution
+
+The current incremental backup solution in HBase has several critical limitations that highlight the need for continuous backup and PITR:
+
+	•	Risk of Data Loss: Since incremental backups are created in batches rather than continuously, any changes made since the last backup are at risk of being lost if data corruption or deletion occurs before the next scheduled backup.
+	•	Restore Point Limitations: Users can only restore data to specific backup timestamps rather than any exact moment in time, restricting flexibility and the ability to revert to the most recent stable state before an issue.
+	•	WAL Management Challenges: Write-Ahead Logs on the source cluster cannot be archived until the backup process completes, making WAL management complex and storage-intensive on the source cluster.
+	•	Complex Backup Tracking: Managing backup IDs, job history, and logs is currently challenging, requiring substantial manual tracking and oversight to ensure consistency.
+	•	Dependency on YARN: The incremental backup process relies on a YARN cluster to move WALs, adding both resource dependency and complexity to the backup workflow.

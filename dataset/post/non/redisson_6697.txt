@@ -1,0 +1,41 @@
+`expire` in `putAllAsync.thenRun` does not always work with `RMap`
+### Redis version
+
+8.0.1 (Valkey)
+
+### Redisson version
+
+3.50.0
+
+### Redisson configuration
+
+### Redisson configuration
+
+I'm doing some thing along the lines of:
+
+```java
+RMap<String, byte[]> redissonMap = getRedissonClient().getMap(key, CODEC);
+Duration mapTtl = ttl.multipliedBy(2);
+
+if (isAsync) {
+    redissonMap.putAllAsync(redisInnerMap).thenRun(() -> redissonMap.expire(mapTtl));
+}
+else {
+    redissonMap.putAll(redisInnerMap);
+    redissonMap.expire(mapTtl);
+}
+```
+
+In some instances though, the Redis hash does not have a TTL.
+
+### What is the Expected behavior?
+
+That the hash has a TTL
+
+### What is the Actual behavior?
+
+Some hashes don't have a TTL
+
+### Additional information
+
+_No response_

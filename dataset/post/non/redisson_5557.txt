@@ -1,0 +1,15 @@
+Problem with ZSet expiring
+Redis version - 6.2.4
+Redisson version - 3.17.7
+
+We encountered a problem when the service was rebooted, the `ZSet` keys in Redis stopped expiring. We are using the reactive implementation of `RSetCache`. I believe this is because data about the keys being examined is lost. But for example, for the `Hash` structure in Redis, the data is stored in `redisson__timeout__set`. Why isn't there something like this for `ZCache`? Could u help us to solve the problem?
+
+```
+  private RSetCacheReactive<HistoryMessage> getOrCreateCache(String key) {
+        return client.reactive().getSetCache(HISTORY_MESSAGE_CACHE + key, codec);
+    }
+
+  public Mono<Boolean> add(@NonNull HistoryMessage message) {
+        return getOrCreateCache(generateKey(message)).add(message, config.getTtl(), config.getUnit());
+    }
+```

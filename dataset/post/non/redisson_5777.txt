@@ -1,0 +1,41 @@
+RScoredSortedSet.valueRangeReversed()  -inf +inf or +inf -inf bounds
+Redisson methods: RScoredSortedSet.valueRange() and RScoredSortedSet.valueRangeReversed().
+
+I have noticed that the official Redis command syntax requires setting -/+inf bounds.
+> ZRANGEBYSCORE key min max [WITHSCORES] [LIMIT offset count] 
+> // redis> ZRANGEBYSCORE myzset -inf +inf
+
+> ZREVRANGEBYSCORE key max min [WITHSCORES] [LIMIT offset count] 
+> // redis> ZREVRANGEBYSCORE myzset +inf -inf
+
+However, in method (valueRangeReversed), realization with -/+inf does not comply. And valueRangeReversed will work only with -inf +inf, but should work only with +inf -inf.
+
+With valueRangeReversed(Double.POSITIVE_INFINITY, true, Double.NEGATIVE_INFINITY, true,0,1) throw an exception:
+Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0
+	at java.base/java.util.ImmutableCollections$ListN.get(ImmutableCollections.java:687)
+	...
+
+valueRange(Double.NEGATIVE_INFINITY, true, Double.POSITIVE_INFINITY, true, 0, 1)  // work
+valueRangeReversed(Double.POSITIVE_INFINITY, true, Double.NEGATIVE_INFINITY, true,0,1) // not work
+valueRangeReversed(Double.NEGATIVE_INFINITY, true, Double.POSITIVE_INFINITY, true, 0, 1) // work
+
+In terminal:
+```
+127.0.0.1:6379> ZRANGEBYSCORE test +inf -inf WITHSCORES LIMIT 0 1
+(empty array)
+127.0.0.1:6379> ZRANGEBYSCORE test -inf +inf WITHSCORES LIMIT 0 1
+ 1) "5"
+ 2) "1713014496"
+```
+
+```
+127.0.0.1:6379> ZREVRANGEBYSCORE test -inf +inf WITHSCORES LIMIT 0 1
+(empty array)
+127.0.0.1:6379> ZREVRANGEBYSCORE test +inf -inf WITHSCORES LIMIT 0 1
+ 1) "4"
+ 2) "1713014515"
+```
+
+
+Is that a bug?
+[RedisCommands](https://redis.io/docs/latest/commands/zrevrangebyscore/)

@@ -1,0 +1,68 @@
+Exception when using APROX_QUANTILES_DS with KllDoublesSketch
+### Affected Version
+
+33.0.0
+
+### Description
+
+I've reproduced this using the 33.0.0 quickstart configuration with no modifications. I'm getting the following exception when attempting to compute the median of a Kll Doubles Sketch using query:
+```
+select APPROX_QUANTILE_DS("kll_sketch", 0.5, 256) from "kll_doubles"
+```
+
+```
+Error: RUNTIME_FAILURE (OPERATOR)
+
+class org.apache.datasketches.kll.KllDirectDoublesSketch$KllDirectCompactDoublesSketch cannot be cast to class org.apache.datasketches.quantiles.DoublesSketch (org.apache.datasketches.kll.KllDirectDoublesSketch$KllDirectCompactDoublesSketch and org.apache.datasketches.quantiles.DoublesSketch are in unnamed module of loader 'app')
+```
+
+The type of the column in Druid is `COMPLEX<KllDoublesSketch>`
+
+## Steps to reproduce:
+
+I've created a simple base64 kll doubles sketch:
+```
+#!/usr/bin/env python3
+from datasketches import kll_doubles_sketch
+import base64
+import json
+
+sketch = kll_doubles_sketch(k=200)
+for i in range(1000):
+    sketch.update(i)
+
+sketch_bytes = sketch.serialize()
+base64_encoded_sketch = base64.b64encode(sketch_bytes).decode('utf-8')
+
+with open("kll_sketches.csv", "w") as f:
+    f.write("timestamp,kll_sketch_column\n")
+    f.write(f"2025-07-15T00:00:00Z,{base64_encoded_sketch}\n")
+```
+
+I ingested it into druid using SQL:
+```
+REPLACE INTO "kll_doubles" OVERWRITE ALL
+
+WITH "ext" AS (
+  SELECT * FROM TABLE (
+    EXTERN(
+      '{"type":"local","files":["/tmp/kll_sketches.csv"]}',
+      '{"type":"csv","findColumnsFromHeader":true}'
+    )
+  ) EXTEND (
+    "timestamp" VARCHAR,
+    "kll_sketch_column" VARCHAR
+  )
+)
+
+SELECT
+  TIME_PARSE(TRIM("timestamp")) as __time, 
+  COMPLEX_DECODE_BASE64('KllDoublesSketch', "kll_sketch_column") as kll_sketch
+FROM "ext"
+PARTITIONED BY ALL
+```
+
+Attempt to query:
+```
+select APPROX_QUANTILE_DS("kll_sketch", 0.5, 256) from "kll_doubles"
+````

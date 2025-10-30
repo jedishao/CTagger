@@ -1,0 +1,6 @@
+Update RepairTokenRangeSplitter to work with BTI-formatted SSTables
+While doing a review pass on the [CEP-37 PR|https://github.com/apache/cassandra/pull/3598] I realized that {{RepairTokenRangeSplitter}} could not possibly work with the new BTI sstable format introduced in 5.0 because it explicitly checks for {{BigTableReader}} implementations.
+
+I expect that the way it would behave would be to assume that all bytes in an SSTable covering a range include that range, instead of just the parts of the SSTable including the range.  The splitter would still split ranges, but it would overestimate how much data is covered in a range.
+
+In addition, the way it calculates the amount of bytes a range covers in an SSTable is big-format specific.   I noticed that a new utility method [SSTableReader.onDiskSizeForPartitionPositions|https://github.com/apache/cassandra/blob/511bd203144a71bf0a72876a393d186a9778407e/src/java/org/apache/cassandra/io/sstable/format/SSTableReader.java#L810] was added recently in [CASSANDRA-20092] that can effectively calculate this for us in an implementation-agnostic way.  We should change the code to use this method, and also remove any changes we made in {{SSTableScanner}} and {{BigTableScanner}} for this.

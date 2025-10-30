@@ -1,0 +1,27 @@
+Number of connections do not match with the configuration.
+I’ve configured my application to connect to an AWS ElastiCache Redis Cluster using a connection pool with minIdleConnections = 1 and maxConnections = 2. I currently have 6 replica pods running, so in total, I expect a maximum of 2 × 6 = 12 connections to Redis with this configuration.
+
+```
+Config config = new Config();
+        config.setLazyInitialization(true);
+        config.useReplicatedServers()
+                .setReadMode(ReadMode.SLAVE)
+                // master pool
+                .setMasterConnectionMinimumIdleSize(1)
+                .setMasterConnectionPoolSize(2)
+                // slave pool
+                .setSlaveConnectionMinimumIdleSize(1)
+                .setSlaveConnectionPoolSize(2)
+                .addNodeAddress("primary", "replica")
+```
+
+However, when I check the CurrentConnections metric in the AWS Console, it shows approximately 32 connections.
+
+<img width="1243" alt="Image" src="https://github.com/user-attachments/assets/36c97229-b8bd-4fc6-beeb-ef7c44be78b8" />
+
+Could you help me understand what might be causing the number of connections to exceed the limit I've configured? I might have missed some configuration or overlooked something.
+
+Redisson community edition version : 3.45.1
+Redisson Spring data version : 27
+
+Best regards,

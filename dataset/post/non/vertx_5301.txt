@@ -1,0 +1,32 @@
+Used VM option to config vert.x deployment option, But setter invoke method is Unreachable.
+Questions
+I used -Dvertx.deployment.options.threadingModel=VIRTUAL_THREAD to config vert.x deployment option, when i debug it, I found some code is Unreachable.
+
+Version
+4.5.9
+
+Context
+In io.vertx.core.impl.launcher.commands.BareCommand#configureFromSystemProperties method ,when the param 'prefix' value is 'vertx.deployment.options.', but log is null, thats why vertx options setter invoke not execute. after this, I found in io.vertx.core.impl.launcher.commands.BareCommand#startVertx method line 226, the code 'configureFromSystemProperties.set(null);' make log is null.
+
+the chain is :
+io.vertx.core.impl.launcher.VertxCommandLauncher#execute
+io.vertx.core.impl.launcher.commands.RunCommand#run
+io.vertx.core.impl.launcher.commands.BareCommand#run(java.lang.Runnable)
+io.vertx.core.impl.launcher.commands.BareCommand#startVertx
+and in BareCommand line 226 code 'configureFromSystemProperties.set(null);'
+
+Do you have a reproducer?
+This is easy to reproducer
+
+Steps to reproduce
+config -Dvertx.deployment.options.threadingModel=VIRTUAL_THREAD VM option
+use launcher to deploy, like new Launcher().dispatch(args)
+debug
+reproduce
+Extra
+OS: Apple M1 Pro ventura 13.6
+JDK: java version "21.0.4" 2024-07-16 LTS
+
+finally, I used beforeDeployingVerticle() method in Launcher class to resolve my problem by hook deployment options, but Im still think this is a bug...
+
+if i do it in wrong way, reply and close this issue plz.

@@ -1,0 +1,58 @@
+DuckDB not able to use internal functions and extensions
+I have a DuckDB catalog configured on a shared storage (NFS) mount.
+successfuly installed and loaded extensions but when trying to use them i am getting this error:
+
+`
+SQL Error [67108864]: Query failed (#20250515_101411_00084_5naq6): Failed to execute query. executeUpdate() can only be used with queries that return nothing (eg, a DDL statement), or update rows
+  Query failed (#20250515_101411_00084_5naq6): Failed to execute query. executeUpdate() can only be used with queries that return nothing (eg, a DDL statement), or update rows
+  Query failed (#20250515_101411_00084_5naq6): Failed to execute query. executeUpdate() can only be used with queries that return nothing (eg, a DDL statement), or update rows
+    io.trino.spi.TrinoException: Failed to execute query. executeUpdate() can only be used with queries that return nothing (eg, a DDL statement), or update rows
+    Failed to execute query. executeUpdate() can only be used with queries that return nothing (eg, a DDL statement), or update rows
+      java.sql.SQLException: executeUpdate() can only be used with queries that return nothing (eg, a DDL statement), or update rows
+      executeUpdate() can only be used with queries that return nothing (eg, a DDL statement), or update rows
+
+`
+
+on the following SQL query:
+`
+call system.execute(query => 'CREATE SECRET (
+    TYPE s3,
+    PROVIDER credential_chain
+);');
+`
+
+This part executes with no errors:
+
+`
+USE my_duckdb.main;
+call system.execute(query => 'INSTALL "/storage/httpfs.duckdb_extension.gz"');
+call system.execute(query => 'INSTALL "/storage/aws.duckdb_extension.gz"');
+call system.execute(query => 'LOAD aws; LOAD httpfs;');
+`
+
+When trying to use table function with this query:
+`
+SELECT
+  *
+FROM
+  TABLE(
+    my_duckdb.system.query(
+      query => 'CREATE SECRET (
+    TYPE s3,
+    PROVIDER credential_chain
+);'
+    )
+  );
+`
+
+I am getting this error:
+`
+SQL Error [67108864]: Query failed (#20250515_101546_00092_5naq6): IO Error: Could not set lock on file "/storage/db1.duckdb": Conflicting lock is held in PID 0. See also https://duckdb.org/docs/connect/concurrency
+  Query failed (#20250515_101546_00092_5naq6): IO Error: Could not set lock on file "/storage/db1.duckdb": Conflicting lock is held in PID 0. See also https://duckdb.org/docs/connect/concurrency
+  Query failed (#20250515_101546_00092_5naq6): IO Error: Could not set lock on file "/storage/db1.duckdb": Conflicting lock is held in PID 0. See also https://duckdb.org/docs/connect/concurrency
+    java.sql.SQLException: IO Error: Could not set lock on file "/storage/db1.duckdb": Conflicting lock is held in PID 0. See also https://duckdb.org/docs/connect/concurrency
+    IO Error: Could not set lock on file "/storage/db1.duckdb": Conflicting lock is held in PID 0. See also https://duckdb.org/docs/connect/concurrency
+
+`
+
+*using latest Trino version 475

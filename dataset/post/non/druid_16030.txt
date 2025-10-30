@@ -1,0 +1,45 @@
+Druid: KILL Task doesn't cleanup the datasource from deep storage and UI shows after the KILL operation also
+Affected Version:
+Druid Version: 28.0.0
+
+### Description
+
+KILL Task doesn't cleanup the datasource from deep storage and UI shows after the KILL operation also.
+
+I did perform both going to Druid UI and perform "Mark as unused all segments" and "Delete unused segments (issue kill task)"  and also, performing through DELETE API call. Both of then doesn't delete datasources from deep storage meaning i can able to see in UI.
+
+![image](https://github.com/apache/druid/assets/105395608/f918d578-ff0a-4082-ba3f-9d6e795e4855)
+![image](https://github.com/apache/druid/assets/105395608/4aff0f2f-a6fe-4958-baab-67cb73710bb8)
+
+I've validated both UI api's and APIs are matching however still datasources are visible in Druid console (show unused ) in the druid console. Looks like some kind of weird behavior in Druid console. I opened in a Incognito window but still i do see that.
+
+### Motivation
+
+We have implemented to cleanup all intermediate/temp data sources through below API call.
+
+curl -X DELETE "http://<router>:8888/druid/coordinator/v1/datasources/<dataSourceName>"
+curl -X DELETE "http://<router>:8888/druid/coordinator/v1/datasources/<dataSourceName>?kill=true&interval=1000-01-01/2999-12-31"
+
+Is there a way to perform "delete datasource <datasourcename>" in the database sql statement along with Druid delete api calls.
+
+Yes that's really bad that if you show in UI, we can easily recover by clicking the "mark as used all segments" which is not our intention with this change right. 
+
+I'm not sure it's a Druid 28 UI bug or really a KILL task not evening running properly.
+Payload : and task is succeeded.
+{
+  "type": "kill",
+  "id": "api-issued_kill_temp1_pckekgja_1000-01-01T00:00:00.000Z_2999-12-31T00:00:00.000Z_2024-02-27T19:39:00.766Z",
+  "dataSource": "temp1",
+  "interval": "1000-01-01T00:00:00.000Z/2999-12-31T00:00:00.000Z",
+  "context": {
+    "forceTimeChunkLock": true,
+    "useLineageBasedSegmentAllocation": true
+  },
+  "batchSize": 100,
+  "limit": null,
+  "groupId": "api-issued_kill_temp1_pckekgja_1000-01-01T00:00:00.000Z_2999-12-31T00:00:00.000Z_2024-02-27T19:39:00.766Z",
+  "resource": {
+    "availabilityGroup": "api-issued_kill_temp1_pckekgja_1000-01-01T00:00:00.000Z_2999-12-31T00:00:00.000Z_2024-02-27T19:39:00.766Z",
+    "requiredCapacity": 1
+  }
+}

@@ -1,0 +1,32 @@
+camel-jbang-plugin-k run command kebab-case parsing invalid
+The run command ignore the kebab-case trait properties.
+
+The jbang camel k command:
+{code:java}
+$ camel k run files/Java.java -t affinity.enabled=true -t "affinity.node-affinity-labels=kubernetes.io/hostname in(minikube)"{code}
+will result in the following integration CRD configuration:
+{code:java}
+  traits:
+    affinity:
+      enabled: true
+      podAffinity: false
+      podAntiAffinity: false{code}
+ 
+
+In comparaison the kamel command:
+{code:java}
+$ kamel run files/Java.java -t affinity.enabled=true -t "affinity.node-affinity-labels=kubernetes.io/hostname in(minikube)"
+{code}
+will result in the following integration CRD configuration:
+{code:java}
+  traits:
+    affinity:
+      enabled: true
+      nodeAffinityLabels:
+      - kubernetes.io/hostname in(minikube){code}
+ 
+
+*Note:* using the camel case in the jbang camel k command should be a workaround after fix https://issues.apache.org/jira/browse/CAMEL-20559:
+{code:java}
+$ camel k run files/Java.java -t affinity.enabled=true -t affinity.nodeAffinityLabels='kubernetes.io/hostname=minikube'{code}
+ 

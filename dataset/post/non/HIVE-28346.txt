@@ -1,0 +1,22 @@
+Make ALTER CHANGE COLUMN more efficient with many partitions
+Currently by default when a column is renamed, its column stats are renamed and maintained too via updateOrGetPartitionColumnStats()
+
+However; in the case of a partitioned table this gets updated per partition, rather than via a bulk operation -
+[https://github.com/apache/hive/blob/1c9969a003b09abc851ae7e19631ad208d3b6066/standalone-metastore/metastore-server/src/main/java/org/apache/hadoop/hive/metastore/HiveAlterHandler.java#L452]
+So a table with N partitions, will end up making at least N HMS calls (one per partition ) for a CHANGE COLUMN. This can take many minutes/hours for large partitioned tables, up to even hitting various timeouts.
+
+Ideally - it should be able to make a single HMS or update call via direct SQL to update all the partitions at once.
+
+We do have a work around for this:
+{code:java}
+ COLSTATS_RETAIN_ON_COLUMN_REMOVAL("metastore.colstats.retain.on.column.removal",
+        "hive.metastore.colstats.retain.on.column.removal", true,
+        "Whether to retain column statistics during column removals in partitioned tables - disabling this purges all column statistics data for all partition to retain working consistency"),{code}
+
+However, this has some downsides:
+1) It is set to retain stats by default
+2) It affects all tables if enabled
+3) It drops ALL column stats and not just the column being renamed.
+4) It is not clear to users that this configuration will solve their issue (which presents typically as a ALTER CHANGE COLUMN operation timing out or taking a very long time).
+
+Ideally we could make an API for bulk updates to partition objects that is much more efficient. Another approach could be to add a threshold configuration that if the number of partitions is > then some configured value ALTER would drop the column stats, and under it would retain.

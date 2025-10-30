@@ -1,0 +1,45 @@
+Remove all jackson 1.x dependencies for hadoop-3 profile, since all jackson 1.x versions have vulnerabilities
+Building hbase with hadoop-3 profile on branch-2, still requires jackson 1.x jars, which has vulnerabilities. Ideally these should not be needed as with HADOOP-13332 hadoop has already "Remove jackson 1.9.13 and switch all jackson code to 2.x code line" for branch-3.
+
+Also in HBASE-27148, where we worked on "Move minimum hadoop 3 support version to 3.2.3" we had did a similar cleanup for branch-3 but somehow we missed to port the relevant changes to the branch-2 backport of same jira. This task is to take care of this so that we donot need jackson 1.x to build/run hbase with hadoop-3 profile on branch-2.x.
+
+ 
+
+We have following in our dependency tree:
+{code:java}
+[INFO] ----------< org.apache.hbase:hbase-shaded-client-byo-hadoop >-----------
+[INFO] Building Apache HBase - Shaded - Client 2.7.0-SNAPSHOT           [33/53]
+[INFO]   from hbase-shaded/hbase-shaded-client-byo-hadoop/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] +- org.codehaus.jackson:jackson-jaxrs:jar:1.9.13:provided
+[INFO] +- org.codehaus.jackson:jackson-xc:jar:1.9.13:provided
+.
+.
+[INFO] --------------< org.apache.hbase:hbase-shaded-mapreduce >---------------
+[INFO] Building Apache HBase - Shaded - MapReduce 2.7.0-SNAPSHOT        [34/53]
+[INFO]   from hbase-shaded/hbase-shaded-mapreduce/pom.xml
+[INFO] --------------------------------[ jar ]--------------------------------- 
+[INFO] 
+[INFO] +- org.codehaus.jackson:jackson-jaxrs:jar:1.9.13:provided
+[INFO] +- org.codehaus.jackson:jackson-xc:jar:1.9.13:provided
+.
+.
+[INFO] -------------< org.apache.hbase:hbase-shaded-testing-util >-------------
+[INFO] Building Apache HBase - Shaded - Testing Util 2.7.0-SNAPSHOT     [46/53]
+[INFO]   from hbase-shaded/hbase-shaded-testing-util/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] +- org.codehaus.jackson:jackson-jaxrs:jar:1.9.13:compile
+[INFO] |  +- org.codehaus.jackson:jackson-core-asl:jar:1.9.13:compile
+[INFO] |  \- org.codehaus.jackson:jackson-mapper-asl:jar:1.9.13:compile
+[INFO] |  +- org.codehaus.jackson:jackson-jaxrs:jar:1.9.13:test
+.
+.
+[INFO] ---------< org.apache.hbase:hbase-shaded-testing-util-tester >----------
+[INFO] Building Apache HBase - Shaded - Testing Util Tester 2.7.0-SNAPSHOT [47/53]
+[INFO]   from hbase-shaded/hbase-shaded-testing-util-tester/pom.xml
+[INFO] --------------------------------[ jar ]--------------------------------- 
+[INFO] 
+[INFO] +- org.codehaus.jackson:jackson-mapper-asl:jar:1.9.13:test
+[INFO] |  \- org.codehaus.jackson:jackson-core-asl:jar:1.9.13:test {code}

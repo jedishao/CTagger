@@ -1,0 +1,68 @@
+java.lang.ClassCastException is thrown for basic test with Reactive RemoteService
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+Reactive Remote Service invocation should return without any exceptions.
+
+**Actual behavior**
+java.lang.ClassCastException is thrown for any remote invocations from the reactive remote service object.
+
+**Steps to reproduce or test case**
+Please try the testcase enclosed
+
+**Redis version**
+7.2.3
+**Redisson version**
+3.26.0
+**Redisson configuration**
+Any
+
+Testcase:
+
+```java
+public class ReactiveRemoteTest {
+
+    RedissonClient client;
+    RedissonClient server;
+    ReactiveRInterface remoteService;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        client = newClient();
+        server = newClient();
+        var services =  client.getRemoteService("hello-reactor");
+        services.register(RInterface.class, new RImpl());
+        remoteService = services.get(ReactiveRInterface.class);
+    }
+
+    @Test
+    void verify_remote_method_call() {
+        Mono<Long> result = remoteService.remoteMethod(21L);
+        result.subscribe(System.out::println);
+    }
+
+    static class RImpl implements RInterface {
+        @Override
+        public Long remoteMethod(Long value) {
+            return value*2;
+        }
+    }
+
+
+    @RRemoteReactive(RInterface.class)
+    public interface ReactiveRInterface {
+        Mono<Long> remoteMethod(Long value);
+    }
+
+    public interface RInterface {
+        Long remoteMethod(Long value);
+    }
+
+    RedissonClient newClient()  {
+        return Redisson.create();
+    }
+}
+
+```

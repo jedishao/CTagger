@@ -1,0 +1,43 @@
+'io.netty.resolver.dns.pipeline' is already in use
+I'm always getting this error:
+````
+[11:15:26 ERROR]: [DiscordBridge] Failed to connect to redis
+java.lang.ExceptionInInitializerError: null
+        at io.netty.resolver.dns.DnsNameResolverBuilder.<init>(DnsNameResolverBuilder.java:60) ~[?:?]
+        at org.redisson.connection.SequentialDnsAddressResolverFactory.create(SequentialDnsAddressResolverFactory.java:106) ~[?:?]
+        at org.redisson.connection.ServiceManager.<init>(ServiceManager.java:206) ~[?:?]
+        at org.redisson.connection.MasterSlaveConnectionManager.<init>(MasterSlaveConnectionManager.java:78) ~[?:?]
+        at org.redisson.connection.SingleConnectionManager.<init>(SingleConnectionManager.java:28) ~[?:?]
+        at org.redisson.config.ConfigSupport.createConnectionManager(ConfigSupport.java:198) ~[?:?]
+        at org.redisson.Redisson.<init>(Redisson.java:66) ~[?:?]
+        at org.redisson.Redisson.create(Redisson.java:111) ~[?:?]
+        at DiscordBridge-1.4.15.jar/me.angeschossen.discordbridge.applicationframework.cache.redis.RedisCacheConnected.connect(RedisCacheConnected.java:303) ~[DiscordBridge-1.4.15.jar:?]
+        at DiscordBridge-1.4.15.jar/me.angeschossen.discordbridge.DiscordBridge.onEnable(DiscordBridge.java:105) ~[DiscordBridge-1.4.15.jar:?]
+        at org.bukkit.plugin.java.JavaPlugin.setEnabled(JavaPlugin.java:288) ~[paper-api-1.21.3-R0.1-SNAPSHOT.jar:?]
+        at io.papermc.paper.plugin.manager.PaperPluginInstanceManager.enablePlugin(PaperPluginInstanceManager.java:202) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at io.papermc.paper.plugin.manager.PaperPluginManagerImpl.enablePlugin(PaperPluginManagerImpl.java:109) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at org.bukkit.plugin.SimplePluginManager.enablePlugin(SimplePluginManager.java:520) ~[paper-api-1.21.3-R0.1-SNAPSHOT.jar:?]
+        at org.bukkit.craftbukkit.CraftServer.enablePlugin(CraftServer.java:655) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at org.bukkit.craftbukkit.CraftServer.enablePlugins(CraftServer.java:604) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at net.minecraft.server.MinecraftServer.loadWorld0(MinecraftServer.java:768) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at net.minecraft.server.MinecraftServer.loadLevel(MinecraftServer.java:530) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at net.minecraft.server.dedicated.DedicatedServer.initServer(DedicatedServer.java:326) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:1235) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at net.minecraft.server.MinecraftServer.lambda$spin$0(MinecraftServer.java:340) ~[paper-1.21.3.jar:1.21.3-81-da71382]
+        at java.base/java.lang.Thread.run(Thread.java:1583) ~[?:?]
+Caused by: java.lang.IllegalArgumentException: 'io.netty.resolver.dns.pipeline' is already in use
+        at io.netty.util.ConstantPool.createOrThrow(ConstantPool.java:108) ~[netty-common-4.1.97.Final.jar:4.1.97.Final]
+        at io.netty.util.ConstantPool.newInstance(ConstantPool.java:90) ~[netty-common-4.1.97.Final.jar:4.1.97.Final]
+        at io.netty.util.AttributeKey.newInstance(AttributeKey.java:55) ~[netty-common-4.1.97.Final.jar:4.1.97.Final]
+        at io.netty.resolver.dns.DnsNameResolver.<clinit>(DnsNameResolver.java:99) ~[?:?]
+        ... 22 more
+````
+
+It's because I'm running two programs, that use Redisson, on the same JVM instance. How can I resolve this?
+
+I use the SingleServerConfig:
+````
+        SingleServerConfig cfg = config.setCodec(new JsonJacksonCodec(classLoader))
+                .setUseThreadClassLoader(false)
+                .useSingleServer();
+````

@@ -1,0 +1,11 @@
+Option to disable dimension sorting of GroupBy result
+### Description
+Currently GroupBy query result is sorted by dimension key, and we cannot optout
+https://github.com/apache/druid/blob/97207cdcc7c8445bd3875bae0c41e5d2c0c9b082/processing/src/main/java/org/apache/druid/query/groupby/epinephelinae/RowBasedGrouperHelper.java#L618
+
+Sorting causes much overhead, especially when the result is large. I want to disable it.
+It seems the sorting implementation is following, not trivial overhead.
+- Sort each parallelized results(per processing thread).
+- Combine all iterators into one MergeIterator, and for every `next()` call, check what iterator is the next one by comparing head elements order.
+  - https://github.com/apache/druid/blob/08b5951cc53c4fe474a129500c62a6adad78337f/processing/src/main/java/org/apache/druid/java/util/common/guava/MergeIterator.java#L53
+  - https://github.com/apache/druid/blob/08b5951cc53c4fe474a129500c62a6adad78337f/processing/src/main/java/org/apache/druid/java/util/common/guava/MergeIterator.java#L81

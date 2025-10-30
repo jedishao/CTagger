@@ -1,0 +1,108 @@
+RedisConnection is not released, resulting in "Unable to acquire connection"
+### Redis version
+
+6.2.5
+
+### Redisson version
+
+3.24.3
+
+### Redisson configuration
+
+```
+ config=@MasterSlaveServersConfig[
+            slaveAddresses=@HashSet[isEmpty=false;size=2],
+            masterAddress=@String[redis://172.28.14.101:8379],
+            database=@Integer[0],
+            loadBalancer=@RoundRobinLoadBalancer[org.redisson.connection.balancer.RoundRobinLoadBalancer@44ca41c4],
+            slaveConnectionMinimumIdleSize=@Integer[6],
+            slaveConnectionPoolSize=@Integer[6],
+            failedSlaveReconnectionInterval=@Integer[3000],
+            failedSlaveCheckInterval=@Integer[180000],
+            masterConnectionMinimumIdleSize=@Integer[6],
+            masterConnectionPoolSize=@Integer[6],
+            readMode=@ReadMode[MASTER],
+            subscriptionMode=@SubscriptionMode[MASTER],
+            subscriptionConnectionMinimumIdleSize=@Integer[2],
+            subscriptionConnectionPoolSize=@Integer[2],
+            dnsMonitoringInterval=@Long[5000],
+            failedSlaveNodeDetector=@FailedConnectionDetector[org.redisson.client.FailedConnectionDetector@5db3bdd5],
+            log=@Logger[Logger[config]],
+            idleConnectionTimeout=@Integer[10000],
+            connectTimeout=@Integer[6000],
+            timeout=@Integer[6000],
+            subscriptionTimeout=@Integer[7500],
+            retryAttempts=@Integer[10],
+            retryInterval=@Integer[5000],
+            password=@String[...],
+            username=null,
+            credentialsResolver=@DefaultCredentialsResolver[org.redisson.client.DefaultCredentialsResolver@29a045ed],
+            subscriptionsPerConnection=@Integer[5],
+            clientName=null,
+            sslEnableEndpointIdentification=@Boolean[true],
+            sslProvider=@SslProvider[JDK],
+            sslTruststore=null,
+            sslTruststorePassword=null,
+            sslKeystore=null,
+            sslKeystorePassword=null,
+            sslProtocols=null,
+            sslCiphers=null,
+            sslTrustManagerFactory=null,
+            sslKeyManagerFactory=null,
+            pingConnectionInterval=@Integer[10000],
+            keepAlive=@Boolean[false],
+            tcpKeepAliveCount=@Integer[0],
+            tcpKeepAliveIdle=@Integer[0],
+            tcpKeepAliveInterval=@Integer[0],
+            tcpUserTimeout=@Integer[0],
+            tcpNoDelay=@Boolean[true],
+            nameMapper=@DefaultNameMapper[org.redisson.api.DefaultNameMapper@11f61962],
+            commandMapper=@DefaultCommandMapper[org.redisson.config.DefaultCommandMapper@724bef9],
+        ],
+```
+
+### What is the Expected behavior?
+
+RedisConnection can be released or rebuilt normally
+
+
+### What is the Actual behavior?
+
+I found that all the connections were used:
+```
+        allConnections=@ConcurrentLinkedQueue[
+            @RedisConnection[RedisConnection@982848152 [redisClient=[addr=redis://172.28.14.102:8379], channel=[id: 0x591642e6, L:0.0.0.0/0.0.0.0:38532], currentCommand=null, usage=1]],
+            @RedisConnection[RedisConnection@1445019631 [redisClient=[addr=redis://172.28.14.102:8379], channel=[id: 0xc86b1e62, L:0.0.0.0/0.0.0.0:38556], currentCommand=null, usage=1]],
+            @RedisConnection[RedisConnection@1211924276 [redisClient=[addr=redis://172.28.14.102:8379], channel=[id: 0x31a73ffa, L:0.0.0.0/0.0.0.0:38572], currentCommand=null, usage=1]],
+            @RedisConnection[RedisConnection@1307202250 [redisClient=[addr=redis://172.28.14.102:8379], channel=[id: 0x357a37c2, L:0.0.0.0/0.0.0.0:38582], currentCommand=null, usage=1]],
+            @RedisConnection[RedisConnection@1601800253 [redisClient=[addr=redis://172.28.14.102:8379], channel=[id: 0x4c1af13b, L:0.0.0.0/0.0.0.0:38604], currentCommand=null, usage=1]],
+            @RedisConnection[RedisConnection@16255610 [redisClient=[addr=redis://172.28.14.102:8379], channel=[id: 0x2098d5d1, L:0.0.0.0/0.0.0.0:38636], currentCommand=null, usage=1]],
+        ],
+        freeConnections=@ConcurrentLinkedDeque[isEmpty=true;size=0],
+        freeConnectionsCounter=@AsyncSemaphore[
+            counter=@AtomicInteger[0],
+            listeners=@ConcurrentLinkedQueue[isEmpty=false;size=23369],
+        ],
+```
+
+But I don't see any blocked requests from the stack:
+![image](https://github.com/redisson/redisson/assets/12031110/412a9ad7-2936-47d0-8d95-6a53a27725b3)
+
+And by checking the TCP connection of the operating system, the connection actually no longer exists:
+```
+[root@]# netstat -anp |grep 8379 | grep 2215750
+tcp6       0      0 172.28.14.102:38544     172.28.14.102:8379      ESTABLISHED 2215750/java        
+tcp6       0      0 172.28.14.102:53260     172.28.14.102:18379     ESTABLISHED 2215750/java        
+tcp6       0      0 172.28.14.102:60284     172.28.14.103:18379     ESTABLISHED 2215750/java        
+tcp6       0      0 172.28.14.102:38526     172.28.14.102:8379      ESTABLISHED 2215750/java        
+tcp6       0      0 172.28.14.102:49318     172.28.14.101:18379     ESTABLISHED 2215750/java        
+tcp6       0      0 172.28.14.102:40656     172.28.14.103:18379     ESTABLISHED 2215750/java        
+tcp6       0      0 172.28.14.102:59474     172.28.14.102:18379     ESTABLISHED 2215750/java        
+tcp6       0      0 172.28.14.102:40066     172.28.14.101:18379     ESTABLISHED 2215750/java  
+```
+
+### Additional information
+
+Before the problem occurred, a master-slave switch occurred due to network problems.
+The following screenshot is part of the log:
+![image](https://github.com/redisson/redisson/assets/12031110/3d0dbd4e-a872-48b4-968d-d76215ebe1f9)

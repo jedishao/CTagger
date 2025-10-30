@@ -1,0 +1,28 @@
+Introduce table metric for blockedRequestCount
+If compaction is disabled temporarily to allow stabilizing hdfs load, we can forget re-enabling the compaction. This can result into flushes getting delayed for "hbase.hstore.blockingWaitTime" time (90s). While flushes do happen eventually after waiting for max blocking time, it is important to realize that any cluster cannot function well with compaction disabled for significant amount of time.
+
+ 
+
+We would also block any write requests until region is flushed (90+ sec, by default):
+{code:java}
+2023-11-27 20:40:52,124 WARN  [,queue=18,port=60020] regionserver.HRegion - Region is too busy due to exceeding memstore size limit.
+org.apache.hadoop.hbase.RegionTooBusyException: Above memstore limit, regionName=table1,1699923733811.4fd5e52e2133df1e347f32c646f23ab4., server=server-1,60020,1699421714454, memstoreSize=1073820928, blockingMemStoreSize=1073741824
+    at org.apache.hadoop.hbase.regionserver.HRegion.checkResources(HRegion.java:4200)
+    at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:3264)
+    at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:3215)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doBatchOp(RSRpcServices.java:967)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doNonAtomicRegionMutation(RSRpcServices.java:895)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.multi(RSRpcServices.java:2524)
+    at org.apache.hadoop.hbase.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:36812)
+    at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:2432)
+    at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:124)
+    at org.apache.hadoop.hbase.ipc.RpcExecutor$Handler.run(RpcExecutor.java:311)
+    at org.apache.hadoop.hbase.ipc.RpcExecutor$Handler.run(RpcExecutor.java:291) {code}
+ 
+
+Delayed flush logs:
+{code:java}
+LOG.warn("{} has too many store files({}); delaying flush up to {} ms",
+  region.getRegionInfo().getEncodedName(), getStoreFileCount(region),
+  this.blockingWaitTime); {code}
+Suggestion: Introduce regionserver metric (MetricsRegionServerSource) for the num of flushes getting delayed due to too many store files.

@@ -1,0 +1,52 @@
+Flaky-test: PulsarFunctionTlsTest "Leader not yet ready"
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Example failure
+
+https://github.com/apache/pulsar/actions/runs/11120172357/job/30897034288?pr=23327#step:11:1154
+
+### Exception stacktrace
+
+<!-- copy-paste the stack trace in the code block below -->
+```
+  org.apache.pulsar.client.admin.PulsarAdminException: javax.ws.rs.ServiceUnavailableException: HTTP 503 {"reason":"Leader not yet ready. Please retry again"}
+  	at org.apache.pulsar.client.admin.PulsarAdminException.wrap(PulsarAdminException.java:252)
+  	at org.apache.pulsar.client.admin.internal.BaseResource.sync(BaseResource.java:352)
+  	at org.apache.pulsar.client.admin.internal.FunctionsImpl.createFunctionWithUrl(FunctionsImpl.java:199)
+  	at org.apache.pulsar.functions.worker.PulsarFunctionTlsTest.testFunctionsCreation(PulsarFunctionTlsTest.java:274)
+  	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+  	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+  	at org.testng.internal.invokers.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:139)
+  	at org.testng.internal.invokers.InvokeMethodRunnable.runOne(InvokeMethodRunnable.java:47)
+  	at org.testng.internal.invokers.InvokeMethodRunnable.call(InvokeMethodRunnable.java:76)
+  	at org.testng.internal.invokers.InvokeMethodRunnable.call(InvokeMethodRunnable.java:11)
+  	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+  	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+  	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+  	at java.base/java.lang.Thread.run(Thread.java:1583)
+```
+
+```
+2024-10-01T07:10:59,801 - INFO  - [pulsar-external-listener-3425-1:WorkerUtils] - Encountered exception while at creating exclusive producer to topic persistent://public/functions/assignment
+java.util.concurrent.ExecutionException: org.apache.pulsar.client.api.PulsarClientException$ProducerFencedException: {"errorMsg":"org.apache.pulsar.broker.service.BrokerServiceException$ProducerFencedException: Topic has an existing exclusive producer: c-my-cluster-fw-localhost-46303-scheduler-manager","reqId":2002931073644165119, "remote":"localhost/127.0.0.1:43319", "local":"/127.0.0.1:34620"}
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:396) ~[?:?]
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2096) ~[?:?]
+	at org.apache.pulsar.functions.worker.WorkerUtils.createExclusiveProducerWithRetry(WorkerUtils.java:409) ~[pulsar-functions-worker-4.0.0-SNAPSHOT.jar:4.0.0-SNAPSHOT]
+	at org.apache.pulsar.functions.worker.SchedulerManager.acquireExclusiveWrite(SchedulerManager.java:171) ~[pulsar-functions-worker-4.0.0-SNAPSHOT.jar:4.0.0-SNAPSHOT]
+	at org.apache.pulsar.functions.worker.LeaderService.becameActive(LeaderService.java:112) ~[pulsar-functions-worker-4.0.0-SNAPSHOT.jar:4.0.0-SNAPSHOT]
+	at org.apache.pulsar.client.impl.ConsumerImpl.lambda$activeConsumerChanged$31(ConsumerImpl.java:1201) ~[pulsar-client-original-4.0.0-SNAPSHOT.jar:4.0.0-SNAPSHOT]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144) ~[?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642) ~[?:?]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.113.Final.jar:4.1.113.Final]
+	at java.base/java.lang.Thread.run(Thread.java:1583) [?:?]
+Caused by: org.apache.pulsar.client.api.PulsarClientException$ProducerFencedException: {"errorMsg":"org.apache.pulsar.broker.service.BrokerServiceException$ProducerFencedException: Topic has an existing exclusive producer: c-my-cluster-fw-localhost-46303-scheduler-manager","reqId":2002931073644165119, "remote":"localhost/127.0.0.1:43319", "local":"/127.0.0.1:34620"}
+```
+
+full log output: https://gist.github.com/lhotari/bdd307df2e28331e033d0fe4f30ca5f0
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

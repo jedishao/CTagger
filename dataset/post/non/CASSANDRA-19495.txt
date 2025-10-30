@@ -1,0 +1,10 @@
+Hints not stored after node goes down for the second time
+I have a scenario where a node goes down, hints are recorded on the second node and replayed, as expected. If the first node goes down for a second time and time span between the first time it stopped and the second time it stopped is more than the max_hint_window then the hint is not recorded, no hint file is created, and the mutation never arrives at the node after it comes up again.
+
+I have debugged this and it appears to due to the way hint window is persisted after https://issues.apache.org/jira/browse/CASSANDRA-14309
+
+The code here: [https://github.com/apache/cassandra/blame/cassandra-4.1/src/java/org/apache/cassandra/service/StorageProxy.java#L2402] uses the time stored in the HintsBuffer.earliestHintByHost map.  This map is based on the UUID of the host, but this does not seem to be cleared when the node is back up, and I think this is what is causing the problem.
+
+ 
+
+This is in cassandra 4.1.5

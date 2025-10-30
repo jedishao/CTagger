@@ -1,0 +1,22 @@
+[OPA] Add optional configuration property, to load tenant-specific information as key-value pairs
+Hi folks, 
+
+We have a use case where multiple Trino clusters across different tenant namespaces interact with a single OPA server. Therefore, OPA requests to the OPA server must contain the tenant namespace information, so that authorization checks can be scoped to their own namespaces. 
+
+Currently, the OPA request context only contains
+- `identity`: identity of the user performing the operation
+- 'softwareStack': information about Trino (like `trinoVersion`)
+
+We'd like to propose the least intrusive, most generic way to inject tenant-specific information (i.e. namespace, environment, tier) into the OPA request context. Instead of modifying the `context` object signature, we will add an optional configuration property (i.e. `additionalContextFile`), specifying a path to a file that contains said information as key-value pairs. 
+
+For example, 
+`additionalContextFile=/tmp/tenantInfo.json`
+
+And the contents of `/tmp/tenantInfo.json` will be 
+```
+{
+  'environment' : 'dev',
+  'tier' : 'dev-sandbox',
+  'namespace' : 'businessIntelligence'
+}
+```

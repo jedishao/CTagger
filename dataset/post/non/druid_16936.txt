@@ -1,0 +1,35 @@
+Indexer unhealthy after 1 job deployment, querying datasource fails with Next token wasn't a START_ARRAY
+Hi,
+I have deployed a simple cluster setup and the cluster reports healthy for hours, until I submit my first ingestion job (kafka).
+The indexer (middleware), readiness probe becomes unhealthy and checking the endpoint http://localhost:8091/status/selfDiscovered returns service unavailable.
+
+The ingestion job keeps running, but querying the datasource that is created then leads to the error
+```
+Error: RUNTIME_FAILURE (OPERATOR)
+Next token wasn't a START_ARRAY, was[null] from url[http://druid-cfk-indexer-default-0:8100/druid/v2/] with value[null]
+```
+
+### Affected Version
+
+Apache Druid 30.0.0
+
+### Description
+
+Please include as much detailed information about the problem as possible.
+- Cluster size: We are using the wiremind helm chart to spin up our cluster (which basically runs 1 instance of each service). 
+I have attached the values file we are using
+[values_wiremind.zip](https://github.com/user-attachments/files/16687802/values_wiremind.zip)
+
+- Steps to reproduce the problem
+Using the wiremind value file just connect to a kafka topic and start ingestion. After 1 minute in the ingestion the indexer node will report that the readiness probe becomes unhealthy and all querying fails.
+
+- The error message or stack traces encountered. Providing more context, such as nearby log messages or even entire logs, can be helpful.
+Broker errors from the query
+```
+2024-08-21T07:32:30,472 WARN [DruidSchema-Cache-0] org.apache.druid.server.QueryLifecycle - Exception while processing queryId [7070b152-08c8-42f8-b006-d916ab3714b1] (QueryInterruptedException{msg=Next token wasn't a START_ARRAY, was[null] from url[http://druid-cfk-indexer-default-0:8100/druid/v2/] with value[null], code=Unknown exception, class=org.apache.druid.java.util.common.IAE, host=druid-cfk-indexer-default-0:8100})
+2024-08-21T07:32:30,472 WARN [DruidSchema-Cache-0] org.apache.druid.segment.metadata.AbstractSegmentMetadataCache - Metadata refresh failed, trying again soon.
+org.apache.druid.query.QueryInterruptedException: Next token wasn't a START_ARRAY, was[null] from url[http://druid-cfk-indexer-default-0:8100/druid/v2/] with value[null]
+```
+
+[druidindexer-broker-coordinator.zip](https://github.com/user-attachments/files/16687913/druidindexer-broker-coordinator.zip)
+I attached the logs from the boker, indexer and coordinator if that helps.

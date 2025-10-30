@@ -1,0 +1,46 @@
+Cycle between camel and org.apache.camel.impl.health.DefaultHealthCheckRegistry
+The following will make spring boot 3.3.4/camel 4.8.0 report this cycle 
+
+{color:#000000}camel{color}
+
+{color:#000000}↑ ↓{color}
+
+{color:#000000}org.apache.camel.impl.health.DefaultHealthCheckRegistry{color}
+{code:java}
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ImportResource;
+ 
+@SpringBootTest
+class CamelCircularRef {
+ 
+@Test
+void testCamelConfig() {
+// assertThat(camelContext).isNotNull();
+}
+ 
+@Configuration
+@ImportResource("classpath:XmlConfigCircular.xml")
+static class TestConfig {
+}
+}
+{code}
+Content of XmlConfigCircular.xml:
+{code:xml}
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+         http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+         http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+	<camelContext id="camel" xmlns="http://camel.apache.org/schema/spring">
+	</camelContext>
+</beans>
+{code}
+
+Is this a bug or a faulty configuration issue?
+
+Using spring.main.allow-circular-references=true does allow my application to run.
+
+Looks like CAMEL-17220

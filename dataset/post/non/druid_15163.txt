@@ -1,0 +1,85 @@
+Kafka Index Tasks Created -> Duplicated -> Pending -> Failed
+### Affected Version
+
+apache/druid:25.0.0
+
+### Description
+
+I'm running Druid in Kubernetes with the Druid Operator.  I create 7 Kafka Supervisors.  This in turn creates 7 Kafka indexing tasks.  These all work fine for about an hour, then the 7 Kafka tasks get duplicated for some reason in a "pending" status and a little later the original 7 tasks change to "failed".
+
+Original 7 running fine for an hour:
+![image](https://github.com/apache/druid/assets/3186418/51354be2-2f98-4e34-a97c-4bcd049d3eae)
+
+After 1 hour 7 duplicates created somehow all in a "pending" status:
+![image](https://github.com/apache/druid/assets/3186418/16ced4f5-c237-4597-ba21-384dbee13e90)
+
+About 10 minutes later all are in a "failed" state:
+<img width="1395" alt="image" src="https://github.com/apache/druid/assets/3186418/d2b3c64b-fdec-4e68-b806-6f3c28e469cf">
+
+I've checked the coordinator and middlemanager logs and don't see any problems reported.
+
+Coordinator log sample:
+```
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.druid.java.util.common.logger.Logger
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.druid.java.util.common.logger.Logger
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.config.AbstractConfig
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.kafka.common.utils.LogContext
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+```
+middle manager log sample:
+```
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+TRACE StatusLogger Log4jLoggerFactory.getContext() found anchor class org.apache.curator.RetryLoopImpl
+```
+
+middleManagers config:
+```
+middlemanagers:
+      nodeType: "middleManager"
+      nodeConfigMountPath: "/opt/druid/conf/druid/cluster/data/middleManager"
+      druid.port: 8088
+      services:
+        - spec:
+            type: ClusterIP
+            clusterIP: None
+      replicas: 1
+      extra.jvm.options: |-
+        -Xmx512m
+        -Xms512m
+      runtime.properties: |
+        druid.service=druid/middleManager
+        druid.worker.capacity=10
+        druid.indexer.runner.javaOpts=-server -Xms2g -Xmx2g -XX:MaxDirectMemorySize=6g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/druid/data/tmp -XX:+ExitOnOutOfMemoryError -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+        druid.indexer.task.baseTaskDir=/druid/data/baseTaskDir
+        druid.server.http.numThreads=10
+        druid.indexer.fork.property.druid.processing.buffer.sizeBytes=1
+        druid.indexer.fork.property.druid.processing.numMergeBuffers=1
+        druid.indexer.fork.property.druid.processing.numThreads=1
+```

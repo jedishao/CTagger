@@ -1,0 +1,89 @@
+[Bug] can not create topic due to failure of initialization of policies even the namespace is re-created
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.11.3
+
+### Minimal reproduce step
+
+I have no exact reproduce steps but my bookie got some problems and we have to restart the cluster with some data lost. Our cluster is recovered properly after deleting topics/namespaces affected by the data lost except one. I think the problem come from that even the namespace is forced deleted, the policies related is not properly deleted, so when the namespace is re-created, this problem occur:
+
+```
+2024-02-23T04:59:12,496+0000 [broker-client-shared-internal-executor-6-1] ERROR org.apache.pulsar.broker.service.BrokerService - Topic creation encountered an exception by initialize topic policies service. topic_name=persistent://public/throttler/proxy_80-partition-0 error_message={"errorMsg":"Error while reading ledger -  ledger=9000 - operation=Failed to read entry - entry=0","reqId":2078016889004022091, "remote":"pulsar.s4.docker.youthdev.net/10.0.7.195:6650", "local":"/10.0.7.190:33266"}
+
+org.apache.pulsar.client.api.PulsarClientException: {"errorMsg":"Error while reading ledger -  ledger=9000 - operation=Failed to read entry - entry=0","reqId":2078016889004022091, "remote":"pulsar.s4.docker.youthdev.net/10.0.7.195:6650", "local":"/10.0.7.190:33266"}
+
+	at org.apache.pulsar.client.impl.ClientCnx.getPulsarClientException(ClientCnx.java:1250) ~[org.apache.pulsar-pulsar-client-original-2.11.3.jar:2.11.3]
+
+	at org.apache.pulsar.client.impl.ClientCnx.handleError(ClientCnx.java:747) ~[org.apache.pulsar-pulsar-client-original-2.11.3.jar:2.11.3]
+
+	at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:182) ~[org.apache.pulsar-pulsar-common-2.11.3.jar:2.11.3]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:346) ~[io.netty-netty-codec-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:318) ~[io.netty-netty-codec-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.handler.flush.FlushConsolidationHandler.channelRead(FlushConsolidationHandler.java:152) ~[io.netty-netty-handler-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:442) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) ~[io.netty-netty-transport-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:800) ~[io.netty-netty-transport-classes-epoll-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:499) ~[io.netty-netty-transport-classes-epoll-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:397) ~[io.netty-netty-transport-classes-epoll-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[io.netty-netty-common-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[io.netty-netty-common-4.1.93.Final.jar:4.1.93.Final]
+
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.93.Final.jar:4.1.93.Final]
+
+	at java.lang.Thread.run(Thread.java:840) ~[?:?]
+
+2024-02-23T04:59:12,498+0000 [broker-client-shared-internal-executor-6-1] ERROR org.apache.pulsar.broker.service.BrokerService - Topic creation encountered an exception by initialize topic policies service. topic_name=persistent://public/throttler/proxy_80-partition-0 error_message={"errorMsg":"Error while reading ledger -  ledger=9000 - operation=Failed to read entry - entry=0","reqId":2078016889004022091, "remote":"pulsar.s4.docker.youthdev.net/10.0.7.195:6650", "local":"/10.0.7.190:33266"}
+```
+
+### What did you expect to see?
+
+The related metadata is re-created properly after the namespace/topic is forced delete and re-recreated. Or providing a documentation for manual delete these related data
+
+### What did you see instead?
+
+The namespace is blocked from topic creation
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

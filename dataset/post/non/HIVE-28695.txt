@@ -1,0 +1,42 @@
+Implement Lineage information for windowing functions
+Source of this ticket: https://issues.apache.org/jira/browse/HIVE-20633. 
+
+ 
+
+At the current implementation, Generator.java uses the default (I would say, it is the default behaviour if the functionality is not implemented) implementation to lineage information:
+
+[https://github.com/apache/hive/blob/master/ql/src/java/org/apache/hadoop/hive/ql/optimizer/lineage/Generator.java#L165]
+
+ 
+
+That implementation just picks up ALL the available columns in input and that's all. Windowing functions have two expressions, partition, and order. None of them are analysed. 
+
+The expected behaviour would be to include columns only that are affected in the windowing function.
+
+ 
+
+Some examples to reproduce the current behaviour: 
+{code:java}
+create table source_tbl2(col_001 int, col_002 int, col_003 int, p1 int);
+
+create view b_v_4 as
+select *
+from (select col_001, row_number() over (partition by src.p1) as r_num
+        from source_tbl2 src) v1;
+
+create view b_v_5 as
+select *
+from (select col_001, row_number() over (order by src.p1) as r_num
+        from source_tbl2 src) v1;
+
+create view b_v_6 as
+select *
+from (select col_001, rank() over (partition by src.p1) as r_num
+        from source_tbl2 src) v1;
+
+create view b_v_7 as
+select *
+from (select col_001, avg(src.col_002) over (partition by src.p1) as r_num
+        from source_tbl2 src) v1;
+ {code}
+ 

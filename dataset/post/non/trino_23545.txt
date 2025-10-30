@@ -1,0 +1,44 @@
+Unable to load credentials from any of the providers in the chain file with native s3 support
+I have an hive external table that points to an s3 location with some CSV gzipped files.
+Each 1 minute, one file in the s3 location is updated (replaced) by some external flow.
+
+In `458` lots of queries on this hive external table starts to fail with HIVE_CANNOT_OPEN_SPLIT
+Setting back `fs.hadoop.enabled=true` (as of https://github.com/trinodb/trino/pull/23343) fixed the issue.
+I tried to workaround the issue by setting `s3.retry-mode` parameter to STANDARD / ADAPTIVE but with no luck.
+
+I wonder if there is something else that can be done here as it seems that [Legacy S3 support](https://trino.io/docs/current/object-storage/legacy-s3.html#fs-legacy-s3-migration) will be removed in the future  ?
+
+Hive security mapping is enabled with the following `hive_security_mapping.json` file:
+
+```
+{
+  "mappings": [
+    {
+      "useClusterDefault": true
+    }
+  ]
+}
+```
+
+hive properties for s3 legacy support (no issue)
+```
+fs.hadoop.enabled=true
+hive.s3.security-mapping.config-file=/usr/lib/trino/etc/hive_security_mapping.json
+hive.s3.security-mapping.refresh-period=5s
+```
+
+
+hive properties for s3 native support
+```
+fs.hadoop.enabled=false
+fs.native-s3.enabled=true
+s3.retry-mode=ADAPTIVE
+s3.security-mapping.enabled=true
+s3.security-mapping.config-file=/usr/lib/trino/etc/hive_security_mapping.json
+s3.security-mapping.refresh-period=5s
+```
+
+Slack discussion [here](https://trinodb.slack.com/archives/CGB0QHWSW/p1727177619331739)
+
+
+

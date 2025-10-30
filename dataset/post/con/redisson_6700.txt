@@ -1,0 +1,86 @@
+NullPointerException during test of RedisFairLock with JedisMock
+### Redis version
+
+jedisMock 1.1.11
+
+### Redisson version
+
+3..50.0
+
+### Redisson configuration
+
+-
+
+### What is the Expected behavior?
+
+_No response_
+
+### What is the Actual behavior?
+
+This happens in a JUnit Test with [JedisMock](https://github.com/fppt/jedis-mock) when testing parallelRequests, so that most of the requests end up in a lock timeout.
+
+```
+2025-07-17T13:38:47.870+02:00 ERROR 29936 --- [ap-gateway] [sson-netty-3-14] o.r.client.handler.CommandPubSubDecoder  : Unable to decode data. channel: [id: 0x2b0f9393, L:/127.0.0.1:52201 - R:/127.0.0.1:51852], reply: ReplayingDecoderByteBuf(ridx=151, widx=151)
+java.lang.NullPointerException: Cannot invoke "org.redisson.client.handler.PubSubEntry.getQueue()" because "entry" is null
+	at org.redisson.client.handler.CommandPubSubDecoder.enqueueMessage(CommandPubSubDecoder.java:206)
+	at org.redisson.client.handler.CommandPubSubDecoder.decodeResult(CommandPubSubDecoder.java:172)
+	at org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:529)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:464)
+	at org.redisson.client.handler.CommandPubSubDecoder.decodeCommand(CommandPubSubDecoder.java:92)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:148)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:98)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:530)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1357)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:868)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:796)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:732)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:658)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:998)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+```
+
+### Additional information
+
+
+I am blocking concurrent requests based on a request attribute in a SpringCloudGateway Filter.
+This works with a real redis, so it's related to jedisMock, but the redisson client should be robust to this behaviour...
+
+My Code looks something like this:
+
+```
+    var lockKey= "someKeyFromTheRequest"
+    var lock = redissonClient.getFairLock(
+      CommonOptions
+        .name(lockKey)
+        .retryAttempts(0)
+        .timeout(Duration.ofSeconds(config.getCondTimeout()))
+    );
+    var threadId = exchange.getRequest().hashCode();
+    return lock
+      .tryLock(config.getWaitTime(), config.getLeaseTime(), TimeUnit.SECONDS, threadId)
+      .doOnSubscribe(s -> logger.debug("locking {} for request hash {}", lockKey, threadId))
+      .onErrorResume(RedisTimeoutException.class, e -> Mono.just(FALSE))
+      .doOnError(th -> {
+        logger.error("error locking {} for request hash {}: {} - {}", lockKey, threadId, th.getClass().getSimpleName(), th.getMessage());
+      })
+      .flatMap(acquired -> {
+          if (FALSE.equals(acquired)) {
+            logger.error("timeout locking {} for request hash {}", queueKey, threadId);
+            setResponseStatus(exchange, HttpStatus.TOO_MANY_REQUESTS);
+            return exchange.getResponse().setComplete();
+          }
+        ...
+     }
+     ...
+```

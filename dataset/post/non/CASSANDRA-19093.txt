@@ -1,0 +1,57 @@
+Test Failure: materialized_views_test.TestMaterializedViews.test_interrupt_build_process
+Seen in j11_dtests in CASSANDRA-19034
+https://app.circleci.com/pipelines/github/michaelsembwever/cassandra/259/workflows/f343d3e3-00cf-4e13-bb4d-bbfff1d3658c/jobs/21100/tests
+
+{noformat}
+AssertionError: assert not [('DEBUG [ViewBuildExecutor:2] 2023-11-25 10:20:56,917 ViewBuilderTask.java:128 - Resuming view build for range (-3458...token -5761824694134994220 with 1 covered keys\n', <re.Match object; span=(79, 98), match='Resuming view build'>), ...]
+ +  where [('DEBUG [ViewBuildExecutor:2] 2023-11-25 10:20:56,917 ViewBuilderTask.java:128 - Resuming view build for range (-3458...token -5761824694134994220 with 1 covered keys\n', <re.Match object; span=(79, 98), match='Resuming view build'>), ...] = <bound method Node.grep_log of <ccmlib.node.Node object at 0x7f09f960c390>>('Resuming view build', filename='debug.log')
+ +    where <bound method Node.grep_log of <ccmlib.node.Node object at 0x7f09f960c390>> = <ccmlib.node.Node object at 0x7f09f960c390>.grep_log
+self = <materialized_views_test.TestMaterializedViews object at 0x7f09fa5f0250>
+
+    def test_interrupt_build_process(self):
+        """Test that an interrupted MV build process is resumed as it should"""
+    
+        options = {'hinted_handoff_enabled': False}
+        if self.cluster.version() >= '4':
+            options['concurrent_materialized_view_builders'] = 4
+    
+        session = self.prepare(options=options, install_byteman=True)
+        node1, node2, node3 = self.cluster.nodelist()
+    
+        logger.debug("Avoid premature MV build finalization with byteman")
+        for node in self.cluster.nodelist():
+            if self.cluster.version() >= '4':
+                node.byteman_submit([mk_bman_path('4.0/skip_view_build_finalization.btm')])
+                node.byteman_submit([mk_bman_path('4.0/skip_view_build_task_finalization.btm')])
+            else:
+                node.byteman_submit([mk_bman_path('pre4.0/skip_finish_view_build_status.btm')])
+                node.byteman_submit([mk_bman_path('pre4.0/skip_view_build_update_distributed.btm')])
+    
+        session.execute("CREATE TABLE t (id int PRIMARY KEY, v int, v2 text, v3 decimal)")
+    
+        logger.debug("Inserting initial data")
+        for i in range(10000):
+            session.execute(
+                "INSERT INTO t (id, v, v2, v3) VALUES ({v}, {v}, 'a', 3.0) IF NOT EXISTS".format(v=i)
+            )
+    
+        logger.debug("Create a MV")
+        session.execute(("CREATE MATERIALIZED VIEW t_by_v AS SELECT * FROM t "
+                         "WHERE v IS NOT NULL AND id IS NOT NULL PRIMARY KEY (v, id)"))
+    
+        logger.debug("Wait and ensure the MV build has started. Waiting up to 2 minutes.")
+        self._wait_for_view_build_start(session, 'ks', 't_by_v', wait_minutes=2)
+    
+        logger.debug("Stop the cluster. Interrupt the MV build process.")
+        self.cluster.stop()
+    
+        logger.debug("Checking logs to verify that the view build tasks have been created")
+        for node in self.cluster.nodelist():
+            assert node.grep_log('Starting new view build', filename='debug.log')
+>           assert not node.grep_log('Resuming view build', filename='debug.log')
+E           AssertionError: assert not [('DEBUG [ViewBuildExecutor:2] 2023-11-25 10:20:56,917 ViewBuilderTask.java:128 - Resuming view build for range (-3458...token -5761824694134994220 with 1 covered keys\n', <re.Match object; span=(79, 98), match='Resuming view build'>), ...]
+E            +  where [('DEBUG [ViewBuildExecutor:2] 2023-11-25 10:20:56,917 ViewBuilderTask.java:128 - Resuming view build for range (-3458...token -5761824694134994220 with 1 covered keys\n', <re.Match object; span=(79, 98), match='Resuming view build'>), ...] = <bound method Node.grep_log of <ccmlib.node.Node object at 0x7f09f960c390>>('Resuming view build', filename='debug.log')
+E            +    where <bound method Node.grep_log of <ccmlib.node.Node object at 0x7f09f960c390>> = <ccmlib.node.Node object at 0x7f09f960c390>.grep_log
+
+materialized_views_test.py:1129: AssertionError
+{noformat}

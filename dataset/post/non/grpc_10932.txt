@@ -1,0 +1,57 @@
+how to set maxBackoff value 
+I want to set a small value maxBackoff,  because I want quickly to reconnect to service. 
+But default reconnect policy is maxBackoff will increased
+
+so I want to use defaultServiceConfig to control maxBackoff of channel.
+
+```kotlin
+    private fun getHmiServiceChannel():ManagedChannel{
+        val ip = RepositoryDataStore.getValueSync(KEY_DATA_STORE_GRPC_IP, HOST_DV_SERVICE)
+        initGprcDebugLog()
+
+        // keepAliveTime: 表示当grpc连接没有数据传递时，多久之后开始向server发送ping packet
+        // keepAliveTimeout: 表示当发送完ping packet后多久没收到server回应算超时
+        // keepAliveTimeoutCalls: 表示如果grpc连接没有数据传递时，是否keepAlive,默认为false
+        return ManagedChannelBuilder
+            .forAddress(ip, PORT_DV_SERVICE)
+            .usePlaintext()
+            .keepAliveTime(5, TimeUnit.SECONDS)
+            .keepAliveTimeout(1,TimeUnit.SECONDS)
+            .keepAliveWithoutCalls(true)
+            .enableRetry()
+            .maxRetryAttempts(10000)
+            .defaultServiceConfig(getRetryingServiceConfig())
+            .intercept(ClientLogInterceptor())
+            .build()
+    }
+
+
+    private fun getRetryingServiceConfig(): MutableMap<String, *> {
+        val config = """
+            {
+                "methodConfig":[
+                    {
+                        "name":[
+                            {
+                                "service":"interface.proto.dreamview.HMIService",
+                                "method":"WatchVehicleStatus"
+                            }
+                        ],
+                        "retryPolicy":{
+                            "maxAttempts":5,
+                            "initialBackoff":"0.5s",
+                            "maxBackoff":"5s",
+                            "backoffMultiplier":1,
+                            "retryableStatusCodes":[
+                                "UNAVAILABLE"
+                            ]
+                        }
+                    }
+                ]
+            }
+        """.trimIndent()
+        return Gson().fromJson(config, MutableMap::class.java) as MutableMap<String, *>
+    }
+```
+
+but no effect 

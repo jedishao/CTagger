@@ -1,0 +1,144 @@
+decode error while search json data, mapvalue decoder  will fail on  fields are differents type  ( double and string )
+I've got trouble while use redission to search json documents
+
+data insert by python code 
+```
+if __name__ == "__main__":
+    embedder = SentenceTransformer('msmarco-distilbert-base-v4')
+    embeddings = embedder.encode(queries[0]).astype(np.float32).tolist()
+    VECTOR_DIMENSION = 768
+
+    schema = (
+        TextField("$.model", no_stem=True, as_name="model"),
+    TextField("$.brand", no_stem=True, as_name="brand"),
+    NumericField("$.price", as_name="price"),
+    TagField("$.type", as_name="type"),
+    TextField("$.description", as_name="description"),
+    VectorField(
+        "$.description_embeddings",
+        "FLAT",
+        {
+            "TYPE": "FLOAT32",
+            "DIM": VECTOR_DIMENSION,
+            "DISTANCE_METRIC": "COSINE",
+        },
+        as_name="vector",
+    ),
+    )
+    # definition = IndexDefinition(prefix=["bikes:"], index_type=IndexType.JSON)
+    # res = client.ft("idx:bikes_vss").create_index(
+    #     fields=schema, definition=definition
+    # )
+
+    pipeline = client.pipeline()
+    descriptions = [ b["description"] for b in bikes ]
+    embeddings = embedder.encode(descriptions).astype(np.float32).tolist()
+    for i, bike in enumerate(bikes, start=1):
+        redis_key = f"bikes:{i:03}"
+        pipeline.json().set(redis_key, "$.model", bike["model"])
+        pipeline.json().set(redis_key, "$.description", bike["description"])
+        # pipeline.json().set(redis_key, "$.description_embeddings", embeddings[i-1])
+
+    res = pipeline.execute()
+    print(res)
+```
+
+```
+bikes:010 has a  string value
+root@4060e30b7547:/# redis-cli json.get  bikes:010  $.model
+
+"[\"Summit\"]"
+```
+
+redission code  to search json document 
+```java
+
+    List<ReturnAttribute> returnAttributes = Arrays.asList(
+            new ReturnAttribute("score"),
+            new ReturnAttribute("model")
+    );
+    public List<Result> search(byte[] data, int topK) {
+        RSearch s = client.getSearch(
+        rnew CompositeCodec(new StringCodec(), new StringCodec());
+);
+
+        topK = (topK > 0) ? topK : this.topK;
+        List<Result> results = new ArrayList<>();
+        try {
+
+            String command =
+                    "*=>[KNN " + this.dimension + " @vector $BLOB AS score ]";
+            Map<String, Object> params = new HashMap<>(2);
+
+            params.put("TOPK", topK);
+            params.put("BLOB", data);
+
+            SearchResult search = s.search(this.collectionName, command, QueryOptions.defaults()
+                    .sortBy("score")
+                    .limit(0, topK > 0 ? topK : this.topK)
+                    .dialect(2)
+                    .params(params)
+                    .returnAttributes(returnAttributes)
+            );
+
+            if (search.getTotal() > 0) {
+                for (org.redisson.api.search.query.Document result : search.getDocuments()) {
+                    if (result != null) {
+                        results.add(new Result(result.getId(), (Double) result.getAttributes().get("score")));
+                    }
+                }
+            } else {
+                log.warn("search not result");
+            }
+        } catch (Exception e) {
+            log.error("Search failed: " + e);
+            throw e;
+        }
+        return results;
+    }
+
+```
+
+here is error log 
+
+```
+[redisson-netty-2-2] ERROR org.redisson.client.handler.CommandDecoder - Unable to decode data. channel: [id: 0xd1e91fc1, L:/127.0.0.1:64875 - R:127.0.0.1/127.0.0.1:6379], reply: ReplayingDecoderByteBuf(ridx=61, widx=7773), command: (FT.SEARCH), promise: java.util.concurrent.CompletableFuture@260eb2b6[Not completed, 1 dependents], params: [idx:bikes_vss, *=>[KNN 1536 @vector $BLOB AS score ], RETURN, 2, description, score, SORTBY, score, LIMIT, 0, ...]
+java.io.StreamCorruptedException: invalid stream header: 302E3534
+	at java.base/java.io.ObjectInputStream.readStreamHeader(ObjectInputStream.java:936)
+	at java.base/java.io.ObjectInputStream.<init>(ObjectInputStream.java:375)
+	at org.redisson.codec.SerializationCodec$1.decode(SerializationCodec.java:56)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:394)
+	at org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:442)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:403)
+	at org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:442)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:403)
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:205)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:120)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+```
+
+i found that  redisson  decode attributes by mapvalue decode ,  it's works if all attributes is String and use StringCodec . but if mixed return values like Double scoe and String model.  it will fail. 
+
+Is this behavior by design? 
+
+
+

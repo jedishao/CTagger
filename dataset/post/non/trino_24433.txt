@@ -1,0 +1,52 @@
+Trino 467 Delta - Error getting snapshot - No factory for location For S3
+# Setup
+
+* trino helm chart `1.35.0` upgrade from `0.25.0`.
+* trino version `450` -> `467`
+* delta connector
+* AWS S3 with AWS Glue Metastore
+
+# Context
+
+I am currently getting error when trying to query an existing delta table in S3.
+
+`io.trino.spi.TrinoException: Error getting snapshot for <schema>.<table>`
+
+```bash
+
+Caused by: java.lang.IllegalArgumentException: No factory for location: s3://../table/_delta_log/_last_checkpoint
+	at io.trino.filesystem.manager.FileSystemModule.lambda$createFileSystemFactory$2(FileSystemModule.java:149)
+	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+	at io.trino.filesystem.manager.FileSystemModule.lambda$createFileSystemFactory$3(FileSystemModule.java:149)
+	at io.trino.filesystem.switching.SwitchingFileSystem.fileSystem(SwitchingFileSystem.java:194)
+	at io.trino.filesystem.switching.SwitchingFileSystem.newInputFile(SwitchingFileSystem.java:60)
+	at io.trino.filesystem.tracing.TracingFileSystem.newInputFile(TracingFileSystem.java:51)
+	at io.trino.plugin.deltalake.transactionlog.TransactionLogParser.tryReadLastCheckpoint(TransactionLogParser.java:267)
+	at io.trino.plugin.deltalake.transactionlog.TransactionLogParser.lambda$readLastCheckpoint$2(TransactionLogParser.java:260)
+	at dev.failsafe.Functions.lambda$toCtxSupplier$11(Functions.java:243)
+	at dev.failsafe.Functions.lambda$get$0(Functions.java:46)
+	at dev.failsafe.internal.RetryPolicyExecutor.lambda$apply$0(RetryPolicyExecutor.java:74)
+	at dev.failsafe.SyncExecutionImpl.executeSync(SyncExecutionImpl.java:187)
+	at dev.failsafe.FailsafeExecutor.call(FailsafeExecutor.java:376)
+	at dev.failsafe.FailsafeExecutor.get(FailsafeExecutor.java:112)
+	at io.trino.plugin.deltalake.transactionlog.TransactionLogParser.readLastCheckpoint(TransactionLogParser.java:260)
+	at io.trino.plugin.deltalake.transactionlog.TransactionLogAccess.loadSnapshot(TransactionLogAccess.java:176)
+	at io.trino.plugin.deltalake.DeltaLakeMetadata.getSnapshot(DeltaLakeMetadata.java:528)
+	... 43 more
+```
+
+* After upgrading trino from `450` to `467`.
+
+The table in S3 seems all fine per se, so it is rather confusing atm to me why this happens.
+
+The `_last_checkpoint` and file exist in S3.
+
+I get the same error if I try to create a dummy table like:
+
+```sql
+ CREATE TABLE delta.<schema>.test (id INTEGER)
+```
+
+it all works fine in `450`.
+
+I am currently trying to debug this a bit in the meantime.

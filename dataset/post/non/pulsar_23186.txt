@@ -1,0 +1,113 @@
+[Bug] Inconsistent Metadata Read
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+pulsar:3.3.0
+
+### Minimal reproduce step
+
+```java
+public class Data{
+
+   String id;
+   Action action;
+}
+enum Action{
+  A,
+  B
+}
+
+public class TestMetadata extends BaseResources<Data>{
+
+
+    public static final String PATH = "/my-test-zk-path/data";
+
+    public TestMetadata(MetadataStore configurationStore, int operationTimeoutSec) {
+        super(configurationStore, Data.class, operationTimeoutSec);
+    }
+
+    public CompletableFuture<Void> createAsync(Data data) {
+        return createAsync(joinPath(PATH, data.id()), data);
+    }
+
+    public CompletableFuture<Data> readAsync(String id) {
+        CompletableFuture<Data> future = new CompletableFuture();
+        getAsync(joinPath(PATH, id)).thenAccept(data -> {
+            if (!data.isPresent()) {
+                future.completeExceptionally(new MetadataStoreException.NotFoundException("Not found"));
+            } else {
+                log.info("reading id:{}, job:{}", id, data.get());
+                future.complete(data.get());
+            }
+        });
+        return future;
+    }
+
+    public CompletableFuture<Void> updateActionAsync(String id, Data.Action action) {
+        CompletableFuture future = new CompletableFuture();
+        readAsync(id)
+                .thenCompose(__ -> setAsync(joinPath(PATH, sourceBrokerId), (old) -> {
+                    log.info("updating action. id:{}, old:{} to action:{}", id, old, action);
+                    old.setAction(action);
+                    return old;
+                }))
+                .thenCompose(__ -> readAsync(sourceBrokerId))
+                .whenComplete((job, ex) -> {
+
+                    // somehow this shows the latest value that was written correctly.
+                    log.info("updated action. id:{}, job:{}", id, job);
+                    if (ex != null) {
+                        if (!future.isCompletedExceptionally()) {
+                            future.completeExceptionally(FutureUtil.unwrapCompletionException(ex));
+                        }
+                    } else {
+                        future.complete(null);
+                    }
+                });
+        return future;
+    }
+
+}
+
+Given above the test classes above, run the following test.
+
+TestMetadata metadata = new TestMetadata(pulsar.getLocalMetadataStore(),
+                pulsar.getConfiguration().getMetadataStoreOperationTimeoutSeconds());
+
+Data data = new Data("1", A);
+1. metadata.createAsync(data).join();
+2. metadata.updateActionAsync("1", B).join();
+3. metadata.updateActionAsync("1", A).join();
+// keep trying to verify the data.action is set to A. But it continue to show the old value, B.
+4. metadata.readAsync("1").join() => data : {"1", B}
+...
+30. metadata.readAsync("1").join() => data : {"1", B}
+
+
+
+
+```
+
+### What did you expect to see?
+The metadata is expected to read the last value that was written. ("Read your writes consistency")
+
+### What did you see instead?
+
+The metadata indefinitely kept on returning the old value for read op. This issue doesn't happen always, and it seems like this inconsistent state can happen under some specific conditions. I saw that this happened about once per one hundred runs.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

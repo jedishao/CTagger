@@ -1,0 +1,33 @@
+Add support to sort by varchar columns on window functions using RANGE PRECEDING or FOLLOWING
+Presto is able to execute window functions ordering by a varchar using ROWS PRECEDING/FOLLOWING but it is not able to execute the same window function using RANGE.
+
+-- query using ROWS: Ok
+```
+SELECT suppkey, name, nationkey,
+    SUM(acctbal) OVER (
+      PARTITION BY nationkey
+      ORDER BY phone DESC
+      ROWS BETWEEN 10 PRECEDING AND 1 FOLLOWING
+    )
+FROM sf1.supplier;
+```
+
+-- query using RANGE: Window frame of type RANGE PRECEDING or FOLLOWING requires that sort item type be numeric, datetime or interval (actual: varchar(15))
+```
+SELECT suppkey, name, nationkey,
+    SUM(acctbal) OVER (
+      PARTITION BY nationkey
+      ORDER BY phone DESC
+      RANGE BETWEEN 10 PRECEDING AND 1 FOLLOWING
+    )
+FROM sf1.supplier;
+```
+
+
+## Expected Behavior or Use Case
+
+Both queries should be supported
+
+## Context
+
+Find it during testing, it is not currently affecting a real environment

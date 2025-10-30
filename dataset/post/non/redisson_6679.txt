@@ -1,0 +1,155 @@
+Direct byte buffer leak when using RLocalCachedMap with StoreMode.LOCALCACHE
+### Redis version
+
+7.2.3
+
+### Redisson version
+
+3.50.0
+
+### Redisson configuration
+
+```
+singleServerConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 1500
+  password: null
+  subscriptionsPerConnection: 5
+  clientName: null
+  address: "redis://localhost:6379"
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  connectionMinimumIdleSize: 24
+  connectionPoolSize: 64
+  database: 0
+  dnsMonitoringInterval: 5000
+codec: !<org.redisson.codec.SerializationCodec> { }
+useThreadClassLoader: false
+transportMode: "NIO"
+protocol: RESP3
+```
+
+### What is the Expected behavior?
+
+_No response_
+
+### What is the Actual behavior?
+
+I use `RLocalCachedMap` with option `StoreMode.LOCALCACHE`, and every time I call methods `.readAllKeySet()`, `.readAllValues()` or `.readAllEntrySet()` , some amount of netty's direct byte buffers (instances of `PooledUnsafeDirectByteBuf`) leaked (maybe some other methods are also subject to this issue, I didn't check all of them). 
+
+Netty's leak detector also reports this problem, especially if enabled with option `-Dio.netty.leakDetection.level=PARANIOD`.
+
+After some investigations I found a place in code of `RedissonLocalCachedMap.readAllEntrySetAsync()`. There is an accumulation of map keys (their byte buffers) in local collection `List<Object> mapKeys`, and then condition `if (storeMode == LocalCachedMapOptions.StoreMode.LOCALCACHE)` forces fast return, but buffers remain in `mapKeys` non-released, which, when garbage collected, leads to memory leak.
+
+```java
+@Override
+    public RFuture<Set<Entry<K, V>>> readAllEntrySetAsync() {
+        ...
+        List<Object> mapKeys = new ArrayList<Object>();
+                     ^^^^^^^
+        for (CacheValue value : cache.values()) {
+            ...
+            mapKeys.add(encodeMapKey(value.getKey(), mapKeys));
+                        ^^^^^^^^^^^^
+            ...
+        }
+
+        if (storeMode == LocalCachedMapOptions.StoreMode.LOCALCACHE) {
+            return new CompletableFutureWrapper<>(result);
+            ^^^^^^
+        }
+
+        RFuture<Set<Entry<K, V>>> future = readAll(ALL_ENTRIES, mapKeys, result);
+        ...
+```
+
+On the other side, if cache mode was specified as `StoreMode.LOCALCACHE_REDIS`, that `if`-condition will not kick us out, and then execution will dive inside network interaction with redis, where all passed `ButeBuf`-arguments are properly released.
+
+### Additional information
+
+Minimal code that demonstrates continuously increasing total allocated direct buffers size (example in kotlin, but it's pretty simple to rewrite it in java):
+
+```kotlin
+suspend fun main() {
+    val redisson = Redisson.create(Config.fromYAML("...")) // mentioned above
+    val cache = redisson.getLocalCachedMap(defaultLocalCachedMapOptions<String, String>("TEST"))
+    
+    println("FILLING CACHE...")
+
+    (1..1000).forEach { cache["key-$it"] = "$it".repeat(10000) }
+    println("Buffers = ${getMemoryUsedMegabytes()}")
+
+    println("READING...")
+
+    while (true) {
+        cache.readAllValues()
+        println("Buffers = ${getMemoryUsedMegabytes()}")
+        delay(100)
+    }
+}
+
+private fun <K, V> defaultLocalCachedMapOptions(name: String): LocalCachedMapOptions<K, V> =
+    LocalCachedMapOptions.name<K, V>(name)
+        .cacheSize(0).timeToLive(Duration.ZERO).maxIdle(Duration.ZERO)
+        .reconnectionStrategy(LocalCachedMapOptions.ReconnectionStrategy.LOAD)
+        .syncStrategy(LocalCachedMapOptions.SyncStrategy.UPDATE)
+        .cacheProvider(LocalCachedMapOptions.CacheProvider.CAFFEINE)
+        .storeMode(LocalCachedMapOptions.StoreMode.LOCALCACHE)
+        .expirationEventPolicy(LocalCachedMapOptions.ExpirationEventPolicy.DONT_SUBSCRIBE)
+
+private val bufferPoolMonitor = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean::class.java).first { it.name == "direct" }
+
+private fun getMemoryUsedMegabytes(): String {
+    return String.format("%.2f Mb", 1.0 * bufferPoolMonitor.memoryUsed / 1024 / 1024)
+}
+```
+
+Output:
+```
+Buffers = 20.00 Mb
+Buffers = 20.00 Mb
+... (here goes some amount of lines with the same reported size; maybe JVM and/or MBeanServer has some lag, I don't know why it doesn't increase everytime I call readAllValues(), but it increases anyway after some test iterations)
+Buffers = 20.00 Mb
+Buffers = 24.00 Mb
+Buffers = 24.00 Mb
+...
+Buffers = 24.00 Mb
+Buffers = 28.00 Mb
+Buffers = 28.00 Mb
+Buffers = 28.00 Mb
+...
+```
+
+Netty's leak detection report looks as follows:
+
+```
+SEVERE: LEAK: ByteBuf.release() was not called before it's garbage-collected. See https://netty.io/wiki/reference-counted-objects.html for more information.
+Recent access records: 
+Created at:
+	io.netty.buffer.PooledByteBufAllocator.newDirectBuffer(PooledByteBufAllocator.java:410)
+	io.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:188)
+	io.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:174)
+	io.netty.buffer.AbstractByteBufAllocator.buffer(AbstractByteBufAllocator.java:108)
+	org.redisson.codec.SerializationCodec$2.encode(SerializationCodec.java:74)
+	org.redisson.command.CommandAsyncService.encodeMapKey(CommandAsyncService.java:932)
+	org.redisson.RedissonObject.encodeMapKey(RedissonObject.java:533)
+	org.redisson.RedissonObject.encodeMapKey(RedissonObject.java:538)
+	org.redisson.RedissonLocalCachedMap.readAllEntrySetAsync(RedissonLocalCachedMap.java:1036)
+	org.redisson.RedissonMap.readAllEntrySet(RedissonMap.java:902)
+	xxx.MainKt.main(Main.kt:54)
+	xxx.MainKt$main$1.invokeSuspend(Main.kt)
+	kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	kotlinx.coroutines.DispatchedTaskKt.resume(DispatchedTask.kt:179)
+	kotlinx.coroutines.DispatchedTaskKt.dispatch(DispatchedTask.kt:168)
+	kotlinx.coroutines.CancellableContinuationImpl.dispatchResume(CancellableContinuationImpl.kt:474)
+	kotlinx.coroutines.CancellableContinuationImpl.resumeImpl(CancellableContinuationImpl.kt:508)
+	kotlinx.coroutines.CancellableContinuationImpl.resumeImpl$default(CancellableContinuationImpl.kt:497)
+	kotlinx.coroutines.CancellableContinuationImpl.resumeUndispatched(CancellableContinuationImpl.kt:595)
+	kotlinx.coroutines.EventLoopImplBase$DelayedResumeTask.run(EventLoop.common.kt:493)
+	kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:280)
+	kotlinx.coroutines.DefaultExecutor.run(DefaultExecutor.kt:109)
+	java.base/java.lang.Thread.run(Thread.java:1583)
+```

@@ -1,0 +1,54 @@
+AzureBlobFileSystem.open() should override readVectored() much more efficiently for small reads
+In hadoop-azure, there are huge performance problems when reading file in a too fragmented way: by reading many small file fragments even with the readVectored() Hadoop API, resulting in distinct Https Requests (=TCP-IP connection established + TLS handshake + requests).
+Internally, at lowest level, haddop azure is using class HttpURLConnection from jdk 1.0,  and the ReadAhead Threads do not sufficiently solve all problems.
+The hadoop azure implementation of "readVectored()" should make a compromise between reading extra ignored data wholes, and establishing too many https connections.
+
+Currently, the class AzureBlobFileSystem#open() does return a default inneficient imlpementation of readVectored:
+
+{code:java}
+  private FSDataInputStream open(final Path path,
+      final Optional<OpenFileParameters> parameters) throws IOException {
+...
+      InputStream inputStream = getAbfsStore().openFileForRead(qualifiedPath, parameters, statistics, tracingContext);
+      return new FSDataInputStream(inputStream);  // <== FSDataInputStream is not efficiently overriding readVectored() !
+ }
+{code}
+
+
+see default implementation of FSDataInpustStream.readVectored:
+{code:java}
+    public void readVectored(List<? extends FileRange> ranges, IntFunction<ByteBuffer> allocate) throws IOException {
+        ((PositionedReadable)this.in).readVectored(ranges, allocate);
+    }
+{code}
+
+it calls the underlying method from class AbfsInputStream, which is not overriden:
+{code:java}
+    default void readVectored(List<? extends FileRange> ranges, IntFunction<ByteBuffer> allocate) throws IOException {
+        VectoredReadUtils.readVectored(this, ranges, allocate);
+    }
+{code}
+
+
+AbfsInputStream should override this method, and accept internally to do less Https calls, with merged range, and ignore some returned data (wholes in the range). 
+
+It is like honouring the parameter of hadoop FSDataInputStream (implements PositionedReadable)
+{code:java}
+  /**
+   * What is the smallest reasonable seek?
+   * @return the minimum number of bytes
+   */
+  default int minSeekForVectorReads() {
+    return 4 * 1024;
+  }
+{code}
+
+Even this 4096 value is very conservative, and should be redined by AbfsFileSystem to be 4Mo or even 8mo.
+
+ask chat gpt: "on Azure Storage, what is the speed of getting 8Mo of a page block, compared to the time to establish a https tls handshake ?"
+The response (untrusted from chat gpt..) says :
+HTTPS/TLS Handshake: ~100–300 ms  ... is generally slower than  downloading 8 MB from Page Blob:  on Standard Tier: ~100–200 ms / on Premium Tier: ~30–50 ms
+
+Azure Abfsclient already setup by default a lot of Threads for Prefecth Read Ahead, to prefetch 4Mo of data,  but it is NOT sufficent, and less efficient that simply implementing correctly what is already in Hadoop API : readVectored(). It also have the drawback of reading tons of useless data (past parquet blocks), that are never used.
+
+

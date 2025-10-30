@@ -1,0 +1,21 @@
+NettyClientStream does not handle netty write data failure promise
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.26.0 (latest version has the same problem)
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+linux, jdk8
+
+### What did you expect to see?
+grpc client throw a exception when netty write data frame failed
+
+### What did you see instead?
+grpc client blocking stub hangs forever when netty StreamBufferingEncoder return an unexpected failure promise
+
+### Steps to reproduce the bug
+when the client http2 stream id is exhausted(using Integer.MAX_VALUE), netty codec-http2 [StreamBufferingEncoder#writeData](https://github.com/netty/netty/blob/4.1/codec-http2/src/main/java/io/netty/handler/codec/http2/StreamBufferingEncoder.java#L209) return a failure promise unexpectly , more details in https://github.com/netty/netty/issues/13805
+but grpc [NettyClientStream](https://github.com/grpc/grpc-java/blob/master/netty/src/main/java/io/grpc/netty/NettyClientStream.java#L188)  does not report the failure future, and the grpc blocking stub will block forever.
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->

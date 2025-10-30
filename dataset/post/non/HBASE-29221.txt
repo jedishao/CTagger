@@ -1,0 +1,17 @@
+ClientSideRegionScanner fails with NPE while trying to close mslab
+ 
+{code:java}
+java.io.IOException: java.lang.NullPointerException: Cannot invoke "org.apache.hadoop.hbase.regionserver.ChunkCreator.putbackChunks(java.util.Set)" because "this.chunkCreator" is null
+at org.apache.hadoop.hbase.regionserver.HRegion.doClose(HRegion.java:1877)
+at org.apache.hadoop.hbase.regionserver.HRegion.close(HRegion.java:1626)
+at org.apache.hadoop.hbase.regionserver.HRegion.close(HRegion.java:1581)
+at org.apache.hadoop.hbase.regionserver.HRegion.close(HRegion.java:1564)
+at org.apache.hadoop.hbase.client.ClientSideRegionScanner.close(ClientSideRegionScanner.java:133)
+at{code}
+The ChunkCreator for the MemStoreLab is only initialized for [real HBase region servers|https://github.com/apache/hbase/blob/master/hbase-server/src/main/java/org/apache/hadoop/hbase/HBaseServerBase.java#L410-L431]. Instances of the ClientSideRegionScanner will never initialize the memstore which causes NPE at close time.
+
+This issue was caused by the changes in HBASE-28401
+
+This same issue surfaced in HBASE-28743. The fix for that issue was to disable the MemStoreLab for the TableSnapshotScanner ([PR master|https://github.com/apache/hbase/pull/6101/files], [PR branch 2|https://github.com/apache/hbase/pull/6110]). The issue still persists in cases where the ClientSideRegionScanner is used in any context other than as part of the TableSnapshotScanner.
+
+The proposed solution for this issue is to update [the initialization|https://github.com/apache/hbase/blob/master/hbase-server/src/main/java/org/apache/hadoop/hbase/client/ClientSideRegionScanner.java#L70] of the ClientSideRegionScanner to disable the MemStoreLab.

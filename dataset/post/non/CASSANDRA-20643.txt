@@ -1,0 +1,44 @@
+after upgrade to Cassandra 5 cqlsh WARNING
+After upgrade Cassandra 4.1.8 to Cassandra 5.x cqlsh shows:
+"WARNING: cqlsh was built against 4.1.4, but this server is 5.0.4.  All features may not work!"
+
+Upgrade steps:
+1. Node drain
+nodetool drain
+
+2. Stop cassandra service
+sudo systemctl stop cassandra
+
+3. Repo change to Cassandra 5 in /etc/yum.repos.d/cassandra.repo
+[cassandra]
+name=Apache Cassandra
+#baseurl=https://redhat.cassandra.apache.org/41x/noboolean/
+baseurl=https://redhat.cassandra.apache.org/50x/noboolean/
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://downloads.apache.org/cassandra/KEYS
+
+4. Cassandra packages upgrade
+yum update cassandra -y
+
+5. Setting permissions on files and directories
+chown -R cassandra.cassandra /etc/cassandra/
+
+6. Java 17 installation and change default version 
+dnf install java-17-openjdk.x86_64 -y
+alternatives --config java
+
+7. Change in cassandra-env.sh
+sed -i 's/jamm-0.3.2.jar/jamm-0.4.0.jar/g' /etc/cassandra/conf/cassandra-env.sh
+
+8. Remove obsolete parameters
+sed -i 's/compaction_tombstone_warning_threshold/#compaction_tombstone_warning_threshold/g' /etc/cassandra/conf/cassandra.yaml
+sed -i 's/compaction_large_partition_warning_threshold/#compaction_large_partition_warning_threshold/g' /etc/cassandra/conf/cassandra.yaml
+sed -i 's/scripted_user_defined_functions_enabled/#scripted_user_defined_functions_enabled/g' /etc/cassandra/conf/cassandra.yaml
+
+9. Start cassandra service
+sudo systemctl daemon-reload && systemctl start cassandra
+
+
+
+

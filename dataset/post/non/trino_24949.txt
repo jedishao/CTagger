@@ -1,0 +1,25 @@
+Add CAST projection pushdown in mysql / mariadb
+
+```
+            assertThat(query(session,joinQuery.formatted("INNER JOIN", "l.c_tinyint = r.c_bigint")))
+                    .isFullyPushedDown();
+```
+
+
+```
+            String joinWithBoundedVarchar = "SELECT l.id FROM %s l %s %s r ON l.c_varchar_50 = r.c_varchar_100".formatted(leftTable.getName(), "%s", rightTable.getName());
+            assertThat(query(session, joinWithBoundedVarchar.formatted("LEFT JOIN")))
+                    .isFullyPushedDown();
+```
+
+
+There has been already added support in Redshift for such use cases:
+
+- https://github.com/trinodb/trino/pull/22951
+- https://github.com/trinodb/trino/pull/23808
+
+
+Use a similar strategy as the one involved in the above PRs to introduce the same functionality for MySQL/MariaDb
+
+Reference:
+- https://github.com/trinodb/trino/blob/f5043a1749879b2625046c3b0d29a3d7f52214c6/plugin/trino-oracle/src/main/java/io/trino/plugin/oracle/RewriteCast.java

@@ -1,0 +1,77 @@
+Client request fails for KERBEROS with RpcConnectionRegistry
+After setting up an HBase-3 cluster with Kerberos, I was unable to list tables. Upon investigation, I found that the following default configuration in HBase-3 does not work as expected:
+{noformat}
+hbase.client.registry.impl=org.apache.hadoop.hbase.client.RpcConnectionRegistry{noformat}
+With HBASE-25051, we now create the configuration in the following manner in [_ConnectionRegistryRpcStubHolder_|https://github.com/apache/hbase/blob/a5666c085844307e694025ddc7ac710e017b3edf/hbase-client/src/main/java/org/apache/hadoop/hbase/client/ConnectionRegistryRpcStubHolder.java#L80]
+{code:java}
+ if (User.isHBaseSecurityEnabled(conf)) {
+      this.noAuthConf = new Configuration(conf);
+      this.noAuthConf.set(User.HBASE_SECURITY_CONF_KEY, "simple");
+    } else {
+      this.noAuthConf = conf;
+    }
+{code}
+*Reason*
+{quote}We implement a new way to get information from a server through different rpc preamble headers, and use it to get the cluster id before actually setting up the secure rpc client.
+{quote}
+*Problem*
+
+We have a method to get a singleton instance via [_SaslClientAuthenticationProviders#getInstance()_|https://github.com/apache/hbase/blob/a5666c085844307e694025ddc7ac710e017b3edf/hbase-client/src/main/java/org/apache/hadoop/hbase/security/provider/SaslClientAuthenticationProviders.java#L76] and hence we end up calling [{_}BuiltInProviderSelector#configure({_})|https://github.com/apache/hbase/blob/a5666c085844307e694025ddc7ac710e017b3edf/hbase-client/src/main/java/org/apache/hadoop/hbase/security/provider/BuiltInProviderSelector.java#L60] with the above {{{}noAuthConf{}}}, thus initializing the variable _[BuiltInProviderSelector.conf|https://github.com/apache/hbase/blob/a5666c085844307e694025ddc7ac710e017b3edf/hbase-client/src/main/java/org/apache/hadoop/hbase/security/provider/BuiltInProviderSelector.java#L53]_ with this no-auth config.
+
+Relevant stacktrace:
+{code:java}
+ at org.apache.hadoop.hbase.security.provider.SaslClientAuthenticationProviders.instantiateSelector(SaslClientAuthenticationProviders.java:114)
+      at org.apache.hadoop.hbase.security.provider.SaslClientAuthenticationProviders.instantiate(SaslClientAuthenticationProviders.java:187)
+      at org.apache.hadoop.hbase.security.provider.SaslClientAuthenticationProviders.getInstance(SaslClientAuthenticationProviders.java:76)
+      - locked <0x34be> (a java.lang.Class)
+      at org.apache.hadoop.hbase.ipc.RpcConnection.<init>(RpcConnection.java:138)
+      at org.apache.hadoop.hbase.ipc.NettyRpcConnection.<init>(NettyRpcConnection.java:108)
+      at org.apache.hadoop.hbase.ipc.NettyRpcClient.createConnection(NettyRpcClient.java:90)
+      at org.apache.hadoop.hbase.ipc.NettyRpcClient.createConnection(NettyRpcClient.java:46)
+      at org.apache.hadoop.hbase.ipc.AbstractRpcClient.lambda$getConnection$0(AbstractRpcClient.java:368)
+      at org.apache.hadoop.hbase.ipc.AbstractRpcClient$$Lambda$1991/0x00007fa23c9dd9f8.get(Unknown Source:-1)
+      at org.apache.hadoop.hbase.util.PoolMap.createResource(PoolMap.java:127)
+      at org.apache.hadoop.hbase.util.PoolMap$RoundRobinPool.getOrCreate(PoolMap.java:211)
+      at org.apache.hadoop.hbase.util.PoolMap.getOrCreate(PoolMap.java:68)
+      - locked <0x34c5> (a java.util.HashMap)
+      at org.apache.hadoop.hbase.ipc.AbstractRpcClient.getConnection(AbstractRpcClient.java:368)
+      - locked <0x34c6> (a org.apache.hadoop.hbase.util.PoolMap)
+      at org.apache.hadoop.hbase.ipc.AbstractRpcClient.callMethod(AbstractRpcClient.java:448)
+      at org.apache.hadoop.hbase.ipc.AbstractRpcClient$RpcChannelImplementation.callMethod(AbstractRpcClient.java:628)
+      at org.apache.hadoop.hbase.shaded.protobuf.generated.RegistryProtos$ConnectionRegistryService$Stub.getConnectionRegistry(RegistryProtos.java:7808)
+      at org.apache.hadoop.hbase.client.ClusterIdFetcher.getClusterId(ClusterIdFetcher.java:97)
+      at org.apache.hadoop.hbase.client.ClusterIdFetcher.fetchClusterId(ClusterIdFetcher.java:129)
+      at org.apache.hadoop.hbase.client.ConnectionRegistryRpcStubHolder.fetchClusterIdAndCreateStubs(ConnectionRegistryRpcStubHolder.java:110)
+      at org.apache.hadoop.hbase.client.ConnectionRegistryRpcStubHolder.getStubs(ConnectionRegistryRpcStubHolder.java:146)
+      - locked <0x32c7> (a org.apache.hadoop.hbase.client.ConnectionRegistryRpcStubHolder)
+      at org.apache.hadoop.hbase.client.AbstractRpcBasedConnectionRegistry.call(AbstractRpcBasedConnectionRegistry.java:189)
+      at org.apache.hadoop.hbase.client.AbstractRpcBasedConnectionRegistry.lambda$getClusterId$9(AbstractRpcBasedConnectionRegistry.java:235)
+      at org.apache.hadoop.hbase.client.AbstractRpcBasedConnectionRegistry$$Lambda$1984/0x00007fa23c956a80.get(Unknown Source:-1)
+      at org.apache.hadoop.hbase.trace.TraceUtil.tracedFuture(TraceUtil.java:99)
+      at org.apache.hadoop.hbase.client.AbstractRpcBasedConnectionRegistry.getClusterId(AbstractRpcBasedConnectionRegistry.java:233)
+      at org.apache.hadoop.hbase.client.RpcConnectionRegistry.getClusterId(RpcConnectionRegistry.java:50)
+      at org.apache.hadoop.hbase.client.ConnectionFactory.lambda$createAsyncConnection$6(ConnectionFactory.java:587)
+      at org.apache.hadoop.hbase.client.ConnectionFactory$$Lambda$1978/0x00007fa23c92e110.get(Unknown Source:-1)
+      at org.apache.hadoop.hbase.trace.TraceUtil.tracedFuture(TraceUtil.java:99)
+      at org.apache.hadoop.hbase.client.ConnectionFactory.createAsyncConnection(ConnectionFactory.java:571)
+      at org.apache.hadoop.hbase.client.ConnectionFactory.createConnection(ConnectionFactory.java:430)
+      at org.apache.hadoop.hbase.client.ConnectionFactory.createConnection(ConnectionFactory.java:362)
+      at org.apache.hadoop.hbase.client.ConnectionFactory.createConnection(ConnectionFactory.java:308)
+      at org.apache.hadoop.hbase.client.ConnectionFactory.createConnection(ConnectionFactory.java:156)
+      at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(NativeMethodAccessorImpl.java:-1)
+      at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+      at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+      at java.lang.reflect.Method.invoke(Method.java:569) {code}
+Any subsequent calls fail to connect during [_BuiltInProviderSelector#selectProvider()_|https://github.com/apache/hbase/blob/a5666c085844307e694025ddc7ac710e017b3edf/hbase-client/src/main/java/org/apache/hadoop/hbase/security/provider/BuiltInProviderSelector.java#L104C1-L107C6] due to the following configuration check:
+{code:java}
+    // Superfluous: we don't do SIMPLE auth over SASL, but we should to simplify.
+    if (!User.isHBaseSecurityEnabled(conf)) {
+      return new Pair<>(simpleAuth, null);
+    } {code}
+We end up returning a simple auth instance, even thought our cluster is kerberized.
+
+*Possible Solutions*
+ # Remove the above check from [_BuiltInProviderSelector#selectProvider(),_|https://github.com/apache/hbase/blob/a5666c085844307e694025ddc7ac710e017b3edf/hbase-client/src/main/java/org/apache/hadoop/hbase/security/provider/BuiltInProviderSelector.java#L104C1-L107C6] if it is unnecessary. (Tried locally works, not sure about side effects, if any)
+ # Ensure the singleton instance is re-initialized with the correct configuration so that it is not set with SIMPLE.
+
+CC: [~zhangduo]

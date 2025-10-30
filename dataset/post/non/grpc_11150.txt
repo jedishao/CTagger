@@ -1,0 +1,42 @@
+Upgrade Netty to fix issue with large headers and HTTP2 continuation packets
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+
+Latest 1.63.0
+
+### What is your environment?
+
+Mac, Unix, any JVM
+TLS client/server
+
+### What did you expect to see?
+
+Large headers over 200KB should work without issue over TLS, even if not ideal.
+
+### What did you see instead?
+
+The connection is closed and gRPC errors reported. 
+
+### Steps to reproduce the bug
+
+- Create a standard gRPC client/server 
+- Setup TLS on both ends (plaintext does not cause issues)
+- Add metadata header with large size such as over 150KB
+- Setup client:server side maxHeader config to above that size
+- Make the request
+- Result should be a Netty assertion error due to maxFrameSize exceeded 
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->
+
+This occurs due to a bug in Netty that was resolved in 106.Final. gRPC is actively on 100.Final. 
+
+https://github.com/netty/netty/pull/13786
+
+Note that these more recent additions to Netty also renamed the GraalVM reflection config file. There is an integration test for the shaded Netty package to verify that file is repackaged. This test fails since the file name was renamed. Updating the name of that file fixes that issue. 
+
+This bug is currently breaking any TLS connection using large headers. We did verify updating to latest Netty does resolve. 
+
+Is it possible to update the version of Netty within gRPC to fix the underlying HTTP2 issue?
+
+Thanks!

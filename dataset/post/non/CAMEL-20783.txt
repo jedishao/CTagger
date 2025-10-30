@@ -1,0 +1,34 @@
+camel export --runtime=quarkus does not work with custom camel.jbang.quarkusVersion
+Steps to reproduce
+
+{code}
+$ camel -V
+4.6.0
+$ camel init demo.java
+$ echo 'camel.jbang.quarkusVersion = 3.8.2' >> application.properties
+$ camel export --runtime=quarkus --directory=../camel-quarkus-demo demo.java
+...
+Exception in thread "main" java.lang.AbstractMethodError: Receiver class org.apache.camel.catalog.quarkus.QuarkusRuntimeProvider does not define or inherit an implementation of the resolved method 'abstract java.util.List findTransformerNames()' of interface org.apache.camel.catalog.RuntimeProvider.
+        at org.apache.camel.catalog.impl.AbstractCachingCamelCatalog.cache(AbstractCachingCamelCatalog.java:84)
+        at org.apache.camel.catalog.DefaultCamelCatalog.findTransformerNames(DefaultCamelCatalog.java:256)
+        at org.apache.camel.catalog.DefaultCamelCatalog.modelFromMavenGAV(DefaultCamelCatalog.java:562)
+        at org.apache.camel.dsl.jbang.core.commands.ExportQuarkus.createMavenPom(ExportQuarkus.java:382)
+        at org.apache.camel.dsl.jbang.core.commands.ExportQuarkus.export(ExportQuarkus.java:121)
+        at org.apache.camel.dsl.jbang.core.commands.Export.export(Export.java:138)
+        at org.apache.camel.dsl.jbang.core.commands.Export.export(Export.java:57)
+        at org.apache.camel.dsl.jbang.core.commands.ExportBaseCommand.doCall(ExportBaseCommand.java:239)
+        at org.apache.camel.dsl.jbang.core.commands.Export.doCall(Export.java:28)
+        at org.apache.camel.dsl.jbang.core.commands.CamelCommand.call(CamelCommand.java:71)
+        at org.apache.camel.dsl.jbang.core.commands.CamelCommand.call(CamelCommand.java:37)
+        at picocli.CommandLine.executeUserObject(CommandLine.java:2041)
+        at picocli.CommandLine.access$1500(CommandLine.java:148)
+        at picocli.CommandLine$RunLast.executeUserObjectOfLastSubcommandWithSameParent(CommandLine.java:2461)
+        at picocli.CommandLine$RunLast.handle(CommandLine.java:2453)
+        at picocli.CommandLine$RunLast.handle(CommandLine.java:2415)
+        at picocli.CommandLine$AbstractParseResultHandler.execute(CommandLine.java:2273)
+        at picocli.CommandLine$RunLast.execute(CommandLine.java:2417)
+        at picocli.CommandLine.execute(CommandLine.java:2170)
+        at org.apache.camel.dsl.jbang.core.commands.CamelJBangMain.run(CamelJBangMain.java:165)
+        at org.apache.camel.dsl.jbang.core.commands.CamelJBangMain.run(CamelJBangMain.java:61)
+        at main.CamelJBang.main(CamelJBang.java:36)
+{code}

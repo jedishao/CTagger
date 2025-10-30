@@ -1,0 +1,64 @@
+ShallowIndexedEntry scenario: the same IndexInfo is read multiple times, per every read row
+When we read rows from a large partition stored in an SSTable and ShallowIndexedEntry is used - the same IndexInfo entity is read from disk multiple times, it happens per every read row.
+The following stacktrace shows the execution path:
+{code:java}
+at org.apache.cassandra.db.RowIndexEntry$ShallowInfoRetriever.fetchIndex(RowIndexEntry.java:742)
+at org.apache.cassandra.db.RowIndexEntry$FileIndexInfoRetriever.columnsIndex(RowIndexEntry.java:792)
+at org.apache.cassandra.db.columniterator.AbstractSSTableIterator$IndexState.index(AbstractSSTableIterator.java:528) 
+at org.apache.cassandra.db.columniterator.AbstractSSTableIterator$IndexState.currentIndex(AbstractSSTableIterator.java:523)
+at org.apache.cassandra.db.columniterator.AbstractSSTableIterator$IndexState.isPastCurrentBlock(AbstractSSTableIterator.java:513)
+at org.apache.cassandra.db.columniterator.AbstractSSTableIterator$IndexState.updateBlock(AbstractSSTableIterator.java:487) <=== here we retrieve the current index entry
+at org.apache.cassandra.db.columniterator.SSTableIterator$ForwardIndexedReader.computeNext(SSTableIterator.java:290) <========== here we iterate over rows
+at org.apache.cassandra.db.columniterator.SSTableIterator$ForwardReader.hasNextInternal(SSTableIterator.java:182)
+at org.apache.cassandra.db.columniterator.AbstractSSTableIterator$Reader.hasNext(AbstractSSTableIterator.java:342)
+at org.apache.cassandra.db.columniterator.AbstractSSTableIterator.hasNext(AbstractSSTableIterator.java:224)
+at org.apache.cassandra.db.transform.BaseRows.hasNext(BaseRows.java:133)
+at org.apache.cassandra.db.rows.LazilyInitializedUnfilteredRowIterator.computeNext(LazilyInitializedUnfilteredRowIterator.java:100)
+at org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound.computeNext(UnfilteredRowIteratorWithLowerBound.java:110)
+at org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound.computeNext(UnfilteredRowIteratorWithLowerBound.java:48)
+at org.apache.cassandra.utils.AbstractIterator.hasNext(AbstractIterator.java:47)
+at org.apache.cassandra.db.transform.BaseRows.hasNext(BaseRows.java:133)
+at org.apache.cassandra.db.transform.UnfilteredRows.isEmpty(UnfilteredRows.java:74)
+at org.apache.cassandra.db.partitions.PurgeFunction.applyToPartition(PurgeFunction.java:76)
+at org.apache.cassandra.db.partitions.PurgeFunction.applyToPartition(PurgeFunction.java:27)
+at org.apache.cassandra.db.transform.BasePartitions.hasNext(BasePartitions.java:97)
+at org.apache.cassandra.db.partitions.UnfilteredPartitionIterators$Serializer.serialize(UnfilteredPartitionIterators.java:303)
+at org.apache.cassandra.db.ReadResponse$LocalDataResponse.build(ReadResponse.java:191)
+at org.apache.cassandra.db.ReadResponse$LocalDataResponse.<init>(ReadResponse.java:181)
+at org.apache.cassandra.db.ReadResponse$LocalDataResponse.<init>(ReadResponse.java:177)
+at org.apache.cassandra.db.ReadResponse.createDataResponse(ReadResponse.java:48)
+at org.apache.cassandra.db.ReadCommand.createResponse(ReadCommand.java:308)
+at org.apache.cassandra.service.StorageProxy$LocalReadRunnable.runMayThrow(StorageProxy.java:1991)
+at org.apache.cassandra.service.StorageProxy$DroppableRunnable.run(StorageProxy.java:2277)
+at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+at org.apache.cassandra.concurrent.AbstractLocalAwareExecutorService$FutureTask.run(AbstractLocalAwareExecutorService.java:165)
+at org.apache.cassandra.concurrent.AbstractLocalAwareExecutorService$LocalSessionFutureTask.run(AbstractLocalAwareExecutorService.java:137)
+at org.apache.cassandra.concurrent.SEPWorker.run(SEPWorker.java:119)
+at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+at java.lang.Thread.run(Thread.java:829)
+{code}
+This Cassandra logic was originally written for the case when there is a small number of index entries and all of them are fetched in memory, so it was cheap to retrieve the IndexInfo again and again for this case. Later a support of ShallowIndexedEntry case was added (CASSANDRA-11206) which shares the same IndexState logic but in this case the cost to fetch IndexInfo is much higher - we read it from disk every time.
+
+I have "disk_access_mode: standard" enabled and for each IndexInfo retrieval there are two read syscalls:
+1) to find an offset for the correspondent IndexInfo
+2) to read the IndexInfo itself
+
+If we trace pread syscall we will see the following disk read syscall pattern:
+{code:java}
+2722116<ReadStage-5> 14:20:00.769513 pread64(102<my_keyspace/mytable/nb-1-big-Index.db>, ""..., 65536, 338611) = 65536 <0.000021>
+2722116<ReadStage-5> 14:20:00.769562 pread64(102<my_keyspace/mytable/nb-1-big-Index.db>, ""..., 65536, 164405) = 65536 <0.000020>
+2722116<ReadStage-5> 14:20:00.769616 pread64(102<my_keyspace/mytable/nb-1-big-Index.db>, ""..., 65536, 338611) = 65536 <0.000021>
+2722116<ReadStage-5> 14:20:00.769664 pread64(102<my_keyspace/mytable/nb-1-big-Index.db>, ""..., 65536, 164405) = 65536 <0.000020>
+... same is repeated many times ...
+{code}
+when we do 2 reads for the same positions again and again, for every data row we read from Data file. 
+Also because these 2 reads are not near each other - we reset index reader buffer each time, so it does not help to prevent the repeated disk reads.
+
+This can be improved with a local simple change: we can cache the last read IndexInfo within IndexState, one IndexInfo is small and it doesn't create a lot of GC pressure.
+The caching is efficient because when we iterate through rows we iterate in parallel through the IndexInfo items in a sequential way, so we fetch once an IndexInfo and then re-use it till the moment when we need the next one.
+
+I have an example (pathological but still representative) when 350'000 rows are read from a partition (majority are expired tombstones). Before the change the read takes 1196 ms vs 150 ms after (361'262 read syscalls from Index file before vs 622 after).
+
+The patch is attached.
+
+There are other optimisations which can be done for ShallowIndexedEntry logic additionally but they are more complicated, once I will have some specific proposals ready I will create separate tickets.

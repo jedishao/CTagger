@@ -1,0 +1,18 @@
+RXJava can not get full keys by getKeysByPattern methods .if i have any wrong ?
+`
+    public List<ShareCounter> getStaticCountByKey(String patternKey) {
+        List<ShareCounter> result = new ArrayList<>();
+        RedissonRxClient redissonRx = redissonClient.rxJava();
+        RKeysRx keys = redissonRx.getKeys();
+        List<String> shareKeys = keys.getKeysByPattern(patternKey).toList().blockingGet();
+        Map<String, Object> shareCounterMap = redissonRx.getBuckets(new StringCodec()).get(shareKeys.toArray(String[]::new)).blockingGet();
+        shareCounterMap.forEach((key, value) -> {
+            ShareCounter shareCounter = RedisKeys.parseShareCounterKey(key);
+            shareCounter.setShareCount(Long.valueOf(String.valueOf(value)));
+            result.add(shareCounter);
+        });
+        return result;
+    }
+`
+
+And this method can only get 32 numbers of key ,althrough i cancel backpresure.

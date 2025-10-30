@@ -1,0 +1,42 @@
+JCacheManager does not remove cache instance from map when calling closeCache()
+### Redis version
+
+7.0.15
+
+### Redisson version
+
+3.45.1
+
+### Redisson configuration
+
+Redisson is used with a "NamedMapper" to give the keys in Redis a prefix.
+
+
+### What is the Expected behavior?
+
+When closeCache(...) is called on JCacheManager, it should remove the JCache from the "caches" map.
+
+### What is the Actual behavior?
+
+Cache is not removed, because cache.getRawName() is used as key for removal. 
+```    
+public void closeCache(JCache<?, ?> cache) {
+      caches.remove(cache.getRawName()); //<-- this returns the name, wich is modified by the mapper
+      unregisterStatisticsBean(cache);
+      unregisterManagementBean(cache);
+ }
+```
+
+getRawName() returns the name, which was modified by the NamedMapper. But the key in the "caches" map is actually the unmodified name, as in the createCache(...) method, the JCache instances was added to the map without mapping the cache name.
+
+```
+...
+JCacheConfiguration<K, V> cfg = new JCacheConfiguration<K, V>(configuration);
+JCache<K, V> cache = new JCache<>(this, cacheRedisson, cacheName, cfg, hasOwnRedisson);
+Cache<?, ?> oldCache = caches.putIfAbsent(cacheName, cache); // <-- cacheName was not modified by mapper
+...
+```
+
+### Additional information
+
+I think cache.getName() should be used in the closeCache(...) method.

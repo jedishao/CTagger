@@ -1,0 +1,10 @@
+Pushing down `COUNT(*)` aggregate to multiple splits
+Hello,
+
+We are trying to push down aggregates for our connector, so that they are calculated at the data source rather than by Trino itself. We were able to do that with aggregates like `MAX`, `MIN`, and `SUM`. But we are having and issue doing it for `COUNT(col)` and/or `COUNT(*)`.
+
+The issue is Trino does the aggregation on multiple layers, once at each split then another to collect the result of all the splits. It seems to be doing the same function for all. This worked for other functions because they can be applied on multiple layers and would yield the same final correct result. For instance `MIN(1, 2, 3, 4, 5) = MIN(MIN(1, 2), MIN(3, 4, 5))` or `SUM(1, 2, 3, 4, 5) = SUM(SUM(1, 2), SUM(3, 4, 5))`.
+
+But this doesn't work for count because `COUNT([a, b, c, d, e]) != COUNT(COUNT([a, b]), COUNT([c, d, e]))`, instead something like `COUNT([a, b, c, d, e]) = SUM(COUNT([a, b]), COUNT([c, d, e]))` is needed, i.e for Trino to perform a different merge function to calculate the final result across all the splits.
+
+Is this something that can be done in Trino? Can we somehow specify a different merge function for certain aggregates?

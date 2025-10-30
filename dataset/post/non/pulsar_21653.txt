@@ -1,0 +1,88 @@
+[Bug] After upgrading to the 3.0.1, the topic was deleted!
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+3.0.1
+
+### Minimal reproduce step
+
+1. broker.conf:
+```
+    systemTopicEnabled: "true"
+    topicLevelPoliciesEnabled: "true"
+```
+3.Setting the `publishRate` is to ensure the system topic has data
+```java
+        String namespace = "xxx/xxx";
+        List<String> topicList = pulsarAdmin.topics().getPartitionedTopicList(namespace);
+        topicList = topicList.subList(0, 20);
+        for (String topic : topicList) {
+            PublishRate publishRate = new PublishRate();
+            publishRate.publishThrottlingRateInMsg = 100;
+            pulsarAdmin.topicPolicies().setPublishRate(topic, publishRate);
+        }
+```
+4. Concurrent query lookup:
+```java
+            topicList = pulsarAdmin.topics().getPartitionedTopicList(namespace);
+            topicList = topicList.subList(0, 20);
+            for (String topic : topicList) {
+                customThreadPool.execute(()->{
+                    try {
+                        while (true){
+                            pulsarAdmin.lookups().lookupPartitionedTopic(topic);
+                        }
+                    } catch (PulsarAdminException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+```
+6. Upgrade 3.0.1 from 2.11.1, this will restart broker(Or `unload` namespace/topic).
+
+If version 3.0.1 has already been installed, It can also be restart broker:
+```shell
+k rollout restart statefulset/pulsar-broker
+```
+
+Eventually it was discovered that some topic partitions had been deleted.
+```java
+                try {
+                    stats = pulsarAdmin.topics().getPartitionedStats(topic, true);
+                } catch (PulsarAdminException e) {
+                    throw new RuntimeException(e);
+                }
+                int partitions = stats.getMetadata().partitions;
+                int size = stats.getPartitions().size();
+                if (partitions != size) {
+                    log.info("**********topic={},partitions={},size={}", topic, partitions, size);
+//                pulsarAdmin.topics().updatePartitionedTopic(topic, partitions);
+                }
+```
+
+### What did you expect to see?
+
+Data integrity.
+
+### What did you see instead?
+
+About 200+ topics were deleted.
+
+### Anything else?
+
+The logs of deleted topics:
+![image](https://github.com/apache/pulsar/assets/15684156/8ae53e00-491d-4fb4-b75b-8c8ed3a711d3)
+
+The relevant stack logs:
+![image](https://github.com/apache/pulsar/assets/15684156/8c5ca03a-a55e-4c01-9525-e80696ed9bf0)
+
+Releted code:
+https://github.com/apache/pulsar/blob/90a82aea99fcacdd72fdead672d6e4787ad24760/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/persistent/PersistentTopic.java#L1569-L1590
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

@@ -1,0 +1,31 @@
+Failed to get stats from PostgreSQL with partitioned tables
+When attempting to retrieve statistics for partitioned tables from PostgreSQL using Trino, an IllegalArgumentException is thrown if the rowCount is negative. This issue arises in the [io.trino.plugin.postgresql.PostgreSqlClient.readTableStatistics](https://github.com/trinodb/trino/blob/master/plugin/trino-postgresql/src/main/java/io/trino/plugin/postgresql/PostgreSqlClient.java#L986) method, specifically when the rowCount is less than zero, which is a valid scenario for partitioned tables that have not been vacuumed or analyzed.
+
+```
+Caused by: java.lang.IllegalArgumentException: rowCount must be greater than or equal to 0: -201.0
+	at io.trino.spi.statistics.TableStatistics.<init>(TableStatistics.java:43)
+	at io.trino.spi.statistics.TableStatistics$Builder.build(TableStatistics.java:118)
+	at io.trino.plugin.postgresql.PostgreSqlClient.readTableStatistics(PostgreSqlClient.java:1030)
+	at io.trino.plugin.postgresql.PostgreSqlClient.getTableStatistics(PostgreSqlClient.java:963)
+```
+
+The current check in the codebase is:
+```java
+if (rowCount == -1) {
+    // Table has never yet been vacuumed or analyzed
+    return TableStatistics.empty();
+}
+```
+However, this does not account for partitioned tables, where the rowCount can be less than -1. A proposed change to accommodate this scenario is:
+```java
+if (rowCount <= -1) {
+    // Table has never yet been vacuumed or analyzed:
+    // -1 indicates non-partitioned tables, and values less than -1 indicate partitioned tables
+    return TableStatistics.empty();
+}
+```
+
+Similar issue: https://github.com/trinodb/trino/issues/17061
+Related PR: https://github.com/trinodb/trino/pull/17066
+
+I can create a PR, but perhaps for such a simple case, someone could quickly fix it, so I don't need to submit a Contributor License Agreement (CLA)

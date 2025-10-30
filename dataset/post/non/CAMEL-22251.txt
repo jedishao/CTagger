@@ -1,0 +1,98 @@
+Incorrect Exchange status when using camel-rest
+Consider the following integration yaml file and also an Event Listener:
+{code:java}
+- from:
+    uri: "rest:get:/demo"
+    steps:
+      - removeHeaders:
+          pattern: "Camel*"
+      - to:
+          uri: https://httpbin.org/status/500
+          parameters:
+            bridgeEndpoint: true
+            httpMethod: GET {code}
+{code:java}
+package com.lsergio.poc;
+
+import org.apache.camel.spi.CamelEvent;
+import org.apache.camel.support.EventNotifierSupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.camel.*;
+
+public class MyEventListener extends EventNotifierSupport {
+
+    protected Logger log = LoggerFactory.getLogger(getClass());
+
+    public void notify(CamelEvent event) throws Exception {
+      if (event.getSource() instanceof Exchange) {
+          Exchange ex = (Exchange)event.getSource();
+          log.info("Event class: " + event.getClass());
+          log.info("Event: " + event.getType().name() + " - Failed:" + ex.isFailed() + " Id: " + ex.getExchangeId() + " - Exception: " + ex.getException());
+          log.info("--------------------------");
+      }
+    }
+}
+{code}
+The integration intentionally fails by calling an endpoint that always returns status 5xx.
+
+After running this code with 
+{code:java}
+jbang -Dcamel.jbang.version=4.13.0 camel@apache/camel run integration.yaml MyEventListener.java{code}
+ we get the following output:
+{code:java}
+2025-07-14 16:45:57.233  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeCreatedEvent
+2025-07-14 16:45:57.236  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : Event: ExchangeCreated - Failed:false Id: 57E85F0594C3DD7-0000000000000001 - Exception: null
+2025-07-14 16:45:57.236  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : --------------------------
+2025-07-14 16:45:57.246  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeSendingEvent
+2025-07-14 16:45:57.246  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : Event: ExchangeSending - Failed:false Id: 57E85F0594C3DD7-0000000000000001 - Exception: null
+2025-07-14 16:45:57.246  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : --------------------------
+2025-07-14 16:45:58.022  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeSentEvent
+2025-07-14 16:45:58.022  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : Event: ExchangeSent - Failed:true Id: 57E85F0594C3DD7-0000000000000001 - Exception: org.apache.camel.http.base.HttpOperationFailedException: HTTP operation failed invoking https://httpbin.org/status/500 with statusCode: 500
+2025-07-14 16:45:58.022  INFO 412676 --- [worker-thread-0] com.lsergio.poc.MyEventListener          : --------------------------
+2025-07-14 16:45:58.036  INFO 412676 --- [ntloop-thread-0] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeCompletedEvent
+2025-07-14 16:45:58.037  INFO 412676 --- [ntloop-thread-0] com.lsergio.poc.MyEventListener          : Event: ExchangeCompleted - Failed:false Id: 57E85F0594C3DD7-0000000000000001 - Exception: null
+2025-07-14 16:45:58.037  INFO 412676 --- [ntloop-thread-0] com.lsergio.poc.MyEventListener          : -------------------------- {code}
+We can see an *ExchangeSent* event where the exchange is marked as failed, but the *ExchangeCompleted* event is not.
+
+Also, changing the bridgeEndpoint param to false does not change the behavior.
+
+However, changing the route trigger to quartz:
+
+ 
+{code:java}
+- from:
+    uri: "quartz://ipaas/trigger?cron=0+*+*+?+*+MON-FRI"
+    steps:
+      - removeHeaders:
+          pattern: "Camel*"
+      - to:
+          uri: https://httpbin.org/status/500
+          parameters:
+            bridgeEndpoint: true
+            httpMethod: GET {code}
+yields a different result:
+
+ 
+
+ 
+{code:java}
+2025-07-14 16:44:00.016  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeCreatedEvent
+2025-07-14 16:44:00.024  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event: ExchangeCreated - Failed:false Id: 03955C93A9468F8-0000000000000000 - Exception: null
+2025-07-14 16:44:00.024  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : --------------------------
+2025-07-14 16:44:00.033  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeSendingEvent
+2025-07-14 16:44:00.033  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event: ExchangeSending - Failed:false Id: 03955C93A9468F8-0000000000000000 - Exception: null
+2025-07-14 16:44:00.033  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : --------------------------
+2025-07-14 16:44:01.078  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeSentEvent
+2025-07-14 16:44:01.080  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event: ExchangeSent - Failed:true Id: 03955C93A9468F8-0000000000000000 - Exception: org.apache.camel.http.base.HttpOperationFailedException: HTTP operation failed invoking https://httpbin.org/status/500 with statusCode: 502
+2025-07-14 16:44:01.081  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : --------------------------
+2025-07-14 16:44:01.095  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event class: class org.apache.camel.impl.event.ExchangeFailedEvent
+2025-07-14 16:44:01.095  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : Event: ExchangeFailed - Failed:true Id: 03955C93A9468F8-0000000000000000 - Exception: org.apache.camel.http.base.HttpOperationFailedException: HTTP operation failed invoking https://httpbin.org/status/500 with statusCode: 502
+2025-07-14 16:44:01.095  INFO 409081 --- [ration_Worker-1] com.lsergio.poc.MyEventListener          : -------------------------- {code}
+Now there an *ExchangeFailed* event instead of the *ExchangeCompleted* event. This is the behavior I was expecting with the rest component, as the request indeed failed.
+
+ 
+
+ 
+
+ 

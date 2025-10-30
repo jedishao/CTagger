@@ -1,0 +1,20 @@
+S3A: option "fs.s3a.performance.flags" to take list of performance flags
+HADOOP-19072 shows we want to add more optimisations than that of HADOOP-18930.
+
+* Extending the new optimisations to the existing option is brittle
+* Adding explicit options for each feature gets complext fast.
+
+Proposed
+* A new class S3APerformanceFlags keeps all the flags
+* it build this from a string[] of values, which can be extracted from getConf(),
+* and it can also support a "*" option to mean "everything"
+* this class can also be handed off to hasPathCapability() and do the right thing.
+
+Proposed optimisations
+* create file (we will hook up HADOOP-18930)
+* mkdir (HADOOP-19072)
+* delete (probe for parent path)
+* rename (probe for source path)
+
+We could think of more, with different names, later.
+The goal is make it possible to strip out every HTTP request we do for safety/posix compliance, so applications have the option of turning off what they don't need.

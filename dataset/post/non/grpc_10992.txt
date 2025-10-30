@@ -1,0 +1,57 @@
+Getting `not a subtype` error on using compatible JARs
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.54.0
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+openjdk version "11.0.17" 2022-10-18
+OpenJDK Runtime Environment Temurin-11.0.17+8 (build 11.0.17+8)
+OpenJDK 64-Bit Server VM Temurin-11.0.17+8 (build 11.0.17+8, mixed mode)
+
+### What did you expect to see?
+Basically i have this directory structure .. 
+```
+random1 (plugin path for kafka connect)
+-- plugin1
+-- -- grpc-api:1.54.0
+-- -- grpc-netty-shaded:1.54.0
+random2 (some other directory, which is in class path but not plugin path)
+-- grpc-api:1.54.0
+-- grpc-netty-shaded:1.54.0
+random3 (some other directory, which is in class path but not plugin path)
+-- grpc-api:1.54.0
+-- grpc-netty-shaded:1.54.0
+```
+
+Now when i run this plugin using kafka connect, i get this exception -- 
+```
+Caused by: java.util.ServiceConfigurationError: io.grpc.ManagedChannelProvider: io.grpc.netty.NettyChannelProvider not a subtype
+	at java.base/java.util.ServiceLoader.fail(ServiceLoader.java:589)
+	at java.base/java.util.ServiceLoader$LazyClassPathLookupIterator.hasNextService(ServiceLoader.java:1237)
+	at java.base/java.util.ServiceLoader$LazyClassPathLookupIterator.hasNext(ServiceLoader.java:1265)
+	at java.base/java.util.ServiceLoader$2.hasNext(ServiceLoader.java:1300)
+	at java.base/java.util.ServiceLoader$3.hasNext(ServiceLoader.java:1385)
+	at io.grpc.ServiceProviders.loadAll(ServiceProviders.java:67)
+	at io.grpc.ManagedChannelRegistry.getDefaultRegistry(ManagedChannelRegistry.java:101)
+	at io.grpc.ManagedChannelProvider.provider(ManagedChannelProvider.java:43)
+	at io.grpc.ManagedChannelBuilder.forAddress(ManagedChannelBuilder.java:39)
+	at com.google.cloud.bigtable.grpc.BigtableSession.createNettyChannel(BigtableSession.java:458)
+	at com.google.cloud.bigtable.grpc.BigtableSession$3.create(BigtableSession.java:413)
+	at com.google.cloud.bigtable.grpc.io.ChannelPool.<init>(ChannelPool.java:248)
+	at com.google.cloud.bigtable.grpc.BigtableSession.createRawDataChannelPool(BigtableSession.java:416)
+	at com.google.cloud.bigtable.grpc.BigtableSession.<init>(BigtableSession.java:256)
+	at org.apache.hadoop.hbase.client.AbstractBigtableConnection.<init>(AbstractBigtableConnection.java:123)
+	at org.apache.hadoop.hbase.client.AbstractBigtableConnection.<init>(AbstractBigtableConnection.java:88)
+	at com.google.cloud.bigtable.hbase2_x.BigtableConnection.<init>(BigtableConnection.java:56)
+```
+
+On analyzing this i found out that there is a loadAll function in `ServiceProviders.java`. What it does is basically find all the resources using `ServiceLoader.load(klass, cl)`.  This loads all the service providers, so in my case providers from all the directories will be loaded.
+
+I'm not able to understand that when the version of all the jars is same, why do i see this exception ? This stems from the fact that in the java's `ServiceLoader:1237` . There is this check `if (service.isAssignableFrom(clazz)) {` and if this fails then this error is received. But why is the `isAssignableFrom` function returning false ? These are providers of the same service right ?
+
+if this code only loads the service provider inside the plugin directory, since we are using the pluginClassLoader, then it will be the most favorable case. But for some reason it's finding out all the providers and then storing them.
+
+Ref -- [PluginClassLoder](https://github.com/apache/kafka/blob/3.5.0/connect/runtime/src/main/java/org/apache/kafka/connect/runtime/isolation/PluginClassLoader.java)
+

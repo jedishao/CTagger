@@ -1,0 +1,17 @@
+（过期消息积压在RDelayedQueue）Expired messages are backlogged in RDelayedQueue, expired but not transferred to the expired queue
+1.程序运行一段时间后，过期的消息就会停止向过期队列转移，原来大概能正常工作一天多的时间，现在也就1个小时左右，
+After running the program for a period of time, expired messages will stop being transferred to the expiration queue. Originally, it could work normally for over a day, but now it only takes about an hour。
+
+2.我的业务是消息30秒过期，全局用的一个RDelayedQueue对象，并且做了缓存，没有销毁
+My business is message expiration in 30 seconds, using an RDelayedQueue object globally and caching it without destruction
+
+3.消息存入后会有线程每秒从blockingDeque 中 poll 出一个已过期的消息进行处理
+After the message is stored, a thread will poll an expired message from the blockingDeque every second for processing
+
+4.经添加日志打印观察，日志正常走到了QueueTransferTask 中schedulerTopic 监听器的onMessage 方法，这个方法一直在收到消息，但是后续的pushTaskAsync 方法并没有执行
+After adding and printing the logs, it was observed that the logs went smoothly to the onMessage method of the schedulerTopic listener in the QueueTransferTask. This method has been receiving messages, but the subsequent pushTaskAsync method has not been executed
+![1](https://github.com/redisson/redisson/assets/173755256/370f28ff-3280-4b47-8308-d4c78fc80a40)
+![2](https://github.com/redisson/redisson/assets/173755256/6fe42c16-c971-461a-9dca-a0100ccf576c)
+
+5.我的环境这个问题现在必现，但是没有找到原因，请问有前辈知道是什么原因，以及解决方案吗
+The problem with my environment is now inevitable, but the cause has not been found. Do any seniors know what the cause is and how to solve it

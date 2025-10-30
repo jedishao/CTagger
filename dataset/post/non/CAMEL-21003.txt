@@ -1,0 +1,14 @@
+camel-main: Unable to enable debug profile in Camel Quarkus due to FileNotFoundException
+Something I came across when working on this task:
+
+[https://github.com/apache/camel-quarkus/issues/6083]
+
+In Camel Quarkus we have some logic to suppress Camel resolving properties from property sources other then those used by MicroProfile Config:
+
+[https://github.com/apache/camel-quarkus/blob/803e96645110ac555bec08e96d6723521c5487bf/extensions-core/core/runtime/src/main/java/org/apache/camel/quarkus/main/CamelMainRecorder.java#L46-L48]
+
+And there's a check for it in camel-main here:
+
+[https://github.com/apache/camel/blob/f911e2c1d6fa4561ffb88019889b2d530dd5a2b2/core/camel-main/src/main/java/org/apache/camel/main/BaseMainSupport.java#L398]
+
+However, when the 'dev' profile is activated, this check fails because the locations string is concatenated with other info. It'd probably be enough to tweak the if condition to also check if locations ends with ',false'.

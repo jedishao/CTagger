@@ -1,0 +1,26 @@
+WebSocketClient does not work with io_uring
+
+### Version
+
+4.5.12
+
+### Context
+
+I have refactored from the older `vertx.createHttpClient(...)..webSocketAbs(...)`  to the newer `vertx.createWebSocketClient(..).wsClient.connect(...)` style API. The project is using `io.netty.incubator:netty-incubator-transport-native-io_uring:0.0.26.Final` on Linux to utilize io_uring. This works fine with the previous API, but with the new API fails with the following exception:
+
+```
+java.net.ConnectException: io_uring connect(..) failed: Connection refused
+        at io.netty.channel.unix.Errors.newConnectException0(Errors.java:166)
+        at io.netty.channel.unix.Errors.throwConnectException(Errors.java:145)
+        at io.netty.incubator.channel.uring.AbstractIOUringChannel$AbstractUringUnsafe.connectComplete(AbstractIOUringChannel.java:665)
+        at io.netty.incubator.channel.uring.IOUringEventLoop.handleConnect(IOUringEventLoop.java:355)
+        at io.netty.incubator.channel.uring.IOUringEventLoop.handle0(IOUringEventLoop.java:324)
+        at io.netty.incubator.channel.uring.IOUringEventLoop.handle(IOUringEventLoop.java:261)
+        at io.netty.incubator.channel.uring.UserData.decode(UserData.java:30)
+        at io.netty.incubator.channel.uring.IOUringCompletionQueue.process(IOUringCompletionQueue.java:90)
+        at io.netty.incubator.channel.uring.IOUringEventLoop.run(IOUringEventLoop.java:222)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.base/java.lang.Thread.run(Thread.java:1575)
+```

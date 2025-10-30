@@ -1,0 +1,60 @@
+Why doesn't RFencedLock  remove "redisson_lock_token" after releasing the lock?
+Redisson version: 3.45.1  
+
+Recently, I have done a  statistics about the usage of Redis keys in our production environment, and found about 25 million "redisson_lock_token" prefix keys in all 75 million keys.  
+The first thing that comes to my mind is what bugs or configuration errors exist in our program, but after I inspect the code of redisson lock and unlock, found that it seems to be a normal logic that "redisson_lock_token"  exists permanently unless been evicted.  
+Lock logic , KEYS[2]) is "redisson_lock_token"
+```` 
+if ((redis.call('exists', KEYS[1]) == 0) or (redis.call('hexists', KEYS[1], ARGV[2]) == 1)) then
+    redis.call('incr', KEYS[2]);
+    redis.call('hincrby', KEYS[1], ARGV[2], 1);
+    redis.call('pexpire', KEYS[1], ARGV[1]);
+    return nil;
+end
+return redis.call('pttl', KEYS[1]);
+```` 
+redis monitor output:
+
+> 1742829147.739498 [0 127.0.0.1:32772] "EVAL" "if ((redis.call('exists', KEYS[1]) == 0) or (redis.call('hexists', KEYS[1], ARGV[2]) == 1)) then redis.call('incr', KEYS[2]);redis.call('hincrby', KEYS[1], ARGV[2], 1); redis.call('pexpire', KEYS[1], ARGV[1]); return nil; end; return redis.call('pttl', KEYS[1]);" "2" "myLock" "redisson_lock_token:{myLock}" "30000" "6e3814a1-e847-452b-a982-45baf93a1df2:1"
+1742829147.739583 [0 lua] "exists" "myLock"
+1742829147.739600 [0 lua] "incr" "redisson_lock_token:{myLock}"
+1742829147.739627 [0 lua] "hincrby" "myLock" "6e3814a1-e847-452b-a982-45baf93a1df2:1" "1"
+1742829147.739643 [0 lua] "pexpire" "myLock" "30000"
+1742829148.243251 [0 127.0.0.1:32790] "EXISTS" "myLock"
+1742829148.246459 [0 127.0.0.1:32798] "HEXISTS" "myLock" "6e3814a1-e847-452b-a982-45baf93a1df2:1"
+
+
+Unlock logic:
+```` 
+local val = redis.call('get', KEYS[3]);
+if val ~= false then
+    return tonumber(val);
+end
+if (redis.call('hexists', KEYS[1], ARGV[3]) == 0) then
+    return nil;
+end
+local counter = redis.call('hincrby', KEYS[1], ARGV[3], -1);
+if (counter > 0) then
+    redis.call('pexpire', KEYS[1], ARGV[2]);
+    redis.call('set', KEYS[3], 0, 'px', ARGV[5]);
+    return 0;
+else
+    redis.call('del', KEYS[1]);
+    redis.call(ARGV[4], KEYS[2], ARGV[1]);
+    redis.call('set', KEYS[3], 1, 'px', ARGV[5]);
+    return 1;
+end
+````
+redis monitor output: 
+> 1742829148.424490 [0 127.0.0.1:32800] "EVAL" "local val = redis.call('get', KEYS[3]); if val ~= false then return tonumber(val);end; if (redis.call('hexists', KEYS[1], ARGV[3]) == 0) then return nil;end; local counter = redis.call('hincrby', KEYS[1], ARGV[3], -1); if (counter > 0) then redis.call('pexpire', KEYS[1], ARGV[2]); redis.call('set', KEYS[3], 0, 'px', ARGV[5]); return 0; else redis.call('del', KEYS[1]); redis.call(ARGV[4], KEYS[2], ARGV[1]); redis.call('set', KEYS[3], 1, 'px', ARGV[5]); return 1; end; " "3" "myLock" "redisson_lock__channel:{myLock}" "redisson_unlock_latch:{myLock}:1f7f0072a5b00da4e58bb56b8ae0708f" "0" "30000" "6e3814a1-e847-452b-a982-45baf93a1df2:1" "PUBLISH" "13500"
+1742829148.424569 [0 lua] "get" "redisson_unlock_latch:{myLock}:1f7f0072a5b00da4e58bb56b8ae0708f"
+1742829148.424583 [0 lua] "hexists" "myLock" "6e3814a1-e847-452b-a982-45baf93a1df2:1"
+1742829148.424595 [0 lua] "hincrby" "myLock" "6e3814a1-e847-452b-a982-45baf93a1df2:1" "-1"
+1742829148.424603 [0 lua] "del" "myLock"
+1742829148.424611 [0 lua] "PUBLISH" "redisson_lock__channel:{myLock}" "0"
+1742829148.424628 [0 lua] "set" "redisson_unlock_latch:{myLock}:1f7f0072a5b00da4e58bb56b8ae0708f" "1" "px" "13500"
+1742829148.555758 [0 127.0.0.1:32814] "DEL" "redisson_unlock_latch:{myLock}:1f7f0072a5b00da4e58bb56b8ae0708f"
+
+
+
+So I want to know why doesn't RFencedLock  remove "redisson_lock_token" after releasing the lock, is this a deliberate design or a detail oversight?

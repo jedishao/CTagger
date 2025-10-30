@@ -1,0 +1,24 @@
+Improvement Suggestions for Redisson Lock to Solve Infinite Deadlock Problem
+Redisson lock seems to aim at simulating Java’s Lock object, but unfortunately, while Lock ensures successful unlocking, Redisson clearly does not.
+
+This brings a series of issues, such as how to handle an exception during unlocking. This is particularly problematic in web containers (like Tomcat, Jetty) where threads are generally reused. Due to reentrancy and the unchanging threadId, this can lead to infinite deadlocks.
+
+A potential improvement might be as follows:
+
+1、The JVM itself, within a single thread (like thread x), can know whether a lock is ultimately locked and how many times it has been locked. For example code:
+```
+RLock lock = redissonClient.getLock(key);
+lock.lock();
+lock.lock();
+lock.unlock();
+```
+Here, it is known that the thread has only unlocked once, but still has one lock record remaining [important, so we can record it].
+
+2、Next time, for example, when the same thread x (with redisson.id [assuming the ID is truly unique across different Redisson instances] + Thread.getId()), applies for a lock on the same key, the underlying Lua script can check the lock count for that thread. If the lock count is 1, it can forcibly update it to 1 instead of using something like hincrby.
+
+For example, if an exception occurs during unlock, the watchdog should be canceled, and the thread should be marked as having released the lock (with no remaining lock count records).
+
+During the next lock request, the internal script checks and updates the lock count to 0 before processing the new lock request.
+
+a、If the thread is still active, the next time it tries to lock, the state will automatically recover.
+b、If thread x has been destroyed, the watchdog's TTL renewal logic would have already been canceled, and the lock would be automatically released.

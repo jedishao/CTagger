@@ -1,0 +1,16 @@
+Amazon SQS-like Redisson Queue
+In our production we wanted to emulate amazon sqs api via redis and redisson.
+
+The main differences for us compared to the standard redisson queue:
+
+* Possibility to set the number of retries for a task in the queue
+* Possibility to set the visibility timeout for automatic retrying in case the task is not completed by worker
+
+We achieved this behavior in the following way:
+
+* 3 queues (RBlockingDeque) for tasks: main queue, in-flight queue, retry queue (retry queue is needed for atomic transfer of failed tasks into the main queue)
+* 2 maps (RMapCache) for retry count and timeouts for tasks
+* 2 executor services: main queue polling workers , message processing workers
+* 3 scheduled executor service: daemon-workers for message processing canceling (on timeout), inflight-queue worker (for processing expired tail of in-flight queue), retry worker (for atomically pushing tasks in main queue after fail)
+
+If such a solution would be interesting to see in redisson, we can prepare a pull request and bring it to merge under your review.

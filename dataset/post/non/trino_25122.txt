@@ -1,0 +1,7 @@
+TrinoRestCatalog can ddos Identity Provider while refreshing auth token because of multiple cached session contexts
+When we create an Iceberg catalog with [iceberg.rest-catalog.session](https://trino.io/docs/current/object-storage/metastores.html#rest-catalog:~:text=iceberg.rest%2Dcatalog.session) option = NONE `TrinoRestCatalog#convert` method [creates](https://github.com/trinodb/trino/blob/master/plugin/trino-iceberg/src/main/java/io/trino/plugin/iceberg/catalog/rest/TrinoRestCatalog.java#L816) a new SessionContext on each hit with the random UUID. This leads to a situation when we cache iceberg AuthSession and cache key it this random UUID.
+The problem is happening because in the background RestSessionCatalog tries to refresh the token for each key in the cache
+
+<img width="601" alt="Image" src="https://github.com/user-attachments/assets/e2396bf0-909e-4e8f-aa7a-bb21acba8c8c" />
+
+it was also discussed [here](https://github.com/apache/iceberg/issues/12363#issuecomment-2677799842)

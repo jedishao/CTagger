@@ -1,0 +1,134 @@
+trino 474 ldap group provider error "SSLContext was not set"
+Hi all
+
+I have a problem with plugin and ldaps
+
+trino version 474 installed in k8s by helm chart version 1.38 
+
+if you need something else please ask your questions
+
+settings:
+```
+2025-04-07T13:41:33.381Z    INFO    main    io.trino.security.GroupProviderManager    -- Loading group provider ldap --
+2025-04-07T13:41:33.460Z    INFO    main    org.hibernate.validator.internal.util.Version    HV000001: Hibernate Validator 8.0.2.Final
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    PROPERTY                       DEFAULT     RUNTIME                                                      DESCRIPTION
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.allow-insecure            false       false                                                        Allow insecure connection to the LDAP server
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.ignore-referrals          false       false                                                        Referrals allow finding entries across multiple LDAP servers. Ignore them to only search within 1 LDAP server
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.ssl.keystore.password     [REDACTED]  [REDACTED]                                                   Password for the key store
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.ssl.keystore.path         ----        /usr/lib/jvm/temurin/jdk-24+36/lib/security/cacerts          Path to the PEM or JKS key store
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.timeout.connect           ----        ----                                                         Timeout for establishing a connection
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.timeout.read              ----        ----                                                         Timeout for reading data from LDAP
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.url                       ----        ldaps://<PATH_TO_LDAP>:636                                   URL of the LDAP server
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.ssl.truststore.path       ----        /etc/pki/ca-trust/source/anchors/<FILE_NAME>.pem  Path to the PEM or JKS trust store
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.ssl.truststore.password   [REDACTED]  [REDACTED]                                                   Password for the trust store
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.admin-password            [REDACTED]  [REDACTED]                                                   Bind password used for admin user. Example: password1234
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.admin-user                ----        <LOGIN>                                                      Bind distinguished name for admin user. Example: CN=User Name,OU=CITY_OU,OU=STATE_OU,DC=domain,DC=domain_root
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.group-name-attribute      cn          cn                                                           Attribute from group documents used as the name. Example: cn
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.use-group-filter          false       false                                                        Enable group filtering
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.user-base-dn              ----        dc=<dc_name>,dc=ru                                           Base distinguished name for users. Example: dc=example,dc=com
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.user-search-filter        (uid={0})   (&(objectClass=person)(sAMAccountName=${USER}))              Search filter for user documents, templated with the Trino username. Example: (cn={0})
+2025-04-07T13:41:33.640Z    INFO    main    Bootstrap    ldap.user-member-of-attribute  memberOf    memberOf                                                     Group membership attribute in user documents. Example: memberOf
+2025-04-07T13:41:33.724Z    INFO    main    io.trino.security.GroupProviderManager    -- Loaded group provider ldap --
+```
+
+
+Error: 
+```
+2025-04-07T13:41:48.672Z    DEBUG    http-worker-150    io.trino.plugin.base.ldap.JdkLdapClient    Password validation successful for user DN [CN=<NAME>,OU=<OU>,OU=<OU>,OU=<OU>,DC=<dc_name>,DC=<>]
+2025-04-07T13:41:48.672Z    DEBUG    http-worker-150    io.trino.plugin.password.ldap.LdapAuthenticator    Authentication successful for user [<personal_login>]
+2025-04-07T13:41:48.682Z    ERROR    http-worker-150    io.trino.plugin.ldapgroup.LdapFilteringGroupProvider    LDAP search for user [<personal_login>] failed
+javax.naming.CommunicationException:   <PATH_TO_LDAP>:636 [Root exception is java.lang.IllegalStateException: SSLContext was not set]
+    at java.naming/com.sun.jndi.ldap.Connection.<init>(Connection.java:244)
+    at java.naming/com.sun.jndi.ldap.LdapClient.<init>(LdapClient.java:136)
+    at java.naming/com.sun.jndi.ldap.LdapClient.getInstance(LdapClient.java:1648)
+    at java.naming/com.sun.jndi.ldap.LdapCtx.connect(LdapCtx.java:2850)
+    at java.naming/com.sun.jndi.ldap.LdapCtx.<init>(LdapCtx.java:349)
+    at java.naming/com.sun.jndi.ldap.LdapCtxFactory.getLdapCtxFromUrl(LdapCtxFactory.java:229)
+    at java.naming/com.sun.jndi.ldap.LdapCtxFactory.getUsingURL(LdapCtxFactory.java:189)
+    at java.naming/com.sun.jndi.ldap.LdapCtxFactory.getUsingURLs(LdapCtxFactory.java:247)
+    at java.naming/com.sun.jndi.ldap.LdapCtxFactory.getLdapCtxInstance(LdapCtxFactory.java:154)
+    at java.naming/com.sun.jndi.ldap.LdapCtxFactory.getInitialContext(LdapCtxFactory.java:84)
+    at java.naming/javax.naming.spi.NamingManager.getInitialContext(NamingManager.java:505)
+    at java.naming/javax.naming.InitialContext.getDefaultInitCtx(InitialContext.java:305)
+    at java.naming/javax.naming.InitialContext.init(InitialContext.java:236)
+    at java.naming/javax.naming.InitialContext.<init>(InitialContext.java:208)
+    at java.naming/javax.naming.directory.InitialDirContext.<init>(InitialDirContext.java:130)
+    at io.trino.plugin.base.jndi.JndiUtils.createDirContext(JndiUtils.java:32)
+    at io.trino.plugin.base.ldap.JdkLdapClient.createUserDirContext(JdkLdapClient.java:127)
+    at io.trino.plugin.base.ldap.JdkLdapClient.executeLdapQuery(JdkLdapClient.java:100)
+    at io.trino.plugin.ldapgroup.LdapSingleQueryGroupProvider.getGroups(LdapSingleQueryGroupProvider.java:78)
+    at io.trino.security.GroupProviderManager.lambda$getGroups$0(GroupProviderManager.java:121)
+    at java.base/java.util.Optional.map(Optional.java:260)
+    at io.trino.security.GroupProviderManager.getGroups(GroupProviderManager.java:121)
+    at io.trino.server.HttpRequestSessionContextFactory.buildSessionIdentity(HttpRequestSessionContextFactory.java:267)
+    at io.trino.server.HttpRequestSessionContextFactory.createSessionContext(HttpRequestSessionContextFactory.java:112)
+    at io.trino.dispatcher.QueuedStatementResource.registerQuery(QueuedStatementResource.java:191)
+    at io.trino.dispatcher.QueuedStatementResource.postStatement(QueuedStatementResource.java:177)
+    at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+    at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+    at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory.lambda$static$0(ResourceMethodInvocationHandlerFactory.java:52)
+    at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:146)
+    at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:189)
+    at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$ResponseOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:176)
+    at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:93)
+    at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:478)
+    at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:400)
+    at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:81)
+    at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:274)
+    at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248)
+    at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244)
+    at org.glassfish.jersey.internal.Errors.process(Errors.java:292)
+    at org.glassfish.jersey.internal.Errors.process(Errors.java:274)
+    at org.glassfish.jersey.internal.Errors.process(Errors.java:244)
+    at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:266)
+    at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:253)
+    at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:696)
+    at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:397)
+    at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:349)
+    at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:358)
+    at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:312)
+    at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205)
+    at org.eclipse.jetty.ee10.servlet.ServletHolder.handle(ServletHolder.java:736)
+    at org.eclipse.jetty.ee10.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1621)
+    at io.airlift.http.server.tracing.TracingServletFilter.doFilter(TracingServletFilter.java:115)
+    at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+    at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1593)
+    at org.eclipse.jetty.ee10.servlet.ServletHandler$MappedServlet.handle(ServletHandler.java:1554)
+    at org.eclipse.jetty.ee10.servlet.ServletChannel.dispatch(ServletChannel.java:819)
+    at org.eclipse.jetty.ee10.servlet.ServletChannel.handle(ServletChannel.java:436)
+    at org.eclipse.jetty.ee10.servlet.ServletHandler.handle(ServletHandler.java:469)
+    at org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:611)
+    at org.eclipse.jetty.server.handler.ContextHandler.handle(ContextHandler.java:1064)
+    at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:740)
+    at org.eclipse.jetty.server.handler.EventsHandler.handle(EventsHandler.java:81)
+    at org.eclipse.jetty.server.Server.handle(Server.java:182)
+    at org.eclipse.jetty.server.internal.HttpChannelState$HandlerInvoker.run(HttpChannelState.java:662)
+    at org.eclipse.jetty.server.internal.HttpConnection.onFillable(HttpConnection.java:416)
+    at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:322)
+    at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:99)
+    at org.eclipse.jetty.io.SelectableChannelEndPoint$1.run(SelectableChannelEndPoint.java:53)
+    at org.eclipse.jetty.util.thread.MonitoredQueuedThreadPool$1.run(MonitoredQueuedThreadPool.java:73)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:979)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1209)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1164)
+    at java.base/java.lang.Thread.run(Thread.java:1447)
+Caused by: java.lang.IllegalStateException: SSLContext was not set
+    at com.google.common.base.Preconditions.checkState(Preconditions.java:513)
+    at io.trino.plugin.base.ldap.LdapSslSocketFactory.getDefault(LdapSslSocketFactory.java:78)
+    at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+    at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+    at java.naming/com.sun.jndi.ldap.Connection.getSocketFactory(Connection.java:316)
+    at java.naming/com.sun.jndi.ldap.Connection.createSocket(Connection.java:282)
+    at java.naming/com.sun.jndi.ldap.Connection.<init>(Connection.java:231)
+    ... 73 more
+
+
+
+2025-04-07T13:41:48.732Z    DEBUG    dispatcher-query-0    io.trino.security.AccessControl    Invocation of checkCanSetUser(principal=Optional[<personal_login>], userName='<personal_login>') succeeded in 693.55us
+2025-04-07T13:41:48.744Z    DEBUG    dispatcher-query-0    io.trino.security.AccessControl    Invocation of checkCanExecuteQuery(identity=Identity{user='<personal_login>', principal=<personal_login>}, queryId=20250407_134148_00000_2989k) succeeded in 455.75us
+2025-04-07T13:41:48.777Z    DEBUG    dispatcher-query-1    io.trino.execution.QueryStateMachine    Query 20250407_134148_00000_2989k is QUEUED
+2025-04-07T13:41:48.786Z    DEBUG    dispatcher-query-4    io.trino.execution.QueryStateMachine    Query 20250407_134148_00000_2989k is WAITING_FOR_RESOURCES
+```
+
+
+cc @OmerRaifler @Praveen2112

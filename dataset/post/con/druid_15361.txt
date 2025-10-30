@@ -1,0 +1,74 @@
+Missing close() in the SegmentManager dropSegment() would cause resource/memory leak
+Druid Historical would leak resource/memory upon segment moving out
+
+### Affected Version
+
+At least from Druid 25.0.0 till now
+### Description
+
+This issue was spot by code review. 
+
+Here is the background:
+_Originally the [discussion](https://apachedruidworkspace.slack.com/archives/C0309C9L90D/p1699584076521929?thread_ts=1698263651.554789&cid=C0309C9L90D) with @gianm in the Apache Slack support channel is about the race condition in the peon side. See this issue(https://github.com/apache/druid/issues/12168) The peon would not hold segment after handoff before other servers like the broker see the segment drop from the peon. And thus, the query for the segment can still go to the peon which would result NPE. Gian pointed out that the historical side upon segment moving out, there was a default 30 sec `druid.segmentCache.dropSegmentDelayMillis` wait to avoid this race condition, the same idea of my proposal. This lead to the code review of the historical side implementation for this wait._
+
+Then I realize that there seems to be a bug in the current implementation in the segment drop side. Here is the code in the current master https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/server/SegmentManager.java#L364-L393
+
+```
+public void dropSegment(final DataSegment segment)
+  {
+    final String dataSource = segment.getDataSource();
+
+    // compute() is used to ensure that the operation for a data source is executed atomically
+    dataSources.compute(
+...
+
+            if (oldQueryable != null) {
+              try (final Closer closer = Closer.create()) {
+                StorageAdapter storageAdapter = oldQueryable.asStorageAdapter();
+                long numOfRows = (segment.isTombstone() || storageAdapter == null) ? 0 : storageAdapter.getNumRows();
+                dataSourceState.removeSegment(segment, numOfRows);
+
+                closer.register(oldQueryable);
+                log.info("Attempting to close segment %s", segment.getId());
+                final ReferenceCountingIndexedTable oldTable = dataSourceState.tablesLookup.remove(segment.getId());
+                if (oldTable != null) {
+                  closer.register(oldTable);
+                }
+              }
+              catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            } else {
+              log.info(
+                  "Told to delete a queryable on dataSource[%s] for interval[%s] and version[%s] that I don't have.",
+                  dataSourceName,
+                  segment.getInterval(),
+                  segment.getVersion()
+              );
+            }
+
+            // Returning null removes the entry of dataSource from the map
+            return dataSourceState.isEmpty() ? null : dataSourceState;
+          }
+        }
+    );
+
+...
+  }
+}
+
+```
+
+Note here, a `finally { closer.close() }` seems to be missed. 
+
+This issue was introduced in this PR (https://github.com/apache/druid/pull/10224)
+
+This mostly likely would result leaks as the following based on my brief code examination:
+>The missing finally { closer.close() } would cause all the segments (intended to be discarded after the dropSegmentDelayMillis delay missing a close operation. More specifically, the code path is like this:
+oldQueryable instance is of type ReferenceCountingSegmentwhich is of  type ReferenceCountingCloseableObject<Segment> . The idea of ReferenceCountingCloseableObject is basically keep a reference count of how many times the baseObject (which is of type Segment) is referred. Till the last reference is decremented(), it would close the close() function of the baseObject.
+Here, the baseObject is of type Segment or more specifically in case of QueryableIndexSegment. The close() of this QueryableIndexSegment won't be called. In turn, the index.close() is not called.
+if the index is of SimpleQueryableIndex, the fileMapper.close() would be missed.  So here
+https://github.com/apache/druid/blob/master/processing/src/main/java/org/apache/druid/java/util/common/io/smoosh/SmooshedFileMapper.java#L150-L171
+So eventually, some mapped memory buffers (direct memory) would be leaked?
+
+I may do a little bit more memory dump analysis and memory map examination to understand the details of the impact next. And would update accordingly.

@@ -1,0 +1,10 @@
+camel-kubernetes: Unify listing resources in producer, in regard to namespace
+Looking at the various producers in camel-kubernetes components, it seems that there is no common approach for listing the resources when it comes to namespaced resources.
+
+If the {{CamelKubernetesNamespaceName}} header is not present, the autowired k8s client uses:
+- the namespace where the application runs, if it runs on k8s
+- the namespace where I am logged in locally, when running the app locally against a k8s cluster.
+
+If the header {{CamelKubernetesNamespaceName}} is not present, some producers will [just list in the current namespace|https://github.com/apache/camel/blob/main/components/camel-kubernetes/src/main/java/org/apache/camel/component/kubernetes/persistent_volumes_claims/KubernetesPersistentVolumesClaimsProducer.java#L89-L93], some [list in all namespaces|https://github.com/apache/camel/blob/main/components/camel-kubernetes/src/main/java/org/apache/camel/component/kubernetes/secrets/KubernetesSecretsProducer.java#L88-L91] - these don't require the namespace header at all. but then there are some that [are switching between ns/cluster based on the header|https://github.com/apache/camel/blob/main/components/camel-kubernetes/src/main/java/org/apache/camel/component/kubernetes/pods/KubernetesPodsProducer.java#L89-L98].
+
+It would be good to unify the approach.

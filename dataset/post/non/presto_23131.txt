@@ -1,0 +1,71 @@
+Presto C++ can't read Iceberg tables with spaces in the column names
+Any column with whitespace in the name seems to cause this issue. Reproduced using the following steps:
+
+In a Presto engine:
+```sql
+create table iceberg_data.pool.space ("two words" int) with (format='parquet');
+set session iceberg_data.parquet_writer_version = 'PARQUET_1_0';
+insert into iceberg_data.pool.space values (1), (2), (3);
+```
+
+Then from prestissimo:
+```sql
+select * from iceberg_data.pool.space;
+```
+
+<details>
+<summary><h3>Backtrace from GDB</h3></summary>
+
+```
+#0  facebook::velox::common::Tokenizer::computeNext (this=0xfde2c9fb4640) at /workspaces/presto/presto-native-execution/velox/velox/type/Tokenizer.cpp:83
+#1  0x00000000087fe224 in facebook::velox::common::Tokenizer::tryToComputeNext (this=0xfde2c9fb4640) at /workspaces/presto/presto-native-execution/velox/velox/type/Tokenizer.cpp:218
+#2  0x00000000087fd5dc in facebook::velox::common::Tokenizer::hasNext (this=0xfde2c9fb4640) at /workspaces/presto/presto-native-execution/velox/velox/type/Tokenizer.cpp:39
+#3  0x00000000087f70f8 in facebook::velox::common::Subfield::Subfield (this=0xfde2c9fb4720, path="two words", separators=std::shared_ptr<facebook::velox::common::Separators> (use count 2, weak count 0) = {...}) at /workspaces/presto/presto-native-execution/velox/velox/type/Subfield.cpp:34
+#4  0x0000000001c745a0 in facebook::velox::common::ScanSpec::addField (this=0xfde2b4002d30, name="two words", channel=0) at /workspaces/presto/presto-native-execution/velox/velox/dwio/common/ScanSpec.cpp:386
+#5  0x0000000001c74624 in facebook::velox::common::ScanSpec::addFieldRecursively (this=0xfde2b4002d30, name="two words", type=..., channel=0) at /workspaces/presto/presto-native-execution/velox/velox/dwio/common/ScanSpec.cpp:396
+#6  0x0000000000627f24 in facebook::velox::connector::hive::makeScanSpec (rowType=std::shared_ptr<const facebook::velox::RowType> (use count 1, weak count 0) = {...}, outputSubfields=..., filters=std::unordered_map with 0 elements, dataColumns=std::shared_ptr<const facebook::velox::RowType> (use count 1, weak count 0) = {...}, partitionKeys=std::unordered_map with 0 elements, infoColumns=std::unordered_map with 0 elements, pool=0xfde2e4033c70) at /workspaces/presto/presto-native-execution/velox/velox/connectors/hive/HiveConnectorUtil.cpp:365
+#7  0x00000000006ade1c in facebook::velox::connector::hive::HiveDataSource::HiveDataSource (this=0xfde2b4002ab0, outputType=std::shared_ptr<const facebook::velox::RowType> (use count 3, weak count 0) = {...}, tableHandle=std::shared_ptr<facebook::velox::connector::ConnectorTableHandle> (use count 3, weak count 0) = {...}, columnHandles=std::unordered_map with 1 element = {...}, fileHandleFactory=0x43b8dc98, executor=0x43b83940, connectorQueryCtx=0xfde2cc0be720, hiveConfig=std::shared_ptr<facebook::velox::connector::hive::HiveConfig> (use count 2, weak count 0) = {...}) at /workspaces/presto/presto-native-execution/velox/velox/connectors/hive/HiveDataSource.cpp:149
+#8  0x0000000000607abc in std::make_unique<facebook::velox::connector::hive::HiveDataSource, std::shared_ptr<facebook::velox::RowType const> const&, std::shared_ptr<facebook::velox::connector::ConnectorTableHandle> const&, std::unordered_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::shared_ptr<facebook::velox::connector::ColumnHandle>, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::shared_ptr<facebook::velox::connector::ColumnHandle> > > > const&, facebook::velox::CachedFactory<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::shared_ptr<facebook::velox::FileHandle>, facebook::velox::FileHandleGenerator>*, folly::Executor*&, facebook::velox::connector::ConnectorQueryCtx*&, std::shared_ptr<facebook::velox::connector::hive::HiveConfig> const&> () at /usr/include/c++/11/bits/unique_ptr.h:962
+#9  0x00000000006004b4 in facebook::velox::connector::hive::HiveConnector::createDataSource (this=0x43b8dc60, outputType=std::shared_ptr<const facebook::velox::RowType> (use count 3, weak count 0) = {...}, tableHandle=std::shared_ptr<facebook::velox::connector::ConnectorTableHandle> (use count 3, weak count 0) = {...}, columnHandles=std::unordered_map with 1 element = {...}, connectorQueryCtx=0xfde2cc0be720) at /workspaces/presto/presto-native-execution/velox/velox/connectors/hive/HiveConnector.cpp:85
+#10 0x0000000007eb33d8 in facebook::velox::exec::TableScan::getOutput (this=0xfde2e4033660) at /workspaces/presto/presto-native-execution/velox/velox/exec/TableScan.cpp:155
+#11 0x0000000007cb6ab8 in facebook::velox::exec::Driver::runInternal (this=0xfde2e4033570, self=std::shared_ptr<facebook::velox::exec::Driver> (use count 3, weak count 1) = {...}, blockingState=std::shared_ptr<facebook::velox::exec::BlockingState> (empty) = {...}, result=std::shared_ptr<facebook::velox::RowVector> (empty) = {...}) at /workspaces/presto/presto-native-execution/velox/velox/exec/Driver.cpp:594
+#12 0x0000000007cb858c in facebook::velox::exec::Driver::run (self=std::shared_ptr<facebook::velox::exec::Driver> (use count 3, weak count 1) = {...}) at /workspaces/presto/presto-native-execution/velox/velox/exec/Driver.cpp:776
+#13 0x0000000007cb4cd4 in operator() (__closure=0xfde2c9fb6430) at /workspaces/presto/presto-native-execution/velox/velox/exec/Driver.cpp:270
+#14 0x0000000007cbba2c in folly::detail::function::FunctionTraits<void()>::callSmall<facebook::velox::exec::Driver::enqueue(std::shared_ptr<facebook::velox::exec::Driver>)::<lambda()> >(folly::detail::function::Data &) (p=...) at /usr/local/include/folly/Function.h:341
+#15 0x00000000005de5dc in folly::detail::function::FunctionTraits<void ()>::operator()() (this=0xfde2c9fb6430) at /usr/local/include/folly/Function.h:363
+#16 0x0000fde58cca0ab8 in folly::catch_exception<folly::Function<void ()>&, void (&)(char const*) noexcept, char const*&, void>(folly::Function<void ()>&, void (&)(char const*) noexcept, char const*&) (c=<optimized out>, t=...) at /root/setup/folly/folly/lang/Exception.h:286
+#17 folly::Executor::invokeCatchingExns<folly::Function<void ()> >(char const*, folly::Function<void ()>) (f=..., p=0xfde58ccc0038 "ThreadPoolExecutor: func") at /root/setup/folly/folly/Executor.h:234
+#18 folly::ThreadPoolExecutor::runTask (this=0x43b792c0, thread=std::shared_ptr<folly::ThreadPoolExecutor::Thread> (use count 3, weak count 0) = {...}, task=...) at /root/setup/folly/folly/executors/ThreadPoolExecutor.cpp:142
+#19 0x0000000008886880 in folly::CPUThreadPoolExecutor::threadRun (this=0x43b792c0, thread=std::shared_ptr<folly::ThreadPoolExecutor::Thread> (use count 3, weak count 0) = {...}) at /root/setup/folly/folly/executors/CPUThreadPoolExecutor.cpp:350
+#20 0x0000fde58ccac294 in std::__invoke_impl<void, void (folly::ThreadPoolExecutor::*&)(std::shared_ptr<folly::ThreadPoolExecutor::Thread>), folly::ThreadPoolExecutor*&, std::shared_ptr<folly::ThreadPoolExecutor::Thread>&> (__f=@0xfde2d4023240: &virtual folly::ThreadPoolExecutor::threadRun(std::shared_ptr<folly::ThreadPoolExecutor::Thread>), __t=@0xfde2d4023260: 0x43b792c0) at /usr/include/c++/11/bits/invoke.h:74
+#21 0x0000fde58ccaaf28 in std::__invoke<void (folly::ThreadPoolExecutor::*&)(std::shared_ptr<folly::ThreadPoolExecutor::Thread>), folly::ThreadPoolExecutor*&, std::shared_ptr<folly::ThreadPoolExecutor::Thread>&> (__fn=@0xfde2d4023240: &virtual folly::ThreadPoolExecutor::threadRun(std::shared_ptr<folly::ThreadPoolExecutor::Thread>)) at /usr/include/c++/11/bits/invoke.h:96
+#22 0x0000fde58cca9af4 in std::_Bind<void (folly::ThreadPoolExecutor::*(folly::ThreadPoolExecutor*, std::shared_ptr<folly::ThreadPoolExecutor::Thread>))(std::shared_ptr<folly::ThreadPoolExecutor::Thread>)>::__call<void, , 0ul, 1ul>(std::tuple<>&&, std::_Index_tuple<0ul, 1ul>) (this=0xfde2d4023240, __args=...) at /usr/include/c++/11/functional:420
+#23 0x0000fde58cca86f4 in std::_Bind<void (folly::ThreadPoolExecutor::*(folly::ThreadPoolExecutor*, std::shared_ptr<folly::ThreadPoolExecutor::Thread>))(std::shared_ptr<folly::ThreadPoolExecutor::Thread>)>::operator()<, void>() (this=0xfde2d4023240) at /usr/include/c++/11/functional:503
+#24 0x0000fde58cca6dc0 in folly::detail::function::FunctionTraits<void ()>::callSmall<std::_Bind<void (folly::ThreadPoolExecutor::*(folly::ThreadPoolExecutor*, std::shared_ptr<folly::ThreadPoolExecutor::Thread>))(std::shared_ptr<folly::ThreadPoolExecutor::Thread>)> >(folly::detail::function::Data&) (p=...) at /root/setup/folly/folly/Function.h:341
+#25 0x00000000005de5dc in folly::detail::function::FunctionTraits<void ()>::operator()() (this=0xfde2d4023240) at /usr/local/include/folly/Function.h:363
+#26 0x00000000009bedf0 in folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}::operator()() (__closure=0xfde2d4023240) at /root/setup/folly/folly/executors/thread_factory/NamedThreadFactory.h:40
+#27 0x00000000009fde2c in std::__invoke_impl<void, folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}>(std::__invoke_other, folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}&&) (__f=...) at /usr/include/c++/11/bits/invoke.h:61
+#28 0x00000000009fdde4 in std::__invoke<folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}>(folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}&&) (__fn=...) at /usr/include/c++/11/bits/invoke.h:96
+#29 0x00000000009fdd80 in std::thread::_Invoker<std::tuple<folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}> >::_M_invoke<0ul>(std::_Index_tuple<0ul>) (this=0xfde2d4023240) at /usr/include/c++/11/bits/std_thread.h:259
+#30 0x00000000009fdb70 in std::thread::_Invoker<std::tuple<folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}> >::operator()() (this=0xfde2d4023240) at /usr/include/c++/11/bits/std_thread.h:266
+#31 0x00000000009fd788 in std::thread::_State_impl<std::thread::_Invoker<std::tuple<folly::NamedThreadFactory::newThread(folly::Function<void ()>&&)::{lambda()#1}> > >::_M_run() (this=0xfde2d4023230) at /usr/include/c++/11/bits/std_thread.h:211
+#32 0x0000fde589a368fc in execute_native_thread_routine () from /lib64/libstdc++.so.6
+#33 0x0000fde589754698 in start_thread () from /lib64/libc.so.6
+#34 0x0000fde5897bebdc in thread_start () from /lib64/libc.so.6
+```
+</details>
+
+## Your Environment
+N/A
+
+## Expected Behavior
+should read the values out
+
+This issue is caused by several issues:
+1. Velox tokenizer doesn't honor spaces: https://github.com/facebookincubator/velox/issues/10348 
+2. After the 1st issue is fixed, the query still cannot output the values, instead it output all NULLs. This is because 
+  - Iceberg connector replaces the space ' ' to '_x20' : https://github.com/prestodb/presto/issues/23129
+  - Velox can only match the schema name with the actual column name in the file. It doesn't support  "parquet_use_column_names" session property = false as in Presto Java. https://github.com/facebookincubator/velox/issues/10388
+  -  hiveColumnIndex was not sent to Velox https://github.com/prestodb/presto/issues/23130
+
+

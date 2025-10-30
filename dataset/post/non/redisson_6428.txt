@@ -1,0 +1,47 @@
+Redisson RScheduledExecutorService Task Cancellation Delays - Inconsistent Timeout Execution
+<!--
+Upgrade to Redisson PRO https://redisson.pro with advanced features.
+-->
+We are experiencing inconsistent task execution and cancellation behavior when using RScheduledExecutorService with Redisson. Tasks that should timeout and cancel after 10 minutes sometimes take 16-20 minutes before cancellation occurs.
+
+Steps to Reproduce:
+Schedule a task with a 10-minute delay using scheduleTask().
+Observe the execution and cancellation timing.
+In many cases, the task runs for longer than the expected 10 minutes.
+The task is eventually canceled, but with an inconsistent delay (16-20 minutes instead of 10 minutes).
+Expected Behavior:
+The task should always cancel exactly at 10 minutes if not completed.
+Actual Behavior:
+The cancellation is inconsistent and sometimes takes 16-20 minutes.
+
+```
+RScheduledExecutorService executorService = redisson.getExecutorService("taskScheduler");
+
+public RScheduledFuture<?> scheduleTask(String taskId, Runnable task, long delay, TimeUnit unit)
+            throws TaskAlreadyExistException {
+    if (taskIdMapping.containsKey(taskId)) {
+        throw new TaskAlreadyExistException("Task with ID " + taskId + " already exists.");
+    }
+    RScheduledFuture<?> future = executorService.schedule(task, delay, unit);
+    System.out.println(future.getTaskId());
+    taskIdMapping.put(taskId, future.getTaskId());
+    return future;
+}
+
+public boolean cancelTask(String taskId) {
+    String systemTaskId = taskIdMapping.get(taskId);
+    if (systemTaskId != null) {
+        boolean isCancelled = executorService.cancelTask(systemTaskId);
+        if (isCancelled) {
+            taskIdMapping.remove(taskId);
+        }
+        return isCancelled;
+    }
+    return false;
+}
+```
+
+Could you help us investigate why task cancellation is inconsistent and delayed?
+
+Is this a known issue in Redisson?
+Are there recommended configurations to ensure strict task timeouts?

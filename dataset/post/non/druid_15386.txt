@@ -1,0 +1,17 @@
+Column footprints and capabilities in segmentMetadata query
+For understanding and optimizing data footprint, it's valuable to know the footprint (in bytes) and capabilities (dictionary encoded, has index, etc) of each column on a per-segment basis and also on an aggregated basis across an entire datasource.
+
+Today, the main way people get footprint information is by reading `meta.smoosh` files, which are a CSV descriptor that is part of the physical segment package, and which looks like the following. Each row (other than the first) represents a column part, and is four fields: column name, column part number, start offset, and end offset. The footprint in bytes of a column is the difference between the fourth and third fields.
+
+```
+v1,2147483647,1
+__time,0,0,5466
+channel,0,5727,8512
+isRobot,0,5466,5727
+```
+
+Instead of needing to dig through `meta.smoosh` files, we'd like users to be able to use `segmentMetadata` queries (https://druid.apache.org/docs/latest/querying/segmentmetadataquery/) to retrieve the column footprints. For `merge: false`, users would get column footprints from each segment individually. For `merge: true`, users would get total footprint for each column across all segments.
+
+On the capabilities side, certain capabilities, like `hasMultipleValues`, are exposed in `segmentMetadata` queries today. However, they aren't all exposed. We should expose all of them, so people can see which columns have dictionaries, which dictionaries are sorted, etc.
+
+As a follow-up to this feature, we could add column footprint and capability to system tables in SQL. System tables are built on top of `segmentMetadata` queries, so adding the fields to `segmentMetadata` is the first step. (Note that adding to `segmentMetadata` is also valuable by itself, since users can issue `segmentMetadata` queries directly. The SQL would be merely a convenience.)

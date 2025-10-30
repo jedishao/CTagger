@@ -1,0 +1,93 @@
+DNS Resolver returns same IP address for 2 different instances
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.60.2
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+Linux Alpine with Eclipse Temurin JDK 11. I use Docker to create 3 containers with my application.
+We also reproduce the issue with Azure and AWS deployments. They use Ubuntu instead of Alpine.
+
+Every instance creates 2 RPC Clients (one for every of the other instances it has to talk to) that uses 4 stubs (2 blocking, 1 async and 1 future). With the client initialization it creates 1 long lived channel shared by all of the stubs.
+
+Every instance creates a server that listens for request at certain address using the NettyServerBuilder.forAddress()
+
+### What did you expect to see?
+I use the deployment to stress test the application. The test restarts some of the containers. 
+What I expect is after the restart the instance that is not restarted to be able to send messages to the restarted instances through the already instantiated channels.
+
+### What did you see instead?
+Sometimes instance that is not restarted starts sending 2 messages to the same node instead of 1 to each of them.
+An interesting detail is that if I shutdown the channel and initialize a new one everything starts working again.
+
+What I have tried so far:
+- I turned off the dns cache. That did not fix the issue.
+- I created interceptor that sign every request with its recipient and another one that throws exception if the message has a wrong recipient. This way I know when to reinitialize the channel. This is more of a workaround rather than a solution. It adds unnecessary complexity and it is not very stable.
+
+### Steps to reproduce the bug
+Not 100% sure if restarting the containers is what causes the issue and it does not reproduce every single time, but from what I see It often happens after some of the containers are restarted.
+
+The logs bellow show that the instance is trying to send messages to the other two that are currently unavailable. Somehow the addresses are the same for the two instances (172.20.0.7:7300)
+
+```
+[ERROR] 2024-01-25 22:53:07,583 [gdb-2-search:7300-rpc-client-0 | c.o.g.r.g.RpcNodeClient] Unable to send streaming entry to gdb-2-search:7300 due to: 
+io.grpc.StatusRuntimeException: UNAVAILABLE: io exception
+	at io.grpc.Status.asRuntimeException(Status.java:537)
+	at io.grpc.stub.ClientCalls$StreamObserverToCallListenerAdapter.onClose(ClientCalls.java:481)
+	at io.grpc.internal.ClientCallImpl.closeObserver(ClientCallImpl.java:574)
+	at io.grpc.internal.ClientCallImpl.access$300(ClientCallImpl.java:72)
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInternal(ClientCallImpl.java:742)
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInContext(ClientCallImpl.java:723)
+	at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+	at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
+	at common.GraphDBMDCExecutorBuilder.lambda$wrap$1(GraphDBMDCExecutorBuilder.java:200)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: io.netty.channel.AbstractChannel$AnnotatedConnectException: finishConnect(..) failed: Connection refused: gdb-2-search/172.20.0.7:7300
+Caused by: java.net.ConnectException: finishConnect(..) failed: Connection refused
+	at io.netty.channel.unix.Errors.newConnectException0(Errors.java:166)
+	at io.netty.channel.unix.Errors.handleConnectErrno(Errors.java:131)
+	at io.netty.channel.unix.Socket.finishConnect(Socket.java:359)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.doFinishConnect(AbstractEpollChannel.java:710)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.finishConnect(AbstractEpollChannel.java:687)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.epollOutReady(AbstractEpollChannel.java:567)
+	at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:499)
+	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:407)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+
+[ERROR] 2024-01-25 22:53:08,281 [gdb-3-search:7300-rpc-client-0 | c.o.g.r.g.RpcNodeClient] Unable to send streaming entry to gdb-3-search:7300 due to: 
+io.grpc.StatusRuntimeException: UNAVAILABLE: io exception
+	at io.grpc.Status.asRuntimeException(Status.java:537)
+	at io.grpc.stub.ClientCalls$StreamObserverToCallListenerAdapter.onClose(ClientCalls.java:481)
+	at io.grpc.internal.ClientCallImpl.closeObserver(ClientCallImpl.java:574)
+	at io.grpc.internal.ClientCallImpl.access$300(ClientCallImpl.java:72)
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInternal(ClientCallImpl.java:742)
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInContext(ClientCallImpl.java:723)
+	at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+	at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
+	at common.GraphDBMDCExecutorBuilder.lambda$wrap$1(GraphDBMDCExecutorBuilder.java:200)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: io.netty.channel.AbstractChannel$AnnotatedConnectException: finishConnect(..) failed: Connection refused: gdb-3-search/172.20.0.7:7300
+Caused by: java.net.ConnectException: finishConnect(..) failed: Connection refused
+	at io.netty.channel.unix.Errors.newConnectException0(Errors.java:166)
+	at io.netty.channel.unix.Errors.handleConnectErrno(Errors.java:131)
+	at io.netty.channel.unix.Socket.finishConnect(Socket.java:359)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.doFinishConnect(AbstractEpollChannel.java:710)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.finishConnect(AbstractEpollChannel.java:687)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.epollOutReady(AbstractEpollChannel.java:567)
+	at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:499)
+	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:407)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+```
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->

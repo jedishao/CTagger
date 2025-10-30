@@ -1,0 +1,38 @@
+Issue with inserting data to decimal columns with scale 0 in watsonx.data (iceberg connector) using presto jdbc driver
+There is an issue with inserting data to decimal columns with scale 0 in watsonx.data (iceberg connector) using presto jdbc driver.
+
+## Your Environment
+* Presto version used: presto-jdbc-0.293.jar
+* Data source and connector used: watsonx.data (iceberg connector) CPD v2.1.3
+
+## Expected Behavior
+Presto should not throw an error when inserting a value for a decimal column with scale 0
+
+## Current Behavior
+1. Table DDL:
+	`create table iceberg_data.s1.dectab1(id int not null, dec1 decimal(3,0) not null);`
+	
+2. insert stmt:
+	`insert into iceberg_data.s1.dectab1 values(1, 11);`
+	SQL Error [1]: Query failed (#20250801_063640_00184_untjv): line 1:48: Mismatch at column 2: 'dec1' is of type decimal(3,0) but expression is of type integer
+	
+	`insert into iceberg_data.s1.dectab1 values(1, 11.0);`
+	SQL Error [1]: Query failed (#20250801_063659_00185_untjv): line 1:48: Mismatch at column 2: 'dec1' is of type decimal(3,0) but expression is of type decimal(3,1)
+	
+	`insert into iceberg_data.s1.dectab1 values (1, 12.34);`
+	SQL Error [1]: Query failed (#20250801_063558_00183_untjv): line 1:48: Mismatch at column 2: 'dec1' is of type decimal(3,0) but expression is of type decimal(4,2)
+	
+3. The workarounds are to use a cast or insert with a dot(.)
+	
+	`insert into iceberg_data.s1.dectab1 values (1, 11.);`
+			--> this passes
+			
+	`insert into iceberg_data.s1.dectab1 values (2,CAST(12 AS DECIMAL(3,0)));`
+			--> this also passes
+	
+
+## Context 
+In our code base, we have a generic code for all JDBC drivers, and presto is not allowing us to use that for decimal column types since we cannot insert a value without a dot(.) or a cast.
+1. cast is not efficient for every query especially when we have a big batch with multiple decimal columns in our table.
+2. Why is presto causing this issue for watsonx.data (iceberg connector) ? 
+

@@ -1,0 +1,38 @@
+org.redisson.client.WriteRedisConnectionException: Unable to write command into connection! After restarting redis cluster.
+Spring Boot version: 3.2.5
+Java version: 21 (also tested on 17) NOT using virtual threads
+Redis version: 7.2.4
+Redission version: 3.30.0 (tested on 3.29.0, 3.28.0, 3.27.2)
+Redisson configuration:
+<details>
+
+```yaml
+clusterServersConfig:
+    password: ...
+    nodeAddresses:
+        - "redis://...:6379" # 6 addresses
+    readMode: "MASTER"
+    subscriptionMode: "SLAVE"
+    masterConnectionMinimumIdleSize: 24
+    masterConnectionPoolSize: 64
+    slaveConnectionMinimumIdleSize: 24
+    slaveConnectionPoolSize: 64
+checkLockSyncedSlaves: false
+```
+</details>
+
+We run a 6 node redis cluster in kubernetes. When performing a rolling restart of all nodes one by one, after restarting the final node, redisson fails to properly reconnect for the case of Redis health check in Spring Boot.
+
+**Expected behavior**
+Rollout finishes and redisson continues communicating with newly started nodes.
+
+**Actual behavior**
+After rollout finishes, redisson starts spamming `WriteRedisConnectionException` and `CancellationException` until the application instance is restarted.
+Truncated log: [app.log](https://github.com/redisson/redisson/files/15276210/app.log)
+
+**Steps to reproduce or test case**
+Spring boot application using Redisson with enabled redis health check on application readiness probe.
+Perform a rollout of all 6 redis cluster nodes.
+
+As far as I can tell, this behavior started between version 3.27.2 and 3.28.0.
+3.27.2 is OK, any version afterwards is NOK.

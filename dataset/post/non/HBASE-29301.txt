@@ -1,0 +1,4 @@
+Fix AggregrateImplementation pagination logic
+My contribution in HBASE-28770 contains a bug that is exposed under certain conditions. When using AsyncAggregationClient (not AggregationClient), the client signals that it can accept partial results. On the server side, this triggers AggregateImplementation to check quotas prior to each cell that it scans, and return as soon as a throttle is violated, even if the result is not complete. The client will sleep and then make a request for the next chunk of results.
+
+However, when AggregateImplementation violates a throttle before finding any results at all, it returns a result to the client that says the results are empty and complete, so the client should not request any more. Under high load, this can happen and lead to the client receiving incomplete results that the server says are complete.

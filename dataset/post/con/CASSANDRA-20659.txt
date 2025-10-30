@@ -1,0 +1,16 @@
+Gossip doesn't converge due to race condition when updating EndpointStates multiple fields
+The issue seen is during shrinks or token moves the cluster gets into a state where some of the nodes never converge and see the latest STATUS state for the changed peers.
+
+In testing this it was found that:
+
+1) org.apache.cassandra.gms.Gossiper#applyStateLocally expects to run in a single thread, so doesn't take any locks
+2) org.apache.cassandra.gms.Gossiper.GossipTask runs in another thread and uses a taskLock to avoid sending partial state
+3) org.apache.cassandra.gms.Gossiper#applyNewStates gets called when the generation matches, and tries to apply the state sequentially.
+
+The theory (and test) is
+
+1) localState.setHeartBeatState(remoteState.getHeartBeatState()); runs
+2) something (gossip or paxos) read the state
+3) localState.addApplicationStates(updatedStates); updates the state
+
+the "something" in step 2 sends around the heartbeat which cause others to see a higher max version, so the delta logic won't see the mutations done in step 3

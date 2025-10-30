@@ -1,0 +1,36 @@
+pulsar-shell CTRL-C during shell operation should not print stacktrace
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+In the Pulsar-Shell of 3.2.2, an exception specifically `org.apache.pulsar.shell.PulsarShell$InterruptShellException` occurs, disrupting the execution flow when a user presses Ctrl-C during shell operation and it prints the below stack trace.
+```
+^CException in thread "SIGINT handler" org.apache.pulsar.shell.PulsarShell$InterruptShellException
+	at org.apache.pulsar.shell.PulsarShell.lambda$run$2(PulsarShell.java:230)
+	at org.jline.terminal.impl.AbstractTerminal.raise(AbstractTerminal.java:89)
+	at org.jline.terminal.impl.PosixSysTerminal.lambda$handle$1(PosixSysTerminal.java:65)
+	at org.jline.utils.Signals.lambda$register$1(Signals.java:53)
+	at jdk.proxy2/jdk.proxy2.$Proxy3.handle(Unknown Source)
+	at jdk.unsupported/sun.misc.Signal$InternalMiscHandler.handle(Signal.java:198)
+	at java.base/jdk.internal.misc.Signal$1.run(Signal.java:219)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+```
+
+### Solution
+
+The problem is to simply NOT log the the full stack trace. To deal with this interruption smoothly, developers can use special tools for handling problems. They can wrap specific parts of their code in a safety net called a try-catch structure. This helps them catch and deal with the issue caused by pressing Ctrl-C, without showing all the confusing details(stack trace). Instead, they can show just print a message stating that the shell operation is interrupted.
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

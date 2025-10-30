@@ -1,0 +1,6 @@
+ObjectStore updatePartitionColumnStatisticsInBatch can cause connection starvation 
+Since HIVE-26419, we have a secondary connection pool for schema generation, and for value generation operations, the size of this pool is 2. However, based on DataNucleus documentation on datanucleus.ConnectionFactory2, link:
+
+[https://www.datanucleus.org/products/accessplatform_5_0/jdo/persistence.html]
+
+the secondary pool also serves for nontransactional connections, which makes the ObjectStore updatePartitionColumnStatisticsInBatch request the connection from this pool, as it doesn't open a transaction explicitly. If there is a slow on inserting or updating the column statistics, the pool will become unavailable quickly(the pool reaches its maximum size), the ObjectStore cloud see the "Connection is not available, request timed out" under such a situation.

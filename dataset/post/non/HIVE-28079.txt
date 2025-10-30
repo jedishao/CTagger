@@ -1,0 +1,25 @@
+Metastore schema validation fails on PostgreSQL with multiple schemas
+Hive metastore connections to PostgreSQL databases containing more than one schema can cause the schema validation task to fail when the metastore is restarted. In HiveSchemaTool we see a call to getSchema(), which grabs the current schema for the database connection.
+{code:java}
+    LOG.debug("Validating tables in the schema for version " + version);
+    try {
+      String schema = null;
+      try {
+        schema = hmsConn.getSchema();
+      } catch (SQLFeatureNotSupportedException e) {
+        LOG.debug("schema is not supported");
+      } {code}
+If this schema is not the one that contains the Hive metastore tables then the validation check fails and triggers an attempt to create the tables. This then fails because the tables are already there.
+
+The scenario can occur if the hive database is set up with PostgreSQL HA replication and the `repmgr` schema is created in the same database as Hive. In the logs below we see HiveSchemaTool attempting to validate the list of tables in the repmgr schema against the list list of tables it expects to find. 
+{noformat}
+Validating metastore schema tables
+2024-02-15T14:55:07,608 DEBUG [main] beeline.HiveSchemaTool: Validating tables in the schema for version 3.1.0
+2024-02-15T14:55:07,613 DEBUG [main] beeline.HiveSchemaTool: Found table events in HMS dbstore
+2024-02-15T14:55:07,613 DEBUG [main] beeline.HiveSchemaTool: Found table monitoring_history in HMS dbstore
+2024-02-15T14:55:07,613 DEBUG [main] beeline.HiveSchemaTool: Found table nodes in HMS dbstore
+2024-02-15T14:55:07,613 DEBUG [main] beeline.HiveSchemaTool: Found table voting_term in HMS dbstore
+2024-02-15T14:55:07,614 DEBUG [main] beeline.HiveSchemaTool: Parsing schema script /stackable/hive/scripts/metastore/upgrade/postgres/hive-schema-3.1.0.postgres.sql
+2024-02-15T14:55:07,615 DEBUG [main] beeline.HiveSchemaTool: Found table BUCKETING_COLS in the schema
+2024-02-15T14:55:07,616 DEBUG [main] beeline.HiveSchemaTool: Found table CDS in the schema
+2024-02-15T14:55:07,616 DEBUG [main] beeline.HiveSchemaTool: Found table COLUMNS_V2 in the schema{noformat}

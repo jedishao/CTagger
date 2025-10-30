@@ -1,0 +1,42 @@
+Verticle instance leak when using shared servers
+### Version
+
+4.5.11, probably 5.x too
+
+### Context
+
+We've encountered some memory leaks related to quite frequently deploying and undeploying verticles, and where verticles are starting Http Servers. The started http servers all share the same port number. Rough timeline:
+
+1. First verticle deployed and starts a http server
+2. Verticles are deployed and undeployed quite frequently - they start http servers using the same port and address as the first server
+
+Now, the started http servers use the first server under the hood since it was the first one to start listening - and they correctly register and unregister themselves as workers on the first server, however:
+
+1. There's a `Set<TCPServerBase> servers` in TCPServerBase (vert.x 4) or `Set<NetServerImpl> servers` in NetServerImpl (vert.x 5)
+2. All subsequent http servers seem to append themselves to this field on the first server
+3. But they don't seem to remove themselves when the server is closed
+4. Thus, the first server keeps a strong reference to all closed http servers
+5. Thus, all closed servers keep a strong reference to the (closed) context
+6. Thus, keeping a reference to the deployment
+7. Thus, keeping a reference to undeployed verticles etc.
+
+As I understand this, all these objects will be kept alive until all the server for the "address & port combination" have been closed for at least Vert.x 4, but probably Vert.x 5 too.
+
+For reference, retention path for a dead verticle from a memory dump:
+
+![Image](https://github.com/user-attachments/assets/856704f7-48f0-407a-bf75-59d1141649e1)
+
+My interpretation is that in TCPServerBase.close, in addition to calling balancer.removeWorker, actualServer.servers.remove(this) should also be called (Vert.x 4)
+
+I think that the same would be done in NetServerImpl.doShutdown for Vert.x 5..?
+
+
+### Steps to reproduce
+
+1. Deploy verticle with one http server on port X
+2. Deploy and undeploy a verticle continuosly. Let the verticle start a http server on the same port X.
+3. Observe the undeployed verticles in step 2 being leaked
+
+### Do you have a reproducer?
+
+_No response_

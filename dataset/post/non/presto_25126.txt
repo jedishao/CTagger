@@ -1,0 +1,13 @@
+Presto Router tests are flaky
+Many PRs are currently timing out in `test-other-modules` due to the Presto Router tests.  They seem to be continuously polling for cluster updates, but likely the cluster has failed (example snippet below):
+
+```
+2025-05-15T09:41:37.9536312Z 2025-05-15T03:41:37.930-0600	WARN	query-info-poller-0	com.facebook.presto.router.cluster.RemoteState	Error fetching query infos from http://127.0.0.1:34435/v1/query: AuthorizationPreservingHttpClient@6dac6e6c{STOPPED} is stopped
+2025-05-15T09:41:37.9538247Z 2025-05-15T03:41:37.930-0600	WARN	query-info-poller-0	com.facebook.presto.router.cluster.RemoteState	Error fetching query infos from http://127.0.0.1:42981/v1/query: AuthorizationPreservingHttpClient@6dac6e6c{STOPPED} is stopped
+2025-05-15T09:41:37.9539684Z 2025-05-15T03:41:37.930-0600	WARN	query-info-poller-0	com.facebook.presto.router.cluster.RemoteState	Error fetching query infos from http://127.0.0.1:40097/v1/query: AuthorizationPreservingHttpClient@6dac6e6c{STOPPED} is stopped
+2025-05-15T09:41:38.0321070Z ##[debug]Re-evaluate condition on job cancellation for step: 'Maven Tests'.
+2025-05-15T09:41:38.9535032Z 2025-05-15T03:41:38.868-0600	WARN	http-client-query-tracker-622	com.facebook.presto.router.cluster.RemoteState	Error fetching query infos from http://127.0.0.1:38625/v1/cluster: Server refused connection: http://127.0.0.1:38625/v1/cluster
+2025-05-15T09:41:38.9537047Z 2025-05-15T03:41:38.868-0600	WARN	http-client-query-tracker-619	com.facebook.presto.router.cluster.RemoteState	Error fetching query infos from 
+```
+
+Taking from: https://github.com/prestodb/presto/actions/runs/15033517592/job/42271007201?pr=25116

@@ -1,0 +1,108 @@
+[Bug] Endless loop when shutting down pulsar while a health check request is on going
+### Search before reporting
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that [unsupported versions](https://pulsar.apache.org/contribute/release-policy/#supported-versions) don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### User environment
+
+docker image apachepulsar/pulsar:4.0.5
+java pulsar client 4.0.5
+
+
+
+### Issue Description
+
+When shutting down the standelone pulsar 4.0.5, it stops bookkeeper before stopping accepting new pulsar messages. As the result, the broker retry forever to write to bookkeeper, but never succeed, and never stop gracefully. This happens with sending regular messages or even just health check requests.
+
+### Error messages
+
+```text
+2025-07-22 11:36:18 Caused by: org.apache.bookkeeper.client.BKException$BKBookieHandleNotAvailableException: Bookie handle is not available
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.BKException.create(BKException.java:77) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp.submitCallback(PendingReadOp.java:161) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.ReadOpBase$LedgerEntryRequest.fail(ReadOpBase.java:164) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp$SequenceReadRequest.sendNextRead(PendingReadOp.java:349) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp$SequenceReadRequest.logErrorAndReattemptRead(PendingReadOp.java:392) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp.readEntryComplete(PendingReadOp.java:101) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.proto.BookieClientImpl.lambda$completeRead$7(BookieClientImpl.java:352) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.common.util.SingleThreadExecutor.safeRunTask(SingleThreadExecutor.java:137) ~[org.apache.bookkeeper-bookkeeper-common-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.common.util.SingleThreadExecutor.run(SingleThreadExecutor.java:113) ~[org.apache.bookkeeper-bookkeeper-common-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.121.Final.jar:4.1.121.Final]
+2025-07-22 11:36:18 at java.base/java.lang.Thread.run(Unknown Source) [?:?]
+2025-07-22 11:36:18 2025-07-22T09:36:18,826+0000 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.pulsar.broker.admin.impl.BrokersBase - [null] Failed to run health check.
+2025-07-22 11:36:18 java.util.concurrent.CompletionException: org.apache.pulsar.broker.service.BrokerServiceException$PersistenceException: org.apache.bookkeeper.mledger.ManagedLedgerException$ManagedLedgerInterceptException: org.apache.bookkeeper.client.BKException$BKBookieHandleNotAvailableException: Bookie handle is not available
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.encodeRelay(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.completeRelay(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture$UniRelay.tryFire(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.postComplete(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at org.apache.pulsar.broker.service.BrokerService$2.openLedgerFailed(BrokerService.java:1898) ~[org.apache.pulsar-pulsar-broker-4.0.5.jar:4.0.5]
+2025-07-22 11:36:18 at org.apache.bookkeeper.mledger.impl.ManagedLedgerFactoryImpl.lambda$asyncOpen$10(ManagedLedgerFactoryImpl.java:471) ~[org.apache.pulsar-managed-ledger-4.0.5.jar:4.0.5]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.uniExceptionally(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture$UniExceptionally.tryFire(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.postComplete(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at org.apache.bookkeeper.mledger.impl.ManagedLedgerFactoryImpl$2.initializeFailed(ManagedLedgerFactoryImpl.java:462) ~[org.apache.pulsar-managed-ledger-4.0.5.jar:4.0.5]
+2025-07-22 11:36:18 at org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl$1.lambda$operationComplete$1(ManagedLedgerImpl.java:444) ~[org.apache.pulsar-managed-ledger-4.0.5.jar:4.0.5]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.uniExceptionally(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture$UniExceptionally.tryFire(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.postComplete(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl.lambda$createLastEntryHandle$0(ManagedLedgerImpl.java:494) ~[org.apache.pulsar-managed-ledger-4.0.5.jar:4.0.5]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.postComplete(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source) ~[?:?]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp.submitCallback(PendingReadOp.java:161) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.ReadOpBase$LedgerEntryRequest.fail(ReadOpBase.java:164) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp$SequenceReadRequest.sendNextRead(PendingReadOp.java:349) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp$SequenceReadRequest.logErrorAndReattemptRead(PendingReadOp.java:392) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.PendingReadOp.readEntryComplete(PendingReadOp.java:101) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.proto.BookieClientImpl.lambda$completeRead$7(BookieClientImpl.java:352) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.common.util.SingleThreadExecutor.safeRunTask(SingleThreadExecutor.java:137) ~[org.apache.bookkeeper-bookkeeper-common-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at org.apache.bookkeeper.common.util.SingleThreadExecutor.run(SingleThreadExecutor.java:113) ~[org.apache.bookkeeper-bookkeeper-common-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.121.Final.jar:4.1.121.Final]
+2025-07-22 11:36:18 at java.base/java.lang.Thread.run(Unknown Source) [?:?]
+2025-07-22 11:36:18 Caused by: org.apache.pulsar.broker.service.BrokerServiceException$PersistenceException: org.apache.bookkeeper.mledger.ManagedLedgerException$ManagedLedgerInterceptException: org.apache.bookkeeper.client.BKException$BKBookieHandleNotAvailableException: Bookie handle is not available
+2025-07-22 11:36:18 ... 27 more
+2025-07-22 11:36:18 Caused by: org.apache.bookkeeper.mledger.ManagedLedgerException$ManagedLedgerInterceptException: org.apache.bookkeeper.client.BKException$BKBookieHandleNotAvailableException: Bookie handle is not available
+2025-07-22 11:36:18 Caused by: org.apache.bookkeeper.client.BKException$BKBookieHandleNotAvailableException: Bookie handle is not available
+2025-07-22 11:36:18 at org.apache.bookkeeper.client.BKException.create(BKException.java:77) ~[org.apache.bookkeeper-bookkeeper-server-4.17.1.jar:4.17.1]
+2025-07-22 11:36:18 ... 10 more
+2025-07-22 11:36:18 2025-07-22T09:36:18,834+0000 [BookKeeperClientWorker-OrderedExecutor-0-0] INFO  org.eclipse.jetty.server.RequestLog - 172.17.0.1 - - [22/Jul/2025:09:36:18 +0000] "GET /admin/v2/brokers/health?topicVersion=V1 HTTP/1.1" 500 4500 "-" "Pulsar-Java-v4.0.5" 814
+2025-07-22 11:36:18 2025-07-22T09:36:18,994+0000 [pulsar-web-49-12] INFO  org.apache.pulsar.broker.service.HealthChecker - [null] Running healthCheck with topic=persistent://pulsar/standalone/localhost:8080/healthcheck
+2025-07-22 11:36:18 2025-07-22T09:36:18,997+0000 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - Opening managed ledger pulsar/standalone/localhost:8080/persistent/healthcheck
+2025-07-22 11:36:22 2025-07-22T09:36:22,085+0000 [pulsar-io-18-7] ERROR org.apache.bookkeeper.proto.PerChannelBookieClient - Could not connect to bookie: [id: 0x1c41006f, L:/172.17.0.2:42906]/172.17.0.4:39353, current state CONNECTING :
+2025-07-22 11:36:22 io.netty.channel.AbstractChannel$AnnotatedNoRouteToHostException: null: /172.17.0.4:39353
+2025-07-22 11:36:22 Caused by: java.net.NoRouteToHostException
+```
+
+### Reproducing the issue
+
+Run a standalone pulsar testcontainers version 4.0.5, 
+
+container = new PulsarContainer(DEFAULT_IMAGE_NAME.withTag("4.0.5"))
+                .withFileSystemBind(dataDir.getAbsolutePath().toString(), "/pulsar/data", BindMode.READ_WRITE)
+                .withEnv("PULSAR_PREFIX_brokerDeduplicationEnabled", "true")
+                .withEnv("PULSAR_PREFIX_allowAutoTopicCreationType", "partitioned")
+                .withEnv("PULSAR_PREFIX_defaultNumPartitions", "3")
+                .withEnv("PULSAR_PREFIX_brokerEntryMetadataInterceptors", "org.apache.pulsar.common.intercept.AppendIndexMetadataInterceptor")
+                .withEnv("PULSAR_PREFIX_exposingBrokerEntryMetadataToClientEnabled", "true");
+
+Send messages or check health continuously and try to stop the container (admin.brokers().shutDownBrokerGracefully()). 
+
+It loops forever without stopping with the provided logs.
+
+### Additional information
+
+It's a race condition, so it's not always occuring but if you run many tests, it happens.
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

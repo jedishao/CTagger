@@ -1,0 +1,75 @@
+org.apache.druid.java.util.common.IAE: Should only have one interval
+### Affected Version
+
+The Druid version 27.0.0-20230901-fefa9a3
+
+### Description
+Druid supports list of intervals, but not when doing `join` over two `groupBy` queries.
+Exactly the same error can be reproduced on short `groupBy` query over inline datasource. 
+
+```json
+{
+  "queryType": "groupBy",
+  "dimensions": ["user_id", "brand_name"],
+  "granularity": "month",
+  "aggregations": [
+    {"fieldName": "weight", "name": "weight", "type": "longAny"}
+  ],
+  "intervals": [
+    "2022-02/2022-03",
+    "2022-04/2022-05"
+  ],
+  "dataSource": {
+    "type": "inline",
+    "name": "fake_datasource",
+    "columnNames": ["__time", "user_id", "weight", "brand_name"],
+    "rows": [
+      [1643673600000, "A", 1, "Apple"],
+      [1646092800000, "A", 2, "Apple"],
+      [1648771200000, "A", 3, "Apple"]
+    ]
+  }
+}
+```
+Output
+```
+Error: RUNTIME_FAILURE (OPERATOR)
+
+java.util.concurrent.ExecutionException: org.apache.druid.java.util.common.IAE: Should only have one interval, got[[2022-02-01T00:00:00.000Z/2022-03-01T00:00:00.000Z, 2022-04-01T00:00:00.000Z/2022-05-01T00:00:00.000Z]]
+
+java.lang.RuntimeException
+```
+
+---
+Query works when interval is replaced just with "2022-02/2022-05". See query and output here
+
+```json
+{
+  "queryType": "groupBy",
+  "dimensions": ["user_id", "brand_name"],
+  "granularity": "month",
+  "aggregations": [
+    {"fieldName": "weight", "name": "weight", "type": "longAny"}
+  ],
+  "intervals": [
+    "2022-02/2022-05"
+  ],
+  "dataSource": {
+    "type": "inline",
+    "name": "fake_datasource",
+    "columnNames": ["__time", "user_id", "weight", "brand_name"],
+    "rows": [
+      [1643673600000, "A", 1, "Apple"],
+      [1646092800000, "A", 2, "Apple"],
+      [1648771200000, "A", 3, "Apple"]
+    ]
+  }
+}
+```
+Output
+```
+timestamp			user_id		weight		brand_name
+2022-02-01T00:00:00.000Z	A		1		Apple
+2022-03-01T00:00:00.000Z	A		2		Apple
+2022-04-01T00:00:00.000Z	A		3		Apple
+```

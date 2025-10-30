@@ -1,0 +1,11 @@
+S3A: retry on credential expiry
+Reported in AWS SDK https://github.com/aws/aws-sdk-java-v2/issues/3408
+
+bq. In RetryableStage execute method, the "AwsCredentails" does not attempt to renew if it has expired. Therefore, if a method called with the existing credential is expiring soon, the number of retry is less than intended due to the expiration of the credential.
+
+The stack from this report doesn't show any error detail we can use to identify the 400 exception as something we should be retrying on. This could be due to the logging, or it could actually hold. we've have to generate some socket credentials, let them expire and then see how hadoop fs commands failed. Something to do by hand as an STS test to do this is probably slow. *unless we expire all session credentials of a given role?*. Could be good, would be traumatic for other test runs though.
+
+{code}
+software.amazon.awssdk.services.s3.model.S3Exception: The provided token has expired. (Service: S3, Status Code: 400, Request ID: 3YWKVBNJPNTXPJX2, Extended Request ID: GkR56xA0r/Ek7zqQdB2ZdP3wqMMhf49HH7hc5N2TAIu47J3HEk6yvSgVNbX7ADuHDy/Irhr2rPQ=)
+
+{code}

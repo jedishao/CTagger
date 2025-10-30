@@ -1,0 +1,13 @@
+Batch calls to overloaded cluster can cause meta hotspotting
+Somewhat related to https://issues.apache.org/jira/browse/HBASE-27487
+
+ 
+In HBase 2.X, the AsyncRequestFutureImpl will clear the meta cache if it receives a batch call that fails to execute. When AsyncRequestFutureImpl receives an exception from a multi call, it will call receiveGlobalFailure and force a meta cache clear, even if the exception received does not usually trigger meta cache clears. 
+
+ 
+
+This can cause issues on HBase clusters that are currently overloaded. If a server is overloaded, it can force clients to repeatedly clear meta cache, causing a meta hotspot, which further slows down queries. I'm not entirely sure why we force meta cache clears, but I think we should exempt exceptions that indicate that a server is overloaded from clearing the meta cache. 
+
+ 
+
+I'm also open to only clearing the meta cache if the exception received is a cache clearing exception, but I'd need to make sure this doesn't invalidate some assumptions made when the code was first written.

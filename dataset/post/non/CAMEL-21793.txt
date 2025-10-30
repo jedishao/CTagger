@@ -1,0 +1,13 @@
+camel-kamelets - Kamelets and excessive load causes ConcurrentModificationException
+When calling a route that has lots of kamelets we see that ends points fail to be created with the route cause being a concurrent java.util.ConcurrentModificationException when validateUniqueIds is called from addRouteToTemplate.
+
+Caused by: java.util.ConcurrentModificationException
+    at java.base/java.util.ArrayList$Itr.checkForComodification(ArrayList.java:1013)
+    at java.base/java.util.ArrayList$Itr.next(ArrayList.java:967)
+    at org.apache.camel.model.RouteDefinitionHelper.validateUniqueIds(RouteDefinitionHelper.java:268)
+    at org.apache.camel.impl.DefaultModel.addRouteFromTemplate(DefaultModel.java:536)
+    at org.apache.camel.impl.DefaultModel.addRouteFromTemplate(DefaultModel.java:416)
+    at org.apache.camel.impl.DefaultCamelContext.addRouteFromTemplate(DefaultCamelContext.java:362)
+    at org.apache.camel.component.kamelet.KameletComponent$LifecycleHandler.createRouteForEndpoint(KameletComponent.java:433)
+
+Attached is a log and a repeatable route.  I think the error could be solved with making DefaultModel.routeDefinitions a concurrent list but I cannot build this locally due to network/company setup issues to try.  

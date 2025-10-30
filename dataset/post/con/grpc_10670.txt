@@ -1,0 +1,6 @@
+Race condition in BinderTransportSecurity
+As raised in [this comment](https://github.com/grpc/grpc-java/pull/10633#discussion_r1393365912), there is a race conditions when performing authorization checks. A concurrent hashmap is used to cache the checks, but [the read](https://github.com/grpc/grpc-java/blob/2b65e660c0bcf7043b0f83d27eb42d135661eaf7/binder/src/main/java/io/grpc/binder/internal/BinderTransportSecurity.java#L122) and [the write](https://github.com/grpc/grpc-java/blob/2b65e660c0bcf7043b0f83d27eb42d135661eaf7/binder/src/main/java/io/grpc/binder/internal/BinderTransportSecurity.java#L141) to such map do not happen atomically.
+
+Thus, it's possible for 2 threads from concurrent requests to believe there is no cached check, each starts its own check and just one of them gets added to the map.
+
+This is likely harmless for now, just wasteful.

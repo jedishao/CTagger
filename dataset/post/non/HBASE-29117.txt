@@ -1,0 +1,54 @@
+Kerby version conflict with Hadoop 3.4
+HBase dependencyManages some kerby artifacts to 1.0.1.
+However, Hadoop 3.4 uses Kerby 2.0.3. 
+
+This causes org.apache.phoenix.jdbc.SecureUserConnectionsIT in Phoenix to fail with 
+
+
+{noformat}
+[ERROR] org.apache.phoenix.jdbc.SecureUserConnectionsIT -- Time elapsed: 0.003 s <<< ERROR!
+java.lang.NoClassDefFoundError: org/apache/kerby/kerberos/kerb/request/KrbIdentity
+        at org.apache.kerby.kerberos.kerb.admin.kadmin.local.AdminHelper.createIdentity(AdminHelper.java:262)
+        at org.apache.kerby.kerberos.kerb.admin.kadmin.local.LocalKadminImpl.addPrincipal(LocalKadminImpl.java:185)
+        at org.apache.kerby.kerberos.kerb.admin.kadmin.local.LocalKadminImpl.addPrincipal(LocalKadminImpl.java:178)
+        at org.apache.kerby.kerberos.kerb.admin.kadmin.local.LocalKadminImpl.createBuiltinPrincipals(LocalKadminImpl.java:137)
+        at org.apache.kerby.kerberos.kerb.server.SimpleKdcServer.init(SimpleKdcServer.java:159)
+        at org.apache.hadoop.minikdc.MiniKdc.start(MiniKdc.java:282)
+        at org.apache.phoenix.jdbc.SecureUserConnectionsIT.setupKdc(SecureUserConnectionsIT.java:86)
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+        at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+        at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+        at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+        at org.junit.internal.runners.statements.RunBefores.invokeMethod(RunBefores.java:33)
+        at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:24)
+        at org.junit.internal.runners.statements.RunAfters.evaluate(RunAfters.java:27)
+        at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+        at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+        at org.junit.runners.Suite.runChild(Suite.java:128)
+        at org.junit.runners.Suite.runChild(Suite.java:27)
+        at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+        at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+        at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+        at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+        at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+        at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+        at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+        at org.apache.maven.surefire.junitcore.JUnitCore.run(JUnitCore.java:49)
+        at org.apache.maven.surefire.junitcore.JUnitCoreWrapper.createRequestAndRun(JUnitCoreWrapper.java:120)
+        at org.apache.maven.surefire.junitcore.JUnitCoreWrapper.executeEager(JUnitCoreWrapper.java:95)
+        at org.apache.maven.surefire.junitcore.JUnitCoreWrapper.execute(JUnitCoreWrapper.java:75)
+        at org.apache.maven.surefire.junitcore.JUnitCoreWrapper.execute(JUnitCoreWrapper.java:69)
+        at org.apache.maven.surefire.junitcore.JUnitCoreProvider.invoke(JUnitCoreProvider.java:146)
+        at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+        at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+        at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+        at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+Caused by: java.lang.ClassNotFoundException: org.apache.kerby.kerberos.kerb.request.KrbIdentity
+        at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:581)
+        at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:178)
+        at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:527)
+        ... 38 more
+{noformat}

@@ -1,0 +1,10 @@
+Rethink dumping of cluster metadata via CMSOperationsMBean
+I think there are two problems in the implementation of dumping ClusterMetadata in CMSOperationsMBean
+
+1) A dump is saved in a file and dumpClusterMetadata methods will return just a file name where that dump is. However, nodetool / JMX call to MBean (or any place this method is invoked from, we would like to offer a command in nodetool which returns the dump) is meant to be used from anywhere, remotely, so what happens when we execute nodetool or call these methods on a machine different from a machine a node runs on? E.g. admins can just have some jumpbox to a cluster they manage, they do not necessarily have access to nodes themselves. So they would not be able to read it.
+
+2) It creates temp file which is not deleted so /tmp will be populated with these dumps until node is turned off which might take a lot of time and can consume a lot of disk space if dumps are done frequently and they are big. An adversary might just dump cluster metadata until no disk space is left.
+
+What I propose is that we would return all dump string, not just a filename where we save it. We can also format the output on the client or we can tell server what format we want the dump to be returned in. 
+
+If there is a concern about size of data to be returned, we might optionally allow dumps to be returned as compressed by simple zipping on server and unzipping on client where "zipper" is a standard java.util.zip so it basically doesn't matter what jvm runs on client and server.

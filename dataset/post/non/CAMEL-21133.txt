@@ -1,0 +1,18 @@
+camel-jbang: export a project using langchain4j-chat does not compile 
+When trying to export a project using the export feature, the resulting project does not compile due to the following error (see build.log attachment for details).
+
+Step 1: export the project
+{{camel export --dependency=dev.langchain4j:langchain4j-core:0.33.0 --dependency=dev.langchain4j:langchain4j-open-ai:0.33.0 --runtime=quarkus Weather.java}}
+
+Step 2: try to build the generated project
+{{mvn verify}}
+
+Result:
+Compilation fails with the following error:
+
+{{[error]: Build step io.quarkiverse.langchain4j.deployment.BeansProcessor#handleProviders threw an exception: io.quarkus.runtime.configuration.ConfigurationException: A ChatLanguageModel or StreamingChatLanguageModel bean was requested, but no langchain4j providers were configured. Consider adding an extension like 'quarkus-langchain4j-openai'}}
+
+
+The problem is that the generated project should be using {{io.quarkiverse.langchain4j:quarkus-langchain4j-core:0.16.4}} and {{io.quarkiverse.langchain4j:quarkus-langchain4j-openai:0.16.4}} instead. 
+
+Adjusting the {{pom.xml}} file to manually replace the dependencies solve the problem. 

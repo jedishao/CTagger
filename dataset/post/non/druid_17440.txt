@@ -1,0 +1,33 @@
+MV_CONTAINS function throwing NullPointerException
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+Druid 30.0.0
+
+
+### Description
+
+There is a task wherein we need to upgrade Druid from 29.0.0 to 30.0.0 and some SQL queries started to break. 
+Before the upgrade, the following SQL query worked. However, in Druid 30.0.0, this throws an NullPointerException.
+
+To verify this, we tested using the sample data from Druid docs and used the function and error still persisted.
+
+**v29.0.0** - the query/function still works
+![image](https://github.com/user-attachments/assets/8c55a9b6-570b-4e98-bd8c-7fcdde6b8aa2)
+
+
+**v30.0.0** - query fails (throws NullPointerException)
+![image](https://github.com/user-attachments/assets/5987ec70-0418-475b-bf1f-bd36e48b10af)
+
+
+Source data used: 
+`curl -O https://static.imply.io/example-data/kttm-nested-v2/kttm-nested-v2-2019-08-25.json.gz`
+
+Query used:
+```
+SELECT
+  MV_CONTAINS(JSON_QUERY_ARRAY(agent, '$.type'), 'Browser'),
+  agent,
+  session
+FROM "kttm" 
+```

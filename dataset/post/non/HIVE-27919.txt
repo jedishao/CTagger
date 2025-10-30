@@ -1,0 +1,71 @@
+Constant reduction in CBO does not work for FROM_UNIXTIME, DATE_ADD, DATE_SUB, TO_UNIX_TIMESTAMP
+Constant reduction (aka. constant folding) does not work in CBO for FROM_UNIXTIME, DATE_ADD, and DATE_SUB functions.
+
+Below, we outline the result of EXPLAIN CBO and plain EXPLAIN using some trivial constant inputs. Notice, that constant reduction is not present in the CBO plan but it is applied later on by the physical optimizer.
+
+{code:sql}
+SELECT FROM_UNIXTIME(1701088643)
+{code}
+{noformat}
+CBO PLAN:
+HiveProject(_o__c0=[FROM_UNIXTIME(1701088643)])
+  HiveTableScan(table=[[_dummy_database, _dummy_table]], table:alias=[_dummy_table])
+
+STAGE PLANS:
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        TableScan
+          alias: _dummy_table
+          Row Limit Per Split: 1
+          Select Operator
+            expressions: '2023-11-27 04:37:23' (type: string)
+            outputColumnNames: _col0
+            ListSink
+{noformat}
+
+{code:sql}
+SELECT DATE_ADD('2023-01-01', 1)
+{code}
+{noformat}
+CBO PLAN:
+HiveProject(_o__c0=[DATE_ADD(_UTF-16LE'2023-01-01':VARCHAR(2147483647) CHARACTER SET "UTF-16LE", 1)])
+  HiveTableScan(table=[[_dummy_database, _dummy_table]], table:alias=[_dummy_table])
+
+STAGE PLANS:
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        TableScan
+          alias: _dummy_table
+          Row Limit Per Split: 1
+          Select Operator
+            expressions: DATE'2023-01-02' (type: date)
+            outputColumnNames: _col0
+            ListSink
+{noformat}
+
+{code:sql}
+SELECT DATE_SUB('2023-01-01', 1)
+{code}
+{noformat}
+CBO PLAN:
+HiveProject(_o__c0=[DATE_SUB(_UTF-16LE'2023-01-01':VARCHAR(2147483647) CHARACTER SET "UTF-16LE", 1)])
+  HiveTableScan(table=[[_dummy_database, _dummy_table]], table:alias=[_dummy_table])
+
+STAGE PLANS:
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        TableScan
+          alias: _dummy_table
+          Row Limit Per Split: 1
+          Select Operator
+            expressions: DATE'2022-12-31' (type: date)
+            outputColumnNames: _col0
+            ListSink
+{noformat}
+The reason is that all the functions at the moment are (wrongly) declared as a dynamic functions and this by default prevents constant folding. The functions are not dynamic since they don't depend on context variables and require one or more parameters.

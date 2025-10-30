@@ -1,0 +1,31 @@
+S3A: ITests to run under JUnit5
+hadoop-aws tests which need to be parameterized on a class level
+are configured to do so through the @ParameterizedClass tag.
+Filesystem contract test suites in hadoop-common have
+also been parameterized as appropriate.
+
+There are custom JUnit tags declared in org.apache.hadoop.test.tags,
+which add tag strings to test suites/cases declaring them.
+They can be used on the command line and in IDEs to control
+which tests are/are not executed.
+
+@FlakyTest "flaky"
+@LoadTest "load"
+@RootFilesystemTest "rootfilesystem"
+@ScaleTest "scale"
+
+For anyone migrating tests to JUnit 5
+* Methods which subclass an existing test case MUST declare the @Test
+  tag again -it is no longer inherited.
+* All overridden setup/teardown methods MUST be located and
+  @BeforeEach/@AfterEach attribute added respectively
+* Subclasses of a parameterized test suite MUST redeclare themselves
+  as a @ParameterizedClass, and the binding mechanism again.
+* Parameterized test suites SHOULD declare a pattern to generate an
+  informative parameter value string for logs, IDEs and stack traces, e.g.
+  @ParameterizedClass(name="performance-{0}")
+* Test suites SHOULD add a org.apache.hadoop.test.tags tag to
+  declare what kind of test it is. These tags are inherited, so it
+  may be that only shared superclasses of test suites need to be tagged.
+  The abstract filesystem contract tests are NOT declared as integration
+  tests -implementations MUST do so if they are integration tests.

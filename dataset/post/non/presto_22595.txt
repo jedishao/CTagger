@@ -1,0 +1,60 @@
+[native] Native workers not writing Parquet data files for WriterVersion v1 (PARQUET_1_0)
+Native worker not writing Parquet data files for WriterVersion v1 (PARQUET_1_0)
+
+## Your Environment
+<!--- Include as many relevant details about the environment you experienced the bug in -->
+* Presto version used: 0.288-SNAPSHOT
+* Storage (HDFS/S3/GCS..): S3
+* Prestissimo Setup on Local
+
+## Expected Behavior
+When `set session hive.parquet_writer_version='PARQUET_1_0';` 
+Parquet data should be written in format_version 1
+
+## Current Behavior
+Even if when setting `set session hive.parquet_writer_version='PARQUET_1_0';` Parquet data is written in format_version: 2.6
+
+## Possible Solution
+
+## Steps to Reproduce
+```
+presto:reetika_testdb> set session hive.parquet_writer_version='PARQUET_1_0';
+SET SESSION
+
+presto:reetika_testdb> create table hive.reetika_testdb.test_insert (id int) with (format = 'Parquet');
+CREATE TABLE
+
+presto:reetika_testdb> insert into hive.reetika_testdb.test_insert values(1);
+INSERT: 1 row
+```
+
+Sample Output of Parquet File -
+
+```
+############ file meta data ############
+created_by: parquet-cpp-velox
+num_columns: 1
+num_rows: 1
+num_row_groups: 1
+format_version: 2.6
+serialized_size: 146
+
+
+############ Columns ############
+id
+
+############ Column(id) ############
+name: id
+path: id
+max_definition_level: 1
+max_repetition_level: 0
+physical_type: INT32
+logical_type: None
+converted_type (legacy): NONE
+compression: GZIP (space_saved: -56%)
+```
+## Screenshots (if appropriate)
+
+## Context
+Looks like the session property for `parquet_writer_version` is not honored in Prestissimo. Same works fine with Jave Parquet Writer
+

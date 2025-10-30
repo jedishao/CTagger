@@ -1,0 +1,6 @@
+CEP-45: Failure recovery
+When one or more nodes have been out of contact long enough that we’ve truncated our logs without having fully reconciled them, we'll need to transmit sstables containing data belonging to truncated coordinator logs once the partitioned nodes become reachable again.
+
+The special case here is doing a bulk transfer where some of the nodes reconciled the initial mutations and are therefore not receiving data via the bulk transfer, and those need to be handled as equivalent to nodes having received the bulk transfer.
+
+The obvious use case for this is a node being down for some extended period of time. However the implementation also needs to work for split local quorum use cases. For instance, if we have 2 DCs that are partitioned, we should still be able to do reads and writes against each DC at local quorum without any issues, and the reconciliation process shouldn’t cause any latency/availability issues once the partition is healed.

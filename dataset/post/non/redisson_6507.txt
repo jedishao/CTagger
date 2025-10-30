@@ -1,0 +1,21 @@
+Redisson Cluster Client - Add option to force using node IP address instead of hostname
+**Is your feature request related to a problem? Please describe.**
+
+I run a Redis cluster on Kubernetes, where each Redis node is a Kubernetes pod and the Redis node hostname is announced in `CLUSTER NODES` command. Starting at [this commit](https://github.com/redisson/redisson/commit/2c2ce4ddb0b2e1322466bf307ca2e6b2199d3715), Redisson fails to connect to all cluster nodes with a DNS lookup error (NXDOMAIN). This happens because that commit causes Redisson to parse the hostname out of the `CLUSTER NODES` response. On my kubernetes environment, this hostname is the pod's name. Pods cannot be reached directly by the hostname - it can only be reached by IP.
+
+After connecting to initial node, Redisson cluster client connection manager calls the `CLUSTER NODES` command [here](https://github.com/redisson/redisson/blob/fe1a423ad19d6b7a671ae09ea4f0944a98829a99/redisson/src/main/java/org/redisson/connection/ClusterConnectionManager.java#L106-L107) to find the information about other nodes in the cluster.
+
+This decodes the output using [ClusterNodesDecoder](https://github.com/redisson/redisson/blob/fe1a423ad19d6b7a671ae09ea4f0944a98829a99/redisson/src/main/java/org/redisson/client/protocol/decoder/ClusterNodesDecoder.java). Starting at the commit I referenced above, this attempts to take the hostname as the node's host, and only uses the IP address as the host if the hostname is not announced by the `CLUSTER NODES` command.
+
+Because my environment announces the hostname, Redisson attempts to use the hostname, and netty DNS resolver fails to resolve it.
+
+
+**Describe the solution you'd like**
+
+On Redisson [ClusterServersConfig](https://github.com/redisson/redisson/blob/fe1a423ad19d6b7a671ae09ea4f0944a98829a99/redisson/src/main/java/org/redisson/config/ClusterServersConfig.java), add a boolean config option to force using IP as the host (e.g., `forceUseNodeIpAddress`) instead of the hostname. That config option can default to `false`. If set to `true`, Redisson ClusterConnectionManager would use the IP address instead of the hostname to connect to each node in the cluster.
+
+**Describe alternatives you've considered**
+
+* Using an earlier Redisson version that does not include [this commit](https://github.com/redisson/redisson/commit/2c2ce4ddb0b2e1322466bf307ca2e6b2199d3715).
+* Fork Redisson and change the `ClusterNodesDecoder` to use IP instead of hostname
+* Disable hostname announcing on the Redis server via the `cluster-announce-hostname` Redis server config option described on [this page](https://redis.io/docs/latest/commands/cluster-nodes/) (this is an option for some users, but not an option for me)

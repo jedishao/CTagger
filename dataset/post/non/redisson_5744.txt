@@ -1,0 +1,65 @@
+NPE is being thrown for Liferay's journal article
+I am trying to integrate redisson with tomcat(8.5.96) I am using Kryo5Codec as it is recommended and it can serialise the non serializable classes as well. This is the configuration I am using
+
+redisson.conf
+
+```
+{
+"singleServerConfig":{
+  "password": "localpassword",
+  "address": "redis://localhost:6379"
+},
+"threads":0,
+"nettyThreads":0,
+"transportMode":"NIO"
+}
+```
+
+`<Manager className="com.liferay.redis.redisson.integration.tomcat.APRedissonSessionManager" configPath="${catalina.base}/redisson.conf"  readMode="MEMORY" updateMode="AFTER_REQUEST" broadcastSessionEvents="true" broadcastSessionUpdates="true"/>`
+
+Codec settings
+
+```
+public class APRedissonSessionManager extends RedissonSessionManager {
+
+    protected RedissonClient buildClient() throws LifecycleException {
+        RedissonClient redissonClient = super.buildClient();
+
+        Config config = redissonClient.getConfig();
+
+        config.setCodec(new Kryo5Codec(Thread.currentThread().getContextClassLoader()));
+        return redissonClient;
+    }
+```
+
+I do have redisson-all and redisson-tomcat-8 of version 3.27.2 in my tomcat/lib folder
+
+When I try to store liferay webcontent which is of type Stack<JournalArticle> where JournalArticle is the interface I do see it is getting stored in redis database but while broadcastingSessionUpdates I do see the following exception
+
+
+```
+Apr 01, 2024 8:14:12 AM org.redisson.tomcat.RedissonSessionManager$1 onMessage
+SEVERE: Unable to handle topic message
+java.lang.NullPointerException
+	at java.util.Vector.ensureCapacityHelper(Vector.java:248)
+	at java.util.Vector.add(Vector.java:785)
+	at com.esotericsoftware.kryo.serializers.CollectionSerializer.read(CollectionSerializer.java:241)
+	at com.esotericsoftware.kryo.serializers.CollectionSerializer.read(CollectionSerializer.java:44)
+	at com.esotericsoftware.kryo.Kryo.readClassAndObject(Kryo.java:877)
+	at com.liferay.redis.redisson.integration.tomcat.APRedissonSessionManager$KryoSerializableWrapper.read(APRedissonSessionManager.java:122)
+	at com.esotericsoftware.kryo.serializers.DefaultSerializers$KryoSerializableSerializer.read(DefaultSerializers.java:572)
+	at com.esotericsoftware.kryo.serializers.DefaultSerializers$KryoSerializableSerializer.read(DefaultSerializers.java:564)
+	at com.esotericsoftware.kryo.Kryo.readClassAndObject(Kryo.java:877)
+	at org.redisson.codec.Kryo5Codec$4.decode(Kryo5Codec.java:153)
+	at org.redisson.tomcat.AttributeMessage.toObject(AttributeMessage.java:75)
+	at org.redisson.tomcat.AttributesPutAllMessage.getAttrs(AttributesPutAllMessage.java:56)
+	at org.redisson.tomcat.RedissonSessionManager$1.onMessage(RedissonSessionManager.java:306)
+	at org.redisson.tomcat.RedissonSessionManager$1.onMessage(RedissonSessionManager.java:279)
+	at org.redisson.PubSubMessageListener.onMessage(PubSubMessageListener.java:79)
+	at org.redisson.client.RedisPubSubConnection.onMessage(RedisPubSubConnection.java:68)
+	at org.redisson.client.handler.CommandPubSubDecoder.lambda$enqueueMessage$2(CommandPubSubDecoder.java:221)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748
+```

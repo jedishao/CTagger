@@ -1,0 +1,152 @@
+PostgreSQL connector can't filter equality on enum column when user-defined type is in PascalCase
+Hi folks!
+I'm encounting an issue with Trino version 451 where my PostgreSQL connector can't filter equality on any enum columns that their table names are in PascalCase.
+
+For example: I got the error message `ERROR: type "conversationmessagerole" does not exist Position: 568` for this simple query: `SELECT * FROM demo_postgres.public.conversationmessage WHERE role = 'user'`
+
+```
+trino> SELECT * FROM demo_postgres.public.conversationmessage WHERE role = 'user';
+
+Query 20240729_062747_01507_et9cn, FAILED, 1 node
+Splits: 1 total, 0 done (0.00%)
+4.10 [0 rows, 0B] [0 rows/s, 0B/s]
+
+Query 20240729_062747_01507_et9cn failed: ERROR: type "conversationmessagerole" does not exist
+  Position: 568
+```
+
+Here is the EXPLAIN plan:
+```
+trino> EXPLAIN SELECT * FROM demo_postgres.public.conversationmessage WHERE role = 'user';
+                                                                                                                                                                                                                                             >
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------->
+ Trino version: 451                                                                                                                                                                                                                          >
+ Fragment 0 [SOURCE]                                                                                                                                                                                                                         >
+     Output layout: [id, content, name, createdat, role, functioncall, channel, conversationid, isnoanswer, relevantdocuments, replytoid, audiourl, retraindocumentid, ispositive, errorstatus, islive, status, webhookmessagelogid, debug, o>
+     Output partitioning: SINGLE []                                                                                                                                                                                                          >
+     Output[columnNames = [id, content, name, createdat, role, functioncall, channel, conversationid, isnoanswer, relevantdocuments, replytoid, audiourl, retraindocumentid, ispositive, errorstatus, islive, status, webhookmessagelogid, de>
+     │   Layout: [id:integer, content:varchar, name:varchar, createdat:timestamp(3), role:varchar, functioncall:json, channel:varchar, conversationid:integer, isnoanswer:boolean, relevantdocuments:json, replytoid:integer, audiourl:varcha>
+     │   Estimates: {rows: 22970 (14.17MB), cpu: 0, memory: 0B, network: 0B}                                                                                                                                                                 >
+     └─ TableScan[table = demo_postgres:public.conversationmessage public.ConversationMessage constraint on [role]]                                                                                                                          >
+            Layout: [id:integer, content:varchar, name:varchar, createdat:timestamp(3), role:varchar, functioncall:json, channel:varchar, conversationid:integer, isnoanswer:boolean, relevantdocuments:json, replytoid:integer, audiourl:var>
+            Estimates: {rows: 22970 (14.17MB), cpu: 14.17M, memory: 0B, network: 0B}                                                                                                                                                         >
+            originallanguage := originalLanguage:varchar:text                                                                                                                                                                                >
+            errorstatus := errorStatus:varchar:text                                                                                                                                                                                          >
+            currentagendaitemname := currentAgendaItemName:varchar:text                                                                                                                                                                      >
+            translatedcontent := translatedContent:varchar:text                                                                                                                                                                              >
+            retraindocumentid := retrainDocumentId:integer:int4                                                                                                                                                                              >
+            functioncall := functionCall:json:jsonb                                                                                                                                                                                          >
+            relevantdocuments := relevantDocuments:json:jsonb                                                                                                                                                                                >
+            nextagendaitemname := nextAgendaItemName:varchar:text                                                                                                                                                                            >
+            audiourl := audioUrl:varchar:text                                                                                                                                                                                                >
+            isquestion := isQuestion:boolean:bool                                                                                                                                                                                            >
+            questionaskedid := questionAskedId:integer:int4                                                                                                                                                                                  >
+            currentagendaitemid := currentAgendaItemId:integer:int4                                                                                                                                                                          >
+            createdat := createdAt:timestamp(3):timestamp                                                                                                                                                                                    >
+            conversationagendaid := conversationAgendaId:integer:int4                                                                                                                                                                        >
+            status := status:varchar:MessageStatus                                                                                                                                                                                           >
+            isnoanswer := isNoAnswer:boolean:bool                                                                                                                                                                                            >
+            traceurl := traceUrl:varchar:text                                                                                                                                                                                                >
+            name := name:varchar:text                                                                                                                                                                                                        >
+            replytoid := replyToId:integer:int4                                                                                                                                                                                              >
+            conversationid := conversationId:integer:int4                                                                                                                                                                                    >
+            debug := debug:json:jsonb                                                                                                                                                                                                        >
+            content := content:varchar:text                                                                                                                                                                                                  >
+            role := role:varchar:ConversationMessageRole                                                                                                                                                                                     >
+            channel := channel:varchar:ChannelType                                                                                                                                                                                           >
+            nextagendaitemid := nextAgendaItemId:integer:int4                                                                                                                                                                                >
+            conversationlegacyid := conversationLegacyId:integer:int4                                                                                                                                                                        >
+            ispositive := isPositive:boolean:bool                                                                                                                                                                                            >
+            id := id:integer:serial                                                                                                                                                                                                          >
+            translatedlanguage := translatedLanguage:varchar:text                                                                                                                                                                            >
+            webhookmessagelogid := webhookMessageLogId:integer:int4                                                                                                                                                                          >
+            islive := isLive:boolean:bool                                                                                                                                                                                                    
+```
+
+However,  if I modify the query to filter inequality, it works normally:
+`SELECT * FROM demo_postgres.public.conversationmessage WHERE role != 'user'`
+```
+trino> EXPLAIN SELECT * FROM demo_postgres.public.conversationmessage WHERE role != 'user';
+                                                                                                                                                                                                                                             >
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------->
+ Trino version: 451                                                                                                                                                                                                                          >
+ Fragment 0 [SOURCE]                                                                                                                                                                                                                         >
+     Output layout: [id, content, name, createdat, role, functioncall, channel, conversationid, isnoanswer, relevantdocuments, replytoid, audiourl, retraindocumentid, ispositive, errorstatus, islive, status, webhookmessagelogid, debug, o>
+     Output partitioning: SINGLE []                                                                                                                                                                                                          >
+     Output[columnNames = [id, content, name, createdat, role, functioncall, channel, conversationid, isnoanswer, relevantdocuments, replytoid, audiourl, retraindocumentid, ispositive, errorstatus, islive, status, webhookmessagelogid, de>
+     │   Layout: [id:integer, content:varchar, name:varchar, createdat:timestamp(3), role:varchar, functioncall:json, channel:varchar, conversationid:integer, isnoanswer:boolean, relevantdocuments:json, replytoid:integer, audiourl:varcha>
+     │   Estimates: {rows: 68911 (35.93MB), cpu: 0, memory: 0B, network: 0B}                                                                                                                                                                 >
+     └─ ScanFilter[table = demo_postgres:public.conversationmessage public.ConversationMessage, filterPredicate = (role <> varchar 'user')]                                                                                                  >
+            Layout: [id:integer, content:varchar, name:varchar, createdat:timestamp(3), role:varchar, functioncall:json, channel:varchar, conversationid:integer, isnoanswer:boolean, relevantdocuments:json, replytoid:integer, audiourl:var>
+            Estimates: {rows: 91881 (47.65MB), cpu: 47.65M, memory: 0B, network: 0B}/{rows: 68911 (35.93MB), cpu: 47.65M, memory: 0B, network: 0B}                                                                                           >
+            originallanguage := originalLanguage:varchar:text                                                                                                                                                                                >
+            errorstatus := errorStatus:varchar:text                                                                                                                                                                                          >
+            currentagendaitemname := currentAgendaItemName:varchar:text                                                                                                                                                                      >
+            translatedcontent := translatedContent:varchar:text                                                                                                                                                                              >
+            retraindocumentid := retrainDocumentId:integer:int4                                                                                                                                                                              >
+            functioncall := functionCall:json:jsonb                                                                                                                                                                                          >
+            relevantdocuments := relevantDocuments:json:jsonb                                                                                                                                                                                >
+            nextagendaitemname := nextAgendaItemName:varchar:text                                                                                                                                                                            >
+            audiourl := audioUrl:varchar:text                                                                                                                                                                                                >
+            isquestion := isQuestion:boolean:bool                                                                                                                                                                                            >
+            questionaskedid := questionAskedId:integer:int4                                                                                                                                                                                  >
+            currentagendaitemid := currentAgendaItemId:integer:int4                                                                                                                                                                          >
+            createdat := createdAt:timestamp(3):timestamp                                                                                                                                                                                    >
+            conversationagendaid := conversationAgendaId:integer:int4                                                                                                                                                                        >
+            status := status:varchar:MessageStatus                                                                                                                                                                                           >
+            isnoanswer := isNoAnswer:boolean:bool                                                                                                                                                                                            >
+            traceurl := traceUrl:varchar:text                                                                                                                                                                                                >
+            name := name:varchar:text                                                                                                                                                                                                        >
+            replytoid := replyToId:integer:int4                                                                                                                                                                                              >
+            conversationid := conversationId:integer:int4                                                                                                                                                                                    >
+            debug := debug:json:jsonb                                                                                                                                                                                                        >
+            content := content:varchar:text                                                                                                                                                                                                  >
+            role := role:varchar:ConversationMessageRole                                                                                                                                                                                     >
+            channel := channel:varchar:ChannelType                                                                                                                                                                                           >
+            nextagendaitemid := nextAgendaItemId:integer:int4                                                                                                                                                                                >
+            conversationlegacyid := conversationLegacyId:integer:int4                                                                                                                                                                        >
+            ispositive := isPositive:boolean:bool                                                                                                                                                                                            >
+            id := id:integer:serial                                                                                                                                                                                                          >
+            translatedlanguage := translatedLanguage:varchar:text                                                                                                                                                                            >
+            webhookmessagelogid := webhookMessageLogId:integer:int4                                                                                                                                                                          >
+            islive := isLive:boolean:bool                                                                                                                                                                                                    >
+```
+FYI, I got the similar error with this query via table function
+```
+trino> SELECT
+    ->   *
+    -> FROM
+    ->   TABLE(
+    ->     demo_postgres.system.query(
+    ->       query => 'SELECT *
+    ->       FROM public."ConversationMessage"
+    ->       WHERE role::ConversationMessageRole = ''user'''
+    ->     )
+    ->   );
+Query 20240729_063026_01511_et9cn failed: Failed to get table handle for prepared query. ERROR: type "conversationmessagerole" does not exist
+  Position: 70
+```
+However, If I wrap the **ConversationMessageRole** type under double quotes, it works normally.
+```
+trino> SELECT
+    ->   *
+    -> FROM
+    ->   TABLE(
+    ->     demo_postgres.system.query(
+    ->       query => 'SELECT *
+    ->       FROM public."ConversationMessage"
+    ->       WHERE role::"ConversationMessageRole" = ''user'''
+    ->     )
+    ->   );
+```
+The origin table name is **ConversationMessage**, the column **role** type is enum varchar, with the user-defined type name is **ConversationMessageRole**. This is my catalog config:
+```
+case-insensitive-name-matching=true
+connection-password=<password>
+connection-url=jdbc\:postgresql\://<host>\:<post>/db
+connection-user=postgres
+connector.name=postgresql
+decimal-mapping=allow_overflow
+decimal-rounding-mode=HALF_UP
+```
+My guess is that Trino doesn't preserve the column constraint name casing when type-casting columns that their types are user-defined (enum in this case) even if `case-insensitive-name-matching` is set to `true`

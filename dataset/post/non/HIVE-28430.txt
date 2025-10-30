@@ -1,0 +1,96 @@
+Allow Docker Image of `apache/hive:4.0.0` to incrementally define the contents of 'hive-site.xml'?
+* To customize Hive system properties in the *apache/hive:4.0.0* Docker Image, we usually need to mount the directory and set the *HIVE_CUSTOM_CONF_DIR* environment variable. But the mounted *hive-site.xml* file always seems to need to redefine the contents in https://github.com/apache/hive/blob/rel/release-4.0.0/packaging/src/docker/conf/hive-site.xml repeatedly. This is actually a spin-off of https://issues.apache.org/jira/browse/HIVE-28424 .
+ *  Suppose I want to enable the *ZooKeeper Service Discovery* feature of HiveServer2 on HiveServer2 deployed by Docker. It is not enough to just write the following content in the mounted *hive-site.xml*.
+
+{code:xml}
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property>
+        <name>hive.server2.support.dynamic.service.discovery</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>hive.zookeeper.quorum</name>
+        <value>127.0.0.1:2181</value>
+    </property>
+</configuration>
+{code}
+
+- Actually I need to copy the content of https://github.com/apache/hive/blob/rel/release-4.0.0/packaging/src/docker/conf/hive-site.xml .
+
+
+{code:xml}
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property>
+        <name>hive.server2.enable.doAs</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.tez.exec.inplace.progress</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.tez.exec.print.summary</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>hive.exec.scratchdir</name>
+        <value>/opt/hive/scratch_dir</value>
+    </property>
+    <property>
+        <name>hive.user.install.directory</name>
+        <value>/opt/hive/install_dir</value>
+    </property>
+    <property>
+        <name>tez.runtime.optimize.local.fetch</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>hive.exec.submit.local.task.via.child</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>mapreduce.framework.name</name>
+        <value>local</value>
+    </property>
+    <property>
+        <name>tez.local.mode</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>hive.metastore.warehouse.dir</name>
+        <value>/opt/hive/data/warehouse</value>
+    </property>
+    <property>
+        <name>metastore.metastore.event.db.notification.api.auth</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.server2.support.dynamic.service.discovery</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>hive.zookeeper.quorum</name>
+        <value>127.0.0.1:2181</value>
+    </property>
+</configuration>
+{code}
+
+- I did create a unit test at https://github.com/linghengqian/hivesever2-v400-sd-test to verify this issue. Just execute the following shell command to verify it on Ubuntu 22.04.4. Feel free to change the contents of the `hive-custom-conf` directory. The unit test uses three host ports, *2181*, *10000*, and *10002*.
+
+{code:bash}
+sdk install java 22.0.2-graalce
+sdk use java 22.0.2-graalce
+git clone git@github.com:linghengqian/hivesever2-v400-sd-test.git
+cd ./hivesever2-v400-sd-test/
+docker compose -f ./docker-compose-lingh.yml pull
+docker compose -f ./docker-compose-lingh.yml up -d
+
+# ... Wait five seconds for HiveServer2 to finish initializing.
+
+./mvnw clean test
+docker compose -f ./docker-compose-lingh.yml down
+{code}
+
+- Maybe there is a way to avoid repeatedly defining exactly the same as https://github.com/apache/hive/blob/rel/release-4.0.0/packaging/src/docker/conf/hive-site.xml ?

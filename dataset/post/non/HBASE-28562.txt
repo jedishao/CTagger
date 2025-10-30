@@ -1,0 +1,102 @@
+Correct backup ancestor calculation
+This is the same issue as HBASE-25870, but I think the fix there was wrong.
+
+This issue can prevent creation of (incremental) backups when data of unrelated backups was damaged on backup storage.
+
+Minimal example to reproduce from source:
+ * Add following to `conf/hbase-site.xml` to enable backups:
+
+{code:java}
+<property>
+    <name>hbase.backup.enable</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>hbase.master.logcleaner.plugins</name>
+    <value>org.apache.hadoop.hbase.master.cleaner.TimeToLiveLogCleaner,org.apache.hadoop.hbase.master.cleaner.TimeToLiveProcedureWALCleaner,org.apache.hadoop.hbase.master.cleaner.TimeToLiveMasterLocalStoreWALCleaner,org.apache.hadoop.hbase.backup.master.BackupLogCleaner</value>
+  </property>
+  <property>
+    <name>hbase.procedure.master.classes</name>
+    <value>org.apache.hadoop.hbase.backup.master.LogRollMasterProcedureManager</value>
+  </property>
+  <property>
+    <name>hbase.procedure.regionserver.classes</name>
+    <value>org.apache.hadoop.hbase.backup.regionserver.LogRollRegionServerProcedureManager</value>
+  </property>
+  <property>
+  <name>hbase.coprocessor.region.classes</name>
+  <value>org.apache.hadoop.hbase.backup.BackupObserver</value>
+</property>
+  <property>
+    <name>hbase.fs.tmp.dir</name>
+    <value>file:/tmp/hbase-tmp</value>
+  </property> {code}
+ * Start HBase and open a shell: {{{}bin/start-hbase.sh{}}}, {{bin/hbase shell}}
+ * Execute following commands ("put" & "create" commands in hbase shell, other commands in commandline):
+ * 
+{code:java}
+create 'experiment', 'fam' 
+put 'experiment', 'row1', 'fam:b', 'value1'
+bin/hbase backup create full file:/tmp/hbasebackup
+Backup session backup_1714649896776 finished. Status: SUCCESS
+
+put 'experiment', 'row2', 'fam:b', 'value2'
+bin/hbase backup create incremental file:/tmp/hbasebackup
+Backup session backup_1714649920488 finished. Status: SUCCESS
+
+put 'experiment', 'row3', 'fam:b', 'value3'
+bin/hbase backup create incremental file:/tmp/hbasebackup
+Backup session backup_1714650054960 finished. Status: SUCCESS
+
+(Delete the files corresponding to the first incremental backup - backup_1714649920488 in this example)
+
+put 'experiment', 'row4', 'fam:a', 'value4'
+bin/hbase backup create full file:/tmp/hbasebackup
+Backup session backup_1714650236911 finished. Status: SUCCESS
+
+put 'experiment', 'row5', 'fam:a', 'value5'
+bin/hbase backup create incremental file:/tmp/hbasebackup
+Backup session backup_1714650289957 finished. Status: SUCCESS
+
+put 'experiment', 'row6', 'fam:a', 'value6'
+bin/hbase backup create incremental file:/tmp/hbasebackup2024-05-02T13:45:27,534 ERROR [main {}] impl.BackupManifest: file:/tmp/hbasebackup/backup_1714649920488 does not exist
+2024-05-02T13:45:27,534 ERROR [main {}] impl.TableBackupClient: Unexpected Exception : file:/tmp/hbasebackup/backup_1714649920488 does not exist
+org.apache.hadoop.hbase.backup.impl.BackupException: file:/tmp/hbasebackup/backup_1714649920488 does not exist
+    at org.apache.hadoop.hbase.backup.impl.BackupManifest.<init>(BackupManifest.java:451) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupManifest.<init>(BackupManifest.java:402) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupManager.getAncestors(BackupManager.java:331) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupManager.getAncestors(BackupManager.java:353) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.TableBackupClient.addManifest(TableBackupClient.java:286) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.TableBackupClient.completeBackup(TableBackupClient.java:351) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.IncrementalTableBackupClient.execute(IncrementalTableBackupClient.java:314) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupAdminImpl.backupTables(BackupAdminImpl.java:603) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupCommands$CreateCommand.execute(BackupCommands.java:345) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.BackupDriver.parseAndRun(BackupDriver.java:134) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.BackupDriver.doWork(BackupDriver.java:169) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.BackupDriver.run(BackupDriver.java:199) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:82) ~[hadoop-common-3.3.5.jar:?]
+    at org.apache.hadoop.hbase.backup.BackupDriver.main(BackupDriver.java:177) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+2024-05-02T13:45:27,538 ERROR [main {}] impl.TableBackupClient: BackupId=backup_1714650324099,startts=1714650324486,failedts=1714650327538,failedphase=STORE_MANIFEST,failedmessage=file:/tmp/hbasebackup/backup_1714649920488 does not exist
+2024-05-02T13:45:28,763 ERROR [main {}] impl.TableBackupClient: Backup backup_1714650324099 failed.
+Backup session finished. Status: FAILURE
+2024-05-02T13:45:28,764 ERROR [main {}] backup.BackupDriver: Error running command-line tool
+java.io.IOException: org.apache.hadoop.hbase.backup.impl.BackupException: file:/tmp/hbasebackup/backup_1714649920488 does not exist
+    at org.apache.hadoop.hbase.backup.impl.IncrementalTableBackupClient.execute(IncrementalTableBackupClient.java:319) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupAdminImpl.backupTables(BackupAdminImpl.java:603) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupCommands$CreateCommand.execute(BackupCommands.java:345) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.BackupDriver.parseAndRun(BackupDriver.java:134) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.BackupDriver.doWork(BackupDriver.java:169) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.BackupDriver.run(BackupDriver.java:199) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:82) ~[hadoop-common-3.3.5.jar:?]
+    at org.apache.hadoop.hbase.backup.BackupDriver.main(BackupDriver.java:177) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+Caused by: org.apache.hadoop.hbase.backup.impl.BackupException: file:/tmp/hbasebackup/backup_1714649920488 does not exist
+    at org.apache.hadoop.hbase.backup.impl.BackupManifest.<init>(BackupManifest.java:451) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupManifest.<init>(BackupManifest.java:402) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupManager.getAncestors(BackupManager.java:331) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.BackupManager.getAncestors(BackupManager.java:353) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.TableBackupClient.addManifest(TableBackupClient.java:286) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.TableBackupClient.completeBackup(TableBackupClient.java:351) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    at org.apache.hadoop.hbase.backup.impl.IncrementalTableBackupClient.execute(IncrementalTableBackupClient.java:314) ~[hbase-backup-2.6.1-SNAPSHOT.jar:2.6.1-SNAPSHOT]
+    ... 7 more{code}
+
+Currently working on a PR.

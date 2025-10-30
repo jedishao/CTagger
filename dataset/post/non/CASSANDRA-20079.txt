@@ -1,0 +1,28 @@
+Accord:  "modification statements may only mutate a single partition" on a no-op query
+{code}
+java.lang.IllegalArgumentException: When running withing a transaction, modification statements may only mutate a single partition
+
+	at org.apache.cassandra.cql3.statements.ModificationStatement.getTxnUpdate(ModificationStatement.java:845)
+	at org.apache.cassandra.cql3.statements.ModificationStatement.getTxnWriteFragment(ModificationStatement.java:894)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.createWriteFragments(TransactionStatement.java:299)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.createUpdate(TransactionStatement.java:318)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.createTxn(TransactionStatement.java:352)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.execute(TransactionStatement.java:389)
+	at org.apache.cassandra.cql3.statements.TransactionStatement.executeLocally(TransactionStatement.java:457)
+	at org.apache.cassandra.cql3.QueryProcessor.executeInternal(QueryProcessor.java:483)
+	at org.apache.cassandra.cql3.CQLTester.executeFormattedQuery(CQLTester.java:1721)
+	at org.apache.cassandra.cql3.CQLTester.execute(CQLTester.java:1700)
+{code}
+
+{code}
+@Test
+public void repro()
+{
+    createTable("CREATE TABLE " + KEYSPACE + ".basic_sai0 (pk0 varint,pk1 tinyint,ck0 smallint,ck1 smallint,ck2 tinyint,ck3 timestamp,ck4 ascii,static0 timestamp static,static1 uuid static,regular0 text,regular1 text,regular2 ascii,regular3 smallint,regular4 inet,regular5 decimal,regular6 float,regular7 double,regular8 int, PRIMARY KEY ((pk0,pk1), ck0, ck1, ck2, ck3, ck4)) WITH transactional_mode = 'full' AND CLUSTERING ORDER BY (ck0 ASC,ck1 DESC,ck2 DESC,ck3 ASC,ck4 DESC);");
+
+    execute("BEGIN TRANSACTION \n" +
+            "DELETE FROM " + KEYSPACE + ".basic_sai0 WHERE pk0 = ? AND pk1 = ? AND ck0 = ? AND ck1 >= ? AND ck1 <= ?;" +
+            "COMMIT TRANSACTION;",
+            -9223288646978895870L,(byte)94,(short)16769,(short)29708,(short)-22673);
+}
+{code}

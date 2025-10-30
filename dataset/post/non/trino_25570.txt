@@ -1,0 +1,23 @@
+[Feature] Add more facets to OpenLineage integration
+Currently OpenLineage integration doesn't produce facets:
+* [parent](https://openlineage.io/docs/spec/facets/run-facets/parent_run/) - important for binding OpenLineage events produced by Trino integration with some parent OL integration (e.g. Airflow operator).
+* [lifecycleStateChange](https://openlineage.io/docs/spec/facets/dataset-facets/lifecycle_state_change) - important to track that some dataset content was appended, overitten, dropped and so on. For now, integration sends custom facet `trino_query_context` with field `query_type`:
+```json
+{
+    "trino_query_context": {
+        "_producer": "https://github.com/trinodb/trino/plugin/trino-openlineage",
+        "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunFacet",
+        "server_address": "10.220.1.2",
+        "environment": "docker",
+        "query_type": "INSERT"
+    }
+}
+```
+But this is non standard.
+
+* [externalQuery](https://openlineage.io/docs/spec/facets/run-facets/external_query/) - important to track Trino queryId. For now, integration produces OL event with `job.name` == `queryId`, but this is not standard.
+* [inputStatistics](https://openlineage.io/docs/spec/facets/dataset-facets/input-dataset-facets/input_statistics) and [outputStatistics](https://openlineage.io/docs/spec/facets/dataset-facets/output-dataset-facets/output_statistics). For now, integration produces custom `trino_query_statistics` with a lot of fields describing mostly the same data, but this is non standard.
+  Also it returns total input statistics, and if there are multiple sources, OL event doesn't report how much data was read from a particular input. Although [QueryCompletedEvent](https://javadoc.io/static/io.trino/trino-spi/474/trino.spi/io/trino/spi/eventlistener/QueryCompletedEvent.html) has [getIoMetadata](https://javadoc.io/static/io.trino/trino-spi/474/trino.spi/io/trino/spi/eventlistener/QueryInputMetadata.html) field which allows to track `physicalInputBytes` and `physicalInputRows` for each input separately.
+* [ownership](https://openlineage.io/docs/spec/facets/job-facets/ownership/) - can be used to specify what user created this particular query. Can be used for groups as well.
+* [tags](https://openlineage.io/docs/spec/facets/job-facets/tag-facet) - allows to find query by client tag.
+* [documentation](https://openlineage.io/docs/spec/facets/job-facets/documentation) - can be used to store clientInfo

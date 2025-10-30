@@ -1,0 +1,50 @@
+Hive performance regression between 419 and 463
+I am trying to understand a performance degradation that has happened on upgrading from Trino 419 to Trino 463. Querying hive tables with zstd compressed data in s3 seem to run significantly slower in Trino 463 than in Trino 419.
+
+I have symlink Hive table built on top of zstd compressed data in s3. Querying this table is relatively fast in Trino 419 however when I tried to upgrade to the most recent version of Trino I saw a significant decrease in speed of execution and a spike in CPU.
+
+It is a simple group by query like
+```
+select date, count(*)
+   FROM <table_name>
+   WHERE date in ('2024-11-07')
+ AND column1='foo'
+     AND column2='bar'
+ group by 1
+ order by 1
+```
+
+These are the query stats in Trino 419
+![Image](https://github.com/user-attachments/assets/49048cb3-9f82-4c45-9521-1531d392e76f)
+![Image](https://github.com/user-attachments/assets/af5d7a66-3bb4-4f7f-983b-e4b9d8af82b4)
+
+
+
+And these are the query stats in Trino 463
+![Image](https://github.com/user-attachments/assets/bb309363-dbcd-4bff-aa53-ce208e82e4e9)
+![Image](https://github.com/user-attachments/assets/c0b4eb3f-307b-414a-8503-c805d05d9fee)
+
+
+The same query now takes double the amount of time and the CPU is much higher.
+
+
+I tried to pinpoint where in the upgrade path this performance degredation occurred but when I tried running on Trino 430 for example I get errors like
+```
+io.trino.spi.TrinoException: Unsupported input format: serde=org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+```
+
+
+I am running this self hosted on AWS EC2 instances. The coordinator is of type r7g.4xlarge and there are 5 workers of type are r7g.8xlarge.
+
+I don't think the fact that this is symlink table has anything to do with the performance issue. The reason that this is a symlink table is because the data is stored in s3 in a funky way that does not lend itself to the hive partitioning scheme.
+
+This is some info about one of zstd file's
+
+```
+$> zstd -lv file.csv.zst
+# Zstandard Frames: 1
+DictID: 0
+Window Size: 8.00 MiB (8388608 B)
+Compressed Size: 26.4 MiB (27635730 B)
+Check: XXH64 109a2c1c
+```

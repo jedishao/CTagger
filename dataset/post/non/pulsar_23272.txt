@@ -1,0 +1,40 @@
+[Bug] Dispatcher will be closing and reopening when Key_shared consumers have different policies (AUTO_SPLIT/STICKY, allowOutOfOrderDelivery true/false)
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+all released versions including master branch
+
+### Minimal reproduce step
+
+The conclusion is currently based on the source code:
+https://github.com/apache/pulsar/blob/766d2a407196533832184447c25498c6a82f7a86/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/persistent/PersistentSubscription.java#L287-L309
+
+
+### What did you expect to see?
+
+When multiple consumers are using different policies, this should be properly handled.
+One possibility is to keep the policy of the connected consumers and reject any other consumers and return a proper error message.
+
+### What did you see instead?
+
+Based on the source code, it looks like the solution cannot work:
+- a new dispatcher is created while the existing dispatcher is active
+- the existing dispatcher is closed asynchronously
+- no proper errors messages are logged or logged that could help resolving the situation
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

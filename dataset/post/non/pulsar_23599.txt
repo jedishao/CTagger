@@ -1,0 +1,188 @@
+[Bug] brokies ledger data cannot be released
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+openjdk 11.0.18 2023-01-17 LTS
+apache-zookeeper-3.6.4
+pulsar 2.10.6
+
+### Minimal reproduce step
+
+broker conf:
+[broker.txt](https://github.com/user-attachments/files/17742043/broker.txt)
+
+bookkeeper conf:
+[bookkeeper.txt](https://github.com/user-attachments/files/17742054/bookkeeper.txt)
+
+zookeeper conf:
+
+根据以上配置：在四台服务器上面部署服务，其中三台服务器上面都分别部署 broker，bookie，zookeeper服务，另外一台服务器上面仅部署了broker，bookie服务。
+
+异常状态：
+其中两台服务器存储满了，2T的磁盘仅剩余100GB可用。
+
+### What did you expect to see?
+
+磁盘满之前 diskUsageThreshold=0.95 ，满了之后我把所有节点都修改为 diskUsageThreshold=0.9。
+
+四个bookie节点，其中两个节点上面的存储一直无法释放，我重新设置了消息的 set-message-ttl，set-persistence，set-retention，都设置在一个非常小的范围，但是观察两天后资源还是无法释放，中间有进行过多次bookie，broker重启，也没有生效
+
+### What did you see instead?
+
+bookkeeper shell listbookies -rw -h 执行结果如下：
+2024-11-14T10:33:43,456+0800 [main] INFO  org.apache.bookkeeper.tools.cli.commands.bookies.ListBookiesCommand - ReadWrite Bookies :
+2024-11-14T10:33:43,679+0800 [main] INFO  org.apache.bookkeeper.tools.cli.commands.bookies.ListBookiesCommand - BookieID:172.2.10.118:3181, IP:172.2.10.118, Port:3181, Hostname:172.2.10.118
+2024-11-14T10:33:43,681+0800 [main] INFO  org.apache.bookkeeper.tools.cli.commands.bookies.ListBookiesCommand - BookieID:172.2.10.121:3181, IP:172.2.10.121, Port:3181, Hostname:pulsar4
+
+
+
+
+bookkeeper shell listbookies -ro -h 执行结果如下：
+2024-11-14T10:35:51,841+0800 [main] INFO  org.apache.bookkeeper.tools.cli.commands.bookies.ListBookiesCommand - Readonly Bookies :
+2024-11-14T10:35:51,879+0800 [main] INFO  org.apache.bookkeeper.tools.cli.commands.bookies.ListBookiesCommand - BookieID:172.2.10.119:3181, IP:172.2.10.119, Port:3181, Hostname:172.2.10.119
+2024-11-14T10:35:52,053+0800 [main] INFO  org.apache.bookkeeper.tools.cli.commands.bookies.ListBookiesCommand - BookieID:172.2.10.120:3181, IP:172.2.10.120, Port:3181, Hostname:172.2.10.120
+
+
+
+
+bin/bookkeeper shell bookiesanity 在172.2.10.120节点执行如下：
+2024-11-14T10:40:54,054+0800 [bookkeeper-io-3-1] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - connection [id: 0xae3ccd27, L:/172.2.10.120:38590 - R:172.2.10.120/172.2.10.120:3181] authenticated as BookKeeperPrincipal{ANONYMOUS}
+2024-11-14T10:40:54,078+0800 [BookKeeperClientWorker-OrderedExecutor-11-0] WARN  org.apache.bookkeeper.client.PendingAddOp - Failed to write entry (9062267, 0) to bookie (0, 172.2.10.120:3181): Attempting to write on ReadOnly bookie
+2024-11-14T10:40:54,109+0800 [BookKeeperClientWorker-OrderedExecutor-11-0] ERROR org.apache.bookkeeper.client.MetadataUpdateLoop - UpdateLoop(ledgerId=9062267,loopId=19ebc2d1) Exception updating
+org.apache.bookkeeper.client.BKException$BKNotEnoughBookiesException: Not enough non-faulty bookies available
+        at org.apache.bookkeeper.bookie.LocalBookieEnsemblePlacementPolicy.replaceBookie(LocalBookieEnsemblePlacementPolicy.java:89) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.BookieWatcherImpl.replaceBookie(BookieWatcherImpl.java:334) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.EnsembleUtils.replaceBookiesInEnsemble(EnsembleUtils.java:71) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle.lambda$ensembleChangeLoop$2(LedgerHandle.java:1947) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.MetadataUpdateLoop.writeLoop(MetadataUpdateLoop.java:134) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.MetadataUpdateLoop.run(MetadataUpdateLoop.java:123) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle.ensembleChangeLoop(LedgerHandle.java:1966) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle.handleBookieFailure(LedgerHandle.java:1915) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.PendingAddOp.writeComplete(PendingAddOp.java:378) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.writeComplete(PerChannelBookieClient.java:2168) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleResponse(PerChannelBookieClient.java:2225) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleV2Response(PerChannelBookieClient.java:2204) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$ReadV2ResponseCallback.safeRun(PerChannelBookieClient.java:1382) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.common.util.SafeRunnable.run(SafeRunnable.java:36) ~[org.apache.bookkeeper-bookkeeper-common-4.14.8.jar:4.14.8]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[?:?]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[?:?]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.100.Final.jar:4.1.100.Final]
+        at java.lang.Thread.run(Thread.java:829) ~[?:?]
+2024-11-14T10:40:54,127+0800 [BookKeeperClientWorker-OrderedExecutor-11-0] WARN  org.apache.bookkeeper.client.LedgerHandle - [EnsembleChange(ledger:9062267, change-id:0000000001)][attempt:1] Exception changing ensemble
+org.apache.bookkeeper.client.BKException$BKNotEnoughBookiesException: Not enough non-faulty bookies available
+        at org.apache.bookkeeper.bookie.LocalBookieEnsemblePlacementPolicy.replaceBookie(LocalBookieEnsemblePlacementPolicy.java:89) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.BookieWatcherImpl.replaceBookie(BookieWatcherImpl.java:334) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.EnsembleUtils.replaceBookiesInEnsemble(EnsembleUtils.java:71) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle.lambda$ensembleChangeLoop$2(LedgerHandle.java:1947) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.MetadataUpdateLoop.writeLoop(MetadataUpdateLoop.java:134) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.MetadataUpdateLoop.run(MetadataUpdateLoop.java:123) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle.ensembleChangeLoop(LedgerHandle.java:1966) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle.handleBookieFailure(LedgerHandle.java:1915) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.PendingAddOp.writeComplete(PendingAddOp.java:378) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.writeComplete(PerChannelBookieClient.java:2168) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleResponse(PerChannelBookieClient.java:2225) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleV2Response(PerChannelBookieClient.java:2204) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.proto.PerChannelBookieClient$ReadV2ResponseCallback.safeRun(PerChannelBookieClient.java:1382) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.common.util.SafeRunnable.run(SafeRunnable.java:36) ~[org.apache.bookkeeper-bookkeeper-common-4.14.8.jar:4.14.8]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[?:?]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[?:?]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.100.Final.jar:4.1.100.Final]
+        at java.lang.Thread.run(Thread.java:829) ~[?:?]
+2024-11-14T10:40:54,127+0800 [BookKeeperClientWorker-OrderedExecutor-11-0] ERROR org.apache.bookkeeper.client.LedgerHandle - Closing ledger 9062267 due to NotEnoughBookiesException: Not enough non-faulty bookies available
+2024-11-14T10:40:54,129+0800 [BookKeeperClientWorker-OrderedExecutor-11-0] ERROR org.apache.bookkeeper.client.PendingAddOp - Write of ledger entry to quorum failed: L9062267 E0
+2024-11-14T10:40:54,130+0800 [main] WARN  org.apache.bookkeeper.tools.cli.commands.bookie.SanityTestCommand - Error in bookie sanity test
+org.apache.bookkeeper.client.BKException$BKNotEnoughBookiesException: Not enough non-faulty bookies available
+        at org.apache.bookkeeper.client.SyncCallbackUtils.finish(SyncCallbackUtils.java:83) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.SyncCallbackUtils$SyncAddCallback.addComplete(SyncCallbackUtils.java:251) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.AsyncCallback$AddCallback.addCompleteWithLatency(AsyncCallback.java:92) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.PendingAddOp.submitCallback(PendingAddOp.java:431) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle.errorOutPendingAdds(LedgerHandle.java:1811) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.client.LedgerHandle$5.safeRun(LedgerHandle.java:575) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.common.util.SafeRunnable.run(SafeRunnable.java:36) ~[org.apache.bookkeeper-bookkeeper-common-4.14.8.jar:4.14.8]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[?:?]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[?:?]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.100.Final.jar:4.1.100.Final]
+        at java.lang.Thread.run(Thread.java:829) ~[?:?]
+2024-11-14T10:40:54,143+0800 [main-EventThread] WARN  org.apache.bookkeeper.meta.AbstractZkLedgerManager - Ledger node does not exist in ZooKeeper: ledgerId=9062267
+2024-11-14T10:40:54,143+0800 [main-EventThread] ERROR org.apache.bookkeeper.client.MetadataUpdateLoop - UpdateLoop(ledgerId=9062267,loopId=6d3717ff) Error writing metadata to store
+org.apache.bookkeeper.client.BKException$BKNoSuchLedgerExistsOnMetadataServerException: No such ledger exists on Metadata Server
+        at org.apache.bookkeeper.meta.AbstractZkLedgerManager$5.processResult(AbstractZkLedgerManager.java:547) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.bookkeeper.zookeeper.ZooKeeperClient$22$1.processResult(ZooKeeperClient.java:1094) ~[org.apache.bookkeeper-bookkeeper-server-4.14.8.jar:4.14.8]
+        at org.apache.zookeeper.ClientCnxn$EventThread.processEvent(ClientCnxn.java:613) ~[org.apache.zookeeper-zookeeper-3.9.1.jar:3.9.1]
+        at org.apache.zookeeper.ClientCnxn$EventThread.run(ClientCnxn.java:538) ~[org.apache.zookeeper-zookeeper-3.9.1.jar:3.9.1]
+2024-11-14T10:40:54,144+0800 [main-EventThread] WARN  org.apache.bookkeeper.client.LedgerHandle - Close failed: NoSuchLedgerExistsOnMetadataServerException: No such ledger exists on Metadata Server
+2024-11-14T10:40:54,144+0800 [main-EventThread] ERROR org.apache.bookkeeper.meta.CleanupLedgerManager - Failed on operating ledger metadata: -25
+2024-11-14T10:40:54,145+0800 [main] INFO  org.apache.bookkeeper.tools.cli.commands.bookie.SanityTestCommand - Deleted ledger 9062267
+2024-11-14T10:40:54,145+0800 [main] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Closing the per channel bookie client for 172.2.10.120:3181
+2024-11-14T10:40:54,150+0800 [bookkeeper-io-3-1] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Disconnected from bookie channel [id: 0xae3ccd27, L:/172.2.10.120:38590 ! R:172.2.10.120/172.2.10.120:3181]
+2024-11-14T10:40:54,151+0800 [main] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Closing the per channel bookie client for 172.2.10.120:3181
+2024-11-14T10:40:54,278+0800 [main-EventThread] INFO  org.apache.zookeeper.ClientCnxn - EventThread shut down for session: 0x300000618a40092
+2024-11-14T10:40:54,278+0800 [main] INFO  org.apache.zookeeper.ZooKeeper - Session: 0x300000618a40092 closed
+
+
+
+
+zookeeper异常日志如下：
+2024-11-14 08:13:53,325 [myid:2] - INFO  [PurgeTask:DatadirCleanupManager$PurgeTask@139] - Purge task started.
+2024-11-14 08:13:53,325 [myid:2] - INFO  [PurgeTask:FileTxnSnapLog@124] - zookeeper.snapshot.trust.empty : false
+2024-11-14 08:13:53,326 [myid:2] - INFO  [PurgeTask:DatadirCleanupManager$PurgeTask@145] - Purge task completed.
+2024-11-14 08:19:37,602 [myid:2] - INFO  [RequestThrottler:QuorumZooKeeperServer@159] - Submitting global closeSession request for session 0x20000004643007a
+2024-11-14 08:19:38,369 [myid:2] - INFO  [NIOWorkerThread-2:NIOServerCnxn@330] - Unable to read additional data from client, it probably closed the socket: address = /172.2.10.119:60822, session = 0x20000004643007b
+2024-11-14 08:19:40,478 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a4007d
+2024-11-14 08:19:41,461 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a4007e
+2024-11-14 08:19:41,569 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a008b
+2024-11-14 08:26:16,633 [myid:2] - INFO  [NIOWorkerThread-11:NIOServerCnxn@330] - Unable to read additional data from client, it probably closed the socket: address = /172.2.10.120:56702, session = 0x20000004643007c
+2024-11-14 08:26:16,633 [myid:2] - INFO  [NIOWorkerThread-10:NIOServerCnxn@330] - Unable to read additional data from client, it probably closed the socket: address = /172.2.10.120:56706, session = 0x20000004643007d
+2024-11-14 08:26:18,835 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x20000004643007e
+2024-11-14 08:26:20,074 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a4007f
+2024-11-14 08:26:20,207 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x20000004643007f
+2024-11-14 08:34:54,679 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a40080
+2024-11-14 08:34:55,786 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a40081
+2024-11-14 08:34:55,863 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x200000046430080
+2024-11-14 08:41:31,688 [myid:2] - INFO  [RequestThrottler:QuorumZooKeeperServer@159] - Submitting global closeSession request for session 0x20000004643007e
+2024-11-14 08:41:31,886 [myid:2] - INFO  [NIOWorkerThread-7:NIOServerCnxn@330] - Unable to read additional data from client, it probably closed the socket: address = /172.2.10.120:56724, session = 0x20000004643007f
+2024-11-14 08:41:34,077 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a008c
+2024-11-14 08:41:35,321 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a008d
+2024-11-14 08:41:35,430 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a008e
+2024-11-14 08:50:07,103 [myid:2] - INFO  [NIOWorkerThread-14:NIOServerCnxn@330] - Unable to read additional data from client, it probably closed the socket: address = /172.2.10.119:60836, session = 0x200000046430080
+2024-11-14 08:50:08,898 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a008f
+2024-11-14 08:50:09,848 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x200000046430081
+2024-11-14 08:50:09,976 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a0090
+2024-11-14 08:56:49,294 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x200000046430082
+2024-11-14 08:56:50,504 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a40082
+2024-11-14 08:56:50,620 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a0091
+2024-11-14 09:05:20,614 [myid:2] - INFO  [RequestThrottler:QuorumZooKeeperServer@159] - Submitting global closeSession request for session 0x200000046430081
+2024-11-14 09:05:23,088 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a40083
+2024-11-14 09:05:24,087 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a40084
+2024-11-14 09:05:24,200 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a40085
+2024-11-14 09:12:02,063 [myid:2] - INFO  [RequestThrottler:QuorumZooKeeperServer@159] - Submitting global closeSession request for session 0x200000046430082
+2024-11-14 09:12:04,318 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a0092
+2024-11-14 09:12:05,479 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x300000618a40086
+2024-11-14 09:12:05,589 [myid:2] - INFO  [CommitProcessor:2:LearnerSessionTracker@116] - Committing global session 0x1004929423a0093
+
+
+
+
+bookie服务异常如下：
+journalctl -f | grep ERROR
+Nov 14 10:44:48 DFPulsar-172-2-10-120 pulsar[7418]: 2024-11-14T10:44:48,842+0800 [LedgerDirsMonitorThread] ERROR org.apache.bookkeeper.util.DiskChecker - Space left on device /data/bookkeeper/ledgers/current : 107515342848, Used space fraction: 0.94621605 > threshold 0.9.
+Nov 14 10:44:58 DFPulsar-172-2-10-120 pulsar[7418]: 2024-11-14T10:44:58,843+0800 [LedgerDirsMonitorThread] ERROR org.apache.bookkeeper.util.DiskChecker - Space left on device /data/bookkeeper/ledgers/current : 107515363328, Used space fraction: 0.94621605 > threshold 0.9.
+Nov 14 10:45:08 DFPulsar-172-2-10-120 pulsar[7418]: 2024-11-14T10:45:08,842+0800 [LedgerDirsMonitorThread] ERROR org.apache.bookkeeper.util.DiskChecker - Space left on device /data/bookkeeper/ledgers/current : 107515314176, Used space fraction: 0.9462161 > threshold 0.9.
+
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

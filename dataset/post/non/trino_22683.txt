@@ -1,0 +1,52 @@
+Random function returns the same result for a row when invoked with the same arguments
+Trino version: 452
+
+If I run the following query in Trino to generate a few random numbers:
+```
+SELECT random(0, 10), random(0, 10), random(0, 100), random(0, 100);
+ _col0 | _col1 | _col2 | _col3
+-------+-------+-------+-------
+     3 |     3 |    47 |    47
+(1 row)
+```
+the calls to `random(0, 10)` return the same result for the row, and the calls to `random(0, 100)` return the same result for the row.
+
+Here's a comparison of the behaviour for a few different databases:
+
+Trino:
+```
+trino> SELECT random(), random();
+       _col0        |       _col1
+--------------------+--------------------
+ 0.6029517561337272 | 0.6029517561337272
+(1 row)
+```
+
+Postgres:
+```
+postgres=# SELECT random(), random();
+       random        |      random
+---------------------+-------------------
+ 0.18287540277036807 | 0.252535843516998
+(1 row)
+```
+
+MySQL:
+```
+mysql> SELECT rand(), rand();
++-------------------+--------------------+
+| rand()            | rand()             |
++-------------------+--------------------+
+| 0.644271303568288 | 0.7899929515924239 |
++-------------------+--------------------+
+```
+
+SQLite3:
+```
+sqlite> SELECT random(), random();
++----------------------+----------------------+
+|       random()       |       random()       |
++----------------------+----------------------+
+| -2099548840207464026 | -5889165018339978516 |
++----------------------+----------------------+
+```

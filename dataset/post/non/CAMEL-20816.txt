@@ -1,0 +1,57 @@
+Camel-JBang: Export to quarkus does not honor quarkusGroupId setting
+I want to export the integration as a quarkus maven project using jbang
+
+There is an option to specify quarkusGroupId, however there is {{io.quarkus.platform}} hardcoded [here|https://github.com/apache/camel/blob/main/dsl/camel-jbang/camel-jbang-core/src/main/java/org/apache/camel/dsl/jbang/core/common/CatalogLoader.java#L170] that causes an issue when I want to use a downstream quarkus version.
+
+This works on {{camel-4.5.x}} branch as there is a [catch block|https://github.com/apache/camel/blob/camel-4.5.x/dsl/camel-jbang/camel-jbang-core/src/main/java/org/apache/camel/dsl/jbang/core/common/CatalogLoader.java#L215] that ignores that exception
+
+Steps to reproduce:
+- jbang app install --force camel@apache/camel/main
+- camel init test.yaml --directory=/tmp/app
+- camel export --runtime quarkus --gav com.test:example:1.0 --quarkus-group-id com.redhat.quarkus.platform --quarkus-version 3.8.4.SP1-redhat-00001 --dir /tmp/export /tmp/app/test.yaml
+
+{code}
+camel export --runtime quarkus --gav com.test:example:1.0 --quarkus-group-id com.redhat.quarkus.platform --quarkus-version 3.8.4.SP1-redhat-00001 --dir /tmp/export /tmp/app/test.yaml
+Generating fresh run data
+Exporting as Quarkus project to: /tmp/export
+org.apache.camel.main.download.DownloadException: Cannot resolve dependencies in https://repo1.maven.org/maven2, https://repo.maven.apache.org/maven2, https://maven.repository.redhat.com/ga, https://maven.repository.redhat.com/earlyaccess/all, https://indy.psi.redhat.com/api/content/maven/group/builds-untested+shared-imports/, https://indy.psi.redhat.com/api/content/maven/hosted/temporary-builds/, https://repository.engineering.redhat.com/nexus/repository/jboss-qa-releases/, https://nexus.fuse-qe.eng.rdu2.redhat.com/repository/fuse-all/
+	at org.apache.camel.main.download.MavenDependencyDownloader.resolveDependenciesViaAether(MavenDependencyDownloader.java:566)
+	at org.apache.camel.main.download.MavenDependencyDownloader.downloadArtifact(MavenDependencyDownloader.java:338)
+	at org.apache.camel.dsl.jbang.core.common.CatalogLoader.loadQuarkusCatalog(CatalogLoader.java:170)
+	at org.apache.camel.dsl.jbang.core.commands.ExportQuarkus.createMavenPom(ExportQuarkus.java:353)
+	at org.apache.camel.dsl.jbang.core.commands.ExportQuarkus.export(ExportQuarkus.java:121)
+	at org.apache.camel.dsl.jbang.core.commands.Export.export(Export.java:138)
+	at org.apache.camel.dsl.jbang.core.commands.Export.export(Export.java:57)
+	at org.apache.camel.dsl.jbang.core.commands.ExportBaseCommand.doCall(ExportBaseCommand.java:239)
+	at org.apache.camel.dsl.jbang.core.commands.Export.doCall(Export.java:28)
+	at org.apache.camel.dsl.jbang.core.commands.CamelCommand.call(CamelCommand.java:71)
+	at org.apache.camel.dsl.jbang.core.commands.CamelCommand.call(CamelCommand.java:37)
+	at picocli.CommandLine.executeUserObject(CommandLine.java:2041)
+	at picocli.CommandLine.access$1500(CommandLine.java:148)
+	at picocli.CommandLine$RunLast.executeUserObjectOfLastSubcommandWithSameParent(CommandLine.java:2461)
+	at picocli.CommandLine$RunLast.handle(CommandLine.java:2453)
+	at picocli.CommandLine$RunLast.handle(CommandLine.java:2415)
+	at picocli.CommandLine$AbstractParseResultHandler.execute(CommandLine.java:2273)
+	at picocli.CommandLine$RunLast.execute(CommandLine.java:2417)
+	at picocli.CommandLine.execute(CommandLine.java:2170)
+	at org.apache.camel.dsl.jbang.core.commands.CamelJBangMain.run(CamelJBangMain.java:165)
+	at org.apache.camel.dsl.jbang.core.commands.CamelJBangMain.run(CamelJBangMain.java:61)
+	at main.CamelJBang.main(CamelJBang.java:36)
+Caused by: org.apache.camel.tooling.maven.MavenResolutionException: The following artifacts could not be resolved: io.quarkus.platform:quarkus-camel-bom:pom:3.8.4.SP1-redhat-00001 (absent): Could not find artifact io.quarkus.platform:quarkus-camel-bom:pom:3.8.4.SP1-redhat-00001 in central (https://repo1.maven.org/maven2)
+	at org.apache.camel.tooling.maven.MavenDownloaderImpl.resolveArtifacts(MavenDownloaderImpl.java:480)
+	at org.apache.camel.main.download.MavenDependencyDownloader.resolveDependenciesViaAether(MavenDependencyDownloader.java:560)
+	... 21 more
+Caused by: org.eclipse.aether.resolution.ArtifactResolutionException: The following artifacts could not be resolved: io.quarkus.platform:quarkus-camel-bom:pom:3.8.4.SP1-redhat-00001 (absent): Could not find artifact io.quarkus.platform:quarkus-camel-bom:pom:3.8.4.SP1-redhat-00001 in central (https://repo1.maven.org/maven2)
+	at org.eclipse.aether.internal.impl.DefaultArtifactResolver.resolve(DefaultArtifactResolver.java:473)
+	at org.eclipse.aether.internal.impl.DefaultArtifactResolver.resolveArtifacts(DefaultArtifactResolver.java:261)
+	at org.eclipse.aether.internal.impl.DefaultRepositorySystem.resolveArtifacts(DefaultRepositorySystem.java:288)
+	at org.apache.camel.tooling.maven.MavenDownloaderImpl.resolveArtifacts(MavenDownloaderImpl.java:469)
+	... 22 more
+Caused by: org.eclipse.aether.transfer.ArtifactNotFoundException: Could not find artifact io.quarkus.platform:quarkus-camel-bom:pom:3.8.4.SP1-redhat-00001 in central (https://repo1.maven.org/maven2)
+	at org.eclipse.aether.connector.basic.ArtifactTransportListener.transferFailed(ArtifactTransportListener.java:42)
+	at org.eclipse.aether.connector.basic.BasicRepositoryConnector$TaskRunner.run(BasicRepositoryConnector.java:417)
+	at org.eclipse.aether.connector.basic.BasicRepositoryConnector.get(BasicRepositoryConnector.java:260)
+	at org.eclipse.aether.internal.impl.DefaultArtifactResolver.performDownloads(DefaultArtifactResolver.java:537)
+	at org.eclipse.aether.internal.impl.DefaultArtifactResolver.resolve(DefaultArtifactResolver.java:449)
+	... 25 more
+{code}

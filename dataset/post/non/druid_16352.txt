@@ -1,0 +1,16 @@
+druid.indexer.task.restoreTasksOnRestart does not work by default for Docker based deployments on Kubernetes
+druid.indexer.task.restoreTasksOnRestart does not work by default for Docker based deployments on Kubernetes
+
+### Affected Version
+25.0.0 but the issue still exists in latest version
+
+### Description
+
+Hi Druid experts. Our team runs Druid on Kubernetes and ingest data from Kafka. We have druid.indexer.task.restoreTasksOnRestart=true and expected ingestion tasks to restore and resume even when the MiddleManager is restarted. This is the current behavior:
+
+1. MiddleManager is shut down. Because druid.indexer.task.restoreTasksOnRestart=true, restore.json is created
+2. MiddleManager starts up, but with a different IP because we are running on Kubernetes. The task is restored and continues running. 
+3. When the peon reports its status to the Overlord, the Overlord will log that the [task is not in known task id's ](https://github.com/apache/druid/blob/master/indexing-service/src/main/java/org/apache/druid/indexing/overlord/TaskQueue.java#L474-L476) and proceeds to [shutdown the task](https://github.com/apache/druid/blob/master/indexing-service/src/main/java/org/apache/druid/indexing/overlord/hrtr/HttpRemoteTaskRunner.java#L1351). This is because the MiddleManager IP has changed 
+
+The solution to fix this problem is to allow druid.host to use the default value of InetAddress.getLocalHost().getCanonicalHostName() and task restoration works after that. But setting druid.host to the default value requires setting [DRUID_SET_HOST](https://github.com/apache/druid/blob/master/distribution/docker/druid.sh#L141) to 0 through an environment variable. I am wondering what the original reasoning for using IP instead of canonical host name is. And wondering if we should change the default behavior given that using IP breaks task restoration
+

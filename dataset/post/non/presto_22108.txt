@@ -1,0 +1,78 @@
+[Iceberg] Multiple entries with same value
+After https://github.com/prestodb/presto/pull/21605, Query may fail when executing on partitioned table:
+```
+SELECT * FROM partitioned_table
+```
+Stack Trace:
+```
+Caused by: java.lang.IllegalArgumentException: Multiple entries with same value: nationkey_19=1:nationkey:bigint and nationkey_17=1:nationkey:bigint
+	at com.google.common.collect.ImmutableMap.conflictException(ImmutableMap.java:215)
+	at com.google.common.collect.ImmutableMap.checkNoConflict(ImmutableMap.java:209)
+	at com.google.common.collect.RegularImmutableBiMap.checkNoConflictInValueBucket(RegularImmutableBiMap.java:131)
+	at com.google.common.collect.RegularImmutableBiMap.fromEntryArray(RegularImmutableBiMap.java:89)
+	at com.google.common.collect.RegularImmutableBiMap.fromEntries(RegularImmutableBiMap.java:58)
+	at com.google.common.collect.ImmutableBiMap.copyOf(ImmutableBiMap.java:368)
+	at com.google.common.collect.ImmutableBiMap.copyOf(ImmutableBiMap.java:340)
+	at com.facebook.presto.sql.planner.EffectivePredicateExtractor$Visitor.visitTableScan(EffectivePredicateExtractor.java:213)
+	at com.facebook.presto.sql.planner.EffectivePredicateExtractor$Visitor.visitTableScan(EffectivePredicateExtractor.java:90)
+	at com.facebook.presto.spi.plan.TableScanNode.accept(TableScanNode.java:203)
+	at com.facebook.presto.sql.planner.EffectivePredicateExtractor.extract(EffectivePredicateExtractor.java:87)
+	at com.facebook.presto.sql.planner.optimizations.PredicatePushDown$Rewriter.visitJoin(PredicatePushDown.java:450)
+	at com.facebook.presto.sql.planner.optimizations.PredicatePushDown$Rewriter.visitJoin(PredicatePushDown.java:177)
+	at com.facebook.presto.sql.planner.plan.JoinNode.accept(JoinNode.java:317)
+	at com.facebook.presto.sql.planner.plan.InternalPlanNode.accept(InternalPlanNode.java:36)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:92)
+	at com.facebook.presto.sql.planner.optimizations.PredicatePushDown$Rewriter.visitFilter(PredicatePushDown.java:425)
+	at com.facebook.presto.sql.planner.optimizations.PredicatePushDown$Rewriter.visitFilter(PredicatePushDown.java:177)
+	at com.facebook.presto.spi.plan.FilterNode.accept(FilterNode.java:96)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:92)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.lambda$defaultRewrite$0(SimplePlanRewriter.java:80)
+	at java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:193)
+	at java.util.Collections$2.tryAdvance(Collections.java:4719)
+	at java.util.Collections$2.forEachRemaining(Collections.java:4727)
+	at java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:482)
+	at java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:472)
+	at java.util.stream.ReduceOps$ReduceOp.evaluateSequential(ReduceOps.java:708)
+	at java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+	at java.util.stream.ReferencePipeline.collect(ReferencePipeline.java:566)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.defaultRewrite(SimplePlanRewriter.java:81)
+	at com.facebook.presto.sql.planner.optimizations.PredicatePushDown$Rewriter.visitPlan(PredicatePushDown.java:223)
+	at com.facebook.presto.sql.planner.optimizations.PredicatePushDown$Rewriter.visitPlan(PredicatePushDown.java:177)
+	at com.facebook.presto.spi.plan.PlanVisitor.visitOutput(PlanVisitor.java:25)
+	at com.facebook.presto.spi.plan.OutputNode.accept(OutputNode.java:98)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter.rewriteWith(SimplePlanRewriter.java:35)
+	at com.facebook.presto.sql.planner.optimizations.PredicatePushDown.optimize(PredicatePushDown.java:152)
+	at com.facebook.presto.sql.planner.optimizations.StatsRecordingPlanOptimizer.optimize(StatsRecordingPlanOptimizer.java:58)
+	at com.facebook.presto.sql.Optimizer.validateAndOptimizePlan(Optimizer.java:117)
+	at com.facebook.presto.execution.SqlQueryExecution.lambda$createLogicalPlanAndOptimize$3(SqlQueryExecution.java:557)
+	at com.facebook.presto.common.RuntimeStats.profileNanos(RuntimeStats.java:136)
+	at com.facebook.presto.execution.SqlQueryExecution.createLogicalPlanAndOptimize(SqlQueryExecution.java:555)
+	at com.facebook.presto.execution.SqlQueryExecution.start(SqlQueryExecution.java:463)
+	at com.facebook.presto.$gen.Presto_null__testversion____20240307_072942_4.run(Unknown Source)
+	at com.facebook.presto.execution.SqlQueryManager.createQuery(SqlQueryManager.java:319)
+	at com.facebook.presto.dispatcher.LocalDispatchQuery.lambda$startExecution$8(LocalDispatchQuery.java:211)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+
+
+```
+where partitioned_table is a partitioned table with equality deletes, When we set set session iceberg.delete_as_join_rewrite_enabled=false, the query can run successfully.
+
+We can add the following test in com.facebook.presto.iceberg.IcebergDistributedTestBase to stably reproduce this problem:
+```
+@Test(dataProvider = "equalityDeleteOptions")
+public void testPartitionedTableWithEqualityDelete(String fileFormat, boolean joinRewriteEnabled)
+            throws Exception
+{
+    Session session = deleteAsJoinEnabled(joinRewriteEnabled);
+    String tableName = "test_v2_equality_delete" + randomTableSuffix();
+    assertUpdate(session, "CREATE TABLE " + tableName + " WITH (partitioning = ARRAY['nationkey'], format = '" + fileFormat + "') " + " AS SELECT * FROM tpch.tiny.nation", 25);
+    Table icebergTable = updateTable(tableName);
+    writeEqualityDeleteToNationTable(icebergTable, ImmutableMap.of("regionkey", 1L, "nationkey", 1L), ImmutableMap.of("nationkey", 1L));
+    assertQuery(session, "SELECT * FROM " + tableName, "SELECT * FROM nation WHERE regionkey != 1 or nationkey != 1 ");
+    assertQuery(session, "SELECT nationkey, comment FROM " + tableName, "SELECT nationkey, comment FROM nation WHERE regionkey != 1 or nationkey != 1");
+}
+```
+
+CC: @tdcmeehan @yingsu00 @jasonf20

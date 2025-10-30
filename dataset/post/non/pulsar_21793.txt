@@ -1,0 +1,31 @@
+Add a metric for geo replication for tracking replicated subscriptions snapshot timeouts
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+Geo replication replicated subscriptions (PIP-33) [snapshot creation might time out](https://github.com/apache/pulsar/wiki/PIP-33%3A-Replicated-subscriptions#constructing-a-cursor-snapshot).
+The code contains a debug log message when this happens: https://github.com/apache/pulsar/blob/465fac523da946553b09298e13dc7dfcecfb6c78/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/persistent/ReplicatedSubscriptionsController.java#L256
+When this happens, the subscription state won't be reflected on the remote side and a backlog would build up.
+There's no metric to detect this situation. 
+
+
+
+
+### Solution
+
+Add a new metric `pulsar_replicated_subscriptions_snapshot_timeouts` which is a counter (that only resets when the broker restarts).
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+Increasing the timeout threshold `replicatedSubscriptionsSnapshotTimeoutSeconds=30` -> `replicatedSubscriptionsSnapshotTimeoutSeconds=60` could help resolve the situation. This metric would help detect when it would be necessary.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

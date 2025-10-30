@@ -1,0 +1,30 @@
+Connector specific session properties missed in manually started transaction in test framework
+In current test framework, when we want to simulate and test executing statements in a manually started transaction as follows:
+
+```
+// The default value of table property `delete_mode` is `merge-on-read`
+create table iceberg.default.test_table(a int, b varchar);
+
+// Disable merge on read mode for iceberg tables in session level
+set session iceberg.merge_on_read_enabled=false;
+
+start transaction;
+
+//Should fail because of the conflicts between session property and table property
+select * from test_table;
+......
+```
+
+We will find that the setting of connector specific session property `iceberg.merge_on_read_enabled` is ineffective in server side and will always be its default value `true`. So we can not get the expected behavior for statement `select * from test_table`, which should fail because of the conflicts between session property and table property.
+
+These kind of test cases are necessary when we trying to support multiple statements transaction for a specific connector, for example Iceberg.
+
+## Expected Behavior
+Connector specific session properties should not be missed when start transaction manually in test cases
+
+## Current Behavior
+Connector specific session properties are missed when start transaction manually in test cases
+
+## Possible Solution
+
+#23206 

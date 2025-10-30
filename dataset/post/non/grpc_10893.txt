@@ -1,0 +1,72 @@
+Bazel build failing for  @io_grpc_grpc_java//netty:netty
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+v1.61.1
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+Linux
+### What did you expect to see?
+Successfully building the target.
+### What did you see instead?
+Getting this error during the build
+```sh
+# Execution platform: @local_config_platform//:host
+external/io_grpc_grpc_java/api/src/main/java/io/grpc/NameResolver.java:24: error: cannot find symbol
+import com.google.errorprone.annotations.InlineMe;
+                                        ^
+  symbol:   class InlineMe
+  location: package com.google.errorprone.annotations
+external/io_grpc_grpc_java/api/src/main/java/io/grpc/NameResolver.java:220: error: cannot find symbol
+    @InlineMe(
+     ^
+  symbol:   class InlineMe
+  location: class Listener2
+Target @io_grpc_grpc_java//netty:netty failed to build
+```
+### Steps to reproduce the bug
+
+- Use Bazel version 6.4.0
+
+- Update the WORKSPACE file with these changes
+```sh
+http_archive(
+    name = "io_grpc_grpc_java",
+    sha256 = "fe9d580d0766bcc53b99489b28247d57c77ba8aac3f3e8cbae0a12a2c8a7de2c", ##--> v1.61.1
+    strip_prefix = "grpc-java-1.61.1",
+    urls = ["https://github.com/grpc/grpc-java/archive/v1.61.1.zip"],
+)
+```
+- Run the bazel build command
+```sh
+bazel build @io_grpc_grpc_java//netty:netty
+```
+
+- Detailed Error message 
+
+```sh
+ERROR: /home/ajithu/.cache/bazel/_bazel_ajithu/3e767109738c8b2d608cdfe5de369b17/external/io_grpc_grpc_java/api/BUILD.bazel:1:13: Building external/io_grpc_grpc_java/api/libapi.jar (110 source files) failed: (Exit 1): java failed: error executing command (from target @io_grpc_grpc_java//api:api) 
+  (cd /home/ajithu/.cache/bazel/_bazel_ajithu/3e767109738c8b2d608cdfe5de369b17/execroot/tm_repo && \
+  exec env - \
+    LC_CTYPE=en_US.UTF-8 \
+    PATH=/usr/local/bin:/bin:/usr/bin \
+  external/remotejdk11_linux/bin/java -XX:-CompactStrings '--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.resources=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED' '--add-opens=java.base/java.nio=ALL-UNNAMED' '--add-opens=java.base/java.lang=ALL-UNNAMED' '-Dsun.io.useCanonCaches=false' -Xlog:disable '-Xlog:all=warning:stderr:uptime,level,tags' -jar external/remote_java_tools/java_tools/JavaBuilder_deploy.jar @bazel-out/k8-fastbuild/bin/external/io_grpc_grpc_java/api/libapi.jar-0.params @bazel-out/k8-fastbuild/bin/external/io_grpc_grpc_java/api/libapi.jar-1.params)
+# Configuration: 88ce341cf31e1b61b5124263d5d1dafd641a9253e29b559f307e0957943d8cd3
+# Execution platform: @local_config_platform//:host
+external/io_grpc_grpc_java/api/src/main/java/io/grpc/NameResolver.java:24: error: cannot find symbol
+import com.google.errorprone.annotations.InlineMe;
+                                        ^
+  symbol:   class InlineMe
+  location: package com.google.errorprone.annotations
+external/io_grpc_grpc_java/api/src/main/java/io/grpc/NameResolver.java:220: error: cannot find symbol
+    @InlineMe(
+     ^
+  symbol:   class InlineMe
+  location: class Listener2
+Target @io_grpc_grpc_java//netty:netty failed to build
+```
+
+### Notes
+- I can see this error on v1.48.0 as well. 
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->

@@ -1,0 +1,54 @@
+Hadoop use Shell command to get the count of the hard link which takes a lot of time
+Using Hadoop 3.3.4
+
+ 
+
+When the QPS of `append` executions is very high, at a rate of above 10000/s. 
+
+ 
+
+We found that the write speed in hadoop is very slow. We traced some datanodes' log and find that there is a warning :
+{code:java}
+2024-01-26 11:09:44,292 WARN impl.FsDatasetImpl (InstrumentedLock.java:logwaitWarning(165)) Waited above threshold(300 ms) to acquire lock: lock identifier: FsDatasetRwlock waitTimeMs=336 ms.Suppressed 0 lock wait warnings.Longest supressed waitTimeMs=0.The stack trace is
+java.lang.Thread,getStackTrace(Thread.java:1559)
+org.apache.hadoop.util.StringUtils.getStackTrace(StringUtils.java:1060)
+org.apache.hadoop.util.Instrumentedlock.logWaitWarning(InstrumentedLock.java:171)
+org.apache.hadoop.util.InstrumentedLock.check(InstrumentedLock.java:222)
+org.apache.hadoop.util.InstrumentedLock.lock(InstrumentedLock, iaya:105)
+org.apache.hadoop.util.AutocloseableLock.acquire(AutocloseableLock.java:67)
+org.apache.hadoop.hdfs.server.datanode.fsdataset.impl.FsDatasetImpl.append(FsDatasetImpl.java:1239)
+org.apache.hadoop.hdfs.server.datanode.BlockReceiver.<init>(BlockReceiver.java:230)
+org.apache.hadoop.hdfs.server.datanode.DataXceiver.getBlockReceiver (DataXceiver.java:1313)
+org.apache.hadoop.hdfs.server.datanode.DataXceiver.writeBlock (DataXceiver.java:764)
+org.apache.hadoop.hdfs.protocol.datatransfer.Receiver.opWriteBlock(Receiver.java:176)
+org.apache.hadoop.hdfs.protocol.datatransfer.Receiver.processOp(Receiver.java:110)
+org.apache.hadoop.hdfs.server.datanode.DataXceiver.run(DataXceiver.java:293)
+java.lang.Thread.run(Thread.java:748)
+{code}
+ 
+
+Then we traced the method _org.apache.hadoop.hdfs.server.datanode.fsdataset.impl.FsDatasetImpl.append(FsDatasetImpl. java:1239),_ and print how long each command take to finish the execution, and find that it takes us 700ms to get the linkCount of the file which is really slow.
+
+!debuglog.png!
+
+ 
+
+We traced the code and  find that java1.8 use a Shell Command to get the linkCount, in which execution it will start a new Process and wait for the Process to fork, when the QPS is very high, it will sometimes take a long time to fork the process.
+
+Here is the shell command.
+{code:java}
+stat -c%h /path/to/file
+{code}
+ 
+
+Solution:
+
+For the FileStore that supports the file attributes "unix", we can use the method _Files.getAttribute(f.toPath(), "unix:nlink")_ to get the linkCount, this method doesn't need to start a new process, and will return the result in a very short time.
+
+ 
+
+When we use this method to get the file linkCount, we rarely get the WARN log above when the QPS of append execution is high.
+
+.
+
+ 

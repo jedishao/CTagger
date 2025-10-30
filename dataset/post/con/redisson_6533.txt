@@ -1,0 +1,14 @@
+New connection opened for each write operation after master has been changed
+Setup:
+
+Redis Sentinel, Redis ver. 7.4.2, master node and two replicas (R1 and R2)
+Redisson ver. 3.45.1, config: `readMode=SLAVE, SentinelServerConfig.scanInvterval=1000`
+
+It seems that write operations performance may be significantly reduced by the need to open new connection each time when some internal race occurs.
+It may happen when master is changed, like in this case:
+1. Current master M1 is restarted
+2. In the meantime `scheduleChangeCheck` timer triggers and runs `SENTINEL_SLAVES` command.
+3. Replica R1 is elected as a new master
+4. `scheduleChangeCheck` continues and calls `slaveDown` method on the R1 replica. ConnectionHolder of new master's ClientConnectionEntry gets `freezeReason` set to "MANAGER"
+5. Subsequent Redis write command creates new Redis connection. When the command is completed the connection is not released to the `freeConnections` pool since the new master node has `freezeReason` set.
+6. New master's ConnectionHolder `freezeReason` is never set to null.

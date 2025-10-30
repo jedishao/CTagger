@@ -1,0 +1,27 @@
+Snapshotdiff does not detect rename if parent dir removed
+In the example case below, the diff reports the moved folder as a CREATE, where it should be a RENAME.
+
+This means that applications using the diff report (such as DistCP) will have to transfer data where a simple move would suffice.
+{code:java}
+DistributedFileSystem fs = (DistributedFileSystem) this.fs;
+
+createHdfsFile(new Path("/level1/level2/file"), "content");
+fs.allowSnapshot(new Path("/"));
+fs.createSnapshot(new Path("/"), "snapshot1");
+
+fs.rename(new Path("/level1/level2/"), new Path("/level2-root"));
+fs.delete(new Path("/level1"), true);
+fs.createSnapshot(new Path("/"), "snapshot2");
+
+SnapshotDiffReport snapshotDiff =
+        fs.getSnapshotDiffReport(new Path("/"), "snapshot1", "snapshot2");
+System.out.println(snapshotDiff);
+//        Difference between snapshot snapshot1 and snapshot snapshot2 under directory /:
+//        M .
+//        + ./level2-root
+//        - ./level1
+
+// If the delete is commented out:
+//        M .
+//        M ./level1
+//        R ./level1/level2 -> ./level2-root{code}

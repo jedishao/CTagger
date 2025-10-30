@@ -1,0 +1,28 @@
+camel-rest-openapi:  OpenApi specification in the rest configuration will be ignored in Camel Spring Boot
+Given the [Camel Example OpenAPI Contract First|https://github.com/apache/camel-spring-boot-examples/tree/main/openapi-contract-first] with the configuration 
+
+{code:java}
+rest().openApi().specification("petstore.json").missingOperation("ignore");
+{code}
+
+and the consumer route
+
+{code:java}
+from("direct:getPetById")
+{code}
+
+we expect that the rest configuration will use the _petstore.json_ in the classpath to configure the exposed endpoints, but the application will not start using the command 
+
+{code:bash}
+mvn spring-boot:run
+{code}
+
+due to 
+
+{code:bash}
+ERROR 37424 --- [           main] o.s.boot.SpringApplication               : Application run failed
+org.apache.camel.FailedToStartRouteException: Failed to start route route3 because of The given OpenApi specification cannot be loaded from: openapi.json
+{code}
+
+so the application is looking for the _openapi.json_ file instead of the configured _petstore.json_
+

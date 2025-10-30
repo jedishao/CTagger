@@ -1,0 +1,91 @@
+[Bug]  Topic creation encountered an exception by initialize topic policies service. topic_name=persistent://Research/SubmissionsApi/DataEvents error_message={"errorMsg":"Error while reading ledger -  ledger=164 - operation=Failed to read entry - entry=0"
+### Search before reporting
+
+- [x] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [x] I understand that [unsupported versions](https://pulsar.apache.org/contribute/release-policy/#supported-versions) don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### User environment
+
+pulsar app version 4.0.1
+pulsar-broker-0:/pulsar$ bin/pulsar version
+Current version of pulsar is: 4.0.1
+Git Revision 3ea527bf6b720dcfe074c4476257cce96ebc068a
+Git Branch branch-4.0
+Built by Lari Hotari <lhotari@apache.org> on Laris-MacBook-Pro.local at 2024-11-22T21:03:11+0200
+
+Client Library type C#
+Pulsar.Client 3.6.0
+
+
+pulsar-broker-0:/pulsar$ uname -a
+Linux pulsar-broker-0 5.10.238-234.956.amzn2.x86_64 #1 SMP Tue Jul 1 20:20:57 UTC 2025 x86_64 Linux
+
+eks cluster with node al2
+
+pulsar-broker-0:/pulsar$ java -version
+openjdk version "21.0.5" 2024-10-15 LTS
+OpenJDK Runtime Environment Corretto-21.0.5.11.1 (build 21.0.5+11-LTS)
+OpenJDK 64-Bit Server VM Corretto-21.0.5.11.1 (build 21.0.5+11-LTS, mixed mode)
+
+
+### Issue Description
+
+The pulsar was working last Friday, though this week, our QA reported that the file submit function didn't work, I looked up the logs and found out the following error from datadog logs related to pulsar.
+
+Pulsar.Client.Api.LookupException: Topic creation encountered an exception by initialize topic policies service. topic_name=persistent://Research/SubmissionsApi/DataEvents error_message={"errorMsg":"Error while reading ledger -  ledger=164 - operation=Failed to read entry - entry=0","reqId":2134281900467291789, "remote":"pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650", "local":"/100.64.0.68:40186"}
+   at <StartupCode$Pulsar-Client>.$ConsumerImpl.-ctor@806-63.MoveNext()
+   at <StartupCode$Pulsar-Client>.$ConsumerImpl.Init@1418-2.MoveNext()
+   at <StartupCode$Pulsar-Client>.$PulsarClient.SingleTopicSubscribeAsync@235.MoveNext()
+   at BioTel.Research.Messaging.Receiver.Services.MessageReceiver.CreateConsumers()
+   at BioTel.Research.Messaging.Receiver.Services.MessageReceiver.ExecuteAsync(CancellationToken stoppingToken)
+   at Microsoft.Extensions.Hosting.Internal.Host.TryExecuteBackgroundServiceAsync(BackgroundService backgroundService)
+
+### Error messages
+
+```text
+2025-07-23T18:12:59,342+0000 [pulsar-io-3-1] INFO  org.apache.pulsar.client.impl.ConsumerImpl - [persistent://Research/SubmissionsApi/__change_events][__system_reader-reader-7513ee744c] Subscribing to topic on cnx [id: 0x31855b5f, L:/100.64.4.229:52756 - R:pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650], consumerId 12820
+2025-07-23T18:12:59,343+0000 [pulsar-io-3-1] WARN  org.apache.pulsar.client.impl.ClientCnx - [id: 0x31855b5f, L:/100.64.4.229:52756 - R:pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650] Received error from server: Error while reading ledger -  ledger=164 - operation=Failed to read entry - entry=0
+2025-07-23T18:12:59,344+0000 [pulsar-io-3-1] WARN  org.apache.pulsar.client.impl.ConsumerImpl - [persistent://Research/SubmissionsApi/__change_events][__system_reader-reader-7513ee744c] Failed to subscribe to topic on pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650
+2025-07-23T18:12:59,344+0000 [pulsar-io-3-1] WARN  org.apache.pulsar.client.impl.ConnectionHandler - [persistent://Research/SubmissionsApi/__change_events] [__system_reader-reader-7513ee744c] Error connecting to broker: org.apache.pulsar.client.api.PulsarClientException: {"errorMsg":"Error while reading ledger -  ledger=164 - operation=Failed to read entry - entry=0","reqId":1277472729960248600, "remote":"pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650", "local":"/100.64.4.229:52756"}
+2025-07-23T18:12:59,344+0000 [pulsar-io-3-1] WARN  org.apache.pulsar.client.impl.ConnectionHandler - [persistent://Research/SubmissionsApi/__change_events] [__system_reader-reader-7513ee744c] Could not get connection to broker: org.apache.pulsar.client.api.PulsarClientException: {"errorMsg":"Error while reading ledger -  ledger=164 - operation=Failed to read entry - entry=0","reqId":1277472729960248600, "remote":"pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650", "local":"/100.64.4.229:52756"} -- Will try again in 6.217 s
+
+
+Pulsar.Client.Api.LookupException: Topic creation encountered an exception by initialize topic policies service. topic_name=persistent://Research/SubmissionsApi/DataEvents error_message={"errorMsg":"Error while reading ledger -  ledger=164 - operation=Failed to read entry - entry=0","reqId":2134281900467291789, "remote":"pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650", "local":"/100.64.0.68:40186"}
+   at <StartupCode$Pulsar-Client>.$ConsumerImpl.-ctor@806-63.MoveNext()
+   at <StartupCode$Pulsar-Client>.$ConsumerImpl.Init@1418-2.MoveNext()
+   at <StartupCode$Pulsar-Client>.$PulsarClient.SingleTopicSubscribeAsync@235.MoveNext()
+   at BioTel.Research.Messaging.Receiver.Services.MessageReceiver.CreateConsumers()
+   at BioTel.Research.Messaging.Receiver.Services.MessageReceiver.ExecuteAsync(CancellationToken stoppingToken)
+   at Microsoft.Extensions.Hosting.Internal.Host.TryExecuteBackgroundServiceAsync(BackgroundService backgroundService)
+```
+
+### Reproducing the issue
+
+Pulsar.Client.Api.LookupException: Topic creation encountered an exception by initialize topic policies service. topic_name=persistent://Research/SubmissionsApi/DataEvents error_message={"errorMsg":"Error while reading ledger -  ledger=164 - operation=Failed to read entry - entry=0","reqId":2134281900467291789, "remote":"pulsar-broker-1.pulsar-broker.pulsar.svc.cluster.local/100.64.0.68:6650", "local":"/100.64.0.68:40186"}
+   at <StartupCode$Pulsar-Client>.$ConsumerImpl.-ctor@806-63.MoveNext()
+   at <StartupCode$Pulsar-Client>.$ConsumerImpl.Init@1418-2.MoveNext()
+   at <StartupCode$Pulsar-Client>.$PulsarClient.SingleTopicSubscribeAsync@235.MoveNext()
+   at BioTel.Research.Messaging.Receiver.Services.MessageReceiver.CreateConsumers()
+   at BioTel.Research.Messaging.Receiver.Services.MessageReceiver.ExecuteAsync(CancellationToken stoppingToken)
+   at Microsoft.Extensions.Hosting.Internal.Host.TryExecuteBackgroundServiceAsync(BackgroundService backgroundService)
+
+got the above error from datadog
+
+### Additional information
+
+Pulsar cluster is in AWS EKS cluster and we got the above error while it worked last Friday.
+Not sure how to fix the issue; I have tried clean up the DLQs and backlog messages, no help; tried to drain the pulsar nodes too.
+
+Any help will be greatly appreciated.
+
+Thanks,
+Jing
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

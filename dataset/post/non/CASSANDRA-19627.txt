@@ -1,0 +1,72 @@
+Host replacement cannot start when nodes having different ports
+CASSANDRA-7544 introduces configurable storage port per node. It means operator can pick different ports for nodes. 
+In the case of host replacement, it cannot start if the ports are not the same of the replacing and the replacement nodes. The following is the test (modified from HostReplacementTest#replaceDownedHost) to prove and the failure stack trace. 
+
+{code:java}
+@Test
+public void replaceDownedHost() throws IOException
+{
+    // start with 2 nodes, stop both nodes, start the seed, host replace the down node)
+    TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
+    try (Cluster cluster = Cluster.build(2)
+                                  .withDynamicPortAllocation(true) // use a different storage port for each new node
+                                  .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                  .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
+                                  .start())
+    {
+        IInvokableInstance seed = cluster.get(1);
+        IInvokableInstance nodeToRemove = cluster.get(2);
+
+        setupCluster(cluster);
+
+        // collect rows to detect issues later on if the state doesn't match
+        SimpleQueryResult expectedState = nodeToRemove.coordinator().executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
+
+        stopUnchecked(nodeToRemove);
+
+        // now create a new node to replace the other node
+        IInvokableInstance replacingNode = replaceHostAndStart(cluster, nodeToRemove, props -> {
+            // since we have a downed host there might be a schema version which is old show up but
+            // can't be fetched since the host is down...
+            props.set(BOOTSTRAP_SKIP_SCHEMA_CHECK, true);
+            InetSocketAddress removedNodeAddress = nodeToRemove.config().broadcastAddress();
+            String removedNode = removedNodeAddress.getAddress().getHostAddress() + ":" + removedNodeAddress.getPort();
+            props.setProperty("cassandra.replace_address_first_boot", removedNode);
+        });
+
+        // wait till the replacing node is in the ring
+        awaitRingJoin(seed, replacingNode);
+        awaitRingJoin(replacingNode, seed);
+
+        // make sure all nodes are healthy
+        awaitRingHealthy(seed);
+
+        assertRingIs(seed, seed, replacingNode);
+        logger.info("Current ring is {}", assertRingIs(replacingNode, seed, replacingNode));
+
+        validateRows(seed.coordinator(), expectedState);
+        validateRows(replacingNode.coordinator(), expectedState);
+    }
+}
+
+java.lang.RuntimeException: Node /127.0.0.3:58530 is already replacing /127.0.0.2:58495 but is trying to replace /127.0.0.2:58530.
+
+	at org.apache.cassandra.service.StorageService.handleStateBootreplacing(StorageService.java:2929)
+	at org.apache.cassandra.service.StorageService.onChange(StorageService.java:2597)
+	at org.apache.cassandra.gms.Gossiper.doOnChangeNotifications(Gossiper.java:1711)
+	at org.apache.cassandra.gms.Gossiper.addLocalApplicationStateInternal(Gossiper.java:2109)
+	at org.apache.cassandra.gms.Gossiper.addLocalApplicationStates(Gossiper.java:2124)
+	at org.apache.cassandra.service.StorageService.bootstrap(StorageService.java:2005)
+	at org.apache.cassandra.service.StorageService.joinTokenRing(StorageService.java:1185)
+	at org.apache.cassandra.service.StorageService.joinTokenRing(StorageService.java:1145)
+	at org.apache.cassandra.service.StorageService.initServer(StorageService.java:936)
+	at org.apache.cassandra.service.StorageService.initServer(StorageService.java:854)
+	at org.apache.cassandra.distributed.impl.Instance.lambda$startup$12(Instance.java:701)
+	at org.apache.cassandra.concurrent.FutureTask$1.call(FutureTask.java:96)
+	at org.apache.cassandra.concurrent.FutureTask.call(FutureTask.java:61)
+	at org.apache.cassandra.concurrent.FutureTask.run(FutureTask.java:71)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+{code}

@@ -1,0 +1,22 @@
+Add support of vector type to COPY command
+Currently it's not possible to import rows with vector literals via {{COPY}} command.
+
+STR:
+ * Create a table
+{code:sql}
+CREATE TABLE testcopyfrom (id text PRIMARY KEY, embedding_vector VECTOR<FLOAT, 6>
+{code}
+
+ * Prepare csv file with sample data, for instance:
+{code:sql}
+1,"[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]"
+2,"[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6]" {code}
+
+ * in cqlsh run
+{code:sql}
+COPY ks.testcopyfrom FROM data.csv
+{code}
+
+It will result in getting:
+{code:sql}
+TypeError: Received an argument of invalid type for column "embedding_vector". Expected: <class 'cassandra.cqltypes.VectorType(6)'>, Got: <class 'str'>; (required argument is not a float){code}

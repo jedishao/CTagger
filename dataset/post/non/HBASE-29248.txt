@@ -1,0 +1,8 @@
+HBASE-28529 made an incompatible change to hbase.zookeeper.property handling
+Before HBASE-28529 , HBase took the properties with the _hbase.zookeeper.property._ , removed the _hbase.zookeeper.property._ and added the _zookeeper._ prefix, then set this as a system property.
+
+When HBASE-28529 has rewritten this to use ZKClientConfig, it forgot to add the _zookeeper._  prefix to the property. ZK uses the exact same names for the ZKClientConfig properties and System properties (where both are supported)
+
+For example,  to set the _zookeeper.client.secure_ property, earlier we had to set {_}hbase.zookeeper.property.{_}{_}client.secure ,{_} while now we need to set {_}hbase.zookeeper.property.zookeeper.{_}{_}client.secure{_}
+
+This is an incompatible change, which is likely to cause problems for users that rely on this feature.

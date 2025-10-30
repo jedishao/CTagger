@@ -1,0 +1,94 @@
+Vert.x stress test problem after 16xxx request sent
+### Questions
+
+Vert.x stress test problem after 16xxx request sent
+
+### Version
+
+4.5.x
+
+### Steps to reproduce
+
+Server code:
+`
+package demo;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
+import io.vertx.core.http.HttpServerResponse;
+
+public class SimpleHTTPServer extends AbstractVerticle {
+
+@Override
+public void start() {
+HttpServer server = vertx.createHttpServer();
+
+server.requestHandler(request -> {
+HttpServerResponse response = request.response();
+response.end("Hello, World!");
+});
+
+server.listen(8080, result -> {
+if (result.succeeded()) {
+System.out.println("Server started on port 8080");
+} else {
+System.err.println(STR."Server failed to start: \{result.cause()}");
+}
+});
+}
+
+public static void main(String[] args) {
+Vertx vertx = Vertx.vertx();
+vertx.deployVerticle(new SimpleHTTPServer());
+}
+}
+`
+
+2. Test method:
+
+we use ApacheBench to test, Here is the results:
+
+1. first round:
+
+% ab -c 100 -n 10000 http://localhost:8080/
+This is ApacheBench, Version 2.3 <$Revision: 1903618 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 1000 requests
+Completed 2000 requests
+Completed 3000 requests
+Completed 4000 requests
+Completed 5000 requests
+Completed 6000 requests
+Completed 7000 requests
+Completed 8000 requests
+Completed 9000 requests
+Completed 10000 requests
+Finished 10000 requests
+
+2. second round:
+
+% ab -c 100 -n 10000 http://localhost:8080/
+This is ApacheBench, Version 2.3 <$Revision: 1903618 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 1000 requests
+Completed 2000 requests
+Completed 3000 requests
+Completed 4000 requests
+Completed 5000 requests
+Completed 6000 requests
+
+The test hung here.
+
+We have test multi round, the program hung each time when 16xxx requests sent to http service
+
+### Extra
+
+MacBook Pro with M1 Pro/16G mem/Java 21.0.2
+Vert.x 4.5.x or any older 4.x version

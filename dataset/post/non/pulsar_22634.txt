@@ -1,0 +1,92 @@
+[Bug] After updating broker from 3.0.3 to 3.0.4, reader cannot receive new messages from compacted topics. 
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Read release policy
+
+- [X] I understand that unsupported versions don't get bug fixes. I will attempt to reproduce the issue on a supported version of Pulsar client and Pulsar broker.
+
+
+### Version
+
+pulsar broker 3.0.4(docker image: apachepulsar/pulsar:3.0.4)
+OS: CentOS 7.9, Docker desktop for Mac 4.29.0
+
+### Minimal reproduce step
+
+Step1. Setup a standalone pulsar cluster using docker-compose.
+> docker-compose.yml
+```yaml
+version: '3'
+services:
+  pulsar:
+    image: "apachepulsar/pulsar:3.0.4"
+    hostname: pulsar
+    container_name: pulsar
+    ports:
+      - 6650:6650
+      - 8080:8080
+    command: >-
+      sh -c '
+      bin/apply-config-from-env.py conf/standalone.conf &&
+      bin/pulsar standalone'
+  pulsar_setup:
+    image: "apachepulsar/pulsar:3.0.4"
+    container_name: pulsar_setup
+    network_mode: host
+    depends_on:
+      - pulsar
+    restart: "no"
+    entrypoint: >-
+      bash -c '
+        sleep 30 &&
+        bin/pulsar-admin tenants create mytenant &&
+        bin/pulsar-admin namespaces create mytenant/myns &&
+        bin/pulsar-admin namespaces set-compaction-threshold --threshold 1K mytenant/myns &&
+        bin/pulsar-admin topics create "persistent://mytenant/myns/mytopic1"'
+```
+
+```
+docker-compose up -d
+```
+
+Step2. Produce enough messages to cause a campaction.
+```
+docker exec -it pulsar bin/pulsar-client produce "persistent://mytenant/myns/mytopic1" -m "---------hello apache pulsar-------" -n 1000
+```
+
+Step3. Wait a minute and see compaction occurred.
+```
+docker exec -it pulsar bin/pulsar-admin topics compaction-status "persistent://mytenant/myns/mytopic1"
+Compaction was a success
+```
+
+Step4. Spawn a reader which start from **earliest** position in another terminal window.
+```
+docker exec -it pulsar bin/pulsar-client read "persistent://mytenant/myns/mytopic1" --start-message-id earliest --num-messages 0
+```
+
+Step5. Produce new messages.
+```
+docker exec -it pulsar bin/pulsar-client produce "persistent://mytenant/myns/mytopic1" -m "---------hello apache pulsar-------" -n 1
+```
+
+The reader created in step4 will not receive any new messages.
+
+### What did you expect to see?
+
+Readers continually receive new messages from compacted topics. 
+
+### What did you see instead?
+
+Readers don't receive new messages from compacted topics.
+
+### Anything else?
+
+Actually I updated from 3.0.1 to 3.0.4, but I confirmed that 3.0.3 is okay.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,81 @@
+"WAL system stuck?" due to threads hang at org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl.complete
+Currently we come across a issue in write handler threads of a regionserver during AsyncFSWAL append operation. We could see regionserver's write handler threads is going to WAITING State  while acquiring lock for WAL append operation at  MultiVersionConcurrencyControl.begin
+
+ 
+{code:java}
+"RpcServer.default.FPRWQ.Fifo.write.handler=7,queue=3,port=16020" #133 daemon prio=5 os_prio=0 tid=0x00007f9301fe7800 nid=0x329a02 runnable [0x00007f8a6489a000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+    at sun.misc.Unsafe.park(Native Method)
+    at java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:338)
+    at com.lmax.disruptor.MultiProducerSequencer.next(MultiProducerSequencer.java:136)
+    at com.lmax.disruptor.MultiProducerSequencer.next(MultiProducerSequencer.java:105)
+    at com.lmax.disruptor.RingBuffer.next(RingBuffer.java:263)
+    at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.lambda$stampSequenceIdAndPublishToRingBuffer$10(AbstractFSWAL.java:1202)
+    at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL$$Lambda$631/875615795.run(Unknown Source)
+    at org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl.begin(MultiVersionConcurrencyControl.java:144)
+    - locked <0x00007f8afa4d1a80> (a java.util.LinkedList)
+    at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.stampSequenceIdAndPublishToRingBuffer(AbstractFSWAL.java:1201)
+    at org.apache.hadoop.hbase.regionserver.wal.AsyncFSWAL.append(AsyncFSWAL.java:647)
+    at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.lambda$appendData$14(AbstractFSWAL.java:1255)
+    at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL$$Lambda$699/1762709833.call(Unknown Source)
+    at org.apache.hadoop.hbase.trace.TraceUtil.trace(TraceUtil.java:216)
+    at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.appendData(AbstractFSWAL.java:1255)
+    at org.apache.hadoop.hbase.regionserver.HRegion.doWALAppend(HRegion.java:7800)
+    at org.apache.hadoop.hbase.regionserver.HRegion.doMiniBatchMutate(HRegion.java:4522)
+    at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:4446)
+    at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:4368)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doBatchOp(RSRpcServices.java:1033)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doNonAtomicBatchOp(RSRpcServices.java:951)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doNonAtomicRegionMutation(RSRpcServices.java:916)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.multi(RSRpcServices.java:2892)
+    at org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:45008)
+    at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:415)
+    at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:124)
+    at org.apache.hadoop.hbase.ipc.RpcHandler.run(RpcHandler.java:102)
+    at org.apache.hadoop.hbase.ipc.RpcHandler.run(RpcHandler.java:82) {code}
+ 
+
+Other write handler threads are getting BLOCKED state while waiting for above lock to get released.
+
+ 
+{code:java}
+"RpcServer.default.FPRWQ.Fifo.write.handler=38,queue=2,port=16020" #164 daemon prio=5 os_prio=0 tid=0x00007f9303147800 nid=0x329a21 waiting for monitor entry [0x00007f8a61586000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+    at org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl.complete(MultiVersionConcurrencyControl.java:179)
+    - waiting to lock <0x00007f8afa4d1a80> (a java.util.LinkedList)
+    at org.apache.hadoop.hbase.regionserver.HRegion.doWALAppend(HRegion.java:7808)
+    at org.apache.hadoop.hbase.regionserver.HRegion.doMiniBatchMutate(HRegion.java:4522)
+    at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:4446)
+    at org.apache.hadoop.hbase.regionserver.HRegion.batchMutate(HRegion.java:4368)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doBatchOp(RSRpcServices.java:1033)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doNonAtomicBatchOp(RSRpcServices.java:951)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.doNonAtomicRegionMutation(RSRpcServices.java:916)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.multi(RSRpcServices.java:2892)
+    at org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:45008)
+    at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:415)
+    at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:124)
+    at org.apache.hadoop.hbase.ipc.RpcHandler.run(RpcHandler.java:102)
+    at org.apache.hadoop.hbase.ipc.RpcHandler.run(RpcHandler.java:82){code}
+Due to above occurence , WAL system getting stucked and facing callqueueTooBig Exception
+{code:java}
+ERROR [MemStoreFlusher.0] o.a.h.h.r.MemStoreFlusher - Cache flush failed for region analytics:RawData,DIO|DISK_USAGE_STATS,1710357005367.55ec1db85903bbf9d2588b6d60b7b66f.
+org.apache.hadoop.hbase.exceptions.TimeoutIOException: Failed to get sync result after 300000 ms for txid=5472571, WAL system stuck?
+        at org.apache.hadoop.hbase.regionserver.wal.SyncFuture.get(SyncFuture.java:171) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.blockOnSync(AbstractFSWAL.java:869) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.wal.AsyncFSWAL.doSync(AsyncFSWAL.java:668) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.lambda$sync$1(AbstractFSWAL.java:590) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.trace.TraceUtil.trace(TraceUtil.java:187) ~[hbase-common-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.sync(AbstractFSWAL.java:590) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL.sync(AbstractFSWAL.java:580) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.HRegion.doSyncOfUnflushedWALChanges(HRegion.java:2779) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.HRegion.internalPrepareFlushCache(HRegion.java:2721) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.HRegion.internalFlushcache(HRegion.java:2580) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.HRegion.internalFlushcache(HRegion.java:2554) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.HRegion.flushcache(HRegion.java:2424) ~[hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.MemStoreFlusher.flushRegion(MemStoreFlusher.java:603) [hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.MemStoreFlusher.flushRegion(MemStoreFlusher.java:572) [hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.MemStoreFlusher.access$1000(MemStoreFlusher.java:65) [hbase-server-2.5.5.jar:2.5.5]
+        at org.apache.hadoop.hbase.regionserver.MemStoreFlusher$FlushHandler.run(MemStoreFlusher.java:344) [hbase-server-2.5.5.jar:2.5.5] {code}
+Issue get fixed in above mentioned regionserver after restarting the process. But after sometime again same issue occurs in other regionserver.
+
+ 

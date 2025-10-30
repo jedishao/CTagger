@@ -1,0 +1,43 @@
+when bloomFilter expire execute contains block
+### Redis version
+
+5.2.15
+
+### Redisson version
+
+3.17.6
+
+### Redisson configuration
+
+@Bean
+    RedissonClient redissonClient(CustomRedisProperties customRedisProperties) {
+        log.info("redissonClient: customRedisProperties={}", JSON.toJSONString(customRedisProperties));
+        String host = customRedisProperties.getHost();
+        int port = customRedisProperties.getPort();
+        String password = customRedisProperties.getPassword();
+        Config config = new Config();
+        config.useSingleServer()
+                .setAddress(StrUtil.format("redis://{}:{}", host, port))
+                .setPassword(password);
+        return Redisson.create(config);
+    }
+
+### What is the Expected behavior?
+
+can throw  Bloom filter is not initialized!
+
+### What is the Actual behavior?
+
+block at bloomFilter.contains("logisticsSubBloomFilter");
+
+<img width="808" alt="Image" src="https://github.com/user-attachments/assets/4305d023-447b-4680-b730-e0b6e642134c" />
+
+### Additional information
+
+ RBloomFilter<String> bloomFilter = redissonClient.getBloomFilter("kdzsErpLogisticsSubBloomFilter");
+        if (!bloomFilter.isExists()) {
+            bloomFilter.tryInit(6000000L, 0.03);
+            bloomFilter.expire(Duration.ofSeconds(1));
+            Thread.sleep(2000);
+            bloomFilter.contains("logisticsSubBloomFilter");
+        }

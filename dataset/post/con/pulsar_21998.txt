@@ -1,0 +1,564 @@
+[Bug] Pulsar cluster occasionally experiences consumption timeout
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+os: CentOS Linux release 7.9.2009 (Core)
+pulsar: 2.10.5
+java: 1.8.0.162
+
+### Minimal reproduce step
+
+Occasionally appearing, unable to reproduce
+
+### What did you expect to see?
+
+Consumption completed in a short period of time
+
+### What did you see instead?
+
+Occasionally, if the consumption exceeds the limit, it will take at least ten minutes or longer to complete the consumption
+
+### Anything else?
+
+Pulsar Bookie Configuration
+```
+bookiePort=3181
+journalDirectory=data/bookkeeper/journal
+minUsableSizeForIndexFileCreation=1073741824
+advertisedAddress=192.168.0.93
+allowLoopback=false
+bookieDeathWatchInterval=1000
+flushInterval=60000
+useHostNameAsBookieID=false
+gcWaitTime=900000
+gcOverreplicatedLedgerWaitTime=86400000
+numAddWorkerThreads=0
+numReadWorkerThreads=8
+numHighPriorityWorkerThreads=8
+maxPendingReadRequestsPerThread=2500
+maxPendingAddRequestsPerThread=10000
+readWorkerThreadsThrottlingEnabled=true
+enableBusyWait=false
+auditorPeriodicBookieCheckInterval=86400
+rereplicationEntryBatchSize=100
+openLedgerRereplicationGracePeriod=30000
+autoRecoveryDaemonEnabled=true
+lostBookieRecoveryDelay=0
+useV2WireProtocol=true
+reppDnsResolverClass=org.apache.pulsar.zookeeper.ZkBookieRackAffinityMapping
+serverTcpNoDelay=true
+nettyMaxFrameSizeBytes=5253120
+journalFormatVersionToWrite=5
+journalMaxSizeMB=2048
+journalMaxBackups=5
+journalPreAllocSizeMB=16
+journalWriteBufferSizeKB=64
+journalRemoveFromPageCache=true
+journalWriteData=true
+journalSyncData=true
+journalAdaptiveGroupWrites=true
+journalMaxGroupWaitMSec=1
+journalBufferedWritesThreshold=524288
+numJournalCallbackThreads=8
+journalAlignmentSize=4096
+journalFlushWhenQueueEmpty=false
+ledgerStorageClass=org.apache.bookkeeper.bookie.storage.ldb.DbLedgerStorage
+ledgerDirectories=data/bookkeeper/ledgers
+auditorPeriodicCheckInterval=604800
+openFileLimit=0
+fileInfoFormatVersionToWrite=0
+pageLimit=0
+zkLedgersRootPath=/ledgers
+logSizeLimit=1073741824
+entryLogFilePreallocationEnabled=true
+flushEntrylogBytes=268435456
+readBufferSizeBytes=4096
+writeBufferSizeBytes=65536
+compactionRate=1000
+minorCompactionThreshold=0.2
+minorCompactionInterval=3600
+compactionMaxOutstandingRequests=100000
+majorCompactionThreshold=0.5
+majorCompactionInterval=86400
+isThrottleByBytes=false
+compactionRateByEntries=1000
+compactionRateByBytes=1000000
+statsProviderClass=org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+prometheusStatsHttpPort=8100
+readOnlyModeEnabled=true
+diskUsageThreshold=0.95
+diskCheckInterval=10000
+metadataServiceUri=
+zkServers=192.168.0.118:2181,192.168.0.93:2181,192.168.0.225:2181
+zkTimeout=30000
+zkEnableSecurity=false
+httpServerEnabled=false
+httpServerPort=8000
+httpServerClass=org.apache.bookkeeper.http.vertx.VertxHttpServer
+dbStorage_writeCacheMaxSizeMb=
+dbStorage_readAheadCacheMaxSizeMb=
+dbStorage_readAheadCacheBatchSize=1000
+dbStorage_rocksDB_blockCacheSize=
+dbStorage_rocksDB_writeBufferSizeMB=64
+dbStorage_rocksDB_sstSizeInMB=64
+dbStorage_rocksDB_blockSize=65536
+dbStorage_rocksDB_bloomFilterBitsPerKey=10
+dbStorage_rocksDB_numLevels=-1
+dbStorage_rocksDB_numFilesInLevel0=4
+dbStorage_rocksDB_maxSizeInLevel1MB=256
+```
+Pulsar broker configuration
+```
+metadataStoreUrl=192.168.0.118:2181,192.168.0.93:2181,192.168.0.225:2181
+configurationMetadataStoreUrl=192.168.0.118:2181,192.168.0.93:2181,192.168.0.225:2181
+brokerServicePort=6650
+brokerServicePortTls=
+webServicePort=8080
+webServicePortTls=
+webServiceTlsProtocols=
+webServiceTlsCiphers=
+bindAddress=0.0.0.0
+bindAddresses=
+advertisedAddress=192.168.0.93
+haProxyProtocolEnabled=false
+numAcceptorThreads=
+numIOThreads=
+numOrderedExecutorThreads=8
+numHttpServerThreads=
+numExecutorThreadPoolSize=
+numCacheExecutorThreadPoolSize=10
+enableBusyWait=false
+maxConcurrentHttpRequests=1024
+isRunningStandalone=
+clusterName=pulsar-cluster
+maxTenants=0
+failureDomainsEnabled=false
+metadataStoreSessionTimeoutMillis=30000
+metadataStoreOperationTimeoutSeconds=30
+metadataStoreCacheExpirySeconds=300
+brokerShutdownTimeoutMs=60000
+skipBrokerShutdownOnOOM=false
+backlogQuotaCheckEnabled=true
+backlogQuotaCheckIntervalInSeconds=60
+backlogQuotaDefaultLimitBytes=-1
+backlogQuotaDefaultLimitSecond=-1
+backlogQuotaDefaultRetentionPolicy=producer_request_hold
+ttlDurationDefaultInSeconds=0
+allowAutoTopicCreation=true
+allowAutoTopicCreationType=non-partitioned
+allowAutoSubscriptionCreation=true
+defaultNumPartitions=1
+brokerDeleteInactiveTopicsEnabled=true
+brokerDeleteInactiveTopicsFrequencySeconds=60
+brokerDeleteInactiveTopicsMode=delete_when_no_subscriptions
+brokerDeleteInactivePartitionedTopicMetadataEnabled=false
+brokerDeleteInactiveTopicsMaxInactiveDurationSeconds=
+forceDeleteTenantAllowed=false
+forceDeleteNamespaceAllowed=false
+maxPendingPublishRequestsPerConnection=1000
+messageExpiryCheckIntervalInMinutes=5
+activeConsumerFailoverDelayTimeMillis=1000
+subscriptionExpirationTimeMinutes=0
+subscriptionRedeliveryTrackerEnabled=true
+subscriptionExpiryCheckIntervalInMinutes=5
+subscriptionTypesEnabled=Exclusive,Shared,Failover,Key_Shared
+subscriptionKeySharedUseConsistentHashing=true
+subscriptionKeySharedConsistentHashingReplicaPoints=100
+brokerDeduplicationEnabled=false
+brokerDeduplicationMaxNumberOfProducers=10000
+brokerDeduplicationSnapshotFrequencyInSeconds=120
+brokerDeduplicationSnapshotIntervalSeconds=120
+brokerDeduplicationEntriesInterval=1000
+brokerDeduplicationProducerInactivityTimeoutMinutes=360
+defaultNumberOfNamespaceBundles=4
+maxNamespacesPerTenant=0
+maxTopicsPerNamespace=0
+brokerMaxConnections=0
+brokerMaxConnectionsPerIp=0
+isAllowAutoUpdateSchemaEnabled=true
+clientLibraryVersionCheckEnabled=false
+statusFilePath=
+preferLaterVersions=false
+maxUnackedMessagesPerConsumer=50000
+maxUnackedMessagesPerSubscription=200000
+maxUnackedMessagesPerBroker=0
+maxUnackedMessagesPerSubscriptionOnBrokerBlocked=0.16
+unblockStuckSubscriptionEnabled=false
+topicPublisherThrottlingTickTimeMillis=10
+preciseTopicPublishRateLimiterEnable=false
+brokerPublisherThrottlingTickTimeMillis=50
+brokerPublisherThrottlingMaxMessageRate=0
+brokerPublisherThrottlingMaxByteRate=0
+maxPublishRatePerTopicInMessages=0
+maxPublishRatePerTopicInBytes=0
+subscribeThrottlingRatePerConsumer=0
+subscribeRatePeriodPerConsumerInSecond=30
+dispatchThrottlingRateInMsg=0
+dispatchThrottlingRateInByte=0
+dispatchThrottlingRatePerTopicInMsg=0
+dispatchThrottlingRatePerTopicInByte=0
+dispatchThrottlingOnBatchMessageEnabled=false
+dispatchThrottlingRatePerSubscriptionInMsg=0
+dispatchThrottlingRatePerSubscriptionInByte=0
+dispatchThrottlingRatePerReplicatorInMsg=0
+dispatchThrottlingRatePerReplicatorInByte=0
+dispatchThrottlingRateRelativeToPublishRate=false
+dispatchThrottlingOnNonBacklogConsumerEnabled=true
+dispatcherMaxReadBatchSize=100
+dispatcherMaxReadSizeBytes=5242880
+dispatcherMinReadBatchSize=1
+dispatcherMaxRoundRobinBatchSize=20
+dispatcherReadFailureBackoffInitialTimeInMs=15000
+dispatcherReadFailureBackoffMaxTimeInMs=60000
+dispatcherReadFailureBackoffMandatoryStopTimeInMs=0
+preciseDispatcherFlowControl=false
+entryFilterNames=
+entryFiltersDirectory=
+maxConcurrentLookupRequest=50000
+maxConcurrentTopicLoadRequest=5000
+maxConcurrentNonPersistentMessagePerConnection=1000
+numWorkerThreadsForNonPersistentTopic=
+enablePersistentTopics=true
+enableNonPersistentTopics=true
+enableRunBookieTogether=false
+enableRunBookieAutoRecoveryTogether=false
+maxProducersPerTopic=0
+maxSameAddressProducersPerTopic=0
+encryptionRequireOnProducer=false
+maxConsumersPerTopic=0
+maxSameAddressConsumersPerTopic=0
+maxSubscriptionsPerTopic=0
+maxConsumersPerSubscription=0
+maxMessageSize=5242880
+brokerServiceCompactionMonitorIntervalInSeconds=60
+brokerServiceCompactionThresholdInBytes=0
+brokerServiceCompactionPhaseOneLoopTimeInSeconds=30
+delayedDeliveryEnabled=true
+delayedDeliveryTickTimeMillis=1000
+isDelayedDeliveryDeliverAtTimeStrict=false
+delayedDeliveryFixedDelayDetectionLookahead=50000
+acknowledgmentAtBatchIndexLevelEnabled=false
+enableReplicatedSubscriptions=true
+replicatedSubscriptionsSnapshotFrequencyMillis=1000
+replicatedSubscriptionsSnapshotTimeoutSeconds=30
+replicatedSubscriptionsSnapshotMaxCachedPerSubscription=10
+maxMessagePublishBufferSizeInMB=
+retentionCheckIntervalInSeconds=120
+maxMessageSizeCheckIntervalInSeconds=60
+maxNumPartitionsPerPartitionedTopic=0
+zookeeperSessionExpiredPolicy=reconnect
+systemTopicEnabled=false
+systemTopicSchemaCompatibilityStrategy=ALWAYS_COMPATIBLE
+topicLevelPoliciesEnabled=false
+topicFencingTimeoutSeconds=0
+proxyRoles=
+authenticateOriginalAuthData=false
+tlsCertRefreshCheckDurationSec=300
+tlsCertificateFilePath=
+tlsKeyFilePath=
+tlsTrustCertsFilePath=
+tlsAllowInsecureConnection=false
+tlsHostnameVerificationEnabled=false
+tlsProtocols=
+tlsCiphers=
+tlsRequireTrustedClientCertOnConnect=false
+tlsProvider=
+webServiceTlsProvider=Conscrypt
+tlsEnabledWithKeyStore=false
+tlsKeyStoreType=JKS
+tlsKeyStore=
+tlsKeyStorePassword=
+tlsTrustStoreType=JKS
+tlsTrustStore=
+tlsTrustStorePassword=
+brokerClientTlsEnabledWithKeyStore=false
+brokerClientSslProvider=
+brokerClientTlsTrustStoreType=JKS
+brokerClientTlsTrustStore=
+brokerClientTlsTrustStorePassword=
+brokerClientTlsCiphers=
+brokerClientTlsProtocols=
+metadataStoreBatchingEnabled=true
+metadataStoreBatchingMaxDelayMillis=5
+metadataStoreBatchingMaxOperations=1000
+metadataStoreBatchingMaxSizeKb=128
+authenticationEnabled=false
+authenticationProviders=
+authenticationRefreshCheckSeconds=60
+authorizationEnabled=false
+authorizationProvider=org.apache.pulsar.broker.authorization.PulsarAuthorizationProvider
+authorizationAllowWildcardsMatching=false
+superUserRoles=
+brokerClientTlsEnabled=false
+brokerClientAuthenticationPlugin=
+brokerClientAuthenticationParameters=
+brokerClientTrustCertsFilePath=
+athenzDomainNames=
+anonymousUserRole=
+basicAuthConf=
+tokenSecretKey=
+tokenPublicKey=
+tokenAuthClaim=
+tokenAudienceClaim=
+tokenAudience=
+saslJaasClientAllowedIds=.*pulsar.*
+saslJaasServerSectionName=PulsarBroker
+saslJaasServerRoleTokenSignerSecretPath=
+httpMaxRequestSize=-1
+disableHttpDebugMethods=false
+httpRequestsLimitEnabled=false
+httpRequestsMaxPerSecond=100.0
+bookkeeperMetadataServiceUri=
+bookkeeperClientAuthenticationPlugin=
+bookkeeperClientAuthenticationParametersName=
+bookkeeperClientAuthenticationParameters=
+bookkeeperClientTimeoutInSeconds=30
+bookkeeperClientNumWorkerThreads=
+bookkeeperClientSpeculativeReadTimeoutInMillis=0
+bookkeeperNumberOfChannelsPerBookie=16
+bookkeeperUseV2WireProtocol=true
+bookkeeperClientHealthCheckEnabled=true
+bookkeeperClientHealthCheckIntervalSeconds=60
+bookkeeperClientHealthCheckErrorThresholdPerInterval=5
+bookkeeperClientHealthCheckQuarantineTimeInSeconds=1800
+bookkeeperClientQuarantineRatio=1.0
+bookkeeperClientGetBookieInfoIntervalSeconds=86400
+bookkeeperClientGetBookieInfoRetryIntervalSeconds=60
+bookkeeperClientRackawarePolicyEnabled=true
+bookkeeperClientRegionawarePolicyEnabled=false
+bookkeeperClientMinNumRacksPerWriteQuorum=2
+bookkeeperClientEnforceMinNumRacksPerWriteQuorum=false
+bookkeeperClientReorderReadSequenceEnabled=false
+bookkeeperClientIsolationGroups=
+bookkeeperClientSecondaryIsolationGroups=
+bookkeeperClientMinAvailableBookiesInIsolationGroups=
+bookkeeperEnableStickyReads=true
+bookkeeperTLSProviderFactoryClass=org.apache.bookkeeper.tls.TLSContextFactory
+bookkeeperTLSClientAuthentication=false
+bookkeeperTLSKeyFileType=PEM
+bookkeeperTLSTrustCertTypes=PEM
+bookkeeperTLSKeyStorePasswordPath=
+bookkeeperTLSTrustStorePasswordPath=
+bookkeeperTLSKeyFilePath=
+bookkeeperTLSCertificateFilePath=
+bookkeeperTLSTrustCertsFilePath=
+bookkeeperTlsCertFilesRefreshDurationSeconds=300
+bookkeeper_tlsHostnameVerificationEnabled=false
+bookkeeperDiskWeightBasedPlacementEnabled=false
+bookkeeperExplicitLacIntervalInMills=0
+managedLedgerDefaultEnsembleSize=2
+managedLedgerDefaultWriteQuorum=2
+managedLedgerDefaultAckQuorum=2
+managedLedgerCursorPositionFlushSeconds=60
+managedLedgerStatsPeriodSeconds=60
+managedLedgerDigestType=CRC32C
+managedLedgerNumWorkerThreads=
+managedLedgerNumSchedulerThreads=
+managedLedgerCacheSizeMB=
+managedLedgerCacheCopyEntries=false
+managedLedgerCacheEvictionWatermark=0.9
+managedLedgerCacheEvictionIntervalMs=10
+managedLedgerCacheEvictionTimeThresholdMillis=1000
+managedLedgerCursorBackloggedThreshold=1000
+managedLedgerDefaultMarkDeleteRateLimit=1.0
+managedLedgerMaxEntriesPerLedger=50000
+managedLedgerMinLedgerRolloverTimeMinutes=10
+managedLedgerMaxLedgerRolloverTimeMinutes=240
+managedLedgerInactiveLedgerRolloverTimeSeconds=0
+managedLedgerMaxSizePerLedgerMbytes=2048
+managedLedgerOffloadDeletionLagMs=14400000
+managedLedgerOffloadAutoTriggerSizeThresholdBytes=-1
+managedLedgerCursorMaxEntriesPerLedger=50000
+managedLedgerCursorRolloverTimeInSeconds=14400
+managedLedgerMaxUnackedRangesToPersist=10000
+managedLedgerMaxUnackedRangesToPersistInZooKeeper=1000
+autoSkipNonRecoverableData=false
+lazyCursorRecovery=false
+managedLedgerMetadataOperationsTimeoutSeconds=60
+managedLedgerReadEntryTimeoutSeconds=0
+managedLedgerAddEntryTimeoutSeconds=0
+managedLedgerPrometheusStatsLatencyRolloverSeconds=60
+managedLedgerTraceTaskExecution=true
+managedLedgerNewEntriesCheckDelayInMillis=10
+loadBalancerEnabled=true
+loadBalancerReportUpdateThresholdPercentage=10
+loadBalancerReportUpdateMinIntervalMillis=5000
+loadBalancerReportUpdateMaxIntervalMinutes=15
+loadBalancerHostUsageCheckIntervalMinutes=1
+loadBalancerSheddingEnabled=true
+loadBalancerSheddingIntervalMinutes=1
+loadBalancerSheddingGracePeriodMinutes=30
+loadBalancerBrokerMaxTopics=50000
+loadBalancerBrokerOverloadedThresholdPercentage=85
+loadBalancerResourceQuotaUpdateIntervalMinutes=15
+loadBalancerAutoBundleSplitEnabled=true
+loadBalancerAutoUnloadSplitBundlesEnabled=true
+loadBalancerNamespaceBundleMaxTopics=1000
+loadBalancerNamespaceBundleMaxSessions=1000
+loadBalancerNamespaceBundleMaxMsgRate=30000
+loadBalancerNamespaceBundleMaxBandwidthMbytes=100
+loadBalancerNamespaceMaximumBundles=128
+loadBalancerOverrideBrokerNicSpeedGbps=1000
+loadManagerClassName=org.apache.pulsar.broker.loadbalance.impl.ModularLoadManagerImpl
+supportedNamespaceBundleSplitAlgorithms=range_equally_divide,topic_count_equally_divide
+defaultNamespaceBundleSplitAlgorithm=range_equally_divide
+loadBalancerLoadSheddingStrategy=org.apache.pulsar.broker.loadbalance.impl.ThresholdShedder
+loadBalancerBrokerThresholdShedderPercentage=10
+loadBalancerMsgRateDifferenceShedderThreshold=50
+loadBalancerMsgThroughputMultiplierDifferenceShedderThreshold=4
+loadBalancerHistoryResourcePercentage=0.9
+loadBalancerBandwithInResourceWeight=1.0
+loadBalancerBandwithOutResourceWeight=1.0
+loadBalancerCPUResourceWeight=1.0
+loadBalancerMemoryResourceWeight=1.0
+loadBalancerDirectMemoryResourceWeight=1.0
+loadBalancerBundleUnloadMinThroughputThreshold=10
+namespaceBundleUnloadingTimeoutMs=60000
+replicationMetricsEnabled=true
+replicationConnectionsPerBroker=16
+replicationProducerQueueSize=1000
+replicatorPrefix=pulsar.repl
+replicationPolicyCheckDurationSeconds=600
+defaultRetentionTimeInMinutes=0
+defaultRetentionSizeInMB=0
+keepAliveIntervalSeconds=30
+bootstrapNamespaces=
+webSocketServiceEnabled=false
+webSocketNumIoThreads=
+webSocketConnectionsPerBroker=
+webSocketSessionIdleTimeoutMillis=300000
+webSocketMaxTextFrameSize=1048576
+exposeTopicLevelMetricsInPrometheus=true
+exposeConsumerLevelMetricsInPrometheus=false
+exposeProducerLevelMetricsInPrometheus=false
+exposeManagedLedgerMetricsInPrometheus=true
+exposeManagedCursorMetricsInPrometheus=false
+metricsServletTimeoutMs=30000
+exposeBundlesMetricsInPrometheus=false
+functionsWorkerEnabled=false
+exposePublisherStats=true
+statsUpdateFrequencyInSecs=60
+statsUpdateInitialDelayInSecs=60
+exposePreciseBacklogInPrometheus=false
+splitTopicAndPartitionLabelInPrometheus=false
+aggregatePublisherStatsByProducerName=false
+schemaRegistryStorageClassName=org.apache.pulsar.broker.service.schema.BookkeeperSchemaStorageFactory
+isSchemaValidationEnforced=false
+schemaCompatibilityStrategy=FULL
+offloadersDirectory=./offloaders
+managedLedgerOffloadDriver=
+managedLedgerOffloadMaxThreads=2
+managedLedgerOffloadPrefetchRounds=1
+managedLedgerUnackedRangesOpenCacheSetEnabled=true
+s3ManagedLedgerOffloadRegion=
+s3ManagedLedgerOffloadBucket=
+s3ManagedLedgerOffloadServiceEndpoint=
+s3ManagedLedgerOffloadMaxBlockSizeInBytes=67108864
+s3ManagedLedgerOffloadReadBufferSizeInBytes=1048576
+gcsManagedLedgerOffloadRegion=
+gcsManagedLedgerOffloadBucket=
+gcsManagedLedgerOffloadMaxBlockSizeInBytes=67108864
+gcsManagedLedgerOffloadReadBufferSizeInBytes=1048576
+gcsManagedLedgerOffloadServiceAccountKeyFile=
+managedLedgerOffloadBucket=
+fileSystemProfilePath=../conf/filesystem_offload_core_site.xml
+fileSystemURI=
+transactionCoordinatorEnabled=true
+transactionMetadataStoreProviderClassName=org.apache.pulsar.transaction.coordinator.impl.MLTransactionMetadataStoreProvider
+transactionBufferSnapshotMaxTransactionCount=1000
+transactionBufferSnapshotMinTimeInMillis=5000
+transactionBufferClientMaxConcurrentRequests=1000
+transactionPendingAckLogIndexMinLag=500
+enablePackagesManagement=false
+packagesManagementStorageProvider=org.apache.pulsar.packages.management.storage.bookkeeper.BookKeeperPackagesStorageProvider
+packagesReplicas=1
+packagesManagementLedgerRootPath=/ledgers
+zookeeperServers=
+globalZookeeperServers=
+configurationStoreServers=
+zooKeeperSessionTimeoutMillis=-1
+zooKeeperOperationTimeoutSeconds=-1
+zooKeeperCacheExpirySeconds=-1
+replicationTlsEnabled=false
+brokerServicePurgeInactiveFrequencyInSeconds=60
+backlogQuotaDefaultLimitGB=-1
+tlsEnabled=false
+subscriptionKeySharedEnable=true
+managedLedgerCacheEvictionFrequency=0
+```
+log
+
+```
+2024-01-04T02:00:46,565+0800 [pulsar-load-manager-1-1] INFO  org.apache.pulsar.broker.loadbalance.impl.ModularLoadManagerImpl - Writing local data to metadata store because maximum change Infinity% exceeded threshold 10%; time since last report written is 805.0 seconds
+2024-01-04T02:00:46,573+0800 [metadata-store-18-1] INFO  org.apache.pulsar.metadata.coordination.impl.ResourceLockImpl - Acquired resource lock on /loadbalance/brokers/192.168.0.93:8080
+2024-01-04T02:00:53,886+0800 [pulsar-io-12-8] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Successfully connected to bookie: 192.168.0.225:3181 [id: 0xfa258099, L:/192.168.0.93:59510 - R:192.168.0.225/192.168.0.225:3181]
+2024-01-04T02:00:53,886+0800 [pulsar-io-12-8] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - connection [id: 0xfa258099, L:/192.168.0.93:59510 - R:192.168.0.225/192.168.0.225:3181] authenticated as BookKeeperPrincipal{ANONYMOUS}
+2024-01-04T02:00:53,886+0800 [pulsar-io-12-9] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Successfully connected to bookie: 192.168.0.118:3181 [id: 0x1d13839d, L:/192.168.0.93:46096 - R:192.168.0.118/192.168.0.118:3181]
+2024-01-04T02:00:53,886+0800 [pulsar-io-12-9] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - connection [id: 0x1d13839d, L:/192.168.0.93:46096 - R:192.168.0.118/192.168.0.118:3181] authenticated as BookKeeperPrincipal{ANONYMOUS}
+2024-01-04T02:01:00,528+0800 [pulsar-io-12-10] INFO  org.apache.pulsar.broker.service.ServerCnx - New connection from /192.168.0.69:32992
+2024-01-04T02:01:00,529+0800 [pulsar-io-12-10] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed connection from /192.168.0.69:32992
+2024-01-04T02:01:04,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 2 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:04,785+0800 [BookKeeperClientWorker-OrderedExecutor-6-0] WARN  org.apache.bookkeeper.client.PendingAddOp - Failed to write entry (1934, 9) to bookie (0, 192.168.0.225:3181): Bookie operation timeout
+2024-01-04T02:01:04,785+0800 [BookKeeperClientWorker-OrderedExecutor-6-0] WARN  org.apache.bookkeeper.client.BookieWatcherImpl - replaceBookie for bookie: 192.168.0.225:3181 in ensemble: [192.168.0.225:3181, 192.168.0.93:3181] is not adhering to placement policy and chose 192.168.0.118:3181. excludedBookies [192.168.0.225:3181] and quarantinedBookies []
+2024-01-04T02:01:04,786+0800 [BookKeeperClientWorker-OrderedExecutor-6-0] WARN  org.apache.bookkeeper.client.PendingAddOp - Failed to write entry (1934, 10) to bookie (0, 192.168.0.225:3181): Bookie operation timeout
+2024-01-04T02:01:04,790+0800 [BookKeeperClientWorker-OrderedExecutor-6-0] INFO  org.apache.bookkeeper.client.LedgerHandle - New Ensemble: [192.168.0.118:3181, 192.168.0.93:3181] for ledger: 1934
+2024-01-04T02:01:04,791+0800 [pulsar-io-12-11] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Successfully connected to bookie: 192.168.0.118:3181 [id: 0x6e05db2a, L:/192.168.0.93:46106 - R:192.168.0.118/192.168.0.118:3181]
+2024-01-04T02:01:04,791+0800 [pulsar-io-12-11] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - connection [id: 0x6e05db2a, L:/192.168.0.93:46106 - R:192.168.0.118/192.168.0.118:3181] authenticated as BookKeeperPrincipal{ANONYMOUS}
+2024-01-04T02:01:05,123+0800 [BookKeeperClientWorker-OrderedExecutor-6-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/default/persistent/notify-partition-0] Creating ledger, metadata: {component=[109, 97, 110, 97, 103, 101, 100, 45, 108, 101, 100, 103, 101, 114], pulsar/managed-ledger=[112, 117, 98, 108, 105, 99, 47, 100, 101, 102, 97, 117, 108, 116, 47, 112, 101, 114, 115, 105, 115, 116, 101, 110, 116, 47, 105, 114, 101, 115, 116, 45, 112, 97, 121, 45, 110, 111, 116, 105, 102, 121, 45, 112, 97, 114, 116, 105, 116, 105, 111, 110, 45, 48], pulsar/cursor=[71, 73, 68, 95, 73, 82, 69, 83, 84, 95, 80, 65, 89, 95, 78, 79, 84, 73, 70, 89], application=[112, 117, 108, 115, 97, 114]} - metadata ops timeout : 60 seconds
+2024-01-04T02:01:05,123+0800 [BookKeeperClientWorker-OrderedExecutor-6-0] WARN  org.apache.bookkeeper.client.BookieWatcherImpl - New ensemble: [192.168.0.225:3181, 192.168.0.93:3181] is not adhering to Placement Policy. quarantinedBookies: []
+2024-01-04T02:01:05,134+0800 [metadata-store-18-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [192.168.0.225:3181, 192.168.0.93:3181] for ledger: 1949
+2024-01-04T02:01:05,136+0800 [pulsar-io-12-12] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Successfully connected to bookie: 192.168.0.225:3181 [id: 0xd1bde98a, L:/192.168.0.93:59524 - R:192.168.0.225/192.168.0.225:3181]
+2024-01-04T02:01:05,136+0800 [pulsar-io-12-12] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - connection [id: 0xd1bde98a, L:/192.168.0.93:59524 - R:192.168.0.225/192.168.0.225:3181] authenticated as BookKeeperPrincipal{ANONYMOUS}
+2024-01-04T02:01:05,141+0800 [BookKeeperClientWorker-OrderedExecutor-5-0] INFO  org.apache.bookkeeper.mledger.impl.MetaStoreImpl - [public/default/persistent/notify-partition-0] [GID_IREST_PAY_NOTIFY] Updating cursor info ledgerId=1949 mark-delete=1946:101
+2024-01-04T02:01:05,144+0800 [bookkeeper-ml-scheduler-OrderedScheduler-2-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedCursorImpl - [public/default/persistent/notify-partition-0] Updated cursor GID_IREST_PAY_NOTIFY with ledger id 1949 md-position=1946:101 rd-position=1946:102
+2024-01-04T02:01:05,149+0800 [BookKeeperClientWorker-OrderedExecutor-6-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedCursorImpl - [public/default/persistent/notify-partition-0][GID_IREST_PAY_NOTIFY] Successfully closed & deleted ledger 1934 in cursor
+2024-01-04T02:01:05,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:06,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:07,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:08,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:09,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:10,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:11,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:12,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:13,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:14,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:15,529+0800 [pulsar-io-12-13] INFO  org.apache.pulsar.broker.service.ServerCnx - New connection from /192.168.0.69:33082
+2024-01-04T02:01:15,529+0800 [pulsar-io-12-13] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed connection from /192.168.0.69:33082
+2024-01-04T02:01:15,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:16,731+0800 [pulsar-web-44-5] INFO  org.eclipse.jetty.server.RequestLog - 192.168.0.118 - - [04/Jan/2024:02:01:16 +0800] "GET /admin/v2/broker-stats/topics HTTP/1.1" 200 14951 "-" "Pulsar-Java-v2.7.0" 0
+2024-01-04T02:01:16,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:17,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:18,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:19,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:20,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:21,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:22,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:23,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:24,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:24,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0xfbfdce5d, L:/192.168.0.93:39530 - R:192.168.0.118/192.168.0.118:3181] for 192.168.0.118:3181
+2024-01-04T02:01:24,785+0800 [BookKeeperClientWorker-OrderedExecutor-7-0] WARN  org.apache.bookkeeper.client.PendingAddOp - Failed to write entry (1935, 20) to bookie (1, 192.168.0.118:3181): Bookie operation timeout
+2024-01-04T02:01:24,785+0800 [BookKeeperClientWorker-OrderedExecutor-7-0] WARN  org.apache.bookkeeper.client.BookieWatcherImpl - replaceBookie for bookie: 192.168.0.118:3181 in ensemble: [192.168.0.93:3181, 192.168.0.118:3181] is not adhering to placement policy and chose 192.168.0.225:3181. excludedBookies [192.168.0.118:3181] and quarantinedBookies []
+2024-01-04T02:01:24,790+0800 [BookKeeperClientWorker-OrderedExecutor-7-0] INFO  org.apache.bookkeeper.client.LedgerHandle - New Ensemble: [192.168.0.93:3181, 192.168.0.225:3181] for ledger: 1935
+2024-01-04T02:01:24,791+0800 [pulsar-io-12-14] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Successfully connected to bookie: 192.168.0.225:3181 [id: 0x4bb3e46f, L:/192.168.0.93:59542 - R:192.168.0.225/192.168.0.225:3181]
+2024-01-04T02:01:24,791+0800 [pulsar-io-12-14] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - connection [id: 0x4bb3e46f, L:/192.168.0.93:59542 - R:192.168.0.225/192.168.0.225:3181] authenticated as BookKeeperPrincipal{ANONYMOUS}
+2024-01-04T02:01:24,797+0800 [BookKeeperClientWorker-OrderedExecutor-7-0] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [public/default/persistent/miniprogram-partition-0] Creating ledger, metadata: {component=[109, 97, 110, 97, 103, 101, 100, 45, 108, 101, 100, 103, 101, 114], pulsar/managed-ledger=[112, 117, 98, 108, 105, 99, 47, 100, 101, 102, 97, 117, 108, 116, 47, 112, 101, 114, 115, 105, 115, 116, 101, 110, 116, 47, 105, 114, 101, 115, 116, 45, 109, 101, 115, 115, 97, 103, 101, 45, 119, 101, 99, 104, 97, 116, 45, 109, 105, 110, 105, 112, 114, 111, 103, 114, 97, 109, 45, 112, 97, 114, 116, 105, 116, 105, 111, 110, 45, 48], pulsar/cursor=[73, 82, 69, 83, 84, 95, 77, 69, 83, 83, 65, 71, 69, 95, 77, 73, 78, 73, 95, 80, 82, 79, 71, 82, 65, 77, 95, 67, 79, 78, 83, 85, 77, 69, 82], application=[112, 117, 108, 115, 97, 114]} - metadata ops timeout : 60 seconds
+2024-01-04T02:01:24,797+0800 [BookKeeperClientWorker-OrderedExecutor-7-0] WARN  org.apache.bookkeeper.client.BookieWatcherImpl - New ensemble: [192.168.0.225:3181, 192.168.0.118:3181] is not adhering to Placement Policy. quarantinedBookies: []
+2024-01-04T02:01:24,804+0800 [metadata-store-18-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [192.168.0.225:3181, 192.168.0.118:3181] for ledger: 1950
+2024-01-04T02:01:25,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0x8b8f80a8, L:/192.168.0.93:52952 - R:192.168.0.225/192.168.0.225:3181] for 192.168.0.225:3181
+2024-01-04T02:01:25,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0xfbfdce5d, L:/192.168.0.93:39530 - R:192.168.0.118/192.168.0.118:3181] for 192.168.0.118:3181
+2024-01-04T02:01:26,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 2 operations to channel [id: 0xfbfdce5d, L:/192.168.0.93:39530 - R:192.168.0.118/192.168.0.118:3181] for 192.168.0.118:3181
+2024-01-04T02:01:28,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0xfbfdce5d, L:/192.168.0.93:39530 - R:192.168.0.118/192.168.0.118:3181] for 192.168.0.118:3181
+2024-01-04T02:01:29,785+0800 [BookKeeperClientScheduler-OrderedScheduler-0-0] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Timed-out 1 operations to channel [id: 0xfbfdce5d, L:/192.168.0.93:39530 - R:192.168.0.118/192.168.0.118:3181] for 192.168.0.118:3181
+2024-01-04T02:01:30,529+0800 [pulsar-io-12-15] INFO  org.apache.pulsar.broker.service.ServerCnx - New connection from /192.168.0.69:33172
+2024-01-04T02:01:30,529+0800 [pulsar-io-12-15] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed connection from /192.168.0.69:33172
+```
+
+Attempted to update to version 3.2.0, but failed to resolve the issue
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,81 @@
+[Bug] Unload with destinationBroker could fail with 504 with extensible load manager
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Pulsar 3.1.2
+
+### Minimal reproduce step
+
+Run the `ExtensibleLoadManagerTest` in https://github.com/apache/pulsar-client-cpp
+
+Before running the test, you should start the services.
+
+```
+    docker compose -f tests/extensibleLM/docker-compose.yml up -d
+    docker compose -f tests/blue-green/docker-compose.yml up -d
+```
+
+### What did you expect to see?
+
+The test passed
+
+### What did you see instead?
+
+There is a small chance to see `Consumer.receive` with a short timeout (e.g. 5 seconds) failed. The root cause is that topic unload takes too long to complete and I found some errors in broker.
+
+Broker-1:
+
+```
+2024-02-27T14:19:07,593+0000 [broker-client-shared-internal-executor-5-1] WARN  org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService - Read more topic policies exception, close the read now!
+java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException$AlreadyClosedException: The consumer which subscribes the topic persistent://public/unload-test/__change_events with subscription name reader-925e9dacef was already closed when cleaning and closing the consumers
+...
+2024-02-27T14:19:43,096+0000 [broker-client-shared-internal-executor-5-1] WARN  org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService - Read more topic policies exception, close the read now!
+java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException$AlreadyClosedException: Consumer already closed
+```
+
+Broker-2:
+
+```
+2024-02-27T14:19:42,845+0000 [CompletableFutureDelayScheduler] ERROR org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitStateChannelImpl - Failed to get active owner broker. serviceUnit:public/unload-test/0x00000000_0xffffffff, state:Releasing, owner:Optional.empty
+java.util.concurrent.CompletionException: java.util.concurrent.TimeoutException
+	at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:332) ~[?:?]
+	at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:347) ~[?:?]
+	at java.util.concurrent.CompletableFuture$UniApply.tryFire(CompletableFuture.java:636) ~[?:?]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[?:?]
+	at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:2162) ~[?:?]
+	at java.util.concurrent.CompletableFuture$Timeout.run(CompletableFuture.java:2874) ~[?:?]
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539) ~[?:?]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:264) ~[?:?]
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:304) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635) ~[?:?]
+	at java.lang.Thread.run(Thread.java:840) ~[?:?]
+Caused by: java.util.concurrent.TimeoutException
+	... 7 more
+2024-02-27T14:19:42,854+0000 [CompletableFutureDelayScheduler] INFO  org.eclipse.jetty.server.RequestLog - 172.30.0.6 - - [27/Feb/2024:14:19:37 +0000] "GET /lookup/v2/topic/persistent/public/unload-test/topic1709043546 HTTP/1.1" 500 771 "-" "-" 5028
+2024-02-27T14:19:42,855+0000 [CompletableFutureDelayScheduler] ERROR org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitStateChannelImpl - Failed to get active owner broker. serviceUnit:public/unload-test/0x00000000_0xffffffff, state:Releasing, owner:Optional.empty
+java.util.concurrent.CompletionException: java.util.concurrent.TimeoutException
+```
+
+Client (504 HTTP error):
+
+```
+2024-02-27 22:19:07.794 INFO  [0x1e9aa2100] ExtensibleLoadManagerTest:190 | before lookup responseData:{"brokerUrl":"pulsar://broker-2:6650","httpUrl":"http://broker-2:8080","nativeUrl":"pulsar://broker-2:6650","brokerUrlSsl":""},unload url:http://localhost:8080/admin/v2/namespaces/public/unload-test/0x00000000_0xffffffff/unload?destinationBroker=broker-1:8080,lookupCountBeforeUnload:2
+...
+2024-02-27 22:19:37.817 INFO  [0x1e9aa2100] ExtensibleLoadManagerTest:192 | unload res:504
+```
+
+> Note: the timestamp in broker is 8 hours before the timestamp in client
+
+### Anything else?
+
+[unload-too-long.tar.gz](https://github.com/apache/pulsar/files/14421194/unload-too-long.tar.gz)
+
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

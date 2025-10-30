@@ -1,0 +1,67 @@
+Incorrect return value of getMaxTasksQueued in ThreadPoolExecutorPlus
+While working on CASSANDRA-19289, I got wrong results there. I was attempting to add core_pool_size, max_pool_size and max_tasks_queued to the output of system_views.thread_pools but initially I got this:
+
+ 
+{noformat}
+cqlsh> select name, core_pool_size, max_pool_size, max_tasks_queued,pending_tasks from system_views.thread_pools;
+name                            | core_pool_size | max_pool_size | max_tasks_queued | pending_tasks
+--------------------------------+----------------+---------------+------------------+---------------
+           CacheCleanupExecutor |              1 |             1 |                0 |             0
+             CompactionExecutor |              2 |             2 |                0 |             0
+                    GossipStage |              1 |             1 |                0 |             0
+                HintsDispatcher |              2 |             2 |                0 |             0
+            MemtableFlushWriter |              2 |             2 |                0 |             0
+              MemtablePostFlush |              1 |             1 |                0 |             0
+          MemtableReclaimMemory |              1 |             1 |                0 |             0
+ Native-Transport-Auth-Requests |              0 |             4 |       2147483647 |             0
+      Native-Transport-Requests |              0 |           128 |       2147483647 |             0
+   PerDiskMemtableFlushWriter_0 |              2 |             2 |                0 |             0
+                      ReadStage |              0 |            32 |       2147483647 |             0
+                        Sampler |              1 |             1 |                0 |             0
+         SecondaryIndexExecutor |              2 |             2 |                0 |             0
+       SecondaryIndexManagement |              1 |             1 |                0 |             0
+      StatusPropagationExecutor |              1 |             1 |                0 |             0
+             ValidationExecutor |              2 |             2 |                0 |             0
+              ViewBuildExecutor |              1 |             1 |                0 |             0
+ {noformat}
+This is wrong on max_tasks_queued column. That "0" there is misleading. That number is fetched from here (1) but getQueue().size() is 0 when that queue does not have any tasks queued. It should be "getQueue().remainingCapacity()" which reflects the number of tasks that queue can hold until tasks will be rejected. That is what "max_tasks_queued" means in my books.
+
+getQueue().size() is used in ThreadPoolExecutorBase here
+{noformat}
+    @Override
+    public int getPendingTaskCount()
+    {
+        return getQueue().size();
+    }
+{noformat}
+We are using getQueue().size() for two independent things.
+
+When I change it to "remainingCapacity()" it will report it like this:
+{noformat}
+cqlsh> select name, core_pool_size, max_pool_size, max_tasks_queued,pending_tasks from system_views.thread_pools;
+
+ name                           | core_pool_size | max_pool_size | max_tasks_queued | pending_tasks
+--------------------------------+----------------+---------------+------------------+---------------
+           CacheCleanupExecutor |              1 |             1 |       2147483647 |             0
+             CompactionExecutor |              2 |             2 |       2147483647 |             0
+                    GossipStage |              1 |             1 |       2147483647 |             0
+                HintsDispatcher |              2 |             2 |       2147483647 |             0
+            MemtableFlushWriter |              2 |             2 |       2147483647 |             0
+              MemtablePostFlush |              1 |             1 |       2147483647 |             0
+          MemtableReclaimMemory |              1 |             1 |       2147483647 |             0
+ Native-Transport-Auth-Requests |              0 |             4 |       2147483647 |             0
+      Native-Transport-Requests |              0 |           128 |       2147483647 |             0
+   PerDiskMemtableFlushWriter_0 |              2 |             2 |       2147483647 |             0
+                      ReadStage |              0 |            32 |       2147483647 |             0
+                        Sampler |              1 |             1 |             1000 |             0
+         SecondaryIndexExecutor |              2 |             2 |       2147483647 |             0
+       SecondaryIndexManagement |              1 |             1 |       2147483647 |             0
+      StatusPropagationExecutor |              1 |             1 |       2147483647 |             0
+             ValidationExecutor |              2 |             2 |       2147483647 |             0
+              ViewBuildExecutor |              1 |             1 |       2147483647 |             0
+{noformat}
+So what happens in practice is that if there are some pending tasks, lets say, 100 of them, then max_tasks_queued will be Integer.MAX minus 100.
+
+cc [~benedict]
+
+(1) [https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/concurrent/ThreadPoolExecutorPlus.java#L123]

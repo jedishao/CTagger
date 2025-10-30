@@ -1,0 +1,64 @@
+NullPointerException in createTempFileName due to tempName being null in Camel 4.8.0
+We are experiencing a {{NullPointerException}} within the {{createTempFileName}} method. This error occurs when {{tempName}} is evaluated as {{{}null{}}}, and later in the code, a call to {{tempName.length()}} or {{tempName.lastIndexOf()}} results in an exception. This issue can disrupt the file processing flow.
+
+*Relevant Code Segment:*
+
+*File: camel-file/components/file/GenericFileProducer.java*
+
+{code:java}
+public String createTempFileName(Exchange exchange, String fileName) {
+    String answer = fileName;    String tempName;
+    if (exchange.getIn().getHeader(FileConstants.FILE_NAME) == null)
+
+{         exchange.getIn().setHeader(FileConstants.FILE_NAME, FileUtil.stripPath(fileName));         tempName = endpoint.getTempFileName().evaluate(exchange, String.class);         exchange.getIn().removeHeader(FileConstants.FILE_NAME);     }
+
+else {
+        tempName = endpoint.getTempFileName().evaluate(exchange, String.class);
+    }    int pos = Math.max(answer.lastIndexOf('/'), answer.lastIndexOf("
+"));
+    if (pos == -1) {
+        answer = tempName;
+    } else {
+        final String prefix = answer.substring(0, pos + 1);
+        StringBuilder sb = new StringBuilder(tempName.length() + prefix.length() + 1);
+        sb.append(prefix);
+        sb.append(tempName);
+        answer = sb.toString();
+    }    if (endpoint.getConfiguration().needToNormalize()) {
+        answer = normalizePath(answer);
+    }    answer = FileUtil.compactPath(answer, getFileSeparator());    return answer;
+} 
+{code}
+
+
+
+*Issue Location:*
+The issue occurs in the line:
+{code:java}
+StringBuilder sb = new StringBuilder(tempName.length() + prefix.length() + 1);
+{code}
+
+If {{tempName}} is {{{}null{}}}, calling {{tempName.length()}} or {{tempName.lastIndexOf()}} will result in a {{{}NullPointerException{}}}.
+
+*Steps to Reproduce:*
+ # Call {{createTempFileName}} with an {{Exchange}} object where {{endpoint.getTempFileName().evaluate(exchange, String.class)}} may return {{{}null{}}}.
+ # Observe that if {{tempName}} is {{{}null{}}}, a {{NullPointerException}} occurs.
+
+*Expected Behavior:*
+The method should handle the case where {{tempName}} may be {{{}null{}}}. If {{tempName}} is {{{}null{}}}, a default value should be used or a check should be added to avoid invoking methods on a {{null}} object.
+
+*Actual Behavior:*
+A {{NullPointerException}} is thrown when {{tempName}} is {{{}null{}}}, which may interrupt the file creation or processing flow.
+
+*Suggested Solution:*
+Add a null check for {{tempName}} after it is assigned. For example:
+{code:java}
+if (tempName == null) {
+tempName = "defaultTempName"; // or handle appropriately for your use case
+}
+{code}
+ 
+Alternatively, consider handling {{null}} scenarios with a fallback or error-handling mechanism to avoid this exception.
+
+*Impact:*
+This issue disrupts file processing, potentially causing failures in downstream applications depending on file operations.

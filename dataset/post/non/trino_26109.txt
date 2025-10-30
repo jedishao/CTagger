@@ -1,0 +1,27 @@
+Invalid schema error when querying $files table after updating Iceberg partition spec
+I'm encountering an issue when querying the $files metadata table in Iceberg after experimenting with partitioning via `ALTER TABLE`.
+
+I created two partition specs for the same table using different truncation levels on the same column vctr_trunc:
+```json
+{
+  "spec-id": 1,
+  "fields": [
+    { "source-id": 5, "field-id": 1000, "name": "vctr_trunc", "transform": "truncate[86400000]" }
+  ]
+},
+{
+  "spec-id": 2,
+  "fields": [
+    { "source-id": 5, "field-id": 1001, "name": "vctr_trunc", "transform": "truncate[3600000]" }
+  ]
+}
+```
+
+Now when I run the following query:
+```sql
+SELECT * FROM "ml_vctr_valid$files";
+```
+
+I get this error: `Invalid schema: multiple fields for name partition.vctr_trunc: 1000 and 1001`
+
+It seems like the schema resolution fails due to the reused partition field name with different field-ids. Is this a bug, or am I missing something in how partition evolution should be handled?
