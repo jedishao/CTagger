@@ -1,0 +1,173 @@
+TimeOut error while consumer subscribing on topic and "Recursion depth became negative: -1" error in broker
+**Describe the bug**
+While consumer subscribing on topic, it failed with `TimeOut` error.
+![image](https://user-images.githubusercontent.com/2565118/181493846-4a0f226b-97d1-4724-acb6-e078d75a1698.png)
+The log above is using python client 2.7.4 to connect Pulsar.
+
+At the mean time, the broker shows the error log `java.lang.IllegalStateException: Recursion depth became negative: -1`
+![image](https://user-images.githubusercontent.com/2565118/181494990-f8d2fd8c-0cd3-4e04-997c-fc76b6a47432.png)
+
+**To Reproduce**
+No clear way to reproduce yet.
+
+**Expected behavior**
+The consumer should subscribe successfully.
+
+**Desktop (please complete the following information):**
+ - OS: Linux
+ - Pulsar broker version: 2.8.3
+ - Pulsar client version: 2.7.4
+
+**Additional context**
+I read the python and C++ code about the behavior of pulsar client, the client has already connected to the broker, but do not get the result of `newSubscribe` cmd, which results in the `TimeOut` error.
+
+It seems that broker get the `java.lang.IllegalStateException: Recursion depth became negative: -1` error while the logger print some log.
+
+Let's see the broker server log screenshot, it is caused by `org.apache.pulsar.broker.service.ServerCnx.lambda$handleSubscribe$16(ServerCnx.java:961)`, just is the code printing the log.
+https://github.com/apache/pulsar/blob/ee87c7d6c20186ae59298a9a9ec1fdb2b09954c7/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java#L954-L968
+
+The log4j2 config file `log4j2.yaml`:
+```yaml
+Configuration:
+  status: INFO
+  monitorInterval: 30
+  name: pulsar
+  packages: io.prometheus.client.log4j2
+
+  Properties:
+    Property:
+      - name: "pulsar.log.dir"
+        value: "logs"
+      - name: "pulsar.log.file"
+        value: "pulsar.log"
+      - name: "pulsar.log.appender"
+        value: "RoutingAppender"
+      - name: "pulsar.log.root.level"
+        value: "info"
+      - name: "pulsar.log.level"
+        value: "info"
+      - name: "pulsar.routing.appender.default"
+        value: "Console"
+  Appenders:
+
+    # Console
+    Console:
+      name: Console
+      target: SYSTEM_OUT
+      PatternLayout:
+        Pattern: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+
+    # Rolling file appender configuration
+    RollingFile:
+      name: RollingFile
+      fileName: "${sys:pulsar.log.dir}/${sys:pulsar.log.file}"
+      filePattern: "${sys:pulsar.log.dir}/${sys:pulsar.log.file}-%d{MM-dd-yyyy}-%i.log.gz"
+      immediateFlush: false
+      PatternLayout:
+        Pattern: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+      Policies:
+        TimeBasedTriggeringPolicy:
+          interval: 1
+          modulate: true
+        SizeBasedTriggeringPolicy:
+          size: 1 GB
+      # Delete file older than 30days
+      DefaultRolloverStrategy:
+          Delete:
+            basePath: ${sys:pulsar.log.dir}
+            maxDepth: 2
+            IfFileName:
+              glob: "*/${sys:pulsar.log.file}*log.gz"
+            IfLastModified:
+              age: 30d
+
+    Prometheus:
+      name: Prometheus
+
+    # Routing
+    Routing:
+      name: RoutingAppender
+      Routes:
+        pattern: "$${ctx:function}"
+        Route:
+          -
+            Routing:
+              name: InstanceRoutingAppender
+              Routes:
+                pattern: "$${ctx:instance}"
+                Route:
+                  -
+                    RollingFile:
+                      name: "Rolling-${ctx:function}"
+                      fileName : "${sys:pulsar.log.dir}/functions/${ctx:function}/${ctx:functionname}-${ctx:instance}.log"
+                      filePattern : "${sys:pulsar.log.dir}/functions/${sys:pulsar.log.file}-${ctx:instance}-%d{MM-dd-yyyy}-%i.log.gz"
+                      PatternLayout:
+                        Pattern: "%d{ABSOLUTE} %level{length=5} [%thread] [instance: %X{instance}] %logger{1} - %msg%n"
+                      Policies:
+                        TimeBasedTriggeringPolicy:
+                          interval: 1
+                          modulate: true
+                        SizeBasedTriggeringPolicy:
+                          size: "20MB"
+                        # Trigger every day at midnight that also scan
+                        # roll-over strategy that deletes older file
+                        CronTriggeringPolicy:
+                          schedule: "0 0 0 * * ?"
+                      # Delete file older than 30days
+                      DefaultRolloverStrategy:
+                          Delete:
+                            basePath: ${sys:pulsar.log.dir}
+                            maxDepth: 2
+                            IfFileName:
+                              glob: "*/${sys:pulsar.log.file}*log.gz"
+                            IfLastModified:
+                              age: 30d
+                  - ref: "${sys:pulsar.routing.appender.default}"
+                    key: "${ctx:function}"
+          - ref: "${sys:pulsar.routing.appender.default}"
+            key: "${ctx:function}"
+
+  Loggers:
+
+    # Default root logger configuration
+    Root:
+      level: "${sys:pulsar.log.root.level}"
+      additivity: true
+      AppenderRef:
+        - ref: "${sys:pulsar.log.appender}"
+        - ref: Prometheus
+          level: info
+
+    Logger:
+      - name: org.apache.bookkeeper.bookie.BookieShell
+        level: info
+        additivity: false
+        AppenderRef:
+          - ref: Console
+
+      - name: verbose
+        level: info
+        additivity: false
+        AppenderRef:
+          - ref: Console
+```
+
+
+**Some other cases**
+![image](https://user-images.githubusercontent.com/2565118/181497401-9a7023f5-98eb-45fb-8282-d04438f39a42.png)
+caused by `org.apache.pulsar.broker.service.ServerCnx.handleCloseConsumer(ServerCnx.java:1628)`
+https://github.com/apache/pulsar/blob/ee87c7d6c20186ae59298a9a9ec1fdb2b09954c7/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java#L1625-L1638
+
+
+![image](https://user-images.githubusercontent.com/2565118/181499045-cbe71374-f1a4-44a5-a9f2-51d96d71b8bb.png)
+caused by `org.apache.pulsar.broker.service.ServerCnx.lambda$handleProducer$25(ServerCnx.java:1201)`
+https://github.com/apache/pulsar/blob/ee87c7d6c20186ae59298a9a9ec1fdb2b09954c7/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java#L1157-L1202
+
+
+
+
+
+
+
+
+

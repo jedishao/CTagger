@@ -1,0 +1,72 @@
+QUERY_PRIORITY scheduling policy do not work well when resourceGroup tree deeper than 2 levels
+When I submit queries to resourceGroups configured deeper than 2 levels, I found it doesn't work so well, the reason is intermediate subGroup's getHighestQueryPriority() do not calculate correctly. The test case as follows:
+
+`public void testPrioritySchedulingInResourceGroupTreeDeeperThan2Level()
+    {
+        RootInternalResourceGroup root = new RootInternalResourceGroup("root", (group, export) -> {}, directExecutor(), ignored -> Optional.empty(), rg -> false);
+        root.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        root.setMaxQueuedQueries(100);
+        // Start with zero capacity, so that nothing starts running until we've added all the queries
+        root.setHardConcurrencyLimit(0);
+        root.setSchedulingPolicy(QUERY_PRIORITY);
+
+        InternalResourceGroup group1 = root.getOrCreateSubGroup("1", true);
+        group1.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        group1.setMaxQueuedQueries(100);
+        group1.setHardConcurrencyLimit(1);
+        InternalResourceGroup group2 = root.getOrCreateSubGroup("2", true);
+        group2.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        group2.setMaxQueuedQueries(100);
+        group2.setHardConcurrencyLimit(1);
+
+        InternalResourceGroup group1a = group1.getOrCreateSubGroup("1a", true);
+        group1a.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        group1a.setMaxQueuedQueries(100);
+        group1a.setHardConcurrencyLimit(1);
+        InternalResourceGroup group1b = group1.getOrCreateSubGroup("1b", true);
+        group1b.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        group1b.setMaxQueuedQueries(100);
+        group1b.setHardConcurrencyLimit(1);
+
+        InternalResourceGroup group2a = group2.getOrCreateSubGroup("2a", true);
+        group2a.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        group2a.setMaxQueuedQueries(100);
+        group2a.setHardConcurrencyLimit(1);
+        InternalResourceGroup group2b = group2.getOrCreateSubGroup("2b", true);
+        group2b.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        group2b.setMaxQueuedQueries(100);
+        group2b.setHardConcurrencyLimit(1);
+
+        InternalResourceGroup[] groups = new InternalResourceGroup[4];
+        groups[0] = group1a;
+        groups[1] = group1b;
+        groups[2] = group2a;
+        groups[3] = group2b;
+
+        SortedMap<Integer, MockManagedQueryExecution> queries = new TreeMap<>();
+
+        Random random = new Random();
+        for (int i = 0; i < 10; i++) {
+            int priority;
+            do {
+                priority = random.nextInt(1_000_000) + 1;
+            }
+            while (queries.containsKey(priority));
+
+            MockManagedQueryExecution query = new MockManagedQueryExecution(10, "query_id", priority);
+            query.startWaitingForPrerequisites();
+            groups[i % 4].run(query);
+            queries.put(priority, query);
+        }
+
+        root.setHardConcurrencyLimit(1);
+
+        List<MockManagedQueryExecution> orderedQueries = new ArrayList<>(queries.values());
+        reverse(orderedQueries);
+
+        for (MockManagedQueryExecution query : orderedQueries) {
+            root.processQueuedQueries();
+            assertEquals(query.getState(), RUNNING);
+            query.complete();
+        }
+    }`

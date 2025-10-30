@@ -1,0 +1,37 @@
+Specify the retry policy for each call
+<!-- Please answer these questions before submitting a feature request. -->
+
+### Is your feature request related to a problem?
+<!-- A clear and concise description of what the problem is. Ex. I'm always frustrated when [...] -->
+When using retry policies, we can only assign a fixed retry policy to a method. But in practice, the same method may have different semantics, leading us to use different strategies. So I want to have a feature to assign a retry policy for each call.
+
+### Describe the solution you'd like
+<!-- A clear and concise description of what you want to happen. -->
+https://github.com/grpc/grpc-java/blob/master/core/src/main/java/io/grpc/internal/ManagedChannelImpl.java#L554
+```
+        MethodInfo methodInfo = callOptions.getOption(MethodInfo.KEY);
+
+        // retryPolicy can be covered by callOptions here
+        final RetryPolicy retryPolicy = methodInfo == null ? null : methodInfo.retryPolicy;
+
+        final HedgingPolicy hedgingPolicy = methodInfo == null ? null : methodInfo.hedgingPolicy;
+        final class RetryStream<ReqT> extends RetriableStream<ReqT> {
+          @SuppressWarnings("unchecked")
+          RetryStream() {
+            super(
+                (MethodDescriptor<ReqT, ?>) method,
+                headers,
+                channelBufferUsed,
+                perRpcBufferLimit,
+                channelBufferLimit,
+                getCallExecutor(callOptions),
+                transportFactory.getScheduledExecutorService(),
+                retryPolicy,
+                hedgingPolicy,
+                throttle);
+          }
+```
+I want to change the codes here to change retryPolicy. The related parameter can be reset by callOptions.
+So that users can change their policies by `ClientInterceptor` in each call.
+
+If the community accepts this proposal, I am willing to pull requests to finish this job.

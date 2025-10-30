@@ -1,0 +1,15 @@
+Access control storm (performance hit) on AccessControlManager. Query queue fills up
+With the Apache Ranger plugin PR I am noticing very large performance hits when Trino is attached to data storage systems with lots of Tables
+
+One use case is a postgres catalog where one of the schemas has 100,000 tables (yes a real use case)
+
+This code
+https://github.com/trinodb/trino/blob/master/core/trino-main/src/main/java/io/trino/connector/system/jdbc/TableJdbcTable.java#L102   (public RecordCursor cursor)
+Calls
+https://github.com/trinodb/trino/blob/master/core/trino-main/src/main/java/io/trino/security/AccessControlManager.java#L535  (public Set<SchemaTableName> filterTables)
+
+In my use case, I have 100k tables. That code is walking all 100k tables to see if they are filtered out.
+
+It takes a long time. If any logging is turned on and you are using resource-groups, the Trino query queue will fill up causing errors.
+
+Whats the purpose of the above code? Its really causing some issues at scale.

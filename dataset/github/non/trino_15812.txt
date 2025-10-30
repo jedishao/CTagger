@@ -1,0 +1,43 @@
+Unable to add password based authentication
+I am trying to add password based authentication on my trino server (using official [trino](https://github.com/trinodb/charts/tree/main/charts/trino) helm). I already have a https url created for my server using LB: "https://hostname:443"
+Below are my configurations:
+values.yaml
+```
+config:
+    path: /etc/trino
+    http:
+      port: 8080
+    https:
+      enabled: false
+      port: 8443
+      keystore:
+        path: ""
+    authenticationType: PASSWORD
+```
+config.properties (coordinator):
+```
+coordinator=true
+node-scheduler.include-coordinator=false
+http-server.http.port=8080
+query.max-memory={{ .Values.server.config.coordinator.query.maxMemory }}
+query.max-memory-per-node={{ .Values.server.config.coordinator.query.maxMemoryPerNode }}
+discovery-server.enabled=true
+discovery.uri=https://localhost:8080
+{{- if .Values.server.config.authenticationType }}
+ http-server.authentication.type={{ .Values.server.config.authenticationType }}
+ internal-communication.shared-secret=<>
+{{- end }}
+```
+config.properties (worker):
+```
+coordinator=false
+http-server.http.port=8080
+query.max-memory={{ .Values.server.config.worker.query.maxMemory }}
+query.max-memory-per-node={{ .Values.server.config.worker.query.maxMemoryPerNode }}
+discovery.uri=http://{{ template "trino.fullname" . }}:8080
+{{- if .Values.server.config.authenticationType }}
+    internal-communication.shared-secret=<>
+{{- end }}
+```
+
+I tried with multiple configurations but nothing is working. Not sure what needs to be added in order to enable authentication.

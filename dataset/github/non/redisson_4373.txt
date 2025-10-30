@@ -1,0 +1,37 @@
+RExpirable#expireIfNotSet(java.time.Duration) throws exception
+Code similar to this:
+```
+RMap<String, Foo> map = redisson.getMap("non-existant-map");
+map.expireIfNotSet(Duration.ofMinutes(1));
+```
+
+Throws:
+
+```
+org.redisson.client.RedisException: ERR Error running script (call to f_3fd750e0b43af99dbd223e5523718f18cded3664): @user_script:1: @user_script: 1: Wrong number of args calling Redis command From Lua script. channel: [id: 0xaf983639, L:/127.0.0.1:60671 - R:localhost/127.0.0.1:60516] command: (EVAL), promise: java.util.concurrent.CompletableFuture@64459ff0[Not completed, 1 dependents], params: [local result = 0;for j = 1, #KEYS, 1 do local expireSet; if ARGV[2] ~= '' then expireSet = redis.cal..., 1, device_v1:fc449820-1cd9-488f-a17a-5e20f8c9fc9a, 3600000, NX]
+        at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:370)
+        at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:198)
+        at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:137)
+        at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:113)
+        at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:510)
+        at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:279)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+        at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:722)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584)
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:995)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.base/java.lang.Thread.run(Thread.java:833)
+ ```
+
+`map.expire(..)` works without error.

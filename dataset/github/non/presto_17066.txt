@@ -1,0 +1,36 @@
+Schema Access Control
+I use presto to query s3 data and create hive catalog, schemas and tables, I also want to control access schemas, I follow the presto docs "File Based System Access Control" ,use json file to describe schema relation with user, then I query with presto-cli `./presto --server ip:8889 --catalog hive  --user test`
+but I got the error
+
+```
+presto:test_schema> show tables;
+Query 20211203_124007_00036_t38aj failed: Access Denied: Cannot access catalog hive
+```
+"access-control.properties" file :
+```
+access-control.name=file
+security.config-file=/usr/lib/presto/etc/rules.json
+security.refresh-period=10s
+```
+'rules.json' file:
+```
+{
+	"catalogs": [{
+			"user": "admin",
+			"catalog": "(hive|system)",
+			"allow": "all"
+		},
+		{
+			"catalog": "system",
+			"allow": "none"
+		}
+	],
+	"schemas": [{
+		"schema": "hive.test_schema",
+		"user": "test",
+		"owner": true
+	}]
+
+}
+```
+What I should do to accomplish schema access control？

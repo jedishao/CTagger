@@ -1,0 +1,16 @@
+org.redisson.client.RedisTimeoutException: Unable to acquire connection! RedissonPromise 
+**Is your feature request related to a problem? Please describe.**
+version 3.16.1,see the exceptions:
+org.redisson.client.RedisTimeoutException: Unable to acquire connection! RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@4bc618ba(failure: java.util.concurrent.CancellationException)]Increase connection pool size. Node source: NodeSource [slot=null, addr=null, redisClient=null, redirect=null, entry=MasterSlaveEntry [masterEntry=[freeSubscribeConnectionsAmount=0, freeSubscribeConnectionsCounter=value:49:queue:0, freeConnectionsAmount=22, freeConnectionsCounter=value:-2144903244:queue:26923, freezeReason=null, client=[addr=redis://], nodeType=MASTER, firstFail=0]]], command: null, params: null after 0 retryattempts
+at org.redisson.command.RedisExecutor$2.run(RedisExecutor.java:187)
+at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:672)
+at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:747)
+at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:472)
+at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+at java.lang.Thread.run(Thread.java:748)
+
+why freeConnectionsCounter is more then range of int?
+    **reeConnectionsAmount=22, freeConnectionsCounter=value:-2144903244:queue:26923**
+The above errors can be repeated by local simulation disconnection test. Freeconnectionscounter is always equal to 0
+
+The production environment doesn't know why freeconnectionscounter exceeds the integer range every time a problem occurs. Why is the semaphore range the maximum number of connections, but freeconnectionscounter can decrease at will? What causes freeconnectionscounter to exceed the integer range?

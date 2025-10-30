@@ -1,0 +1,26 @@
+`cume_dist` function's return value type is maybe double, not bigint (document page)
+Hi
+
+At the `cume_dist` function in the Window functions document page, the return value type is described as the `bigint`, but maybe `double` is correct
+
+https://prestodb.io/docs/current/functions/window.html 
+
+![image](https://user-images.githubusercontent.com/25178045/137823891-2008890a-6025-4b97-8999-c5f9013ef4ce.png)
+
+I'm using Amazon Athena (using Presto internally), and checking Presto 0.263.1 documentation
+
+Example sql:
+
+```sql
+SELECT
+CUME_DIST() OVER(PARTITION BY device_type ORDER BY sales DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS cume_dist,
+TYPEOF(CUME_DIST() OVER(PARTITION BY device_type ORDER BY sales DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) AS type
+FROM athena_workshop.total_sales_per_device_daily
+ORDER BY device_type, sales DESC
+```
+
+Query result (TYPEOF result is `double`, not `bigint`):
+
+![image](https://user-images.githubusercontent.com/25178045/137824150-fe286cc2-7ddb-4583-9a54-a9ae8a460d91.png)
+
+

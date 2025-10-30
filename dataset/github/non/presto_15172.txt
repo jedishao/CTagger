@@ -1,0 +1,27 @@
+We observe Presto0.234.4 performance declines 3x than 0.229 on big hive tables
+Describe the environment firstly. We have a presto cluster with 135-nodes and run presto0.229 for about one year. The presto cluster configures some catalogs for one hive cluster and each catalog for a different application. Some applications need to query big hive tables with many partitions and many small HDFS blocks(ex. 400 partitions and 300 file blocks on each partition, 2 billion rows in all).  the whole cluster works well all the time.
+We updated our presto from 0.229 to 0.234.4 recently, and encounter a performance decline issue when querying the big tables. We did some experiment on production cluster:
+1．	The query sql are:
+1)	SELECT CAST(“x_sql_”.”etl_dt_p” AS DATE) AS “etl_dt_p” 
+FROM (
+Select * from dm_sdm.sdm_app_pas_tls_appl_dtl_intfc_d
+) “x_sql_”
+GROUP BY 1
+2)	SELECT “x_sql_”.”biz_type” AS “biz_type”
+FROM (
+  select * from dm_sdm.sdm_app_pas_tls_appl_dtl_intfc_d
+) “x_sql_”
+GROUP BY 1
+ORDER BY “biz_type” ASC
+
+2．	Version 0.229 with 135 active nodes.
+The runnable drivers can increase up to 4.86k，the throuthput is 7.29GB/s. The query takes about 40s to become finished.  the performance is ok for us.
+
+3．	Version0.234.4 with 135 active nodes
+There is only 64.5 runnable drivers and the throughput decreased to 3.49GB/s. The query takes about 2.66 minutes.  
+The pending splits is very few in this case — only 1-4 pending splits for each task, which is very fewer than 0.229's.
+ 
+4．	 Version0.234.4 with 30 active nodes
+We tried to decrease the active wokers to 30, and the runnable drivers increased to 89.7, and the query time also decreased less than 2 minutes. The performance seems become better than the case with 135 active nodes.
+ 
+	We think the performance decline was brought in some version between 0.229 and 0.234. Could some one help to locate the root cause?

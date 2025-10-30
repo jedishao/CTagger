@@ -1,0 +1,67 @@
+Druid SQL Differing Results When Grouping By 1 Column vs 1 Col With Dummy Column
+### Affected Version
+Build From Source as of Fri Jun 5
+
+### Description
+I loaded test data using this spec:
+
+```
+{
+  "type": "index_parallel",
+  "spec": {
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "inline",
+        "data": "a|b"
+      },
+      "inputFormat": {
+        "type": "csv",
+        "columns": [
+          "col1"
+        ],
+        "findColumnsFromHeader": false,
+        "listDelimiter": "|"
+      }
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "partitionsSpec": {
+        "type": "dynamic"
+      }
+    },
+    "dataSchema": {
+      "dataSource": "inline_data",
+      "granularitySpec": {
+        "type": "uniform",
+        "queryGranularity": "NONE",
+        "rollup": false,
+        "segmentGranularity": "HOUR"
+      },
+      "timestampSpec": {
+        "column": "!!!_no_such_column_!!!",
+        "missingValue": "2010-01-01T00:00:00Z"
+      },
+      "dimensionsSpec": {
+        "dimensions": []
+      }
+    }
+  }
+}
+```
+
+Then tried these two queries:
+
+```
+SELECT col1, count(*) from inline_data where col1='a' GROUP BY col1
+SELECT col1, count(*) from inline_data where col1='a' GROUP BY col1, 'IGNORED'
+```
+
+The first query returns two rows, one for a and the other for b.
+The second query returns only a row for 'a' - this is what I expected the first query to return, based on previous 'group by' queries that I had run and the description that 'group by' was supposed to act similar to an unnest/explode for multi-value dimensions
+
+I'm fairly certain that the issue is the difference between a 'TopN' query and a 'groupBy' query. If I just swap queryType 'topN' for 'groupBy', I get only one record back instead of two.
+
+Perhaps we need to use groupBy instead of topN if there is a where clause?
+
+Also, "useApproximateTopN": false seems to be ingored. From the documentation, it sounded like this should replace topN with groupBy, but it doesn't seem to have that effect.

@@ -1,0 +1,78 @@
+[Bug] PulsarLedgerIdGenerator can't delete the index path when zk metadata store config rootPath.
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+branch master.
+
+### Minimal reproduce step
+
+Config zk metadata store with root path, and you will found error log info.
+```
+metadataStoreUrl=127.0.0.1:2181/cluster2
+configurationMetadataStoreUrl=127.0.0.1:2181/cluster2
+```
+
+Error info:
+```
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: 2022-08-16T00:31:23,648+0800 [main-EventThread] WARN  org.apache.pulsar.metadata.bookkeeper.PulsarLedgerIdGenerator - Exception during deleting node for id generation:
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: java.util.concurrent.CompletionException: org.apache.pulsar.metadata.api.MetadataStoreException$NotFoundException: org.apache.zookeeper.KeeperException$NoNodeException: KeeperErrorCode = NoNode for /cluster2/ledgers/idgen/ID-0000000588
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:331) ~[?:?]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:346) ~[?:?]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at java.util.concurrent.CompletableFuture$UniRun.tryFire(CompletableFuture.java:777) ~[?:?]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:506) ~[?:?]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:2088) ~[?:?]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.pulsar.metadata.impl.ZKMetadataStore.handleDeleteResult(ZKMetadataStore.java:268) ~[io.streamnative-pulsar-metadata-2.10.1.2.jar:2.10.1.2]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.pulsar.metadata.impl.ZKMetadataStore.lambda$batchOperation$6(ZKMetadataStore.java:180) ~[io.streamnative-pulsar-metadata-2.10.1.2.jar:2.10.1.2]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.pulsar.metadata.impl.PulsarZooKeeperClient$3$1.processResult(PulsarZooKeeperClient.java:490) [io.streamnative-pulsar-metadata-2.10.1.2.jar:2.10.1.2]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.zookeeper.ClientCnxn$EventThread.processEvent(ClientCnxn.java:722) [io.streamnative-zookeeper-3.6.3.1.jar:3.6.3.1]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.zookeeper.ClientCnxn$EventThread.run(ClientCnxn.java:563) [io.streamnative-zookeeper-3.6.3.1.jar:3.6.3.1]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: Caused by: org.apache.pulsar.metadata.api.MetadataStoreException$NotFoundException: org.apache.zookeeper.KeeperException$NoNodeException: KeeperErrorCode = NoNode for /cluster2/ledgers/idgen/ID-0000000588
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.pulsar.metadata.impl.ZKMetadataStore.getException(ZKMetadataStore.java:428) ~[io.streamnative-pulsar-metadata-2.10.1.2.jar:2.10.1.2]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: ... 5 more
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: Caused by: org.apache.zookeeper.KeeperException$NoNodeException: KeeperErrorCode = NoNode for /cluster2/ledgers/idgen/ID-0000000588
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.zookeeper.KeeperException.create(KeeperException.java:118) ~[io.streamnative-zookeeper-3.6.3.1.jar:3.6.3.1]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.zookeeper.KeeperException.create(KeeperException.java:54) ~[io.streamnative-zookeeper-3.6.3.1.jar:3.6.3.1]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: at org.apache.pulsar.metadata.impl.ZKMetadataStore.getException(ZKMetadataStore.java:422) ~[io.streamnative-pulsar-metadata-2.10.1.2.jar:2.10.1.2]
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: ... 5 more
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: 2022-08-16T00:31:23,651+0800 [metadata-store-10-1] INFO  org.apache.bookkeeper.client.LedgerCreateOp - Ensemble: [168.64.26.108:3181, 168.64.26.109:3181] for ledger: 588
+Aug 16 00:31:23 168-64-26-103 pulsar[10037]: 2022-08-16T00:31:23,651+0800 [metadata-store-10-1] INFO  org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl - [self-support/000043-rtdc/persistent/RTDC-TRADE-O45-FUNDFLOW-partition-0] Created new ledger 588
+Aug 16 00:31:27 168-64-26-103 pulsar[10037]: 2022-08-16T00:31:27,126+0800 [pulsar-web-34-8] INFO  org.eclipse.jetty.server.RequestLog - 168.64.26.102 - - [16/Aug/2022:00:31:27 +0800] "GET /metrics HTTP/1.1" 302 0 "-" "Prometheus/2.33.4" 0
+Aug 16 00:31:27 168-64-26-103 pulsar[10037]: 2022-08-16T00:31:27,130+0800 [prometheus-stats-35-1] INFO  org.eclipse.jetty.server.RequestLog - 168.64.26.102 - - [16/Aug/2022:00:31:27 +0800] "GET /metrics/ HTTP/1.1" 200 299526 "http://168.64.26.103:8080/metrics" "Prometheus/2.33.4" 4
+Aug 16 00:31:34 168-64-26-103 pulsar[10037]: 2022-08-16T00:31:34,335+0800 [pulsar-web-34-15] INFO  org.eclipse.jetty.server.RequestLog - 168.63.193.104 - - [16/Aug/2022:00:31:34 +0800] "GET /admin/v2/broker-stats/topics HTTP/1.1" 200 16291 "-" "Pulsar-Java-v2.8.1.30" 1
+```
+
+### What did you expect to see?
+
+Delete the index path correctly.
+
+### What did you see instead?
+
+Delete the index path failed.
+
+### Anything else?
+
+The reason:
+PulsarLedgerIdGenerator.generateShortLedgerId will use the zookeeper Sequential node to help us create index node.
+The path is /ledgers/idgen/ID-, it didn't contains /cluster, becase the zookeeper client will append the rootPath /cluster2 to the prefix of path automatically. So the zookeeper server will received put request for path /cluster2/ledgers/idgen-ID-, it will create increment znode likes /cluster2/ledgers/idgen-ID-0000000001.
+
+After generate id succeed, we will delete the increment path /cluster2/ledgers/idgen-ID-0000000001.
+When delete the path, we use path /cluster2/ledgers/idgen-ID-0000000001 to delete directly, the zookeeper client also append the rootPath /cluster2 to the prefix of path automatically. So the zookeeper server will received delete request for path /cluster/cluster2/ledgers/idgen-ID-0000000001. So it will throw NoNodeException.
+
+Caused by: org.apache.pulsar.metadata.api.MetadataStoreException$NotFoundException: org.apache.zookeeper.KeeperException$NoNodeException: KeeperErrorCode = NoNode for /cluster2/ledgers/idgen/ID-0000000588
+The error path is /cluster2/ledgers/idgen/ID-0000000588. In fact, it should be /ledgers/idgen/ID-0000000588.
+
+I have checkd, now we only support rootPath for zk metadata store, others didn't support rootPath, I will fixed this problem at in metadata store.
+
+We add some log at zookeeper server, it can prove it.
+
+<img width="1728" alt="image" src="https://user-images.githubusercontent.com/22524871/185737964-e6eb839d-ef45-4a9e-a0f2-a1769fcde658.png">
+
+
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

@@ -1,0 +1,12 @@
+possiblyResetDataSourceMetadata() slows down the kinesis index task
+### Affected Version
+
+In all versions
+
+### Description
+
+Unlike the kafka task, the kinesis task implements `possiblyResetDataSourceMetadata()` and checks the availability of the current offsets by comparing them with the earliest offsets available in the stream. This can take a long time if Kinesis is busy as shown in the below flame graph.
+
+![Screen Shot 2020-05-29 at 2 29 47 PM](https://user-images.githubusercontent.com/2322288/83322343-ac765e80-a20b-11ea-94fc-5e420501c323.png)
+
+`AmazonKinesis.getShardIterator()` throws an `InvalidArgumentException` if the `startingSequenceNumber` is not available in the stream. Similar to the kafka task (it calls `possiblyResetOffsetsOrWait()` when `recordSupplier.poll()` throws an `OffsetOutOfRangeException`), we can call `possiblyResetDataSourceMetadata()` when `InvalidArgumentException` is thrown. However, since the `InvalidArgumentException` can be thrown for various reasons, we need to make sure that was thrown because of the invalid `startingSequenceNumber`. 

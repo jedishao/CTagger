@@ -1,0 +1,19 @@
+Druid SQL does not support IN clause with null
+### Affected Version
+
+Tested on 0.16, 0.17, 0.18
+
+### Description
+
+The following SQL fails to plan with an ISE
+```
+SELECT "channel", "cityName", "comment", "count", "countryIsoCode"
+FROM "wikipedia"
+WHERE
+countryIsoCode in ('TN', NULL)
+```
+
+The error is in the broker where it is trying to plan the query (stacktrace too long to include here)
+Druid In filters support null values, so this should work.
+
+NOTE: when postgres issues a similar query it does not match rows where the column value is null - Druid would probably need to do something similar as well.

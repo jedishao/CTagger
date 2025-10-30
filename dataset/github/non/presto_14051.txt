@@ -1,0 +1,47 @@
+Presto parquet 1.10 upgrade can't match unsigned int types
+In presto 0.219 upgrade and later parquet was upgraded to 1.10. Since this upgrade, the where = operator does not match unsigned integer columns.
+
+The issue occurred when we used the Presto0.215 + the commit e313922f234948bfba27f9334905a750580d824f
+
+Step1: Create CSV file with 2 columns ID, NUM.
+```
+ID,NUM
+111,111
+222,222
+333,333
+```
+
+Step2: Read CSV then cast to specific type, int16 and unsigned int16.
+```
+>>> df.dtypes
+ID      int16
+NUM    uint16
+```
+
+Step3: Write the data into Parquet file
+```
+df.to_parquet('uint16_1.parquet')
+```
+Step4: Upload 'uint16_1.parquet' to S3, log into 5.24 cluster, then using Hive to create external table
+```
+CREATE EXTERNAL TABLE test_uint16_1 (
+`ID` int, 
+`NUM` int)
+STORED AS PARQUET
+LOCATION 's3://abc/uint16_1';
+```
+
+Step5: Use presto-cli
+```
+presto:default> select * from test_uint16_1 where NUM between 1 and 300;
+ id | num
+----+-----
+(0 rows)
+
+presto:default> select * from test_uint16_1 where NUM between 0 and 300;
+ id  | num
+-----+-----
+ 111 | 111
+ 222 | 222
+(2 rows)
+```

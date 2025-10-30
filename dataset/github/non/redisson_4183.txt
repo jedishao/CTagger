@@ -1,0 +1,56 @@
+lost pubsub connection
+I use redisson to subscribe message in my project, I found the pubsub connection will lost and message will be not received any more. No any exceptions can be found in log, so I tured log level to DEBUG on org.redisson. Then I found following logs, and I not sure is it normal or not:
+
+on project start
+
+2022/03/15 15:37:07.368 [ty-2-14] DEBUG ClientConnectionsEntry [-|-|-] - new pubsub connection created: RedisPubSubConnection@1163063656 [redisClient=[addr=redis://myredis-servrer:6379], channel=
+[id: 0xdbb90202, L:/10.118.1.218:47226 - R:myredis-servrer/10.118.2.6:6379], currentCommand=null]
+
+2022/03/15 15:37:07.373 [ty-2-10] INFO  MasterConnectionPool [-|-|-] - 5 connections initialized for myredis-servrer/10.118.2.6:6379
+
+2022/03/15 15:37:07.376 [ty-2-14] INFO  MasterPubSubConnectionPool [-|-|-] - 1 connections initialized for myredis-servrer/10.118.2.6:6379
+
+
+almost 4 hours later
+
+2022/03/15 19:36:55.840 [ty-2-32] DEBUG ClientConnectionsEntry [-|-|-] - new pubsub connection created: RedisPubSubConnection@1656211046 [redisClient=[addr=redis://myredis-servrer:6379], channel=[id: 0xf3a494a2, L:/10.118.1.218:37412 - R:myredis-servrer/10.118.2.6:6379], currentCommand=CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@6c702440(incomplete)], command=(PING), params=[], codec=org.redisson.client.codec.StringCodec]]
+
+
+and  13 seconds later
+
+2022/03/15 19:37:09.041 [tty-2-8] DEBUG IdleConnectionWatcher [-|-|-] - Connection [id: 0xdbb90202, L:/10.118.1.218:47226 ! R:myredis-servrer/10.118.2.6:6379] has been closed due to idle timeout. Not used for 13167 ms
+
+
+It seems the pubsub connection on port 47226 is replaced by an new pubsub connection on port 37412. 
+But CLIENT LIST with redis-cli show:
+
+id=4824 addr=10.118.1.218:37412 laddr=10.118.2.6:6379 fd=19 name= age=12092 idle=22 flags=N db=0 sub=0 psub=0 multi=-1 qbuf=0 qbuf-free=0 argv-mem=0 obl=0 oll=0 omem=0 tot-mem=20496 events=r cmd=ping user=default redir=-1 
+
+flags is N not P.
+
+This is my redisson.yaml:
+
+
+singleServerConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 1500
+  password: null
+  clientName: null
+  address: "redis://myredis-server:6379"
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  subscriptionsPerConnection: 5
+  connectionMinimumIdleSize: 5
+  connectionPoolSize: 64
+  database: 0
+  dnsMonitoringInterval: 60000
+  pingConnectionInterval: 30000
+  keepAlive: true
+threads: 16
+nettyThreads: 32
+codec: !<org.redisson.codec.FstCodec> {}
+transportMode: "NIO"
+

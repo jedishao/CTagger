@@ -1,0 +1,177 @@
+targetRowsPerSegment doesn't affect segment size as segments are not sub-partitioned.
+### Affected Version
+
+apache-druid-0.18.1
+
+### Description
+
+We are ingesting data with `DAY` as segment granularity. We chose to do `single_dim` secondary partitioning on `H3_HEX_RES_5` with a `targetRowsPerSegment` at 5,500,000 rows.
+
+It is expected that this dataset has about 10 million rows per day, so using this `partitionsSpec` we expect each day to have 10,000,000 / 5,500,000 ~= 2 partitions. However, after ingesting the data we have one segment per day with the expected 10M rows per segment. No secondary partitioning is performed.
+
+When we try to ingest the same dataset with `WEEK` as the segment granularity (70M rows expected) `java.lang.OutOfMemoryError: Java heap space` are raised. By analysing the heap dump we learned that it is trying to keep these entire segments in memory. Again, this is suggesting it is not using `targetRowsPerSegment` to control the segment size.
+
+Below I have added some information on out configuration and ingestionSpec, but let me know if other materials are helpful and I will provide them.
+
+#### Cluster Size
+- Master server
+  - m5.large instance: 2 vCPU, 8 GiB Memory
+- Data servers
+  - 2 i3.xlarge instances: 4 vCPU, 30.5 GiB Memory, 1 x 0.95TB SSD (each)
+- Query server
+  - m5.large instace: 2 vCPU, 8GiB Memory
+
+#### Configurations in use
+`druid.indexer.runner.javaOpts=-server -Xms8g -Xmx8g -XX:MaxDirectMemorySize=8g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/home/ec2-user/apache-druid-0.18.1/var/heap_dumps/druid-heap.hprof -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager`
+
+#### Ingestion Spec
+```json
+{
+  "type": "index_parallel",
+  "spec": {
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "s3",
+        "prefixes": [
+          "s3://atr-druid-data-sources/stress-test-small/"
+        ]
+      },
+      "inputFormat": {
+        "type": "csv",
+        "findColumnsFromHeader": true,
+        "listDelimiter": "|"
+      },
+      "appendToExisting": false
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "partitionsSpec": {
+        "type": "single_dim",
+        "partitionDimension": "H3_HEX_RES_5",
+        "targetRowsPerSegment": 5500000
+      },
+      "forceGuaranteedRollup": true,
+      "logParseExceptions": true,
+      "maxNumConcurrentSubTasks": 2,
+      "maxRowsInMemory": 5500000,
+      "maxBytesInMemory": 1300000000,
+      "indexSpecForIntermediatePersists": {
+        "bitmap": {
+          "type": "roaring"
+        },
+        "dimensionCompression": "uncompressed",
+        "metricCompression": "uncompressed",
+        "longEncoding": "auto"
+      }
+    },
+    "dataSchema": {
+      "dataSource": "stress-test-day-nohighcar",
+      "granularitySpec": {
+        "type": "uniform",
+        "queryGranularity": "DAY",
+        "rollup": true,
+        "intervals": [
+            "2020-05-31T00:00:00.000Z/2020-06-01T00:00:00.000Z",
+            "2020-05-30T00:00:00.000Z/2020-05-31T00:00:00.000Z",
+            "2020-05-29T00:00:00.000Z/2020-05-30T00:00:00.000Z",
+            "2020-05-28T00:00:00.000Z/2020-05-29T00:00:00.000Z",
+            "2020-05-27T00:00:00.000Z/2020-05-28T00:00:00.000Z",
+            "2020-05-26T00:00:00.000Z/2020-05-27T00:00:00.000Z",
+            "2020-05-25T00:00:00.000Z/2020-05-26T00:00:00.000Z"
+        ],
+        "segmentGranularity": "DAY"
+      },
+      "timestampSpec": {
+        "column": "CALENDAR_DATE",
+        "format": "auto"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          {
+            "type": "string",
+            "name": "ARRANGEMENT_TYPE"
+          },
+          {
+            "type": "string",
+            "name": "H3_HEX_RES_5"
+          },
+          {
+            "type": "long",
+            "name": "BATHROOMS"
+          },
+          {
+            "type": "long",
+            "name": "INSTANT_BOOK"
+          },
+          {
+            "type": "long",
+            "name": "IS_HOTEL"
+          },
+          {
+            "type": "long",
+            "name": "IS_MANAGED"
+          },
+          {
+            "type": "string",
+            "name": "UID"
+          },
+          {
+            "type": "long",
+            "name": "SLEEPS"
+          },
+          {
+            "type": "long",
+            "name": "ROOMS"
+          },
+          {
+            "type": "long",
+            "name": "NUMBER_OF_REVIEWS"
+          },
+          {
+            "type": "long",
+            "name": "RATING"
+          }
+        ]
+      },
+      "metricsSpec": [
+        {
+          "name": "sum_BLOCKED",
+          "type": "longSum",
+          "fieldName": "BLOCKED"
+        },
+        {
+          "name": "sum_BOOKED",
+          "type": "longSum",
+          "fieldName": "BOOKED"
+        },
+        {
+          "name": "sum_LEAD_TIME_PROP",
+          "type": "longSum",
+          "fieldName": "LEAD_TIME_PROP"
+        },
+        {
+          "name": "sum_LISTED_NIGHT_RATE",
+          "type": "longSum",
+          "fieldName": "LISTED_NIGHT_RATE"
+        },
+        {
+          "name": "sum_BOOKING_PROP",
+          "type": "floatSum",
+          "fieldName": "BOOKING_PROP"
+        },
+        {
+          "name": "sum_BOOKED_NIGHT_RATE",
+          "type": "longSum",
+          "fieldName": "BOOKED_NIGHT_RATE"
+        },
+        {
+          "name": "sum_ACTIVE",
+          "type": "longSum",
+          "fieldName": "ACTIVE"
+        }
+      ]
+    }
+  }
+}
+```

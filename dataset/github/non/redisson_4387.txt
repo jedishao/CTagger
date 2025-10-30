@@ -1,0 +1,12 @@
+How to prevent redisson from creating large number of TCP connections
+Hello @mrniko,
+
+We have faced an issue with redisson where there are a large number of TCP connections are created with redis server. We are using AWS Elasticache redis in cluster mode. This issue occured when the AWS Elasticache cluster went in to failover mode. What we saw was that redisson was creating lot of connections and most of the connections are in SYN_SENT state. This exhausted the available ports on our application server(running redisson application) affecting other services running on our application server. I could see that there is an existing issue https://github.com/redisson/redisson/issues/2771, which had similar symptoms and was fixed as part of 3.13.2. 
+
+We are currently using redisson version 3.11.3. Can you please confirm if the issue with SYN_SENT connections being left open is being addressed as part of the above issue.
+
+Moreover we asked AWS support for the reason for failover taking a long time and they mentioned that our application is creating large number of connections which is preventing the server from finishing the failover. Please note that we are creating a single redisson instance only once during the application start(connection pool is configured for 64 connections) and would not initialize redisson again. They also mentioned to create the connections following an exponential backoff. This is mentioned in https://aws.amazon.com/blogs/database/best-practices-redis-clients-and-amazon-elasticache-for-redis/
+
+Since TCP connections are being created internally by redisson, we dont have a way to prevent the TCP connections being created.
+
+Can you suggest any possible way by which we can configure redisson to not create large number of connections or use some sort of exponential backoff.

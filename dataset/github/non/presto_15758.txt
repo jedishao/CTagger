@@ -1,0 +1,11 @@
+Dynamic Filter for Hash Join
+Join is a very time-consuming operation, especially when there is a large amount of data. Currently, Presto 0.241+ supports local dynamic filtering for broadcast inner-joins, but does not have a dynamic filtering for hash inner-joins. In order to fill this gap, we propose dynamic filter for hash inner-joins.
+
+Compared with Presto dynamic filter and dynamic filter for hash join we proposed, the main differences are as follows.  
+- The first and most important is that they are used for different scenarios, our dynamic filter is designed for hash inner-joins. 
+- Secondly, in order to push dynamic filter to the data source and implement dynamic bucket pruning, Presto dynamic filter uses Tuple Domain to collect filter data info. Our dynamic filter is used in hash joins, where different hash build tables are processed by different workers, so we need to aggregate these data and then broadcast it to all workers. For faster aggregation and compression, we use bloom filter to collect filter data info and aggregate them in coordinator.
+
+We have integrated tests for our DF and have a detailed test report.  The test results show that we covered 2.30% of SQLs in Bytedance, and 54.62% of which achieved an average of 22.81% time improvement.
+
+Our Design Doc:[Presto Dynamic Filter For Hash Join Design](https://docs.google.com/document/d/1wZ4p9hNdFR0yTXUFj2YRIlG3mFQ0yoI04cRjDnp3jVE/edit)
+Our Test Report:[Test Report of Presto Dynamic Filter For Hash Join](https://docs.google.com/document/d/1QHbvzkDdVz1LehVyWxzYg--fegvYVDsyWqy-FOk2-A0/edit)

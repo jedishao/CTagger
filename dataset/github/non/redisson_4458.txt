@@ -1,0 +1,122 @@
+Question: RMapCache EntryExpiredListener works correctly only if maxCleanUpDelay=0
+Hi, I use redisson RMapCache to receive the event after ttl time.
+
+
+
+At first,
+
+I had a problem that expired events occurred simultaneously within maxCleanUpDelay from redis storage  and only first event was processed in redisson listener scope.
+
+```
+mapCache.addListener((EntryExpiredListener<String, String>)event -> {
+			// only first event occured here
+		});
+```
+
+For example,
+
+when `maxCleanUpDelay =30 ` , `ttl=60` RMapCache entries stored like below
+
+|key| value|
+
+|  a  |   1    |    // created: 2022.07.31 17:30:00  // redisson EntryExpiredListener catch
+
+|  b  |   2    |    // created: 2022.07.31 17:30:10 // just removed from redis storage when `key a` removed
+
+|  c  |   3    |    // created: 2022.07.31 17:30: 29 // just removed from redis storage when `key a` removed
+
+|  d  |  4    |    // created: 2022.07.31 17:30:31 // redisson EntryExpiredListener catch
+
+|  e  |   5    |    // created: 2022.07.31 17:30:40 // just removed from redis storage when `key d` removed
+
+All entries removed in redis storage correctly but, EntryExpiredListener didn't catch `b, c, e` .
+
+I observed one strange thing that `a, b, c` are removed at the same time even though they created in different time and had each ttl time. (same with `d, e`) 
+
+
+
+After that, I changed to `maxCleanUpDelay = 1` . But, still same issue occured if events are created within `1 second`.
+
+
+
+So, I changed `maxCleanUpDelay=0` . Now, It works correctly regardless of how many events created at the same time and how closely evnets occurred.
+
+Every entry removes separately from redis storage and every expired event is caught in listener scope.
+
+```
+Please note that this issue not occured in my local environment.
+In local environment, maxCleanUpDelay doesn't affect EntryExpiredListener's work and there is no issue.
+This issue happens in production environment: AWS EC2, Elastic Cache, and kubernates
+```
+
+
+
+**With this situation, I have two question.**
+
+1. I am wondering that it is safe way to set `maxCleanUpDelay = 0` ? Does it make any side effect?
+2. Could you explain the reason `maxCleanUpDelay` affects `EntryExpiredListener`'s work?
+
+
+
+[environment]
+
+- WAS
+  - spring boot 2.5.12
+  - reidsson:3.17.3
+  - AWS EC2
+- redis
+  - version : 6.0.5
+  - Master - Slave clustered 
+  - AWS Elastic Cache
+
+
+
+[redisson configuration]
+
+```java
+Config config = new Config();
+config.setMaxCleanUpDelay(0);
+config.setMinCleanUpDelay(0);
+config.setCleanUpKeysAmount(1000);
+config.useMasterSlaveServers()
+  .(...)
+```
+
+
+
+[Simple Code]
+
+```java
+@Slf4j
+@RequiredArgsConstructor
+public class RedisService implements InitializingBean {
+
+	private static String mapCacheNamespace = "cache:ttl";
+
+	private final RedissonClient redissonClient;
+
+	@Override
+	public void afterPropertiesSet() throws Exception {
+		RMapCache mapCache = redissonClient.getMapCache(mapCacheNamespace);
+		mapCache.addListener((EntryExpiredListener<String, String>)event -> {
+			if (event == null)
+				throw new IllegalStateException();
+			log.debug("expired event occured. key : {}, value : {}", event.getKey(), event.getValue());
+			// expect to receive event and doSomething after ttl time
+			doSometing(event.getValue());
+		});
+	}
+
+  // client call this method to set expire event
+	public void setExpiredEvent(String key, String value) {
+		RMapCache mapCache = redissonClient.getMapCache(mapCacheNamespace);
+		mapCache.put(key, value, 200, TimeUnit.SECONDS);
+	}
+
+	private void doSometing() {
+	...
+	}
+	
+}
+```
+

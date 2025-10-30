@@ -1,0 +1,187 @@
+GroupBy returns multiple records for the same group after intermediate flush to disk when querying real-time with a multi-value dimension involved
+### Affected Version
+
+Druid 0.17.0
+
+### Description
+
+#### Dependencies:
+- Kafka 2.12_1.0.1. Topic with 1 partition, no replication.
+
+#### Steps to reproduce:
+- Start a Kafka supervisor for realtime ingestion with the following spec:
+```
+{
+  "type": "kafka",
+  "dataSchema": {
+    "dataSource": "test",
+    "parser": {
+      "type": "string",
+      "parseSpec": {
+        "format": "json",
+        "timestampSpec": {
+          "column": "timestamp",
+          "format": "auto"
+        },
+        "dimensionsSpec": {
+          "dimensions": [],
+          "dimensionExclusions": [
+            "test"
+          ],
+          "spatialDimensions": []
+        }
+      }
+    },
+    "metricsSpec": [
+      {
+        "type": "count",
+        "name": "events"
+      }
+    ],
+    "granularitySpec": {
+      "type": "uniform",
+      "segmentGranularity": "hour",
+      "queryGranularity": "hour"
+    }
+  },
+  "tuningConfig": {
+    "type": "kafka",
+    "maxRowsInMemory": 40000,
+    "maxRowsPerSegment": 5000000,
+    "intermediatePersistPeriod": "PT1M",
+    "maxPendingPersists": 0,
+    "handoffConditionTimeout": 0,
+    "resetOffsetAutomatically": true,
+    "chatRetries": 20,
+    "httpTimeout": "PT60S",
+    "shutdownTimeout": "PT180S"
+  },
+  "ioConfig": {
+    "topic": "test",
+    "consumerProperties": {
+      "bootstrap.servers": "bootstrap-server:9092",
+      "group.id": "test",
+      "auto.offset.reset": "latest",
+      "max.partition.fetch.bytes": 4000000
+    },
+    "replicas": "1",
+    "taskCount": "1",
+    "taskDuration": "PT3600S",
+    "startDelay": "PT5S",
+    "period": "PT30S",
+    "useEarliestOffset": false,
+    "completionTimeout": "PT30M"
+  }
+}
+```
+- Push next messages to Kafka for real-time ingestion. Sending in bunches of 1000 (or 10.000... both work) message of each with small pause between bunches. I've put a timestamp from future, but any timestamp should make it.
+```
+{"multiValueDimension":["1"],"zoneId":"1","timestamp":2524608061000}
+{"zoneId":"1","timestamp":2524608061000} // observe the lack of the multiValueDimension
+{"zoneId":"2","timestamp":2524608061000} // observe the lack of the multiValueDimension
+```
+- Do the following groupBy query
+```
+{
+	"queryType": "groupBy",
+	"dataSource": "test",
+	"intervals": "2050-01-01T00:00:00.000Z/2050-01-01T01:00:00.000Z",
+	"dimensions": ["multiValueDimension","zoneId"],
+	"aggregations": [
+		{
+			"type": "longSum",
+			"name": "events",
+			"fieldName": "events"
+		}
+	],
+	"limit" : 2147483647,
+	"granularity": "all"
+}
+```
+- At the beginning the results are correct...
+```
+[
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "zoneId": "1",
+      "events": 5000
+    }
+  },
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "zoneId": "2",
+      "events": 4990
+    }
+  },
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "multiValueDimension": "1",
+      "zoneId": "1",
+      "events": 16000
+    }
+  }
+]
+```
+- ... but after the next intermediate persistence flush to disk...
+```
+2020-05-21T13:58:23,854 INFO [[index_kafka_test_f4d3b0f570f9224_jhlpfjga]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data for segment[test_2050-01-01T00:00:00.000Z_2050-01-01T01:00:00.000Z_2020-05-21T13:39:14.308Z] spill[2] to disk in [7] ms (3 rows).
+2020-05-21T13:58:23,857 INFO [[index_kafka_test_f4d3b0f570f9224_jhlpfjga]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data with commit metadata [AppenderatorDriverMetadata{segments={index_kafka_test_f4d3b0f570f9224_0=[SegmentWithState{segmentIdentifier=test_2050-01-01T00:00:00.000Z_2050-01-01T01:00:00.000Z_2020-05-21T13:39:14.308Z, state=APPENDING}]}, lastSegmentIds={index_kafka_test_f4d3b0f570f9224_0=test_2050-01-01T00:00:00.000Z_2050-01-01T01:00:00.000Z_2020-05-21T13:39:14.308Z}, callerMetadata={nextPartitions=SeekableStreamEndSequenceNumbers{stream='test', partitionSequenceNumberMap={0=58000}}}}] for segments: test_2050-01-01T00:00:00.000Z_2050-01-01T01:00:00.000Z_2020-05-21T13:39:14.308Z
+```
+- ... same groupBy starts to return multiple records for the same groups...
+```
+[
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "zoneId": "1",
+      "events": 7000
+    }
+  },
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "zoneId": "2",
+      "events": 7001
+    }
+  },
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "zoneId": "1",
+      "events": 5000
+    }
+  },
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "zoneId": "2",
+      "events": 4990
+    }
+  },
+  {
+    "version": "v1",
+    "timestamp": "2050-01-01T00:00:00.000Z",
+    "event": {
+      "multiValueDimension": "1",
+      "zoneId": "1",
+      "events": 16000
+    }
+  }
+]
+```
+
+#### Other observations
+- The problem occurs only with no explicit dimensions definition in ingestion spec. If I put the definitions `{ "name" : "zoneId", "type" : "string" }, { "name" : "multiValueDimension", "type" : "string" }` in the list of dimensions, it works correctly.
+- The problem does not occur if instead of lack of the multi-value field, I put an array with a null or "" (empty string) value in ingested data. Instead of `{"zoneId":"1","timestamp":2524608061000}` -> `{"multiValueDimension": [null], "zoneId":"1","timestamp":2524608061000}` or `{"multiValueDimension": [""], "zoneId":"1","timestamp":2524608061000}`
+- The problem occurs exactly after the intermediate flush on disk by playing with the `intermediatePersistPeriod` in ingestion spec. I tried difference values... 1M, 3M, 10M and the wrong result started to appear exactly after the intermediate persistence (tailed the task log and observed when it happened)
+- The problem does not reproduce till the intermediate persistence and after hand-off. Once handed-off to histo nodes the result gets corrected.

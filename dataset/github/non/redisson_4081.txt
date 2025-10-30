@@ -1,0 +1,68 @@
+RMapCache size() method is inconsistent with keySet()/values()/entrySet() methods
+**Expected behavior**
+size() method should return the same value as count of items in collections returned from keySet()/values()/entrySet() methods.
+It is needed to safely convert RMapCache to other collections. Typical conversion involves 2 steps: retrieve size(); then based on that value do further conversions. Some implementations could use iterator().next() right after checking that size() > 0, it is expected to be safe.
+
+**Actual behavior**
+size() method does not take expired items in mind, but keySet()/values()/entrySet() methods return not expired items only. It gives count inconsistency. Implementations using iterator().next() right after checking that size() > 0 will fail with java.util.NoSuchElementException
+
+**Steps to reproduce or test case**
+Unit tests in Kotlin illustrates the problem:
+
+```
+    @Test
+    fun `should return items excluding expired items`() {
+        val mapCache = redissonClient.getMapCache<String, String>("testCache")
+
+        mapCache.put("k1", "v1", 1, TimeUnit.SECONDS)
+
+        Thread.sleep(3000)
+
+        assertEquals(emptySet<String>(), mapCache.keys)
+        assertEquals(0, mapCache.size) //fails with actual value = 2
+        assertTrue(mapCache.isEmpty())
+    }
+
+    @Test
+    fun `should convert to map`() {
+        val mapCache = redissonClient.getMapCache<String, String>("testCache")
+
+        mapCache.put("k1", "v1", 1, TimeUnit.SECONDS)
+
+        Thread.sleep(3000)
+
+        if (mapCache.size > 0) {
+            val firstItem = mapCache.entries.iterator().next() //fails with java.util.NoSuchElementException: No such element
+        }
+    }
+```
+
+**Redis version**
+5.0.12
+
+**Redisson version**
+3.16.7
+
+**Redisson configuration**
+```
+    @BeforeEach
+    fun initRedissonClient() {
+        val config = Config().apply {
+            nettyThreads = 4
+            threads = 2
+            lockWatchdogTimeout = 10000
+            reliableTopicWatchdogTimeout = 5000
+        }
+
+        config.useSingleServer().apply {
+            address = "redis://127.0.0.1:$redisPort"
+            connectionMinimumIdleSize = 16
+            connectionPoolSize = 16
+            subscriptionConnectionMinimumIdleSize = 16
+            subscriptionConnectionPoolSize = 16
+            subscriptionsPerConnection = 500
+        }
+
+        redissonClient = Redisson.create(config)
+    }
+```

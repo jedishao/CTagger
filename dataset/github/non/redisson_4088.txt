@@ -1,0 +1,27 @@
+RedissonDelayedQueue stop transfer timeout elements to destination queue
+<!--
+Try Redisson PRO https://redisson.pro with with ultra-fast performance and support by SLA.
+-->
+After using for a while, the RedissonDelayedQueue stop work。All added elements are backlogged in the queue，even if many elements have already timeout。
+When I restarted the application，all the elements will transfer to the destination queue。
+
+Even if I use the following code to force trigger the publish，it still doesn't work。Only restart can resolve.
+
+```
+public void forceTriggerRDelayedQueue() {
+    if (redisson instanceof Redisson) {
+        CommandAsyncExecutor commandExecutor = ((Redisson) redisson).getCommandExecutor();
+        String delayQueueName = clearingChannelDelayedQueue.getName();
+        String channelName = RedissonDelayedQueue.prefixName("redisson_delay_queue_channel", delayQueueName);
+        Codec codec = clearingChannelDelayedQueue.getCodec();
+        long timeout = System.currentTimeMillis();
+        commandExecutor.evalWriteAsync(delayQueueName, codec, RedisCommands.EVAL_VOID,
+                "redis.call('publish', KEYS[1], ARGV[1]); ",
+                Collections.singletonList(channelName), timeout);
+
+    } else {
+        log.warn("Redisson Client type is {}", redisson.getClass().getName());
+    }
+}
+```
+My Redisson version is 3.15.5 ，And used in SingleServer mode.  Redis version is 6.0.0  

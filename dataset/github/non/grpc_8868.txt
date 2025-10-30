@@ -1,0 +1,75 @@
+Interceptors skipped when the client aborts
+I'm using io.grpc 1.43.2 on a Kubernetes Cluster with Linux, OpenJDK 11.0.13 64 bit, using Spring Boot framework. To generate Java code I used the Maven plugin org.xolstice.maven.plugins/protobuf-maven-plugin with io.grpc:protoc-gen-grpc-java 1.4.0 and com.google.protobuf:protoc:3.3.0.
+
+My issue is that my GRPC service functions are sometimes called without executing the related interceptors first.
+
+I created a GRPC service inside a Spring Boot application that needs some interceptors:
+```
+Server server = ServerBuilder.forPort(grpcPort)
+  .addService(ServerInterceptors.intercept(grpcService, grpcTokenInterceptor, headerInterceptor, grpcRequestContextInterceptor))
+  .addService(ProtoReflectionService.newInstance())
+  .build();
+server.start();
+```
+All 4 classes (grpcService, grpcTokenInterceptor, headerInterceptor, grpcRequestContextInterceptor) output a debug message before doing any work. Normally I can see proper order of calls in the log:
+```
+2022-01-26T10:07:56.414+0000 com.mvneco.ecobc.payment.facade.grpc.GrpcRequestContextInterceptor interceptCall()
+2022-01-26T10:07:56.414+0000 com.mvneco.ecobc.payment.facade.grpc.GrpcHeaderInterceptor interceptCall()
+2022-01-26T10:07:56.414+0000 com.mvneco.ecobc.payment.facade.grpc.GrpcHeaderInterceptor interceptCall()
+2022-01-26T10:07:56.419+0000 com.mvneco.ecobc.payment.facade.grpc.GrpcService getVoucherInfo()
+```
+
+When my **grpcTokenInterceptor** produces an exception due to bad input, then I can see a nice stack trace which shows the interceptors:
+```
+com.mvneco.ecobc.payment.facade.grpc.GrpcTokenInterceptor.interceptCall(GrpcTokenInterceptor.java:54)
+io.grpc.ServerInterceptors$InterceptCallHandler.startCall(ServerInterceptors.java:244)
+com.mvneco.ecobc.payment.facade.grpc.GrpcHeaderInterceptor.interceptCall(GrpcHeaderInterceptor.java:57)
+io.grpc.ServerInterceptors$InterceptCallHandler.startCall(ServerInterceptors.java:244)
+com.mvneco.ecobc.payment.facade.grpc.GrpcRequestContextInterceptor.interceptCall(GrpcRequestContextInterceptor.java:34)
+io.grpc.ServerInterceptors$InterceptCallHandler.startCall(ServerInterceptors.java:244)
+io.grpc.internal.ServerImpl$ServerTransportListenerImpl.startWrappedCall(ServerImpl.java:703)
+io.grpc.internal.ServerImpl$ServerTransportListenerImpl.access$2200(ServerImpl.java:406)
+io.grpc.internal.ServerImpl$ServerTransportListenerImpl$1HandleServerCall.runInternal(ServerImpl.java:615)
+io.grpc.internal.ServerImpl$ServerTransportListenerImpl$1HandleServerCall.runInContext(ServerImpl.java:603)
+io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
+java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+java.base/java.lang.Thread.run(Thread.java:834)
+```
+
+When my **grpcService** produces an exception, I get this stack trace which shows how the service function gets called:
+```
+com.mvneco.ecobc.payment.facade.grpc.GrpcService.getVoucherInfo(GrpcService.java:109)
+mvneco.ecobc.payment.PaymentGrpcServiceGrpc$MethodHandlers.invoke(PaymentGrpcServiceGrpc.java:1044)
+io.grpc.stub.ServerCalls$UnaryServerCallHandler$UnaryServerCallListener.onHalfClose(ServerCalls.java:182)
+io.grpc.internal.ServerCallImpl$ServerStreamListenerImpl.halfClosed(ServerCallImpl.java:340)
+io.grpc.internal.ServerImpl$JumpToApplicationThreadServerStreamListener$1HalfClosed.runInContext(ServerImpl.java:866)
+io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
+java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+java.base/java.lang.Thread.run(Thread.java:829)
+```
+
+Everything is fine until here. The interceptoprs and the service are called in the expected order.
+
+But during load-tests, my **grpcService** is sometimes called without interceptors. Then my class aborts with an exception due to missing data from the interceptors that have not been called. In these few cases, the log shows that the interceptors have not been executed:
+```
+2022-01-26T10:07:56.311+0000 com.mvneco.ecobc.payment.facade.grpc.GrpcService getVoucherInfo()
+```
+
+This is the first message of the affected thread (after program start).
+
+I repeated the load test several times and it seems that the issue happens only 1x on the first message per thread. But not always, only sometimes. Some threads produce the error 1x while other threads work fine at the same time.
+
+My guess: Maybe the trigger of that issue is that the network connection got reset by the client, before the message got processed by the server. See attached screenshot of a network trace which we created on the server:
+
+![tcpdump](https://user-images.githubusercontent.com/36876920/151166616-1ab7fc13-cdf2-483e-8b59-ebbf4cd8ffa3.png)
+
+Now I'm stuck here. I'm not sure if this is a bug on server side, or client side or a misunderstanding of myself.
+
+How can I find out why my interceptors have not been executed? Is there any condition that must be fulfilled?
+I tried to find the answer in the source code but failed. 
+
+It would be great if you can help me to analyze this issue further. My biggest problem is that it happens only seldom and only during load tests. I did not find a way to trigger the issue manually.

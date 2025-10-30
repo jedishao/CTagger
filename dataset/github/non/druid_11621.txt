@@ -1,0 +1,27 @@
+Get Druid Service details in runtime (via extension)
+Hi all,
+
+Is there a way to to know what druid services are running in a `DruidNode` (Not talking about the HTTP APIs)?
+I went through `druid-server` module, class `DruidNodeDiscoveryProvider.getForNodeRole` which accepts a `NodeRole` and returns a `DruidNodeDiscovery` instance after which we can use `getAllNodes()` method which returns `Collection<DiscoveryDruidNode>`. And for each item in the `Collection<DiscoveryDruidNode>` we can use `getServiceName()` method to get the service name.
+
+The question is, how can we get the instance of `NodeRole` running in the druid process. For example, if we have a host running broker service, is there a way to get `NodeRole` for broker process dynamically?
+
+For now I'm doing something like this. Adding all NodeRole in every host, since our extension runs in every host.:
+
+```java
+List<DruidNodeDiscovery> druidNodeDiscoveryList = ImmutableList.of(
+        druidNodeDiscoveryProvider.getForNodeRole(NodeRole.COORDINATOR),
+        druidNodeDiscoveryProvider.getForNodeRole(NodeRole.OVERLORD),
+        druidNodeDiscoveryProvider.getForNodeRole(NodeRole.HISTORICAL),
+        druidNodeDiscoveryProvider.getForNodeRole(NodeRole.MIDDLE_MANAGER),
+        druidNodeDiscoveryProvider.getForNodeRole(NodeRole.INDEXER),
+        druidNodeDiscoveryProvider.getForNodeRole(NodeRole.BROKER),
+        druidNodeDiscoveryProvider.getForNodeRole(NodeRole.ROUTER)
+);
+```
+
+I'm trying to build an extension. So this extension will run in every hosts in our druid cluster. After getting the service details we wanted to some further procession from our side.
+
+Will really appreciate some pointers on this.
+
+Thank you :) 

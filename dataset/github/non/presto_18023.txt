@@ -1,0 +1,13 @@
+Why can DynamicBucketNodeMap generate stageNodeList randomly rather than use bucketNodeMap？
+<img width="1186" alt="image" src="https://user-images.githubusercontent.com/43271293/178441186-691f83c8-6fef-41b8-bb03-b4e3397d56d0.png">
+In SectionExecutionFactory，we check "bucketNodeMap.hasInitialMap()"  and I found that FixedBucketNodeMap would always be true, so stageNodeList is consistent with the BucketNodeMap.
+
+However, When DynamicBucketNodeMap will be not consistent with BucketNodeMap, something bad will happen. 
+
+Firstly, FixedSourcePartitionedScheduler will generate tasks according to stageNodeList.
+
+Secondly, SourcePartitionedScheduler will distribute splits according to BucketNodeMap. Because the bucketNodeMap is not consistent with stageNodeList, SourcePartitionedScheduler may distribute splits to the node which is in bucketNodeMap but not in  stageNodeList. As a result, a redundant taskId will be generated, and all the query will be fail.
+
+<img width="1353" alt="image" src="https://user-images.githubusercontent.com/43271293/178443611-7978e1d6-7e5b-46e5-bb23-a7c3c5e20e7b.png">
+<img width="1018" alt="image" src="https://user-images.githubusercontent.com/43271293/178443906-5366bc11-f71f-4a02-852c-8b0d7d9b0206.png">
+

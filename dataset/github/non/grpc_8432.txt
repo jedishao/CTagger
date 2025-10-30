@@ -1,0 +1,24 @@
+Add ConnectivityState.TERMINATED or change SHUTDOWN to notify after gRPC threads end.
+<!-- Please answer these questions before submitting a feature request. -->
+
+### Is your feature request related to a problem?
+<!-- A clear and concise description of what the problem is. Ex. I'm always frustrated when [...] -->
+
+We shutdown `ManagedChannel` asynchronously so need an asynchronous callback for determining when a channel has been completely cleaned up. This can be important for when libraries are dynamically unloaded / loaded at runtime as the order matters. Currently there is only `ConnectivityState.SHUTDOWN`, which means no new RPCs will be serviced, but the connection may still be operating. Notably, there is almost always a `GOAWAY` frame sent after this connectivity state is reached.
+
+### Describe the solution you'd like
+<!-- A clear and concise description of what you want to happen. -->
+
+Add `ConnectivityState.TERMINATED` to notify after connections have been completely closed. This would be sent after all gRPC threads have been ended.
+
+### Describe alternatives you've considered
+<!-- A clear and concise description of any alternative solutions or features you've considered. -->
+
+`ConnectivityState.SHUTDOWN` could possibly be changed to report after gRPC threads have ended - it's unclear to me what the use case is of being notified of shutdown before this has happened but there may be a use case, in which case a new enum is needed instead. That being said, because it's only a timing issue, it would be rare to break applications by changing the behavior this way too and could be viable.
+
+### Additional context
+<!-- Add any other context about the feature request here. -->
+
+We use gRPC in a library and have user reports of issues due to not being able to know when the gRPC library has finished shutting down.
+
+https://github.com/open-telemetry/opentelemetry-java/issues/3521

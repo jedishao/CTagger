@@ -1,0 +1,44 @@
+Bump Protobuf to 3.19.1 which is is Mac M1 osx-aarch_64 compatible.
+### What version of gRPC-Java are you using?
+gRPC-java version 1.42.1 
+### What is your environment?
+Mac M1 aarch_64
+```
+% java -version
+openjdk version "1.8.0_312"
+OpenJDK Runtime Environment (Zulu 8.58.0.13-CA-macos-aarch64) (build 1.8.0_312-b07)
+OpenJDK 64-Bit Server VM (Zulu 8.58.0.13-CA-macos-aarch64) (build 25.312-b07, mixed mode)
+```
+
+### What did you expect to see?
+Release 1.42.1 generates osx-aarch_64 compatible artifacts.
+However the protobuf version used is 3.17.2 which does not have a compatible osx-aarch_64.
+From the release 1.42.1 notes:
+
+> compiler: Protoc plugin for macOS x86 is duplicated to be used on the aarch architecture, to ease use on arm64 macs. The plugin is not actually ARM64, just named as such. Future work will need to compile it appropriately #8680
+
+I seems that this release will work correctly with arm64 macs. Probably I understood it wrongly.
+
+What I expect is that using the latest grpc-java arm64 mac compatible and using the latest protoc 3.19.1 which is "compatible" with arm64 mac, I can generate valid code.
+
+### What did you see instead?
+As I was using a newer compiler, for arm64 compatibility reasons, It was generating code that depends on methods that are not available in the current grpc-java used protobuf 3.17.2 version.
+```java
+error: cannot find symbol
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(appId_)) {
+                                               ^
+  symbol:   method isStringEmpty(Object)
+  location: class GeneratedMessageV3
+  ```
+
+### Steps to reproduce the bug
+If you try to compile the well know `helloworld.proto` bundled in protoc, you will get the error mentioned previously.
+
+I am using the [current suggested](https://github.com/grpc/grpc-java#generated-code) `protobuf-maven-plugin`to generate code. However I need to dump up the `protocArtifact` to 3.19.1 to use a aarm64 mac compatible artifact.
+```
+<protocArtifact>com.google.protobuf:protoc:3.19.1:exe:${os.detected.classifier}</protocArtifact>
+```
+
+
+### Workaround
+Use protoc 3.17.3 which [does include osx-aarch_64](https://repo1.maven.org/maven2/com/google/protobuf/protoc/3.17.3/) based maven artifacts

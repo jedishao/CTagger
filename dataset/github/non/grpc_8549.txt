@@ -1,0 +1,56 @@
+performance test, client and server cpu utilisation did not exceed 70%, qps did not exceed 7K
+jdk version: 1.8.0_192-b12
+grpc version: 1.40.0
+
+i use porotc and grpc plugin to generated pb file to get req\res\grpc-service definition java file .
+
+in my project, grpc client base on spring cloud gateway, grpc server base on spring-boot-server.
+
+two server process  deploy on 8 core vm, client deploy on 4 core 8G docker and docker deploy on vm.
+
+grpc server just use @GrpcServer on myclass that extend grpc.bindableservice ,  and set grpc port in spring.yaml , and there no other config.  
+
+grpc client like that build channel ； for the same target server , diff thread use the same one client and channle build future stub.
+
+public class DemoGrpcClient {
+  private final ManagedChannel channel;
+  protect DemoGrpcClient() {
+        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(core, core, 10L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(10000),
+                new ThreadFactoryBuilder().setDaemon(true).setNameFormat("nacos-grpc-client-executor-%d")
+                        .build());
+        threadPoolExecutor.allowCoreThreadTimeOut(true);
+        channel = ManagedChannelBuilder
+                .forAddress(host, port)
+                .compressorRegistry(CompressorRegistry.getDefaultInstance())
+                .decompressorRegistry(DecompressorRegistry.getDefaultInstance())
+                .keepAliveTime(6 * 1000 * 1000, TimeUnit.MILLISECONDS)
+                .executor(threadPoolExecutor)
+                .defaultLoadBalancingPolicy("round_robin")
+                .usePlaintext()
+                .maxInboundMessageSize(DEFAULT_MAX_INBOUND_MESSAGE_SIZE)
+                .disableRetry()
+                .disableServiceConfigLookUp()
+                .build();
+}
+
+public DTO doRpc(req) {
+    MasaServiceGrpc.newFutureStub(channel).invoke(req);
+    .....
+}
+}
+performance test with wrk result like below，wrk initiate request by http mode to my grpc client , and grpc client transfer request to grpc server and get response to wrk.
+
+![image](https://user-images.githubusercontent.com/35725024/134321596-358f3024-cd68-4025-919b-729f16f05102.png)
+
+client cpu utilisation did not exceed 70%, qps did not exceed 7K,  two server cpu both about 50%.
+
+ping latency client vm bettew server client about 0.2ms
+![image](https://user-images.githubusercontent.com/35725024/134328021-0b5f14ac-7c10-424a-b792-696725ff79e1.png)
+
+
+1、how to set client or server config to improve my project performance;
+2、what's different  between use @GrpcServer and nettyserverbuild.xxxx
+
+
+

@@ -1,0 +1,149 @@
+run spring boot native image failure
+I tried to run Redisson 3.19.2 with Spring Boot 3.0.2
+but facing issues, when running the spring native compile.
+Is there an official statement, whether Redisson is or will be compatible with Spring native compile?
+
+**Expected behavior**
+Container should start without any errors.
+
+**Actual behavior**
+The build works. But when I try to run the ${projectDir}/target/redisson-test
+I get the followin error:
+ org.springframework.beans.factory.support.BeanDefinitionValidationException: Could not find a destroy method named 'shutdown' on bean with name 'redisson'
+
+**Steps to reproduce or test case**
+1. Create a Spring Boot 3.0.2 project.
+2. Add dependencies and plugins to the project
+```xml
+<dependencies>
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+            <version>3.19.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>     
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.graalvm.buildtools</groupId>
+                <artifactId>native-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+```
+3. Application.java
+```Java
+@SpringBootApplication
+@EnableRedisHttpSession
+public class RedissonTestApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(RedissonTestApplication.class, args);
+    }
+
+}
+```
+4. Controller.java
+```Java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class TestController {
+    @Autowired
+    private Service service;
+
+    @GetMapping("/")
+    public Object get() {
+        return service.get();
+    }
+
+    @GetMapping("/put")
+    public void save(String value) {
+        service.put(value);
+    }
+}
+```
+5. Service.java
+```Java
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Component;
+
+@Slf4j
+@Component
+public class Service {
+    private static final String cacheName = "redisson:test";
+    private Object value;
+
+    @Cacheable(value = cacheName, key = "testKey")
+    public Object get() {
+        log.info("query");
+        return value;
+    }
+
+    @CacheEvict(cacheNames = cacheName, key = "testKey")
+    public void put(Object value) {
+        log.info("put " + value);
+        this.value = value;
+    }
+}
+```
+**Redis version**
+6.2.10
+**Redisson version**
+3.19.2
+**Redisson configuration**
+```yaml
+spring:
+  redis:
+    redisson:
+      config:
+        singleServerConfig:
+          address: "redis://127.0.0.1:6379"
+        "transportMode": "KQUEUE"
+```

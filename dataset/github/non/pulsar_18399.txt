@@ -1,0 +1,54 @@
+[Bug] When using the delayed message delivery of Apache pulsar version 2.10, the message is not received at the expected delay time
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.10.0
+
+### Minimal reproduce step
+
+We produce messages in the following way: `MessageId messageId=producer. newMessage() deliverAfter(time, timeUnit).value(msg.getBytes(StandardCharsets.UTF_8)).send();`
+In the early stage of production (when the amount of data is small), what can be prepared will be executed at the expected time of delay, but when the amount of data is large, there will be different degrees of delay, even more than one day, one hour, etc .
+
+In addition, the subscription type we use is: subscriptionType=SubscriptionType Shared mode, we can provide our consumer initialization code
+   ```
+ <T> Consumer<T> createConsumer(String topic, Schema<T> schema, String subscriptionName,
+                                   MessageListener<T> listener,
+                                   int ackTimeout) throws PulsarClientException {
+        return client.newConsumer(schema)
+                .topic(topic)
+                .subscriptionName(subscriptionName)
+                .ackTimeout(ackTimeout, TimeUnit.MINUTES)
+                .subscriptionType(SubscriptionType.Shared)
+                .enableRetry(true)
+                .messageListener(listener)
+                .negativeAckRedeliveryDelay(5, TimeUnit.SECONDS)
+                .deadLetterPolicy(DeadLetterPolicy.builder()
+                        .maxRedeliverCount(maxRedeliveryCount)
+                        .retryLetterTopic(DELAY_DELIVER_RETRY)
+                        .deadLetterTopic("persistent://public/default/delay_deliver_dead")
+                        .build())
+                .consumerName(appName)
+                .subscribe();
+    }
+```
+
+### What did you expect to see?
+
+In the deliverAfter mode, time is specified as 10, and the unit is minute. After the message is produced, it should be executed within the specified delay time of each message
+
+
+### What did you see instead?
+
+Through the analysis of logs and our own business library, we found that a large number of messages were overstocked and the execution was delayed. For example, we used the deliverAfter mode. The time was specified as 10, and the unit was minutes. However, the execution may be delayed for 1 hour, 2 hours, or even one day.
+
+### Anything else?
+
+Cluster configuration, 3POD is 16c16g per pod, and the daily traffic is about 40w/day
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

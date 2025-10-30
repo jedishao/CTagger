@@ -1,0 +1,19 @@
+A lot of duplicated logs get produced by the coordinator.
+The coordinator produces the following log tens of thousands times :
+
+```
+WARN [xxx] org.apache.druid.storage.s3.S3StorageDruidModule - [http] protocol will be used for endpoint [http://xxx:9000]
+```
+
+Is it normal?
+
+The coordinator is connected to minio through http, [here](https://github.com/apache/druid/blob/druid-0.20.0/cloud/aws-common/src/main/java/org/apache/druid/common/aws/AWSClientConfig.java#L28) we hardcode the "supported" protocol to https.
+
+[Here](https://github.com/apache/druid/blob/druid-0.20.0/extensions-core/s3-extensions/src/main/java/org/apache/druid/storage/s3/S3StorageDruidModule.java#L105) is the concerned log.
+
+Couldn't we make it accept http also? (druid + minio can share a LAN) or at least be quieter?
+
+### Affected Version
+
+The Druid version where the problem was encountered: 0.20.0
+

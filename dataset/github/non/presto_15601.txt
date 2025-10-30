@@ -1,0 +1,28 @@
+Presto doesn't use any indexes when querying MongoDB Embedded documents
+Suppose I have the following documents:
+```
+db.inventory.insertMany( [
+   { item: "journal", instock: [ { warehouse: "A", qty: 5 }, { warehouse: "C", qty: 15 } ] },
+   { item: "notebook", instock: [ { warehouse: "C", qty: 5 } ] },
+   { item: "paper", instock: [ { warehouse: "A", qty: 60 }, { warehouse: "B", qty: 15 } ] },
+   { item: "planner", instock: [ { warehouse: "A", qty: 40 }, { warehouse: "B", qty: 5 } ] },
+   { item: "postcard", instock: [ { warehouse: "B", qty: 15 }, { warehouse: "C", qty: 35 } ] }
+]);
+```
+
+and I create indexes on every field:
+```
+db.inventory.createIndex( { "$**" : 1 } )
+```
+
+running this in the mongo shell will use the indexes created
+```
+db.inventory.find( { "instock": { $elemMatch: { qty: 5, warehouse: "A" } } } )
+```
+
+But for pesto, running this does a full table scan (COLLSCAN):
+```
+select * from inventory where any_match(instock, x -> x.qty = 5 and x.warehouse = 'A');
+```
+
+Is there any way I can leverage the indexes?

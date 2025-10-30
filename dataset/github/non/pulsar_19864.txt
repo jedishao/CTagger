@@ -1,0 +1,91 @@
+PIP-260: Client consumer filter received messages
+# Motivation
+
+When we choose Failover or Exclusive subType to create a consumer, the messages will dispatch in order. Under ideal conditions, we can receive messages one by one and process them. Messages can be received in order and processed in the order. They can not receive repeat and can not be processed repeat. 
+
+![image](https://user-images.githubusercontent.com/39078850/226365792-05711ffd-d50a-4664-a8b9-f22a8969de03.png)
+
+a.1 Broker 1 sends messages 1, 2, 3, 4, and 5 to the client consumer, the consumer receives and processes these messages.
+
+a.2 Topic ownership transfer(maybe load-balance then unload), client consumer doesn't ack these messages and waits to receive the following messages.
+
+b.1 Client reconnects to broker 2 (topic ownership has transferred to broker 2), then broker 2 loads this topic's subscription and rewinds cursor position.
+
+b.2 Because the client consumer hasn't ack messages 1, 2, 3, 4, 5, so broker 2 will resend the messages 1, 2, 3, 4, 5
+
+b.3 Client consumer cumulative ack message 5, consumes the messages(1, 2, 3, 4, 5) twice. Broker 2 update the cursor markdelete position.
+
+In the scenario shown in Figure 1., the consumer repeatedly consumes messages (1, 2, 3, 4, 5). 
+
+Although we only guarantee at-least-once semantics, I think it is unreasonable to re-deliver without the client consumer being aware, at least in some cases :
+
+Case 1: One consumer consumes one topic message, and the consumer will not restart, it will receive the repeat messages to process.
+
+Case 2: Pulsar's exactly-once semantics relies on the delivery of messages and will not allow messages to be re-delivered without the client consumer being aware.
+
+The motivation of this PIP is that some configurations can be used to solve the problem of users receiving duplicate messages without awareness.
+
+# Proposed Changes
+
+We can filter the received messages by recording the largest message that the client has received. 
+
+![image](https://user-images.githubusercontent.com/39078850/226365673-f2804a3c-e4c1-43dc-905f-98fec49f830c.png)
+
+As shown in Figure 2, the user will record the largest received message before processing the message. 
+
+# Public Interfaces
+
+We mainly add a new config in ConsumerBilder, if enabled, the consumer will filter the messages which have been received.
+
+```java
+public interface ConsumerBuilder<T> extends Cloneable {
+
+    /**
+     * Filter messages already received by the consumer.
+     *
+     * <p>Only support Failover and Exclusive subscription type.
+     * If using the Shared or Key_Shared subscription type,
+     * dispatch messages are not in order filtering will lose its meaning.
+     *
+     * <p>Not support except {@link Consumer#redeliverUnacknowledgedMessages()}
+     * any other messages redeliver method.
+     *
+     * <p>Consumers should close when the server resets the cursor,
+     * when the cursor reset success, and then restart. Otherwise,
+     * the consumer will not receive the history messages.
+     *
+     * @param isFilterReceivedMessagesEnabled {@link Boolean} enables filter received messages
+     * @return the consumer builder instance
+     */
+    ConsumerBuilder<T> isFilterReceivedMessagesEnabled(boolean isFilterReceivedMessagesEnabled);
+}
+```
+
+## Support Failover and Exclusive subscription type
+
+Only support Failover and Exclusive subscription types. If using the Shared or Key_Shared subscription type, dispatch messages are not in order, filtering will lose its meaning. Use Shared or Key_Shared subscription type, the messages are dispatched to different consumers. Consumers will receive individual messages that are redelivered. Messages are delivered out of order, so we cannot record the last received message.
+
+## Only support Consumer#redeliverUnacknowledgedMessages()
+
+If we redeliver individual messages, they will be filtered. Because we can't clear the record latest message in the consumer when redelivering individual messages. It will make this config unclear, and if every redeliver method changes, it will bring a lot of redundant code, which is difficult to maintain. If there is a need in the future, just support it.
+
+## Server reset cursor
+
+Client consumers will not receive any notification when the broker resets the cursor. If this configuration is enabled, consumers will not receive any reset messages after a reset operation in the broker. So when we need to reset the cursor, the client consumer should all be closed, and then reset the cursor then restart the consumer.
+
+## Default value of this configuration
+
+The default value is false, It is necessary for us to set this configuration default value to false because it will affect the process of the redelivery method and reset the cursor. 
+
+# Compatibility
+
+This configuration only works on the client side and does not involve any changes to brokers and protocols.
+
+But it's worth noting that it changes the default behavior of the reset cursor. It needs to be enabled with a complete understanding of this configuration. Otherwise, it may lead to wrong consumption behaviors.
+
+# Rejected Alternatives
+
+Change consumer use pull mode when using failover and exclusive subscription type.
+
+1. Too difficult to achieve.
+2. Compared with the current design, there is no special advantage.

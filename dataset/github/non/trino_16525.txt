@@ -1,0 +1,79 @@
+Cannot nest aggregate function in JSON_OBJECT()
+I'm using trino 410 in docker, out of the box installation:
+
+```
+docker pull trinodb/trino
+docker run -p 8080:8080 --name TRINO trinodb/trino
+```
+
+Using connector:
+
+```sql
+use memory.default;
+```
+
+Given this schema:
+
+```sql
+create table t (i int);
+insert into t values (1);
+```
+
+This query fails:
+
+```sql
+select json_object(
+  key 'a' value json_format(cast(array_agg(json_parse(json_object(
+    key 'i' value i
+  ))) as json)) format json
+)
+from t;
+```
+
+The error is:
+
+> SQL Error [65543]: Query failed (#20230313_141502_35361_f2dms): Compiler failed. Possible reasons include: the query may have too many or too complex expressions, or the underlying tables may have too many columns
+
+## Workarounds:
+
+**Stop wrapping in `JSON_OBJECT`**
+
+This works:
+
+```sql
+select json_format(cast(array_agg(json_parse(json_object(
+  key 'i' value i
+))) as json))
+from t;
+```
+
+Notice, I'm no longer wrapping the result in `JSON_OBJECT`. But that's not the result structure I want.
+
+**Stop using `JSON_OBJECT` and use `MAP` and `CAST`, instead:**
+
+This also works:
+
+```sql
+select cast(map(array['a'], array[cast(array_agg(json_parse(json_object(
+  key 'i' value i
+))) as json)]) as json)
+from t;
+```
+
+I could probably live with this, though it prevents using the nice `NULL ON NULL` and `ABSENT ON NULL` clauses, which are now harder to implement / emulate.
+
+**Stop aggregating**
+
+Just for completeness' sake, this also works:
+
+```sql
+select json_object(
+  key 'a' value json_format(cast(array[json_parse(json_object(
+    key 'i' value i
+  ))] as json)) format json
+)
+from t;
+```
+
+Though it's no longer the same query, as it no longer aggregates. The problem really seems to be combining `JSON_OBJECT()` with aggregate functions.
+

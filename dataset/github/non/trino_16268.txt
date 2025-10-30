@@ -1,0 +1,72 @@
+Error committing write to Hive - The bucket does not allow ACLs
+I'm trying to `INSERT INTO...` a table backed by an S3 bucket (hive connector, aws glue metastore) that has its ACL's set to disabled (Object Ownership == "Bucket owner enforced"), and Trino (ver 407) is throwing the following exception:
+
+```java
+io.trino.spi.TrinoException: Error committing write to Hive
+	at io.trino.plugin.hive.RecordFileWriter.commit(RecordFileWriter.java:202)
+	at io.trino.plugin.hive.HiveWriter.commit(HiveWriter.java:92)
+	at io.trino.plugin.hive.HivePageSink.closeWriter(HivePageSink.java:360)
+	at io.trino.plugin.hive.HivePageSink.doInsertSinkFinish(HivePageSink.java:222)
+	at io.trino.hdfs.authentication.UserGroupInformationUtils.lambda$executeActionInDoAs$0(UserGroupInformationUtils.java:29)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:376)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1710)
+	at io.trino.hdfs.authentication.UserGroupInformationUtils.executeActionInDoAs(UserGroupInformationUtils.java:27)
+	at io.trino.hdfs.authentication.ImpersonatingHdfsAuthentication.doAs(ImpersonatingHdfsAuthentication.java:42)
+	at io.trino.hdfs.HdfsEnvironment.doAs(HdfsEnvironment.java:93)
+	at io.trino.plugin.hive.HivePageSink.finish(HivePageSink.java:196)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSink.finish(ClassLoaderSafeConnectorPageSink.java:77)
+	at io.trino.operator.TableWriterOperator.finish(TableWriterOperator.java:213)
+	at io.trino.operator.Driver.processInternal(Driver.java:412)
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:297)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:689)
+	at io.trino.operator.Driver.process(Driver.java:289)
+	at io.trino.operator.Driver.processForDuration(Driver.java:260)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:773)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:165)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:523)
+	at io.trino.$gen.Trino_407____20230225_050738_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: java.io.IOException: com.amazonaws.services.s3.model.AmazonS3Exception: The bucket does not allow ACLs (Service: Amazon S3; Status Code: 400; Error Code: AccessControlListNotSupported; Request ID: G54T*********ZP4G; S3 Extended Request ID: aOX6o************************************************C4Tc=; Proxy: null), S3 Extended Request ID: aOX6o*****************************************C4Tc=
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3StreamingOutputStream.flushBuffer(TrinoS3FileSystem.java:1870)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3StreamingOutputStream.close(TrinoS3FileSystem.java:1815)
+	at org.apache.hadoop.fs.FSDataOutputStream$PositionCache.close(FSDataOutputStream.java:72)
+	at org.apache.hadoop.fs.FSDataOutputStream.close(FSDataOutputStream.java:101)
+	at org.apache.hadoop.fs.FSDataOutputStream$PositionCache.close(FSDataOutputStream.java:72)
+	at org.apache.hadoop.fs.FSDataOutputStream.close(FSDataOutputStream.java:101)
+	at org.apache.parquet.hadoop.util.HadoopPositionOutputStream.close(HadoopPositionOutputStream.java:64)
+	at org.apache.parquet.hadoop.ParquetFileWriter.end(ParquetFileWriter.java:1197)
+	at org.apache.parquet.hadoop.InternalParquetRecordWriter.close(InternalParquetRecordWriter.java:132)
+	at org.apache.parquet.hadoop.ParquetRecordWriter.close(ParquetRecordWriter.java:164)
+	at org.apache.hadoop.hive.ql.io.parquet.write.ParquetRecordWriterWrapper.close(ParquetRecordWriterWrapper.java:127)
+	at org.apache.hadoop.hive.ql.io.parquet.write.ParquetRecordWriterWrapper.close(ParquetRecordWriterWrapper.java:144)
+	at io.trino.plugin.hive.parquet.ParquetRecordWriter.close(ParquetRecordWriter.java:118)
+	at io.trino.plugin.hive.RecordFileWriter.commit(RecordFileWriter.java:198)
+	... 25 more
+Caused by: com.amazonaws.services.s3.model.AmazonS3Exception: The bucket does not allow ACLs (Service: Amazon S3; Status Code: 400; Error Code: AccessControlListNotSupported; Request ID: G54***********ZP4G; S3 Extended Request ID: aOX6o*********************************************7C4Tc=; Proxy: null)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.handleErrorResponse(AmazonHttpClient.java:1879)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.handleServiceErrorResponse(AmazonHttpClient.java:1418)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeOneRequest(AmazonHttpClient.java:1387)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeHelper(AmazonHttpClient.java:1157)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.doExecute(AmazonHttpClient.java:814)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeWithTimer(AmazonHttpClient.java:781)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.execute(AmazonHttpClient.java:755)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.access$500(AmazonHttpClient.java:715)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutionBuilderImpl.execute(AmazonHttpClient.java:697)
+	at com.amazonaws.http.AmazonHttpClient.execute(AmazonHttpClient.java:561)
+	at com.amazonaws.http.AmazonHttpClient.execute(AmazonHttpClient.java:541)
+	at com.amazonaws.services.s3.AmazonS3Client.invoke(AmazonS3Client.java:5456)
+	at com.amazonaws.services.s3.AmazonS3Client.invoke(AmazonS3Client.java:5403)
+	at com.amazonaws.services.s3.AmazonS3Client.access$300(AmazonS3Client.java:421)
+	at com.amazonaws.services.s3.AmazonS3Client$PutObjectStrategy.invokeServiceCall(AmazonS3Client.java:6531)
+	at com.amazonaws.services.s3.AmazonS3Client.uploadObject(AmazonS3Client.java:1861)
+	at com.amazonaws.services.s3.AmazonS3Client.putObject(AmazonS3Client.java:1821)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3StreamingOutputStream.flushBuffer(TrinoS3FileSystem.java:1865)
+	... 38 more
+```
+
+There doesn't appear to be an option to turn of setting the ACL.  
+
+Note that "Bucker owner enforced" is AWS recommended configuration for most cases and will be the default for all new buckets as of April 2023 as documented here: https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html

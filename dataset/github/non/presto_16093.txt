@@ -1,0 +1,53 @@
+BigQuery connector: java.lang.NoClassDefFoundError: com/google/auth/oauth2/QuotaProjectIdProvider when starting presto
+version: 0.251.1/0.252
+
+When trying to add a bigquery catalog, and use the "credentials-key" with a base64 string representing the service account json, I get the following error when trying to start presto:
+
+```
+ERROR	main	com.facebook.presto.server.PrestoServer	com.google.inject.CreationException: Unable to create injector, see the following errors:
+
+1) Error in custom provider, java.lang.NoClassDefFoundError: com/google/auth/oauth2/QuotaProjectIdProvider
+  at com.facebook.presto.plugin.bigquery.BigQueryConnectorModule.provideBigQueryClient(BigQueryConnectorModule.java:72)
+  while locating com.facebook.presto.plugin.bigquery.BigQueryClient
+Caused by: java.lang.NoClassDefFoundError: com/google/auth/oauth2/QuotaProjectIdProvider
+	at com.google.cloud.ServiceOptions$Builder.setCredentials(ServiceOptions.java:220)
+	at java.base/java.util.Optional.ifPresent(Optional.java:183)
+	at com.facebook.presto.plugin.bigquery.BigQueryConnectorModule.provideBigQueryClient(BigQueryConnectorModule.java:77)
+	at com.facebook.presto.plugin.bigquery.BigQueryConnectorModule$$FastClassByGuice$$3b5d3fde.invoke(<generated>)
+	at com.google.inject.internal.ProviderMethod$FastClassProviderMethod.doProvision(ProviderMethod.java:264)
+	at com.google.inject.internal.ProviderMethod.doProvision(ProviderMethod.java:173)
+	at com.google.inject.internal.InternalProviderInstanceBindingImpl$CyclicFactory.provision(InternalProviderInstanceBindingImpl.java:185)
+	at com.google.inject.internal.InternalProviderInstanceBindingImpl$CyclicFactory.access$300(InternalProviderInstanceBindingImpl.java:139)
+	at com.google.inject.internal.InternalProviderInstanceBindingImpl$CyclicFactory$1.call(InternalProviderInstanceBindingImpl.java:169)
+	at com.google.inject.internal.ProvisionListenerStackCallback$Provision.provision(ProvisionListenerStackCallback.java:112)
+	at com.facebook.airlift.bootstrap.LifeCycleModule.provision(LifeCycleModule.java:54)
+	at com.google.inject.internal.ProvisionListenerStackCallback$Provision.provision(ProvisionListenerStackCallback.java:120)
+	at com.google.inject.internal.ProvisionListenerStackCallback.provision(ProvisionListenerStackCallback.java:66)
+	at com.google.inject.internal.InternalProviderInstanceBindingImpl$CyclicFactory.get(InternalProviderInstanceBindingImpl.java:164)
+	at com.google.inject.internal.ProviderToInternalFactoryAdapter.get(ProviderToInternalFactoryAdapter.java:40)
+	at com.google.inject.internal.SingletonScope$1.get(SingletonScope.java:168)
+	at com.google.inject.internal.InternalFactoryToProviderAdapter.get(InternalFactoryToProviderAdapter.java:39)
+	at com.google.inject.internal.InternalInjectorCreator.loadEagerSingletons(InternalInjectorCreator.java:211)
+	at com.google.inject.internal.InternalInjectorCreator.injectDynamically(InternalInjectorCreator.java:182)
+	at com.google.inject.internal.InternalInjectorCreator.build(InternalInjectorCreator.java:109)
+	at com.google.inject.Guice.createInjector(Guice.java:87)
+	at com.facebook.airlift.bootstrap.Bootstrap.initialize(Bootstrap.java:251)
+	at com.facebook.presto.plugin.bigquery.BigQueryConnectorFactory.create(BigQueryConnectorFactory.java:63)
+	at com.facebook.presto.connector.ConnectorManager.createConnector(ConnectorManager.java:379)
+	at com.facebook.presto.connector.ConnectorManager.addCatalogConnector(ConnectorManager.java:231)
+	at com.facebook.presto.connector.ConnectorManager.createConnection(ConnectorManager.java:223)
+	at com.facebook.presto.connector.ConnectorManager.createConnection(ConnectorManager.java:209)
+	at com.facebook.presto.metadata.StaticCatalogStore.loadCatalog(StaticCatalogStore.java:123)
+	at com.facebook.presto.metadata.StaticCatalogStore.loadCatalog(StaticCatalogStore.java:98)
+	at com.facebook.presto.metadata.StaticCatalogStore.loadCatalogs(StaticCatalogStore.java:80)
+	at com.facebook.presto.metadata.StaticCatalogStore.loadCatalogs(StaticCatalogStore.java:68)
+	at com.facebook.presto.server.PrestoServer.run(PrestoServer.java:138)
+	at com.facebook.presto.server.PrestoServer.main(PrestoServer.java:79)
+Caused by: java.lang.ClassNotFoundException: com.google.auth.oauth2.QuotaProjectIdProvider
+	at java.base/java.net.URLClassLoader.findClass(URLClassLoader.java:471)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:588)
+	at com.facebook.presto.server.PluginClassLoader.loadClass(PluginClassLoader.java:80)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:521)
+	... 33 more
+
+```

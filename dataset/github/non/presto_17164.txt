@@ -1,0 +1,9 @@
+Find a better way to special-case hudi, remove dependency from presto-hive
+Having hudi special cased in presto-hive,is a recipe for trouble. Example here: 
+https://github.com/prestodb/presto/blob/34c9c44ef4816a6b6505d7b6e502c50623374465/presto-hive/src/main/java/com/facebook/presto/hive/StoragePartitionLoader.java#L141 
+
+This created problems, for example the commit here https://github.com/prestodb/presto/commit/070c9954e342f83d6854586c2cd08db9eaf6de3b brought us hudi-presto-bundle-0.10.0 which packages classes outside of hudi scope that will trigger conflicts at runtime and/or build time with other installation of presto.
+
+Even presto-delta inside this repository had to add an <exclusion> to exclude hudi-presto-bundle, unfortunately, because hudi inserts itself in critical places inside apache hive, such an approach can lead to unexpected runtime failures.
+
+The way forward it seems to me is have a proper plugin (sub-project) for hudi's version of hive, in the meantime we'll need to revert the commit that brought us hudi-presto-bundle 0.10.0. 

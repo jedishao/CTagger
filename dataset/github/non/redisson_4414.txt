@@ -1,0 +1,114 @@
+RedisConnectionException: Unable to init enough connections amount
+项目启动时有时候成功有时候失败，各占一半
+项目启动报错：
+```java
+2022-07-13 15:14:57.132 [main] INFO  org.redisson.Version - Redisson 3.16.3
+2022-07-13 15:14:57.594 [main] INFO  org.redisson.cluster.ClusterConnectionManager - Redis cluster nodes configuration got from **.**.**.**/**.**.**.**:6379:
+d148f0c1b019ecd8b15bf207d3ef188737111708 **.**.**.**:6381@16381 slave 2a3da9cbc3360a6be187477e12d38601c8f7f825 0 1657696489390 27 connected
+99497eadb64dee7e6328a0ed0cb948094f5aa1e9 **.**.**.**:6383@16383 slave f564ccc551dd3378658fef692f766b18d624a369 0 1657696489000 28 connected
+2a3da9cbc3360a6be187477e12d38601c8f7f825 **.**.**.**:6384@16384 master - 0 1657696489000 27 connected 5461-10922
+ac94323e413fb99e7ee8a8dcb8fc075300d505e6 **.**.**.**:6380@16380 master - 0 1657696490393 25 connected 10923-16383
+f564ccc551dd3378658fef692f766b18d624a369 **.**.**.**:6382@16382 master - 0 1657696488000 28 connected 0-5460
+b24b326be748f470e1871ba09135396362cf110e **.**.**.**:6379@16379 myself,slave ac94323e413fb99e7ee8a8dcb8fc075300d505e6 0 1657696487000 24 connected
+
+2022-07-13 15:15:23.837 [redisson-netty-2-2] INFO  o.r.connection.pool.MasterPubSubConnectionPool - 1 connections initialized for **.**.**.**/**.**.**.**:6382
+2022-07-13 15:15:24.280 [redisson-netty-2-18] INFO  o.r.connection.pool.MasterPubSubConnectionPool - 1 connections initialized for **.**.**.**/**.**.**.**:6384
+2022-07-13 15:15:24.503 [redisson-netty-2-26] INFO  o.r.connection.pool.MasterPubSubConnectionPool - 1 connections initialized for **.**.**.**/**.**.**.**:6380
+2022-07-13 15:15:26.883 [redisson-netty-2-22] ERROR org.redisson.cluster.ClusterConnectionManager - Can't add master: redis://**.**.**.**:6380 for slot ranges: [[10923-16383]]
+org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 20 of 24 were initialized. Redis server: **.**.**.**/**.**.**.**:6380
+at org.redisson.connection.pool.ConnectionPool$1.lambda$run$0(ConnectionPool.java:158)
+at org.redisson.misc.RedissonPromise.lambda$onComplete$0(RedissonPromise.java:183)
+at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:577)
+at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:551)
+at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:490)
+at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:615)
+at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:608)
+at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:117)
+at org.redisson.misc.RedissonPromise.tryFailure(RedissonPromise.java:96)
+    at org.redisson.misc.RedissonPromise.tryFailure(RedissonPromise.java:96)
+    at org.redisson.client.RedisClient$2$1.run(RedisClient.java:242)
+    at io.netty.util.concurrent.AbstractEventExecutor.safeExecute$$$capture(AbstractEventExecutor.java:164)
+    at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java)
+    at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:500)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+    at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+    at java.lang.Thread.run(Thread.java:748)
+    Caused by: org.redisson.client.RedisTimeoutException: Command execution timeout for command: (AUTH), params: (password masked), Redis client: [addr=redis://**.**.**.**:6380]
+    at org.redisson.client.RedisConnection.lambda$async$1(RedisConnection.java:255)
+    at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:672)
+    at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:747)
+    at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:472)
+    ... 2 common frames omitted
+    2022-07-13 15:15:26.885 [redisson-netty-2-2] INFO  org.redisson.connection.pool.MasterConnectionPool - 24 connections initialized for **.**.**.**/**.**.**.**:6384
+    2022-07-13 15:15:27.092 [redisson-netty-2-12] INFO  org.redisson.connection.pool.MasterConnectionPool - 24 connections initialized for **.**.**.**/**.**.**.**:6382
+    2022-07-13 15:15:27.348 [redisson-netty-2-21] INFO  org.redisson.connection.pool.PubSubConnectionPool - 1 connections initialized for **.**.**.**/**.**.**.**:6381
+    2022-07-13 15:15:27.522 [redisson-netty-2-17] INFO  org.redisson.connection.pool.PubSubConnectionPool - 1 connections initialized for **.**.**.**/**.**.**.**:6383
+```
+配置如下
+```java
+ @Bean(destroyMethod = "shutdown")
+    public RedissonClient redisson() throws IOException {
+        Config config = null;
+        Method clusterMethod = ReflectionUtils.findMethod(RedisProperties.class, "getCluster");
+        Method timeoutMethod = ReflectionUtils.findMethod(RedisProperties.class, "getTimeout");
+        Object timeoutValue = ReflectionUtils.invokeMethod(timeoutMethod, redisProperties);
+        int timeout;
+        if (null == timeoutValue) {
+            timeout = 10000;
+        } else if (!(timeoutValue instanceof Integer)) {
+            Method millisMethod = ReflectionUtils.findMethod(timeoutValue.getClass(), "toMillis");
+            timeout = ((Long) ReflectionUtils.invokeMethod(millisMethod, timeoutValue)).intValue();
+        } else {
+            timeout = (Integer) timeoutValue;
+        }
+        Object clusterObject = ReflectionUtils.invokeMethod(clusterMethod, redisProperties);
+        Method nodesMethod = ReflectionUtils.findMethod(clusterObject.getClass(), "getNodes");
+        List<String> nodesObject = (List) ReflectionUtils.invokeMethod(nodesMethod, clusterObject);
+        String[] nodes = convert(nodesObject);    
+        config = new Config();
+        ClusterServersConfig clusterServersConfig = config.setCodec(JsonJacksonCodec.INSTANCE).useClusterServers();
+        if (!SpringUtil.getBean(RedisKeyConcatComponent.class).isProdOrUat()) {
+            clusterServersConfig.setNameMapper(new CustomNameMapper());
+        }
+        clusterServersConfig
+                .addNodeAddress(nodes)
+                .setConnectTimeout(timeout)
+                .setPassword(redisProperties.getPassword());
+        return Redisson.create(config);
+    }
+
+/** * 集群模式下优先加载RedissonConfig ,加载lettuceConfig 集群下redis key过期监听失败 */
+@Bean
+@Order(Ordered.LOWEST_PRECEDENCE - 3)
+public RedissonConnectionFactory redissonConnectionFactory(RedissonClient redisson) {   
+ return new RedissonConnectionFactory(redisson);
+}
+    static class CustomNameMapper implements NameMapper {
+        @Override
+        public String map(String name) {
+            return SpringUtil.getBean(RedisKeyConcatComponent.class).concatProfilePrefix(name);
+        }
+        ...
+    }
+```
+yml配置：
+```yaml
+spring:
+  redis:
+    cluster: #集群用这个配置
+      nodes: ${summary.redis.cluster.nodes}
+      max-redirects: 2 #获取失败 最大重定向次数
+    password: ${summary.redis.cluster.password}
+    timeout: 60000
+    database: 0
+    lettuce:
+      pool:
+        max-active: 10 # 连接池最大连接数（使用负值表示没有限制）,如果赋值为-1，则表示不限制；如果pool已经分配了maxActive个jedis实例，则此时pool的状态为exhausted(耗尽)
+        max-idle: 8   # 连接池中的最大空闲连接 ，默认值也是8
+        max-wait: 100 # # 等待可用连接的最大时间，单位毫秒，默认值为-1，表示永不超时。如果超过等待时间，则直接抛出JedisConnectionException  
+        min-idle: 2    # 连接池中的最小空闲连接 ，默认值也是0
+      shutdown-timeout: 100ms
+
+```

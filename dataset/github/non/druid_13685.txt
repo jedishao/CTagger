@@ -1,0 +1,10 @@
+JSON flattener should respect druid null handling config (druid.generic.useDefaultValueForNull) for arrays
+Currently when ingesting json data with multivalue fields, druid parses the input source with logic that includes removing `null` values from the individual arrays. This happens as part of the json flattening [here](https://github.com/apache/druid/blob/22630b0aabbaf683748b65a698ccbf966e1a54a4/core/src/main/java/org/apache/druid/data/input/impl/JsonLineReader.java#L70). An example, supposed we try to ingest:
+```
+{"list":[0.5, 0.2, null],"timestamp":"2023-01-11T22:57:44.270035398Z"}
+```
+We end up with a table that looks like (note the lack of `null` in the multivalue field):
+<img width="979" alt="Screen Shot 2023-01-17 at 12 06 32 PM" src="https://user-images.githubusercontent.com/22461273/213000830-20ccc51d-c663-4c19-8f1b-5f1dd81bef34.png">
+
+
+The `null` removal occurs [here](https://github.com/apache/druid/blob/22630b0aabbaf683748b65a698ccbf966e1a54a4/core/src/main/java/org/apache/druid/java/util/common/parsers/JSONFlattenerMaker.java#L177-L179) when we are parsing the individual entries in the multivalue json fields. It's unclear from any documentation that I could find that this is intended behavior. It seems to me like if druid respects `null` values for single-value fields (with regards to `druid.generic.useDefaultValueForNull`), then it should also respect `null` entries in multivalue fields.

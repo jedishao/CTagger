@@ -1,0 +1,73 @@
+index_parallel task fails if segmentGranularity has a timeZone
+### Affected Version
+
+0.18.0 and 0.18.1
+
+### Description
+
+#### Cluster size
+
+- 1 master (coordinator/overlord)
+- 1 router/broker
+- 1 historical
+- 3-10 middleManagers
+
+#### Steps to reproduce the problem
+
+- create and run an `index_parallel` task
+  - must include a `timeZone` in the `segmentGranularity` in the `granularitySpec` in the `dataSchema`
+  - must have `maxNumConcurrentSubTasks` greater than `1` in the `tuningConfig`
+  - must have `type` as `hashed` for `partitionsSpec` in `tuningConfig`
+
+#### The error message or stack traces encountered. 
+
+The main error is the `ZipException`
+
+```log
+2020-06-04T23:39:20,955 INFO [task-runner-0-priority-0] org.apache.druid.utils.CompressionUtils - Unzipping file[var/druid/task/partial_index_merge_datasource_1_geoeiplm_2020-06-04T23:39:16.988Z/work/indexing-tmp/2020-04-24T04:00:00.000Z/2020-04-25T04:00:00.000Z/1/temp_partial_index_generate_datasource_1_ieoldkdf_2020-06-04T23:39:01.964Z] to [var/druid/task/partial_index_merge_datasource_1_geoeiplm_2020-06-04T23:39:16.988Z/work/indexing-tmp/2020-04-24T04:00:00.000Z/2020-04-25T04:00:00.000Z/1/unzipped_partial_index_generate_datasource_1_ieoldkdf_2020-06-04T23:39:01.964Z]
+2020-06-04T23:39:20,956 ERROR [task-runner-0-priority-0] org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner - Exception while running task[AbstractTask{id='partial_index_merge_datasource_1_geoeiplm_2020-06-04T23:39:16.988Z', groupId='index_parallel_datasource_1_jjglpmkc_2020-06-04T23:38:57.541Z', taskResource=TaskResource{availabilityGroup='partial_index_merge_datasource_1_geoeiplm_2020-06-04T23:39:16.988Z', requiredCapacity=1}, dataSource='datasource_1', context={forceTimeChunkLock=true}}]
+java.util.zip.ZipException: error in opening zip file
+	at java.util.zip.ZipFile.open(Native Method) ~[?:1.8.0_252]
+	at java.util.zip.ZipFile.<init>(ZipFile.java:225) ~[?:1.8.0_252]
+	at java.util.zip.ZipFile.<init>(ZipFile.java:155) ~[?:1.8.0_252]
+	at java.util.zip.ZipFile.<init>(ZipFile.java:169) ~[?:1.8.0_252]
+	at org.apache.druid.utils.CompressionUtils.unzip(CompressionUtils.java:250) ~[druid-core-0.18.1.jar:0.18.1]
+	at org.apache.druid.indexing.common.task.batch.parallel.PartialSegmentMergeTask.fetchSegmentFiles(PartialSegmentMergeTask.java:231) ~[druid-indexing-service-0.18.1.jar:0.18.1]
+	at org.apache.druid.indexing.common.task.batch.parallel.PartialSegmentMergeTask.runTask(PartialSegmentMergeTask.java:169) ~[druid-indexing-service-0.18.1.jar:0.18.1]
+	at org.apache.druid.indexing.common.task.batch.parallel.PartialHashSegmentMergeTask.runTask(PartialHashSegmentMergeTask.java:44) ~[druid-indexing-service-0.18.1.jar:0.18.1]
+	at org.apache.druid.indexing.common.task.AbstractBatchIndexTask.run(AbstractBatchIndexTask.java:123) ~[druid-indexing-service-0.18.1.jar:0.18.1]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:421) [druid-indexing-service-0.18.1.jar:0.18.1]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:393) [druid-indexing-service-0.18.1.jar:0.18.1]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_252]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_252]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_252]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_252]
+```
+
+The unzip fails because [`findPartitionFile`](https://github.com/apache/druid/blob/0.18.1/indexing-service/src/main/java/org/apache/druid/indexing/worker/IntermediaryDataManager.java#L338) fails to find the partition created during the `partial_index_generate` task. [`getPartition`](https://github.com/apache/druid/blob/0.18.1/indexing-service/src/main/java/org/apache/druid/indexing/worker/http/ShuffleResource.java#L73) returns the error message instead of the zip file. So the unzip fails.
+
+The partition file is stored with the timezone offset in the path like this:
+`2020-04-24T00:00:00.000-04:00/2020-04-25T00:00:00.000-04:00`
+```
+/tmp/intermediary-segments/index_parallel_datasource_1_iiocmdme_2020-06-04T23:15:56.314Z/2020-04-24T00:00:00.000-04:00/2020-04-25T00:00:00.000-04:00/1/partial_index_generate_datasource_1_cgdlipdp_2020-06-04T23:16:02.960Z
+```
+
+But the http request to `getPartition` uses the UTC time
+`startTime=2020-04-24T04:00:00.000Z&endTime=2020-04-25T04:00:00.000Z`
+```
+2020-06-04T23:39:20,945 DEBUG [HttpClient-Netty-Worker-0] org.apache.druid.java.util.http.client.NettyHttpClient - [GET http://<hostname_removed>:8091/druid/worker/v1/shuffle/task/index_parallel_datasource_1_jjglpmkc_2020-06-04T23%3A38%3A57.541Z/partial_index_generate_datasource_1_ieoldkdf_2020-06-04T23%3A39%3A01.964Z/partition?startTime=2020-04-24T04:00:00.000Z&endTime=2020-04-25T04:00:00.000Z&partitionId=1] Got response: 404 Not Found
+``` 
+
+#### Any debugging that you have already done
+
+I'm not very familiar with the druid code so I'm not sure if there is a simple code fix. @jihoonson might know how to fix it, since he is working on https://github.com/apache/druid/issues/8061. 
+
+It looks like `startTime` and `endTime` param args are from
+```
+partial_index_merge
+  spec
+    ioConfig
+      partitionLocations
+        interval
+``` 
+Maybe you could store `interval` with the tz offset instead of the materialized UTC time?

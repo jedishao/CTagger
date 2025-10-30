@@ -1,0 +1,59 @@
+The problem caused by "For a server that crashed and then recovered, the result of gRPC sending a request is always DEADLINE_EXCEEDED"
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+## Environment
+- gRPC version 1.30.0
+- linux
+- java
+- JDK 11
+
+## Background
+
+Our team is using gRPC to send requests from the client to the server. 
+
+I am testing whether the gRPC connection from the client to the server is still available after the server crashes and then recovers.
+
+We did this test because we once found that after the server crashed for a while, even if it recovered, the request sent by the client via gRPC still kept returning `DEADLINE_EXCEEDED`.
+
+In our client, unless the ManagedChannel is interrupted or closed, we will not re-create the ManagedChannel every time we request it. We will create one after the client is started and hold it forever. But every time we request, we will create a new stub from ManagedChannel to complete the request.
+
+In the test, the  time of server crash is not short or long (I used the `iptables` command to simulate the server crash/recovery: `iptables -A INPUT -s server-ip -j DROP` / `iptables -D INPUT -s server-ip -j DROP`), for example, after the server was abnormal, I sent 20 requests and got the DEADLINE result, I immediately resumed the server, the situation mentioned above Appeared. But if I send only one request after the server is abnormal, and the server is restored immediately after getting the DEADLINE result, the above problem does not occur, and the server can return the result normally.
+
+What's even stranger is that there is a thread in our client that detects the health status of the server. What this thread actually does is to create a new `gRPC ManagedChannel` to send a simple request to the server. At that time, after the server resumes, the result returned by this thread is normal.
+
+I guessed that there was a problem with ManagedChannel, and then I used a tricky method. In the listener of the request result, if the request fails and the status code is DEADLINE_EXCEEDED, etc., I call `ManagedChannel.enterIdle()`. Then the problem of always returning to DEADLINE_EXCEEDED is solved.
+
+However, our team believes that gRPC should have considered the recovery of client connections after server crashes. Then we focus on the gRPC retry we have been using.
+
+Our retry configuration:
+```java
+Map<String, Object> retryPolicy = new HashMap<>();
+retryPolicy.put("maxAttempts", 4D);
+retryPolicy.put("initialBackoff", "0.01s");
+retryPolicy.put("maxBackoff", "0.1s");
+retryPolicy.put("backoffMultiplier", 2D);
+retryPolicy.put("retryableStatusCodes", Arrays.asList("UNAVAILABLE", "DEADLINE_EXCEEDED", "ABORTED", "UNIMPLEMENTED"));
+
+Map<String, Object> methodConfig = new HashMap<>();
+methodConfig.put("name", Collections.singletonList(Collections.singletonMap("service", "OurService")));
+methodConfig.put("timeout", "3s");
+methodConfig.put("retryPolicy", retryPolicy);
+```
+
+## Question
+
+- Could you please tell me why gRPC cannot restore the connection with the server ？
+- The retry function does not seem to be effective, or is it not applicable to the server crash situation described above?
+- I used the method of `enterIdle` to solve the problem by tricks, but what should I do correctly?
+- I saw the issue about getting retry logs, but I don’t know how to use the following APIs:
+```java
+CallOptions.withStreamTracerFactory(ClientStreamTracer.Factory factory)
+ClientStreamTracer.inboundTrailers(Metadata trailers)
+StreamTracer.streamClosed(Status status)
+```
+Can you give me the simplest call example? Please

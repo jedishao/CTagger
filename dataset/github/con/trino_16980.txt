@@ -1,0 +1,66 @@
+Flaky test TestIgniteConnectorTest.testAddColumnConcurrently
+https://github.com/trinodb/trino/actions/runs/4667872002/jobs/8265246815
+
+```
+Error:  Tests run: 526, Failures: 1, Errors: 0, Skipped: 212, Time elapsed: 871.504 s <<< FAILURE! - in TestSuite
+Error:  io.trino.plugin.ignite.TestIgniteConnectorTest.testAddColumnConcurrently  Time elapsed: 0.156 s  <<< FAILURE!
+java.lang.AssertionError: Unexpected concurrent add column failure
+	at io.trino.testing.BaseConnectorTest.verifyConcurrentAddColumnFailurePermissible(BaseConnectorTest.java:4512)
+	at io.trino.testing.BaseConnectorTest.lambda$testAddColumnConcurrently$57(BaseConnectorTest.java:4477)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+	Suppressed: io.trino.testing.QueryFailedException: Schema change operation failed: Thread got interrupted while trying to acquire table lock.
+		at io.trino.testing.AbstractTestingTrinoClient.execute(AbstractTestingTrinoClient.java:122)
+		at io.trino.testing.AbstractTestingTrinoClient.execute(AbstractTestingTrinoClient.java:85)
+		at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:478)
+		at io.trino.testing.BaseConnectorTest.lambda$testAddColumnConcurrently$57(BaseConnectorTest.java:4471)
+		... 4 more
+	Caused by: io.trino.spi.TrinoException: Schema change operation failed: Thread got interrupted while trying to acquire table lock.
+		at io.trino.plugin.jdbc.BaseJdbcClient.addColumn(BaseJdbcClient.java:955)
+		at io.trino.plugin.jdbc.BaseJdbcClient.addColumn(BaseJdbcClient.java:941)
+		at io.trino.plugin.jdbc.ForwardingJdbcClient.addColumn(ForwardingJdbcClient.java:336)
+		at io.trino.plugin.jdbc.jmx.StatisticsAwareJdbcClient.lambda$addColumn$24(StatisticsAwareJdbcClient.java:258)
+		at io.trino.plugin.jdbc.jmx.JdbcApiStats.wrap(JdbcApiStats.java:47)
+		at io.trino.plugin.jdbc.jmx.StatisticsAwareJdbcClient.addColumn(StatisticsAwareJdbcClient.java:258)
+		at io.trino.plugin.jdbc.CachingJdbcClient.addColumn(CachingJdbcClient.java:487)
+		at io.trino.plugin.jdbc.CachingJdbcClient.addColumn(CachingJdbcClient.java:487)
+		at io.trino.plugin.ignite.IgniteMetadata.addColumn(IgniteMetadata.java:183)
+		at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.addColumn(ClassLoaderSafeConnectorMetadata.java:328)
+		at io.trino.metadata.MetadataManager.addColumn(MetadataManager.java:750)
+		at io.trino.execution.AddColumnTask.execute(AddColumnTask.java:136)
+		at io.trino.execution.AddColumnTask.execute(AddColumnTask.java:54)
+		at io.trino.execution.DataDefinitionExecution.start(DataDefinitionExecution.java:146)
+		at io.trino.execution.SqlQueryManager.createQuery(SqlQueryManager.java:251)
+		at io.trino.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:143)
+		at io.trino.$gen.Trino_testversion____20230411_143650_75.run(Unknown Source)
+		at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+		at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+		at java.base/java.lang.Thread.run(Thread.java:833)
+	Caused by: java.sql.SQLException: Schema change operation failed: Thread got interrupted while trying to acquire table lock.
+		at org.apache.ignite.internal.jdbc.thin.JdbcThinConnection.sendRequest(JdbcThinConnection.java:1010)
+		at org.apache.ignite.internal.jdbc.thin.JdbcThinStatement.execute0(JdbcThinStatement.java:234)
+		at org.apache.ignite.internal.jdbc.thin.JdbcThinStatement.execute(JdbcThinStatement.java:560)
+		at io.trino.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:1209)
+		at io.trino.plugin.jdbc.BaseJdbcClient.addColumn(BaseJdbcClient.java:969)
+		at io.trino.plugin.jdbc.BaseJdbcClient.addColumn(BaseJdbcClient.java:952)
+		... 19 more
+		Suppressed: java.lang.RuntimeException: Query: ALTER TABLE `PUBLIC`.`TEST_ADD_COLUMNDGTBF56M5N` ADD `COL3` int
+			at io.trino.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:1212)
+			... 21 more
+Caused by: [CIRCULAR REFERENCE: io.trino.spi.TrinoException: Schema change operation failed: Thread got interrupted while trying to acquire table lock.]
+
+[INFO] 
+[INFO] Results:
+[INFO] 
+Error:  Failures: 
+Error:  io.trino.plugin.ignite.TestIgniteConnectorTest.testAddColumnConcurrently
+[INFO]   Run 1: PASS
+Error:    Run 2: TestIgniteConnectorTest>BaseConnectorTest.lambda$testAddColumnConcurrently$57:4477->BaseConnectorTest.verifyConcurrentAddColumnFailurePermissible:4512 Unexpected concurrent add column failure
+[INFO]   Run 3: PASS
+[INFO]   Run 4: PASS
+[INFO] 
+[INFO] 
+Error:  Tests run: 523, Failures: 1, Errors: 0, Skipped: 212
+```

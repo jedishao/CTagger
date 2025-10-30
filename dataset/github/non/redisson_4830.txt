@@ -1,0 +1,113 @@
+[LoadBalancerManager:200][redisson-netty-2-48][]Unable to unfreeze entry
+redisson version: 3.18.1
+redis env: aws elastic cache redis cluster
+
+
+config as below
+=========
+clusterServersConfig:
+idleConnectionTimeout: 30000
+connectTimeout: 10000
+timeout: 3000
+retryAttempts: 3
+retryInterval: 1500
+subscriptionsPerConnection: 5
+sslEnableEndpointIdentification: true
+sslProvider: "JDK"
+pingConnectionInterval: 30000
+keepAlive: true
+tcpNoDelay: true
+nameMapper: !<org.redisson.api.DefaultNameMapper> {}
+loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+slaveConnectionMinimumIdleSize: 24
+slaveConnectionPoolSize: 64
+failedSlaveReconnectionInterval: 3000
+failedSlaveCheckInterval: 180000
+masterConnectionMinimumIdleSize: 24
+masterConnectionPoolSize: 64
+readMode: "SLAVE"
+subscriptionMode: "MASTER"
+subscriptionConnectionMinimumIdleSize: 1
+subscriptionConnectionPoolSize: 50
+dnsMonitoringInterval: 5000
+natMapper: !<org.redisson.api.DefaultNatMapper> {}
+nodeAddresses: "xxx.xxx.amazonaws.com:6379"
+scanInterval: 5000
+checkSlotsCoverage: true
+threads: 16
+nettyThreads: 64
+codec: !<org.redisson.codec.MarshallingCodec> {}
+referenceEnabled: true
+transportMode: "NIO"
+lockWatchdogTimeout: 30000
+checkLockSyncedSlaves: false
+reliableTopicWatchdogTimeout: 600000
+keepPubSubOrder: true
+useScriptCache: false
+minCleanUpDelay: 5
+maxCleanUpDelay: 1800
+cleanUpKeysAmount: 100
+nettyHook: !<org.redisson.client.DefaultNettyHook> {}
+useThreadClassLoader: true
+addressResolverGroupFactory: !<xxx.xxx.xxx.DnsAddressResolverGroupFactory> {}
+
+there are huge error logs as below
+=========
+`[LoadBalancerManager:200][redisson-netty-2-48][]Unable to unfreeze entry: [freeSubscribeConnectionsAmount=0, freeSubscribeConnectionsCounter=value:50:queue:0, freeConnectionsAmount=0, freeConnectionsCounter=value:64:queue:0, freezeReason=MANAGER, client=[addr=redis://10.0.18.249:6379], nodeType=SLAVE, firstFail=1674898223183]
+java.util.concurrent.CompletionException: org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 0 of 24 were initialized. Server: 10.0.18.249/10.0.18.249:6379
+    at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:331) ~[?:?]
+    at java.util.concurrent.CompletableFuture.andTree(CompletableFuture.java:1523) ~[?:?]
+    at java.util.concurrent.CompletableFuture.allOf(CompletableFuture.java:2409) ~[?:?]
+    at org.redisson.connection.balancer.LoadBalancerManager.unfreezeAsync(LoadBalancerManager.java:197) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.connection.balancer.LoadBalancerManager.unfreezeAsync(LoadBalancerManager.java:122) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.connection.MasterSlaveEntry.slaveUpAsync(MasterSlaveEntry.java:467) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.cluster.ClusterConnectionManager.addRemoveSlaves(ClusterConnectionManager.java:570) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.cluster.ClusterConnectionManager.checkSlaveNodesChange(ClusterConnectionManager.java:496) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.cluster.ClusterConnectionManager.lambda$updateClusterState$11(ClusterConnectionManager.java:473) ~[redisson-3.18.1.jar:3.18.1]
+    at java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:1183) ~[?:?]
+    at java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2299) ~[?:?]
+    at org.redisson.cluster.ClusterConnectionManager.lambda$updateClusterState$14(ClusterConnectionManager.java:473) ~[redisson-3.18.1.jar:3.18.1]
+    at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:859) [?:?]
+    at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:837) [?:?]
+    at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:506) [?:?]
+    at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2137) [?:?]
+    at org.redisson.client.handler.CommandDecoder.completeResponse(CommandDecoder.java:467) [redisson-3.18.1.jar:3.18.1]
+    at org.redisson.client.handler.CommandDecoder.handleResult(CommandDecoder.java:461) [redisson-3.18.1.jar:3.18.1]
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:392) [redisson-3.18.1.jar:3.18.1]
+    at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:205) [redisson-3.18.1.jar:3.18.1]
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144) [redisson-3.18.1.jar:3.18.1]
+    at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:120) [redisson-3.18.1.jar:3.18.1]
+    at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529) [netty-codec-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366) [netty-codec-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290) [netty-codec-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) [netty-transport-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) [netty-common-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) [netty-common-4.1.85.Final.jar:4.1.85.Final]
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [netty-common-4.1.85.Final.jar:4.1.85.Final]
+    at java.lang.Thread.run(Thread.java:832) [?:?]
+Caused by: org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 0 of 24 were initialized. Server: 10.0.18.249/10.0.18.249:6379
+    at org.redisson.connection.pool.ConnectionPool.createConnection(ConnectionPool.java:104) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.connection.pool.ConnectionPool.initConnections(ConnectionPool.java:92) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.connection.pool.ConnectionPool.initConnections(ConnectionPool.java:77) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.connection.pool.SlaveConnectionPool.initConnections(SlaveConnectionPool.java:30) ~[redisson-3.18.1.jar:3.18.1]
+    at org.redisson.connection.balancer.LoadBalancerManager.unfreezeAsync(LoadBalancerManager.java:194) ~[redisson-3.18.1.jar:3.18.1]
+    ... 37 more`
+
+
+
+
+
+
+
+

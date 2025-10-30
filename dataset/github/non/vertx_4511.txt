@@ -1,0 +1,91 @@
+Manual Websocket Upgrade Fails Due to Client Headers w/ (inc. modern browsers)
+### Version
+4.3.4
+
+
+### Context
+
+I have to validate a WebSocket request before the connection is fully opened. To do this I create a handler, pause the request, do my authentication, and then upgrade the request to a websocket.
+
+This seems to work okay, but I am seeing (full stack trace at bottom):
+
+```
+io.netty.handler.codec.http.websocketx.WebSocketHandshakeException: Invalid connection header
+```
+
+This is due to:
+
+``` 
+private WebSocketServerHandshaker createHandshaker(Http1xServerRequest request) throws WebSocketHandshakeException {
+    // As a fun part, Firefox 6.0.2 supports Websockets protocol '7'. But,
+    // it doesn't send a normal 'Connection: Upgrade' header. Instead it
+    // sends: 'Connection: keep-alive, Upgrade'. Brilliant.
+    String connectionHeader = request.getHeader(io.vertx.core.http.HttpHeaders.CONNECTION);
+    if (connectionHeader == null || !connectionHeader.toLowerCase().contains("upgrade")) {
+      request.response()
+        .setStatusCode(BAD_REQUEST.code())
+        .end("\"Connection\" header must be \"Upgrade\".");
+      throw new WebSocketHandshakeException("Invalid connection header");
+    }
+```
+
+So it seems like we are validating the client headers on handshake. Makes sense. But I already know I want the connection to be a websocket. Is it possible to just force upgrade the connection?
+
+The client does not look like some old out dated browser. It's not entirely clear to me why they would be omitted. Here's the headers from one failure:
+
+```
+headers: Pragma:no-cache
+User-Agent:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36
+Origin:https://oursite.com
+Sec-WebSocket-Version:13
+Accept-Encoding:gzip,deflate
+Accept-Language:en-AU,en-GB;q=0.9,en-US;q=0.8,en;q=0.7
+Sec-WebSocket-Key:randomstuffhere
+Sec-WebSocket-Extensions:permessage-deflate; client_max_window_bits
+Host:ws.oursite.com
+Cache-Control:no-cache
+Connection:keep-alive
+```
+
+The client is just doing `new Websocket()`.
+
+There is no proxy that would be stripping the headers. The domain routes directly to the box right now, with vertx handling TLS.
+
+### Do you have a reproducer?
+
+Will do if confirmed is even possible to fix... Doing something like this:
+
+```
+        router.get("/sub").handler((routeContext) -> {
+            routeContext.request().pause();
+            final var future = routeContext
+                    .request().toWebSocket();
+            
+            authenticateAsync(() -> {
+                future
+                    .onFailure((e) -> {
+                      StringBuilder headers = new StringBuilder();
+                      var headersMap = request.headers();
+                      for (var entry : headersMap) {
+                        headers.append(entry.getKey()).append(":").append(entry.getValue()).append("\n");
+                      }
+                      System.err.println("Failure to handle websocket route? " + request.absoluteURI() + " headers: " + headers);
+                      e.printStackTrace();
+                      if (!routeContext.response().ended()) {
+                        routeContext.end();
+                      }
+                    })
+                    .onSuccess(websocket -> {});
+            })
+        });
+```
+
+### Steps to reproduce
+
+1. Handle websocket connection via route.
+2. Upgrade connection manually.
+3. Sadness
+
+### Extra
+
+Server runs Debian Linux 11 and Adoptium JRE 19.

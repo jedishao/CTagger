@@ -1,0 +1,88 @@
+Unexpected exception: `io.grpc.StatusRuntimeException: UNKNOWN: channel closed`
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+- grpc-java: 1.30.1
+- netty-tcnative-boringssl-static: 2.0.30.Final
+
+### What is your environment?
+
+- OS: Mac OS X
+- JDK: jdk1.8.0_261 (Oracle)
+
+### What did you expect to see?
+
+- `io.grpc.StatusRuntimeException: UNAVAILABLE: channel closed` or similar.
+
+### What did you see instead?
+
+`io.grpc.StatusRuntimeException: UNKNOWN: channel closed`
+
+### Steps to reproduce the bug
+
+Not sure how to reproduce it, but if I kill the server I get the following.
+
+```
+Channel Pipeline: [SslHandler#0, ProtocolNegotiators$ClientTlsHandler#0, WriteBufferingAndExceptionHandler#0, DefaultChannelPipeline$TailContext#0]
+	at io.grpc.Status.asRuntimeException(Status.java:533)
+	... <user stack redacted>
+Caused by: java.nio.channels.ClosedChannelException
+	at io.grpc.netty.Utils.statusFromThrowable(Utils.java:266)
+	at io.grpc.netty.WriteBufferingAndExceptionHandler.exceptionCaught(WriteBufferingAndExceptionHandler.java:88)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeExceptionCaught(AbstractChannelHandlerContext.java:302)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeExceptionCaught(AbstractChannelHandlerContext.java:281)
+	at io.netty.channel.AbstractChannelHandlerContext.fireExceptionCaught(AbstractChannelHandlerContext.java:273)
+	at io.grpc.netty.ProtocolNegotiators$ClientTlsHandler.userEventTriggered0(ProtocolNegotiators.java:375)
+	at io.grpc.netty.ProtocolNegotiators$ProtocolNegotiationHandler.userEventTriggered(ProtocolNegotiators.java:741)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeUserEventTriggered(AbstractChannelHandlerContext.java:346)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeUserEventTriggered(AbstractChannelHandlerContext.java:332)
+	at io.netty.channel.AbstractChannelHandlerContext.fireUserEventTriggered(AbstractChannelHandlerContext.java:324)
+	at io.netty.handler.ssl.SslUtils.handleHandshakeFailure(SslUtils.java:347)
+	at io.netty.handler.ssl.SslHandler.setHandshakeFailure(SslHandler.java:1805)
+	at io.netty.handler.ssl.SslHandler.channelInactive(SslHandler.java:1079)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:262)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:248)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelInactive(AbstractChannelHandlerContext.java:241)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelInactive(DefaultChannelPipeline.java:1405)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:262)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelInactive(AbstractChannelHandlerContext.java:248)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelInactive(DefaultChannelPipeline.java:901)
+	at io.netty.channel.AbstractChannel$AbstractUnsafe$8.run(AbstractChannel.java:818)
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:497)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	... 1 more
+Caused by: java.nio.channels.ClosedChannelException
+	at io.netty.handler.ssl.SslHandler.channelInactive(SslHandler.java:1076)
+	... 15 more
+```
+
+This happens before the exception:
+
+```
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND PING: ack=true bytes=1234
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] OUTBOUND HEADERS: streamId=51 headers=GrpcHttp2OutboundHeaders[:authority: 127.0.0.1:2113, :path: /event_store.client.streams.Streams/Read, :method: POST, :scheme: https, content-type: application/grpc, te: trailers, user-agent: grpc-java-netty/1.30.1, authorization: Basic YWRtaW46Y2hhbmdlaXQ=, connection-name: sec, requires-leader: false, grpc-accept-encoding: gzip] streamDependency=0 weight=16 exclusive=false padding=0 endStream=false
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] OUTBOUND DATA: streamId=51 padding=0 endStream=true length=19 bytes=000000000e0a0c12020a00281e42004a020a00
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND HEADERS: streamId=51 headers=GrpcHttp2ResponseHeaders[:status: 200, date: Fri, 28 Aug 2020 10:40:53 GMT, content-type: application/grpc, server: Kestrel, grpc-encoding: identity] padding=0 endStream=false
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=51 padding=0 endStream=false length=203 bytes=00000000c60ac3010abd010a170a15089a81e9ecb5a995fe6b10a5a2f092aa84d6c8ab01120f1a0d242424757365722d61646d696e20e70128e70132110a0474...
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] OUTBOUND PING: ack=false bytes=1234
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=51 padding=0 endStream=false length=202 bytes=00000000c50ac2010abc010a180a1608d58bb1c885b7e7cecf0110d6c8b0bde2f1bc9a8801120d1a0b242424757365722d6f7073208f03288f0332110a047479...
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=51 padding=0 endStream=false length=221 bytes=00000000d80ad5010acf010a180a1608a882a1cdfb95d0e6c00110beaa98efa59eb1ffaf01120e1a0c24242473636176656e67657320b50428b50432110a0474...
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=51 padding=0 endStream=false length=331 bytes=00000001460ac3020abd020a170a1508ef8595a6e2eddead7810a5c0d38bc7f4f7a09d01120d1a0b24757365722d61646d696e20ee0528ee0532140a04747970...
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=51 padding=0 endStream=false length=322 bytes=000000013d0aba020ab4020a180a1608c68af1ebbde0d8bed1011086ae8fa7cbbf9db48101120b1a0924757365722d6f707320950828950832140a0474797065...
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=51 padding=0 endStream=false length=149 bytes=00000000900a8d010a87010a170a1508ac82bde9f1b187ff0810d7b3c1f0b4d4cbcc9d0112081a0624757365727320b20a28b20a320d0a047479706512052455...
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=51 padding=0 endStream=false length=150 bytes=00000000910a8e010a88010a180a16089188f1cbd1b2b6f8ee0110d9e4a2f08ecdfbec9c0112081a062475736572731801209c0b289c0b320d0a047479706512...
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND HEADERS: streamId=51 headers=GrpcHttp2ResponseHeaders[grpc-status: 0] padding=0 endStream=true
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND PING: ack=true bytes=1234
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] OUTBOUND HEADERS: streamId=53 headers=GrpcHttp2OutboundHeaders[:authority: 127.0.0.1:2113, :path: /event_store.client.gossip.Gossip/Read, :method: POST, :scheme: https, content-type: application/grpc, te: trailers, user-agent: grpc-java-netty/1.30.1, authorization: Basic YWRtaW46Y2hhbmdlaXQ=, connection-name: sec, requires-leader: false, grpc-accept-encoding: gzip] streamDependency=0 weight=16 exclusive=false padding=0 endStream=false
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] OUTBOUND DATA: streamId=53 padding=0 endStream=true length=5 bytes=0000000000
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND HEADERS: streamId=53 headers=GrpcHttp2ResponseHeaders[:status: 200, date: Fri, 28 Aug 2020 10:40:53 GMT, content-type: application/grpc, server: Kestrel, grpc-encoding: identity] padding=0 endStream=false
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND DATA: streamId=53 padding=0 endStream=false length=61 bytes=00000000380a360a170a15089d9bc5e4849ec5973710d0cb97d3aeb7dfb99e0110b4acb8ff8ae9b21c180820012a0e0a093132372e302e302e3110c110
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] OUTBOUND PING: ack=false bytes=1234
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND HEADERS: streamId=53 headers=GrpcHttp2ResponseHeaders[grpc-status: 0] padding=0 endStream=true
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND PING: ack=true bytes=1234
+DEBUG i.g.n.NettyClientHandler - [id: 0xd9b53be2, L:/127.0.0.1:59629 - R:/127.0.0.1:2113] INBOUND GO_AWAY: lastStreamId=53 errorCode=0 length=0 bytes=
+```

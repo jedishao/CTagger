@@ -1,0 +1,94 @@
+Add a hard limit on the size of pending read requests to storage
+### Motivation
+
+Currently (Pulsar 2.10) there is one problem when you have many subscriptions and consumers (even 20.000 consumers) and partitions.
+It is very easy to push the Broker to OutOfMemory (Netty Direct Memory) under that condition if you don't configure rate limiting on the dispatch of the messages.
+
+The OODM happens because the broker is trying to READ too much data from the Bookies,
+in fact  the broker crashes because there is nothing that protects the broker
+from running out-of-memory while reading.
+
+Some points:
+- Subscriptions are independent from each other (think about  dispatcherMaxReadBatchSize, dispatcherMaxReadSizeBytes, dispatcherMaxRoundRobinBatchSize)
+- Every subscription pumps data from the bookies
+- There is no global cap on the data to read from BK
+- When the data arrives to the Broker,  it is too late, because Netty tries to allocate a DirectByteBuf and then crashes
+- The more bookies you have the more efficient is the transfer, so the problem grows
+
+Additional considerations:
+On the Read path there is not way to know how the data that comes from BK will be retained
+This is different from maxMessagePublishBufferSizeInMB  because when you write you know that the data will go to the BK client and then it will be finally released.
+
+I believe that the hearth of the problem is to prevent the Broker to send reads that would lead to the OODM.
+It is not easy because as all the subscriptions and topics are independent we would need some “fair” mechanism that would allow each subscription to make progress.
+
+I have a very simple reproducer for this theory, it breaks both on the big testing  clusters (with many brokers and bookies)  and with Pulsar standalone.
+```
+
+#create a partitioned topic
+bin/pulsar-admin topics create-partitioned-topic -p 10 test
+
+# create the 64 subscriptions
+bin/pulsar-perf consume -ns 64 -n 10 test -st Shared
+(Ctrl-C)
+
+# create a backlog with big non-batched messages
+bin/pulsar-perf produce -s 1000000 -bb 0 -bm 0 -r 1000 test
+
+# break the broker by starting all the consumers all together
+bin/pulsar-perf consume -ns 64 -n 10 test -st Shared
+```
+
+
+Sample stacktrace
+
+```
+2022-10-05T14:27:38,678+0200 [pulsar-io-18-3] ERROR org.apache.bookkeeper.proto.PerChannelBookieClient - Unexpected exception c
+aught by bookie client channel handler
+io.netty.util.internal.OutOfDirectMemoryError: failed to allocate 4194304 byte(s) of direct memory (used: 4291775746, max: 4294
+967296)
+        at io.netty.util.internal.PlatformDependent.incrementMemoryCounter(PlatformDependent.java:806) ~[netty-common-4.1.77.Fi
+nal.jar:4.1.77.Final]
+        at io.netty.util.internal.PlatformDependent.allocateDirectNoCleaner(PlatformDependent.java:735) ~[netty-common-4.1.77.F
+inal.jar:4.1.77.Final]
+        at io.netty.buffer.PoolArena$DirectArena.allocateDirect(PoolArena.java:649) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Fina
+l]
+        at io.netty.buffer.PoolArena$DirectArena.newChunk(PoolArena.java:624) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.buffer.PoolArena.allocateNormal(PoolArena.java:203) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.buffer.PoolArena.tcacheAllocateNormal(PoolArena.java:187) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.buffer.PoolArena.allocate(PoolArena.java:136) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.buffer.PoolArena.reallocate(PoolArena.java:287) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.buffer.PooledByteBuf.capacity(PooledByteBuf.java:122) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.buffer.AbstractByteBuf.ensureWritable0(AbstractByteBuf.java:305) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Fin
+al]
+        at io.netty.buffer.AbstractByteBuf.ensureWritable(AbstractByteBuf.java:280) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Fina
+l]
+        at io.netty.buffer.AbstractByteBuf.writeBytes(AbstractByteBuf.java:1103) ~[netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.ByteToMessageDecoder$1.cumulate(ByteToMessageDecoder.java:99) ~[netty-codec-4.1.77.Final.jar:
+4.1.77.Final]
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:277) ~[netty-codec-4.1.77.Final.ja
+r:4.1.77.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(Abstra
+```
+
+### Solution
+
+One solution is to put a hard limit on the size of pending reads from storage.
+We can estimate the size of a upcoming "pending read" but using some statistics on the size of the most recently read entries from the topic.
+The limit must be per-broker.
+
+
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+PR #17953
+
+- [X] I'm willing to submit a PR!

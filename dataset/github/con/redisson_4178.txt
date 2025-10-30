@@ -1,0 +1,34 @@
+Only one thread can get lock after unlock timeout
+<!--
+Try Redisson PRO https://redisson.pro with with ultra-fast performance and support by SLA.
+-->
+I have an annotation *RLock* which works with an aspect, it work well in some programs. 
+
+Here is the codes:
+```java
+public Object process(ProceedingJoinPoint joinPoint, RLock rLock) throw Throwable {
+    String key = evaluateKey(rLock.key()); 
+    RLock lock = redissonClient.getLock(key);
+    boolean flag =f alse;
+    try {
+        flag = lock.tryLock(waitTime, leaseTime, timeUnit);
+        if (flag) {
+            return joinPoint.proceed();
+        } else {
+             throw new HexinLockException("Lock failed.");
+        }
+    } finally {
+       if (flag && lock.isLocked()) {
+           lock.unlock();
+       }
+    }
+}
+```
+
+Someday a program throws Exception at every tryLock in two of three containers. I checked ELK and find RedisTimeoutException before the first exception.
+
+By the way, every container works with only one thread to consume kafka messages.
+
+It seems taht  the first RLock unlock timeout and then redisson treats next RLocks as reentrant cause they have the same thread Id.
+
+How to ensure that the lock could be released correctly after unlock timeout.

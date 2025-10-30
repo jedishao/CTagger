@@ -1,0 +1,57 @@
+CostBalancerStrategy over assigns segments to historicals over their max size
+
+### Affected Version
+
+All
+
+### Description
+
+Was hitting this issue in production cluster, so tried to reproduce it locally.
+
+Setup - I have one empty historical with server size - 1,000,000 and one segment of size 4,821,713
+
+Coordinator logs -
+```
+2020-06-24T17:50:10,751 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.duty.LogUsedSegments - Found [1] used segments.
+2020-06-24T17:50:10,752 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.ReplicationThrottler - [_default_tier]: Replicant create queue is empty.
+2020-06-24T17:50:10,753 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.rules.LoadRule - Assigning 'primary' for segment [wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z] to server [localhost:8083] in tier [_default_tier]
+2020-06-24T17:50:10,754 WARN [Coordinator-Exec--0] org.apache.druid.server.coordinator.rules.LoadRule - No available [_default_tier] servers or node capacity to assign segment[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z]! Expected Replicants[3]
+2020-06-24T17:50:10,754 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.rules.LoadRule - Skipping replica assignment for tier [_default_tier]
+2020-06-24T17:50:10,754 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.rules.LoadRule - Loading in progress, skipping drop until loading is complete
+2020-06-24T17:50:10,754 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.duty.BalanceSegments - Found 1 active servers, 0 decommissioning servers
+2020-06-24T17:50:10,754 WARN [Coordinator-Exec--0] org.apache.druid.server.coordinator.duty.BalanceSegments - [_default_tier]: insufficient active servers. Cannot balance.
+2020-06-24T17:50:10,754 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.duty.EmitClusterStatsAndMetrics - [_default_tier] : Assigned 1 segments among 1 servers
+2020-06-24T17:50:10,754 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.duty.EmitClusterStatsAndMetrics - Load Queues:
+2020-06-24T17:50:10,754 INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.duty.EmitClusterStatsAndMetrics - Server[localhost:8083, historical, _default_tier] has 1 left to load, 0 left to drop, 4,821,713 bytes queued, 0 bytes served.
+2020-06-24T17:50:10,791 ERROR [Master-PeonExec--0] org.apache.druid.server.coordinator.HttpLoadQueuePeon - Server[http://localhost:8083] Failed segment[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z] request[SegmentChangeRequestLoad] with cause [Exception loading segment[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z]].
+```
+
+Historical logs -
+```
+2020-06-24T17:49:40,830 WARN [SimpleDataSegmentChangeHandler-0] org.apache.druid.segment.loading.StorageLocation - Segment[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z:4,821,713] too large for storage[/.../cache:1,000,000]. Check your druid.segmentCache.locations maxSize param
+2020-06-24T17:49:40,831 WARN [SimpleDataSegmentChangeHandler-0] org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager - Asked to cleanup something[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z] that didn't exist.  Skipping.
+2020-06-24T17:49:40,831 WARN [SimpleDataSegmentChangeHandler-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - No path to unannounce segment[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z]
+2020-06-24T17:49:40,832 INFO [SimpleDataSegmentChangeHandler-0] org.apache.druid.server.SegmentManager - Told to delete a queryable for a dataSource[wikipedia_null] that doesn't exist.
+2020-06-24T17:49:40,832 WARN [SimpleDataSegmentChangeHandler-0] org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager - Asked to cleanup something[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z] that didn't exist.  Skipping.
+2020-06-24T17:49:40,832 WARN [SimpleDataSegmentChangeHandler-0] org.apache.druid.server.coordination.SegmentLoadDropHandler - Unable to delete segmentInfoCacheFile[/.../cache/info_dir/wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z]
+2020-06-24T17:49:40,841 ERROR [SimpleDataSegmentChangeHandler-0] org.apache.druid.server.coordination.SegmentLoadDropHandler - Failed to load segment for dataSource: {class=org.apache.druid.server.coordination.SegmentLoadDropHandler, exceptionType=class org.apache.druid.segment.loading.SegmentLoadingException, exceptionMessage=Exception loading segment[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z], segment=DataSegment{binaryVersion=9, id=wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z, loadSpec={type=>local, path=>/.../storage/wikipedia_null/2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z/2019-07-10T06:10:13.432Z/0/index.zip}, dimensions=[channel, cityName, comment, countryIsoCode, countryName, isAnonymous, isMinor, isNew, isRobot, isUnpatrolled, metroCode, namespace, page, regionIsoCode, regionName, user, added, deleted, delta], metrics=[], shardSpec=NumberedShardSpec{partitionNum=0, partitions=0}, lastCompactionState=null, size=4821713}}
+org.apache.druid.segment.loading.SegmentLoadingException: Exception loading segment[wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z]
+  at org.apache.druid.server.coordination.SegmentLoadDropHandler.loadSegment(SegmentLoadDropHandler.java:262) ~[classes/:?]
+  at org.apache.druid.server.coordination.SegmentLoadDropHandler.addSegment(SegmentLoadDropHandler.java:306) ~[classes/:?]
+  at org.apache.druid.server.coordination.SegmentLoadDropHandler$1.lambda$addSegment$1(SegmentLoadDropHandler.java:512) ~[classes/:?]
+  at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) [?:1.8.0_211]
+  at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_211]
+  at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180) [?:1.8.0_211]
+  at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293) [?:1.8.0_211]
+  at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_211]
+  at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_211]
+  at java.lang.Thread.run(Thread.java:748) [?:1.8.0_211]
+Caused by: org.apache.druid.segment.loading.SegmentLoadingException: Failed to load segment wikipedia_null_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2019-07-10T06:10:13.432Z in all locations.
+  at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.loadSegmentWithRetry(SegmentLoaderLocalCacheManager.java:209) ~[classes/:?]
+  at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.getSegmentFiles(SegmentLoaderLocalCacheManager.java:163) ~[classes/:?]
+  at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.getSegment(SegmentLoaderLocalCacheManager.java:130) ~[classes/:?]
+  at org.apache.druid.server.SegmentManager.getAdapter(SegmentManager.java:212) ~[classes/:?]
+  at org.apache.druid.server.SegmentManager.loadSegment(SegmentManager.java:171) ~[classes/:?]
+  at org.apache.druid.server.coordination.SegmentLoadDropHandler.loadSegment(SegmentLoadDropHandler.java:258) ~[classes/:?]
+  ... 9 more
+```

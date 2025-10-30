@@ -1,0 +1,40 @@
+[PIP] Java Client support to Cumulative Acknowledge messages for multiple partitions or topics
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+**Email from Yunze Xu**
+
+Currently, the Java client acknowledges the specific partition of the message ID however it's not user friendly.
+Assuming users called "acknowledgeCumulative" periodically, there is a chance that some messages of the specific partition has never been passed to the method.
+For example, a consumer received: P0-M0, P1-M0, P0-M1, P1-M1, P0-M2, P1-M2...
+And the user acknowledged every two messages, i.e. P0-M0, P0-M1, P0-M2. Eventually, partition 1 has never been acknowledged. User must maintain its own `Map<String, MessageId&gt> cache for a partitioned topic or multi-topics consumer with the existing "acknowledgeCumulative" API.
+
+### Goal
+Should we make it more friendly for users? For example, we can make "acknowledgeCumulative"  accept the map to remind users to maintain the map from topic name to message ID. Also in this way with one call users can pass all the messageIds to be acknowledged instead of calling API multiple times for each partition
+
+**java**
+```
+ // the key is the partitioned topic name like my-topic-partition-0
+ void acknowledgeCumulative(Map<String, MessageId> topicToMessageId);
+```
+
+## API Changes
+
+Add new API  acknowledgeCumulative(Map<String, MessageId> topicToMessageId) 
+
+### Solution
+
+Implement acknowledgeCumulative(Map<String, MessageId> topicToMessageId)  
+we need to validate the Map and send cumulative acknowledgment for all the messageId Values 
+
+### Anything else?
+
+ Original Email : https://lists.apache.org/thread/k090ftlqc149yr1cnprxb29vxg160131
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

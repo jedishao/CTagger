@@ -1,0 +1,60 @@
+INVALID_ARGUMENT: Maximum Append Size of 1048576 Exceeded
+Greetings,
+<!-- Please answer these questions before submitting a bug report. -->
+
+This could also be a feature request if there is a way to increase that limit already.
+
+### What version of gRPC-Java are you using?
+
+1.31.1
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+All supported OSes. I tested it on Java 8 and 11 only.
+
+### What did you expect to see?
+
+I would expect my request to go through, considering the java gRPC implementation is the only one where I experienced that issue so far.
+
+### What did you see instead?
+
+```
+java.util.concurrent.ExecutionException: io.grpc.StatusRuntimeException: INVALID_ARGUMENT: Maximum Append Size of 1048576 Exceeded.
+at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:395)
+at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:1999)
+... 7 more
+Caused by: io.grpc.StatusRuntimeException: INVALID_ARGUMENT: Maximum Append Size of 1048576 Exceeded.
+at io.grpc.Status.asRuntimeException(Status.java:533)
+at io.grpc.stub.ClientCalls$StreamObserverToCallListenerAdapter.onClose(ClientCalls.java:478)
+at io.grpc.internal.ClientCallImpl.closeObserver(ClientCallImpl.java:434)
+at io.grpc.internal.ClientCallImpl.access$500(ClientCallImpl.java:66)
+at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInternal(ClientCallImpl.java:763)
+at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInContext(ClientCallImpl.java:742)
+at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:123)
+... 3 more
+```
+### Steps to reproduce the bug
+
+I have an opened PR in our library on trying to fix this: https://github.com/EventStore/EventStoreDB-Client-Java/pull/129.
+
+The test showing that exception is very related to our library. However, here's how I try to fix it when building a Managed channel:
+
+```java
+        NettyChannelBuilder builder = NettyChannelBuilder
+                .forAddress(endpoint.getHostname(), endpoint.getPort());
+                .maxInboundMessageSize(16 * 1024 * 1024)
+                .maxInboundMetadataSize(16 * 1024 * 1024)
+                .flowControlWindow(16 * 1024 * 1024)
+                .initialFlowControlWindow(16 * 1024 * 1024)
+                .perRpcBufferLimit(16 * 1024 * 1024);
+```
+
+At the stub level, I also tried to increase the inbound and outbound message sizes but with no success so far:
+
+```java
+StreamsGrpc.newStub(channel).withMaxOutboundMessageSize(16 * 1024 * 1024).withMaxInboundMessageSize(16 * 1024 * 1024)
+```
+
+Thanks for your time.
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->

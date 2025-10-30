@@ -1,0 +1,49 @@
+Support configuring batch message behavior in Java client's DeadLetterPolicy / DLQ feature
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+Pulsar's DLQ feature is mainly implemented on the client side. 
+It is not currently possible to disable batch messages that might get produced to the dead letter topic when 2 messages happen to get delivered to the dead letter topic about the same time.
+
+For some applications and environments, it could be desired to be able to configure this behavior. The broker configuration doesn't set `acknowledgmentAtBatchIndexLevelEnabled=true` by default which would be necessary for using the [PIP-54 Support acknowledgment at the batch index level](https://pulsar.apache.org/blog/2020/06/18/Apache-Pulsar-2-6-0/#pip-54-support-acknowledgment-at-the-batch-index-level) feature needed for individual message acknowledgement within batchmessages. Re-trying messages within the DLQ topic might fail and without PIP-54, all messages in the batch message would get redelived when even one of the messages in the batch message isn't successfully acknowledged. 
+
+To support retaining messages as non-batch messages, there should be a setting in DeadLetterPolicy to control this.
+
+
+
+
+### Solution
+
+Add a setting to DeadLetterPolicy for controlling batch message behavior. 
+
+Setting `DeadLetterPolicy.BatchBehavior` (name could be adjusted later)
+```java
+enum BatchBehavior {
+    ENABLED,
+    DISABLED,
+    ENABLE_FOR_BATCHED_MESSAGES
+}
+```
+
+In addition to disabling/enabling a batch, there could be a third option `ENABLE_FOR_BATCHED_MESSAGES` which would enable batching only when the incoming message is already a batch message.
+
+
+
+
+
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

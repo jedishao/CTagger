@@ -1,0 +1,19 @@
+Prometheus-emitter does not push metrics to the pushgateway server
+I'm not sure if there is a problem with my configuration.
+The following is the configuration of pushgateway:
+```
+druid.extensions.loadList=["druid-s3-extensions","druid-histogram","mysql-metadata-storage","druid-multi-stage-query","druid-prometheus-emitter"]
+
+druid.emitter=prometheus
+druid.emitter.prometheus.strategy=pushgateway
+druid.emitter.prometheus.pushGatewayAddress=localhost:9091
+```
+
+I used Prometheus push gateway to monitor the Druid process, and found that the push gateway server has never had Druid related metrics. 
+By looking at the source code, we can see that `Prometheus-emitter` does not call flush periodically.
+
+Referring to `incluxdbemitter`, I added `scheduledexecutorservice`, called flush regularly, and fixed it.
+
+### Affected Version
+
+It seems that all versions have this problem

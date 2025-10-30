@@ -1,0 +1,42 @@
+clusterPublicPort in EventBusOptions should be ignored in toJson() result if it is the default value
+### Questions
+
+
+`-1` is the default value of `clusterPublicPort` in `EventBusOptions`, but setting this default value will fail:
+
+```java
+
+  @Test
+  public void testEventBusOptions() {
+    VertxOptions vertxOptions1 = new VertxOptions();
+    JsonObject json = vertxOptions1.toJson();
+    VertxOptions vertxOptions2 = new VertxOptions(json);  //  <== this line leads to exception
+    assertEquals(json, vertxOptions2.toJson());
+  }
+```
+
+The exception is:
+
+```java
+java.lang.IllegalArgumentException: clusterPublicPort p must be in range 0 <= p <= 65535
+	at io.vertx.core.eventbus.EventBusOptions.setClusterPublicPort(EventBusOptions.java:651)
+	at io.vertx.core.eventbus.EventBusOptionsConverter.fromJson(EventBusOptionsConverter.java:55)
+	at io.vertx.core.eventbus.EventBusOptions.<init>(EventBusOptions.java:165)
+	at io.vertx.core.VertxOptionsConverter.fromJson(VertxOptionsConverter.java:45)
+	at io.vertx.core.VertxOptions.<init>(VertxOptions.java:181)
+	at io.vertx.core.VertxOptionsTest.testEventBusOptions(VertxOptionsTest.java:321)
+```
+
+This does not make sense as we cannot re-construct the VertxOptions using the JsonObject exported from a default VertxOptions instance.
+
+### Version
+
+latest `master` branch
+
+### Do you have a reproducer?
+
+Please refer to https://gist.github.com/gaol/7593cebcb2d1328d4ed50ece5ee1ac70 for more detail.
+
+### Contribution
+
+I will provide PR for the fix

@@ -1,0 +1,13 @@
+Make HTTP protocol a configurable option
+I ran into an issue recently where a customer was seeing Presto responding very slow, like 5mins between each API call. Other clients worked fine at the same time. The root cause was that Presto is running in a K8s cluster and is fronted by an ALB that terminates SSL etc. That ALB has HTTP/2 support enabled and therefore is confusing the client to switch to that protocol level. When it hits the server, which requires HTTP/1.1 instead, it hangs until some timeout, fallback to the lesser protocol and then complete.
+
+The reason is that the underlying `OkHttpClient` instance is not explicitly configured to only use HTTP/1.1, and usually when talking to the Presto server directly, it forces it to 1.1. But the ALB confusing it would require for the `OkHttpClient` to be explicitly configured, as per the official [docs](https://square.github.io/okhttp/4.x/okhttp/okhttp3/-ok-http-client/-builder/protocols/).
+
+For example:
+```
+ client = client.newBuilder()
+   .protocols(Collections.singletonList(Protocol.HTTP_1_1))
+   .build();
+```
+
+Could this be added fixed, or as an optional thing that can be configured on the client to use?

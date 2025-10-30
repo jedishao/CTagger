@@ -1,0 +1,18 @@
+EventBus breaks on bad network connection
+### Questions
+
+EventBus breaks on bad network connection. I have observed this when using hazelcast or infinispan.
+
+What happens in the case of Infinispan:
+- Imagine three nodes "A", "B", "C" and the network in node "A" at some point failed.
+- After 20 seconds the ConnectionHolder on node "A" removes nodes "B" and "C" from "_vertx.subs". And the ConnectionHolder on nodes "B" and "C" deletes node "A".
+- When the network is turned on, all nodes are joins to each other, the "_vertx.subs" caches are merged and contain only "B" and "C".
+- Consumers on node "A" stop receiving messages from "B" and "C".
+
+I see the HazelcastClusterManager.republishOwnSubs() method, but it is only called if members are removed from the cluster. And I don't see such things in infinispan.
+
+
+### Version
+
+4.3.*
+4.2.*

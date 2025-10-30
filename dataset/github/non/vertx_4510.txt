@@ -1,0 +1,6 @@
+Excessive CPU utilization by HttpClient in HTTP/2 mode due to HttpClosedException
+In Vert.x 4.3.0 the commit https://github.com/eclipse-vertx/vert.x/commit/09970b9ed4d49ee95722720766f632f89b4a3d09 introduced HttpClosedException for reporting HTTP/2 "go away" status. In practice we've noticed that under high load (thousands of HTTP/2 requests per second) this introduced a pretty significant performance penalty (up to 10% additional CPU utilization vs HTTP/1.1) as a new instance of HttpClosedException (with stack trace) is thrown thousands of times per second. And nearly all of these instances have goAway == null, which means that the same instance could have been reused (which is already done in other parts of the code).
+
+The proposed changes eliminate the stack trace creation and reuse the exception instance in case goAway == null: https://github.com/eclipse-vertx/vert.x/compare/master...adets:vert.x:HttpClosedException_Optimizations
+
+Under our typical usage patterns the amount of new HttpClosedException instances generated went from ~300,000 to ~20 per minute.

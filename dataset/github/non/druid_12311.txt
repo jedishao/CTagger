@@ -1,0 +1,146 @@
+Historical crashes with OOM on SQL join query
+### Affected Version
+
+21.1
+
+### Description
+
+```
+SELECT "field1", "field2", "subquery_count", Count(*) as "count"
+FROM datamodel
+LEFT JOIN (
+  SELECT "field1" as "subquery_field", Count(*) as "subquery_count"
+  FROM datamodel
+  WHERE ("field1", "field2") IN (('a1, 'a2'), ('b1, 'b2'), {more_values})
+  AND {various_other_filters}
+  GROUP BY 1
+) ON "subquery_field"="field1"
+WHERE ("field1", "field2") IN (('a1, 'a2'), ('b1, 'b2'), {more_values})
+AND {various_other_filters}
+GROUP BY 1,2,3
+```
+
+The issue appears to crop up whenever we have a query with a LEFT JOIN and the `("field1", "field2") IN (('a1, 'a2'), ('b1, 'b2'), {more_values})` has more than 16 pairs of values on the right side. It does matter if the values on the right side are unique, i.e. if a1=b1=c1 for every pair, then the crash does not happen (likely runs a more optimal query plan in that case).  The query will take a long time and will eventually crash the historical, even sometimes if you cancel the query well before the OOM is hit.  It's a bit surprising that it happens at all, because the total amount of data the subquery would return should be pretty small.
+
+cluster is 2 historicals, 2 routers, 1 broker
+
+broker settings:
+```
+    - name: DRUID_XMX
+      value: 4g
+    - name: DRUID_XMS
+      value: 4g
+    - name: DRUID_MAXDIRECTMEMORYSIZE
+      value: 3g
+    - name: JAVA_OPTS
+      value: -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError
+    - name: druid_broker_http_numConnections
+      value: "25"
+    - name: druid_broker_http_maxQueuedBytes
+      value: "10000000"
+    - name: druid_server_http_numThreads
+      value: "30"
+    - name: druid_plaintextPort
+      value: "8082"
+    - name: druid_broker_cache_useCache
+      value: "false"
+    - name: druid_broker_cache_populateCache
+      value: "false"
+    - name: druid_processing_buffer_sizeBytes
+      value: "524288000"
+    - name: druid_processing_numThreads
+      value: "3"
+    - name: druid_processing_numMergeBuffers
+      value: "2"
+    - name: druid_sql_enable
+      value: "true"
+```
+historical settings:
+```
+    - name: DRUID_XMX
+      value: 9g
+    - name: DRUID_XMS
+      value: 9g
+    - name: DRUID_MAXDIRECTMEMORYSIZE
+      value: 7g
+    - name: JAVA_OPTS
+      value: -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError
+    - name: druid_server_http_numThreads
+      value: "60"
+    - name: druid_plaintextPort
+      value: "8083"
+    - name: druid_processing_numThreads
+      value: "8"
+    - name: druid_processing_numMergeBuffers
+      value: "2"
+    - name: druid_processing_buffer_sizeBytes
+      value: "524288000"
+    - name: druid_segmentCache_locations
+      value: '[{"maxSize":2199023255552,"path":"var/druid/segment-cache"}]'
+    - name: druid_segmentCache_numLoadingThreads
+      value: "12"
+    - name: druid_segmentCache_lazyLoadOnStart
+      value: "true"
+    - name: druid_server_maxSize
+      value: "2199023255552"
+    - name: druid_historical_cache_useCache
+      value: "true"
+    - name: druid_historical_cache_populateCache
+      value: "true"
+    - name: druid_cache_sizeInBytes
+      value: "1073741824"
+    - name: druid_monitoring_monitors
+      value: '["org.apache.druid.java.util.metrics.JvmMonitor","org.apache.druid.server.metrics.QueryCountStatsMonitor","org.apache.druid.server.metrics.HistoricalMetricsMonitor","org.apache.druid.client.cache.CacheMonitor"]'
+  - name: druid_query_groupBy_maxOnDiskStorage
+    value: "10737418240"
+```
+plugins:
+```
+druid-aws-common
+org.apache.druid.common.aws.AWSModule
+0.21.1
+druid-gcp-common
+org.apache.druid.common.gcp.GcpModule
+0.21.1
+postgresql-metadata-storage
+org.apache.druid.metadata.storage.postgresql.PostgreSQLMetadataStorageModule
+0.21.1
+druid-kafka-indexing-service
+org.apache.druid.indexing.kafka.KafkaIndexTaskModule
+0.21.1
+druid-histogram
+org.apache.druid.query.aggregation.histogram.ApproximateHistogramDruidModule
+0.21.1
+druid-datasketches
+org.apache.druid.query.aggregation.datasketches.theta.SketchModule
+0.21.1
+druid-datasketches
+org.apache.druid.query.aggregation.datasketches.theta.oldapi.OldApiSketchModule
+0.21.1
+druid-datasketches
+org.apache.druid.query.aggregation.datasketches.quantiles.DoublesSketchModule
+0.21.1
+druid-datasketches
+org.apache.druid.query.aggregation.datasketches.tuple.ArrayOfDoublesSketchModule
+0.21.1
+druid-datasketches
+org.apache.druid.query.aggregation.datasketches.hll.HllSketchModule
+0.21.1
+druid-lookups-cached-global
+org.apache.druid.server.lookup.namespace.NamespaceExtractionModule
+0.21.1
+druid-hdfs-storage
+org.apache.druid.storage.hdfs.HdfsStorageDruidModule
+0.21.1
+druid-stats
+org.apache.druid.query.aggregation.stats.DruidStatsModule
+0.21.1
+statsd-emitter
+org.apache.druid.emitter.statsd.StatsDEmitterModule
+0.21.1
+druid-processing
+org.apache.druid.guice.BloomFilterExtensionModule
+0.21.1
+```
+
+Any more configuration / details worth sharing?

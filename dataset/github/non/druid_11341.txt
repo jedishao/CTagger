@@ -1,0 +1,41 @@
+In the same query, Historical performance is better than Middle Manager, and how to tune Middle Manager
+Here are two of the same SQL，Historical performance is better than Middle Manager,
+```
+// query from MM, which takes 800ms.
+select TIME_FLOOR(__time, 'PT5M'), sum("requestCount")
+from request_info
+WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '1' HOUR
+GROUP BY 1
+
+//  query from Historical, which takes 100ms.
+select TIME_FLOOR(__time, 'PT5M'), sum("requestCount")
+from request_info
+WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '4' HOUR AND __time <= CURRENT_TIMESTAMP - INTERVAL '3' HOUR
+GROUP BY 1
+```
+
+Historical config
+```
+druid.processing.buffer.sizeBytes=500MiB
+druid.processing.numMergeBuffers=4
+druid.processing.numThreads=15
+druid.processing.tmpDir=var/druid/processing
+druid.historical.cache.useCache=true
+druid.historical.cache.populateCache=true
+druid.cache.type=caffeine
+druid.cache.sizeInBytes=256MiB
+```
+
+Middle Manager config
+```
+druid.indexer.runner.javaOpts=-Xms5g -Xmx5g  -XX:+UseG1GC -XX:MaxDirectMemorySize=10g
+druid.indexer.fork.property.druid.processing.numMergeBuffers=2
+druid.indexer.fork.property.druid.processing.buffer.sizeBytes=268435456
+druid.indexer.fork.property.druid.processing.numThreads=2
+druid.realtime.cache.useCache=true
+druid.realtime.cache.populateCache=true
+```
+
+Is there any parameters needed being adjust at Middle Manager?
+
+

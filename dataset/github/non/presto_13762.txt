@@ -1,0 +1,40 @@
+LDAP not starting despite identical configuration to instructions
+I've configured LDAP exactly how it is specified in the directions. However, when I query presto through the Presto CLI, it skips LDAP and still queries the cluster. Any insight why this is occurring? I've set up the certs as well and the debug logs don't tell me anything.
+
+Here is my config:
+
+```  
+config.properties: |
+    coordinator=true
+    http-server.authentication.type=PASSWORD
+    http-server.https.enabled=true
+    http-server.https.port={{ .Values.server.config.https.port }}
+    http-server.https.keystore.path=/etc/presto_keystore.jks
+    http-server.https.keystore.key=changeit
+{{- if gt (int .Values.server.workers) 0 }}
+    node-scheduler.include-coordinator=false
+{{- else }}
+    node-scheduler.include-coordinator=true
+{{- end }}
+    http-server.http.port={{ .Values.server.config.http.port }}
+    query.max-memory={{ .Values.server.config.query.maxMemory }}
+    query.max-memory-per-node={{ .Values.server.config.query.maxMemoryPerNode }}
+    # query.max-total-memory-per-node={{ .Values.server.config.query.maxTotalMemoryPerNode }}
+    discovery-server.enabled=true
+    discovery.uri=http://{{ template "presto.fullname" . }}:{{ .Values.server.config.http.port }}
+
+  password-authenticator.properties: |
+    password-authenticator.name=ldap
+    ldap.url=ldaps://auth.us-va.viasat.io:636
+    ldap.user-bind-pattern=uid=${USER},ou=People,dc=viasat,dc=io
+    ldap.user-base-dn=ou=People,dc=viasat,dc=io
+    ldap.group-auth-pattern=(&(objectClass=person)(uid=${USER})(memberof=cn=es-metrics-reader,ou=Groups,ou=interactivedatastore,ou=Environments,dc=viasat,dc=io))
+```
+
+It goes from loading the ldap authenticator straight to a query:
+```
+019-11-26T23:50:44.501Z	INFO	main	Bootstrap	ldap.user-bind-pattern   null     uid=${USER},ou=People,dc=viasat,dc=io                                                                                                  Custom user bind pattern. Example: ${USER}@example.com
+2019-11-26T23:50:45.192Z	INFO	main	com.facebook.presto.server.security.PasswordAuthenticatorManager	-- Loaded password authenticator ldap --
+2019-11-26T23:50:45.207Z	INFO	main	com.facebook.presto.server.PrestoServer	======== SERVER STARTED ========
+2019-11-26T23:59:04.437Z	DEBUG	query-execution-0	com.facebook.presto.execution.QueryStateMachine	Query 20191126_235804_00002_rmz2b is QUEUED
+```

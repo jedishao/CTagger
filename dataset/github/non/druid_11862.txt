@@ -1,0 +1,51 @@
+The `bySegment` causes a limited `ScanQuery` to fail
+### Affected Version
+
+Latest master branch as of Halloween, 2021.
+
+### Description
+
+The `BaseQuery` class supports a context flag called `bySegment`. When set to `true`, it seems to gather all the results from each segment into a single object. (See `BySegmentQueryRunner`.) The query "planner" (see `ServerManager.buildAndDecorateQueryRunner()`) always adds the `BySegmentQueryRunner` for all queries. If the `bySegment` flag is set, the magic happens.
+
+Unfortunately, there is a downstream runner (meaning higher in the call stack), which expects the result type to be `ScanResultValue`, but the by-segment runner has changed the type. (The code in that runner even warns that it will do so, and that the type signature after by-segment is a lie.)
+
+Specifically, since the query is limited, the "planner" inserts a query runner which creates a `ScanQueryLimitRowIterator`, which expects the type to still be `ScanResultValue`. Since it is not, we get a `ClassCastException` and the query fails with a 504 error back to the client.
+
+Note that the exception is quietly consumed, It is not clear if it is reported to the Python client I'm using. Even if it was, not many users might know what `ClassCastException` means or what caused it.
+
+More frustratingly, while the error it not logged in the debug console in Eclipse, the stack trace is not. So, it takes a bit of work to figure out what's wrong.
+
+### Suggestion
+
+Four possible solutions:
+
+* Ignore the `bySegment` flag for a `ScanQuery` with a limit.
+* Issue a user-visible error explaining that the two options are not compatible.
+* Modify the `ScanQueryLimitRowIterator` to know about the `Result` type introduced by `BySegmentQueryRunner`, and to apply limits to that.
+* If a limit iterator for `Result` already exists, have the planner insert that instead of the `ScanQueryLimitRowIterator` if the `bySegment` flag is set. 
+
+### Example
+
+Here is the query sent to Druid, in the form used by `pydruid` (that is, as a Python map):
+
+```python
+{
+    'datasource': 'wikiticker',
+    'columns':["__time", "page", "delta"],
+    'intervals': ["2015-09-12T13:00:00.000Z/2015-09-12T15:00:00.000Z"],
+    'filter': (Dimension('channel') == '#en.wikipedia') & (Dimension('isRobot') == 'false') &
+            Filter(type="regex", dimension="page", pattern="^User talk:D.*"),
+    'limit': 20,
+    'context': {'bySegment': True},
+}
+```
+
+Remove the `context` item and the query runs, retain it and the exception occurs. The filter can be dropped also, it is irrelevant to this particular issue.
+
+### Other Notes
+
+Looking at the code, it is not clear that by-segment is compatible with the scan query. The scan query produces batches of results. By segment combines these batches into a `Result`. It would seem the proper solution would be to first expand all the scan batches into a single big list, then combine them into the `Result` so that `Result` contains a list of rows, not of `ScanResultValue` (each of which contains a list of rows.)
+
+Note also that the current implementation does not scale: it materializes the entire segment results into one `Result` object. If the segment contains 5M rows, then that's the size of this one object. It would seem that the operator should produce `Result`s up to some maximum size, and produce a sequence of `Result`s once that maximum size is reached. For example: allow, say, 1000 values per `Result`. Of course, the consumer of these batched results would have to understand what has happened.
+
+Ignoring the `bySegment` requires a query rewrite to remove it, else the `FinalizeResultsQueryRunner` expects the final results to be in `bySegment` and will fail if they are not.

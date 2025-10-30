@@ -1,0 +1,23 @@
+Add ability to specify target segment granularity in auto-compaction
+### Description
+
+Right now auto-compaction does not include a field for the resulting segmeentGranularity. As a result, any datasource that has 2 different time values for segmentGranularity (say HOUR and DAY) can't use auto-compaction as the process will file with this error:
+
+```
+2021-07-26T14:43:34,896 ERROR [task-runner-0-priority-0] org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner - Exception while running task[AbstractTask{id='coordinator-issued_compact_ee2bab3e-39b2-4891-85be-6fe81bd300e2-npav-ts-metrics-1m_gleiljpb_2021-07-26T14:39:30.648Z', groupId='coordinator-issued_compact_ee2bab3e-39b2-4891-85be-6fe81bd300e2-npav-ts-metrics-1m_gleiljpb_2021-07-26T14:39:30.648Z', taskResource=TaskResource{availabilityGroup='coordinator-issued_compact_ee2bab3e-39b2-4891-85be-6fe81bd300e2-npav-ts-metrics-1m_gleiljpb_2021-07-26T14:39:30.648Z', requiredCapacity=1}, dataSource='ee2bab3e-39b2-4891-85be-6fe81bd300e2-npav-ts-metrics-1m', context={storeCompactionState=true, priority=25, forceTimeChunkLock=true}}]
+org.apache.druid.java.util.common.RE: Index metadata doesn't exist for segment[ee2bab3e-39b2-4891-85be-6fe81bd300e2-npav-ts-metrics-1m_2021-07-22T14:00:00.000Z_2021-07-22T15:00:00.000Z_2021-07-22T14:10:15.025Z]
+	at org.apache.druid.indexing.common.task.CompactionTask.createDataSchema(CompactionTask.java:628) ~[druid-indexing-service-0.21.2-SNAPSHOT.jar:0.21.2-SNAPSHOT]
+	at org.apache.druid.indexing.common.task.CompactionTask.createIngestionSchema(CompactionTask.java:521) ~[druid-indexing-service-0.21.2-SNAPSHOT.jar:0.21.2-SNAPSHOT]
+	at org.apache.druid.indexing.common.task.CompactionTask.runTask(CompactionTask.java:343) ~[druid-indexing-service-0.21.2-SNAPSHOT.jar:0.21.2-SNAPSHOT]
+	at org.apache.druid.indexing.common.task.AbstractBatchIndexTask.run(AbstractBatchIndexTask.java:152) ~[druid-indexing-service-0.21.2-SNAPSHOT.jar:0.21.2-SNAPSHOT]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:451) [druid-indexing-service-0.21.2-SNAPSHOT.jar:0.21.2-SNAPSHOT]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:423) [druid-indexing-service-0.21.2-SNAPSHOT.jar:0.21.2-SNAPSHOT]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_212]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_212]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_212]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_212]
+```
+
+### Motivation
+
+This is useful for situations where a single datasource is being used with 2 different time ranges. You may want to reindex stuff from a particular time period (say change HOUR segments into DAY segments after 1 week has passed).

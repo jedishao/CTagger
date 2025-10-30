@@ -1,0 +1,98 @@
+[Bug] cpp client segmentation fault
+`###` Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+gcc version 4.8.2 20140120 (Red Hat 4.8.2-16) (GCC)
+pulsar cpp client version 2.11
+
+### Minimal reproduce step
+```
+#include <pulsar/Client.h>
+using namespace pulsar;
+using namespace std;
+
+void func() {
+    shared_ptr<string> t = make_shared<string>("");;// when I add this line, this program will core(even this func never been called), after remove this line, this program works fine. use shared_ptr<string>t(new string("")) also works fine
+}
+
+int main(){
+    ReportClient j;
+    shared_ptr<string> t;
+    Client client("pulsar://xxx");
+    Producer producer;
+    Result result = client.createProducer("topic_xxx", producer);
+    if (result != ResultOk) {
+        std::cout << "Error creating producer: " << result << std::endl;
+        return -1;
+    }
+}
+
+
+g++ report_main.cpp  -I../libs/pulsar/include -lpulsar
+
+```
+### What did you expect to see?
+
+works
+
+### What did you see instead?
+```
+Program received signal SIGSEGV, Segmentation fault.
+0x00007ffff5c325f4 in __memcpy_ssse3_back () from /lib64/libc.so.6
+Missing separate debuginfos, use: debuginfo-install glibc-2.17-196.tl2.3.x86_64 libgcc-7.3.1-6.tl2.x86_64 libstdc++-7.3.1-6.tl2.x86_64 zlib-1.2.7-15.el7.x86_64
+(gdb) bt
+#0  0x00007ffff5c325f4 in __memcpy_ssse3_back () from /lib64/libc.so.6
+#1  0x000000000040f247 in std::char_traits<char>::copy (__s1=0x7ffff487d028 "\270\247h", __s2=0x68a538 "\270\247h", __n=6666176)
+    at /usr/lib/gcc/x86_64-redhat-linux/7/../../../../include/c++/7/bits/char_traits.h:350
+#2  0x000000000040fbf5 in std::string::_M_copy (__d=0x7ffff487d028 "\270\247h", __s=0x68a538 "\270\247h", __n=6666176)
+    at /usr/lib/gcc/x86_64-redhat-linux/7/../../../../include/c++/7/bits/basic_string.h:3363
+#3  0x0000000000420c9a in std::string::_M_mutate (this=0x68a530, __pos=0, __len1=0, __len2=0)
+    at /usr/lib/gcc/x86_64-redhat-linux/7/../../../../include/c++/7/bits/basic_string.tcc:934
+#4  0x00007ffff7b24437 in std::string::_M_leak_hard() () from /lib64/libstdc++.so.6
+#5  0x00007ffff7b2451b in std::string::operator[](unsigned long) () from /lib64/libstdc++.so.6
+#6  0x00007ffff6b6584e in pulsar::SharedBuffer::SharedBuffer (this=0x688ec0, size=65536)
+    at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/SharedBuffer.h:221
+#7  0x00007ffff6b652d6 in pulsar::SharedBuffer::allocate (size=65536)
+    at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/SharedBuffer.h:62
+#8  0x00007ffff6b48a18 in pulsar::ClientConnection::ClientConnection (this=0x688e00, 
+    logicalAddress="pulsar://ss-share2-pulsar-discovery-1.tencent-distribute.com:6650,ss-share2-pulsar-discovery-2.tencent-distribute.com:6650,ss-share2-pulsar-discovery-3.tencent-distribute.com:6650", 
+    physicalAddress="pulsar://ss-share2-pulsar-discovery-1.tencent-distribute.com:6650,ss-share2-pulsar-discovery-2.tencent-distribute.com:6650,ss-share2-pulsar-discovery-3.tencent-distribute.com:6650", executor=std::shared_ptr (count 6668440, weak -1) 0x7fffffffdd00, 
+    clientConfiguration=..., authentication=warning: RTTI symbol not found for class 'std::_Sp_counted_ptr<AuthDisabled*, (__gnu_cxx::_Lock_policy)2>'
+warning: RTTI symbol not found for class 'std::_Sp_counted_ptr<AuthDisabled*, (__gnu_cxx::_Lock_policy)2>'
+std::shared_ptr (count 3, weak 0) 0x67afd0)
+    at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/ClientConnection.cc:176
+#9  0x00007ffff6c1dadc in pulsar::ConnectionPool::getConnectionAsync (this=0x687bf0, 
+    logicalAddress="pulsar://ss-share2-pulsar-discovery-1.tencent-distribute.com:6650,ss-share2-pulsar-discovery-2.tencent-distribute.com:6650,ss-share2-pulsar-discovery-3.tencent-distribute.com:6650", 
+    physicalAddress="pulsar://ss-share2-pulsar-discovery-1.tencent-distribute.com:6650,ss-share2-pulsar-discovery-2.tencent-distribute.com:6650,ss-share2-pulsar-discovery-3.tencent-distribute.com:6650")
+    at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/ConnectionPool.cc:94
+#10 0x00007ffff6b2ca2f in pulsar::BinaryProtoLookupService::getPartitionMetadataAsync (this=0x687ef8, topicName=warning: RTTI symbol not found for class 'std::_Sp_counted_ptr<pulsar::TopicName*, (__gnu_cxx::_Lock_policy)2>'
+warning: RTTI symbol not found for class 'std::_Sp_counted_ptr<pulsar::TopicName*, (__gnu_cxx::_Lock_policy)2>'
+
+    std::shared_ptr (count 2, weak 0) 0x688250)
+    at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/BinaryProtoLookupService.cc:76
+#11 0x00007ffff6bc6a24 in pulsar::ClientImpl::createProducerAsync(std::string const&, pulsar::ProducerConfiguration, std::function<void (pulsar::Result, pulsar::Producer)>) (this=0x687ae8, 
+    topic="pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost", conf=..., 
+    callback=...) at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/ClientImpl.cc:171
+#12 0x00007ffff6b3bc5f in pulsar::Client::createProducerAsync(std::string const&, pulsar::ProducerConfiguration, std::function<void (pulsar::Result, pulsar::Producer)>) (this=0x7fffffffe140, 
+    topic="pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost", conf=..., 
+    callback=...) at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/Client.cc:65
+#13 0x00007ffff6b3bab2 in pulsar::Client::createProducer (this=0x7fffffffe140, 
+    topic="pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost", conf=..., 
+    producer=...) at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/Client.cc:53
+#14 0x00007ffff6b3b9fd in pulsar::Client::createProducer (this=0x7fffffffe140, 
+    topic="pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost/pcg_pcgptc8218943_cloudrenderpaascost", 
+---Type <return> to continue, or q <return> to quit---
+    producer=...) at /usr/src/debug/apache-pulsar-2.11.0-SNAPSHOT-src/pulsar-client-cpp/lib/Client.cc:47
+#15 0x000000000040eb9c in main () at test/report_main.cpp:30
+```
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

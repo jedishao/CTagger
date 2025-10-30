@@ -1,0 +1,62 @@
+Needs investigation: channel panic upon shutdown after xds call completes
+```
+zivy@grpc-client-zivy:~/grpc-java/examples/example-xds$ ./build/install/example-xds/bin/xds-hello-world-client "world"     xds:///grpc.weighted.io
+Mar 05, 2021 6:21:45 PM io.grpc.examples.helloworldxds.XdsHelloWorldClient greet
+INFO: Will try to greet world ...
+Mar 05, 2021 6:21:46 PM com.google.auth.oauth2.DefaultCredentialsProvider warnAboutProblematicCredentials
+WARNING: Your application has authenticated using end user credentials from Google Cloud SDK. We recommend that most server applications use service accounts instead. If your application continues to use end user credentials from
+ Cloud SDK, you might receive a "quota exceeded" or "API not enabled" error. For more information about service accounts, see https://cloud.google.com/docs/authentication/.
+Mar 05, 2021 6:21:49 PM io.grpc.examples.helloworldxds.XdsHelloWorldClient greet
+INFO: Greeting: Hello world, from grpc-td-mig-us-central1-zivy-wp1n
+Mar 05, 2021 6:21:49 PM io.grpc.internal.ManagedChannelImpl$2 uncaughtException
+SEVERE: [Channel<1>: (xds:///grpc.weighted.io)] Uncaught exception in the SynchronizationContext. Panic!
+java.lang.IllegalStateException: Channel is being terminated
+        at com.google.common.base.Preconditions.checkState(Preconditions.java:511)
+        at io.grpc.internal.ManagedChannelImpl$LbHelperImpl.createSubchannel(ManagedChannelImpl.java:1423)
+        at io.grpc.internal.ManagedChannelImpl$LbHelperImpl.createSubchannel(ManagedChannelImpl.java:1416)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.xds.ClusterImplLoadBalancer$ClusterImplLbHelper.createSubchannel(ClusterImplLoadBalancer.java:222)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.util.ForwardingLoadBalancerHelper.createSubchannel(ForwardingLoadBalancerHelper.java:45)
+        at io.grpc.services.HealthCheckingLoadBalancerFactory$HelperImpl.createSubchannel(HealthCheckingLoadBalancerFactory.java:117)
+        at io.grpc.util.RoundRobinLoadBalancer.handleResolvedAddresses(RoundRobinLoadBalancer.java:101)
+        at io.grpc.util.ForwardingLoadBalancer.handleResolvedAddresses(ForwardingLoadBalancer.java:46)
+        at io.grpc.services.HealthCheckingLoadBalancerFactory$HealthCheckingLoadBalancer.handleResolvedAddresses(HealthCheckingLoadBalancerFactory.java:189)
+        at io.grpc.util.ForwardingLoadBalancer.handleResolvedAddresses(ForwardingLoadBalancer.java:46)
+        at io.grpc.xds.WeightedTargetLoadBalancer.handleResolvedAddresses(WeightedTargetLoadBalancer.java:88)
+        at io.grpc.xds.ClusterImplLoadBalancer.handleResolvedAddresses(ClusterImplLoadBalancer.java:135)
+        at io.grpc.util.ForwardingLoadBalancer.handleResolvedAddresses(ForwardingLoadBalancer.java:46)
+        at io.grpc.xds.PriorityLoadBalancer$ChildLbState.updateResolvedAddresses(PriorityLoadBalancer.java:268)
+        at io.grpc.xds.PriorityLoadBalancer.tryNextPriority(PriorityLoadBalancer.java:135)
+        at io.grpc.xds.PriorityLoadBalancer.handleResolvedAddresses(PriorityLoadBalancer.java:102)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState.handleEndpointResourceUpdate(ClusterResolverLoadBalancer.java:251)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState.access$1700(ClusterResolverLoadBalancer.java:155)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState$EdsClusterState$1EndpointsUpdated.run(ClusterResolverLoadBalancer.java:427)
+        at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+        at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState$EdsClusterState.onChanged(ClusterResolverLoadBalancer.java:431)
+        at io.grpc.xds.ClientXdsClient$ResourceSubscriber.notifyWatcher(ClientXdsClient.java:1408)
+        at io.grpc.xds.ClientXdsClient$ResourceSubscriber.onData(ClientXdsClient.java:1367)
+        at io.grpc.xds.ClientXdsClient.handleEdsResponse(ClientXdsClient.java:973)
+        at io.grpc.xds.AbstractXdsClient$AbstractAdsStream.handleRpcResponse(AbstractXdsClient.java:501)
+        at io.grpc.xds.AbstractXdsClient$AdsStreamV2$1$1.run(AbstractXdsClient.java:583)
+        at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+        at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+        at io.grpc.xds.AbstractXdsClient$AdsStreamV2$1.onNext(AbstractXdsClient.java:575)
+        at io.grpc.xds.AbstractXdsClient$AdsStreamV2$1.onNext(AbstractXdsClient.java:572)
+        at io.grpc.stub.ClientCalls$StreamObserverToCallListenerAdapter.onMessage(ClientCalls.java:465)
+        at io.grpc.internal.DelayedClientCall$DelayedListener.onMessage(DelayedClientCall.java:447)
+        at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1MessagesAvailable.runInternal(ClientCallImpl.java:652)
+        at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1MessagesAvailable.runInContext(ClientCallImpl.java:637)
+        at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+        at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:123)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+        at java.base/java.lang.Thread.run(Thread.java:834)
+```

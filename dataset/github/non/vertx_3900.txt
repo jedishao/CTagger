@@ -1,0 +1,20 @@
+Vert.x IO threads ending up with null TCCL
+
+### Version
+
+4.0.3
+
+### Context
+We noticed an odd ClassLoading failure when running the MP Rest Client TCK against Resteasy Reactive, on investigation it turned out that the TCCL of the Vert.x thread was null.
+
+### Do you have a reproducer?
+
+If you checkout Quarkus you can uncomment microprofile-rest-client-reactive in tcks/pom.xml and run e.g.
+
+`mvn clean install -Ptcks -pl tcks,tcks/microprofile-rest-client-reactive -Dtest=SslMutualTest`
+
+If you debug and set a breakpoint for ServiceConfigurationError you will see the TCCL is null. If you set `<vertx.disableTCCL>true</vertx.disableTCCL>` the test will pass.
+
+### Extra
+
+The offending code seems to be in io.vertx.core.impl.AbstractContext#endDispatch(), which will null out the TCCL if the previous context is null, instead of returning it to the previous value. 

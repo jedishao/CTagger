@@ -1,0 +1,100 @@
+[Bug] Use TLS connect to PulsarAdmin get error
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.10.1
+
+### Minimal reproduce step
+
+2022-11-03 10:51:12,406 ERROR [https-jsse-nio-127.0.0.1-25914-exec-58][ROOT][PulsarTopicProcessor.java 235] PulsarException in get topic org.apache.pulsar.client.admin.PulsarAdminException$ServerSideErrorException: \n --- An unexpected error occurred in the server ---\n\nMessage: java.lang.IllegalArgumentException: Web service address was not set properly , isBrokerClientTlsEnabled: false, webServiceAddressTls: https://xxxx:xxx, webServiceAddress: null\n\nStacktrace:\n\norg.apache.pulsar.broker.PulsarServerException: java.lang.IllegalArgumentException: Web service address was not set properly , isBrokerClientTlsEnabled: false, webServiceAddressTls: https://xxxx:xxx, webServiceAddress: null\n   at org.apache.pulsar.broker.PulsarService.getAdminClient(PulsarService.java:1462)\n    at org.apache.pulsar.broker.admin.v2.NonPersistentTopics.getList(NonPersistentTopics.java:408)\n      at sun.reflect.GeneratedMethodAccessor73.invoke(Unknown Source)\n        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n      at java.lang.reflect.Method.invoke(Method.java:498)\n  at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory.lambda$static$0(ResourceMethodInvocationHandlerFactory.java:52)\n at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:124)\n       at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:167)\n     at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$VoidOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:159)\n  at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:79)\n    at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:475)\n     at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:397)\n     at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:81)\n       at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:255)\n   at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248)\n       at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244)\n      at org.glassfish.jersey.internal.Errors.process(Errors.java:292)\n      at org.glassfish.jersey.internal.Errors.process(Errors.java:274)\n      at org.glassfish.jersey.internal.Errors.process(Errors.java:244)\n     at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:265)\n       at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:234)\n at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:680)\n at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:394)\n      at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:346)\n   at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:366)\n  at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:319)\n   at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205)\n  at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:799)\n     at org.eclipse.jetty.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1631)\n      at org.apache.pulsar.broker.web.ResponseHandlerFilter.doFilter(ResponseHandlerFilter.java:67)\n at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)\n    at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)\n  at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548)\n at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233)\n at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624)\n at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233)\n at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1434)\n at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188)\n  at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501)\n  at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594)\n at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186)\n   at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1349)\n at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141)\n      at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:234)\n       at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:146)\n      at org.eclipse.jetty.server.handler.StatisticsHandler.handle(StatisticsHandler.java:179)\n     at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127)\n    at org.eclipse.jetty.server.Server.handle(Server.java:516)\n   at org.eclipse.jetty.server.HttpChannel.lambda$handle$1(HttpChannel.java:400)\n at org.eclipse.jetty.server.HttpChannel.dispatch(HttpChannel.java:645)\n       at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:392)\n  at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:277)\n        at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:311)\n       at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)\n  at org.eclipse.jetty.io.ssl.SslConnection$DecryptedEndPoint.onFillable(SslConnection.java:555)\n       at org.eclipse.jetty.io.ssl.SslConnection.onFillable(SslConnection.java:410)\n  at org.eclipse.jetty.io.ssl.SslConnection$2.succeeded(SslConnection.java:164)\n        at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)\n  at org.eclipse.jetty.io.ChannelEndPoint$1.run(ChannelEndPoint.java:104)\n      at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.runTask(EatWhatYouKill.java:338)\n     at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.doProduce(EatWhatYouKill.java:315)\n  at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.tryProduce(EatWhatYouKill.java:173)\n  at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.run(EatWhatYouKill.java:131)\n        at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:409)\n   at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)\n   at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)\n    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)\n     at java.lang.Thread.run(Thread.java:750)\nCaused by: java.lang.IllegalArgumentException: Web service address was not set properly , isBrokerClientTlsEnabled: false, webServiceAddressTls: https://10.90.149.110:21851, webServiceAddress: null\n      at org.apache.pulsar.broker.PulsarService.getAdminClient(PulsarService.java:1426)\n    ... 67 more\n
+        at org.apache.pulsar.client.admin.internal.BaseResource.getApiException(BaseResource.java:223)
+        at org.apache.pulsar.client.admin.internal.TopicsImpl$2.failed(TopicsImpl.java:204)
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.JerseyInvocation$1.failed(JerseyInvocation.java:882)
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.JerseyInvocation$1.completed(JerseyInvocation.java:863)
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.ClientRuntime.processResponse(ClientRuntime.java:229)
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.ClientRuntime.access$200(ClientRuntime.java:62)
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.ClientRuntime$2.lambda$response$0(ClientRuntime.java:173)
+        at org.apache.pulsar.shade.org.glassfish.jersey.internal.Errors$1.call(Errors.java:248)
+        at org.apache.pulsar.shade.org.glassfish.jersey.internal.Errors$1.call(Errors.java:244)
+        at org.apache.pulsar.shade.org.glassfish.jersey.internal.Errors.process(Errors.java:292)
+        at org.apache.pulsar.shade.org.glassfish.jersey.internal.Errors.process(Errors.java:274)
+        at org.apache.pulsar.shade.org.glassfish.jersey.internal.Errors.process(Errors.java:244)
+        at org.apache.pulsar.shade.org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:288)
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.ClientRuntime$2.response(ClientRuntime.java:173)
+        at org.apache.pulsar.client.admin.internal.http.AsyncHttpConnector.lambda$apply$1(AsyncHttpConnector.java:242)
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774)
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750)
+        at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488)
+        at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:1975)
+        at org.apache.pulsar.client.admin.internal.http.AsyncHttpConnector.lambda$retryOperation$4(AsyncHttpConnector.java:284)
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774)
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750)
+        at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488)
+        at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:1975)
+        at org.apache.pulsar.shade.org.asynchttpclient.netty.NettyResponseFuture.loadContent(NettyResponseFuture.java:222)
+        at org.apache.pulsar.shade.org.asynchttpclient.netty.NettyResponseFuture.done(NettyResponseFuture.java:257)
+        at org.apache.pulsar.shade.org.asynchttpclient.netty.handler.AsyncHttpClientHandler.finishUpdate(AsyncHttpClientHandler.java:241)
+        at org.apache.pulsar.shade.org.asynchttpclient.netty.handler.HttpHandler.handleChunk(HttpHandler.java:114)
+        at org.apache.pulsar.shade.org.asynchttpclient.netty.handler.HttpHandler.handleRead(HttpHandler.java:143)
+        at org.apache.pulsar.shade.org.asynchttpclient.netty.handler.AsyncHttpClientHandler.channelRead(AsyncHttpClientHandler.java:78)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at org.apache.pulsar.shade.io.netty.handler.codec.MessageToMessageDecoder.channelRead(MessageToMessageDecoder.java:103)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at org.apache.pulsar.shade.io.netty.channel.CombinedChannelDuplexHandler$DelegatingChannelHandlerContext.fireChannelRead(CombinedChannelDuplexHandler.java:436)
+        at org.apache.pulsar.shade.io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:327)
+        at org.apache.pulsar.shade.io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:299)
+        at org.apache.pulsar.shade.io.netty.channel.CombinedChannelDuplexHandler.channelRead(CombinedChannelDuplexHandler.java:251)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at org.apache.pulsar.shade.io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1372)
+        at org.apache.pulsar.shade.io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1235)
+        at org.apache.pulsar.shade.io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1284)
+        at org.apache.pulsar.shade.io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:510)
+        at org.apache.pulsar.shade.io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:449)
+        at org.apache.pulsar.shade.io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:279)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at org.apache.pulsar.shade.io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at org.apache.pulsar.shade.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at org.apache.pulsar.shade.io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+        at org.apache.pulsar.shade.io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+        at org.apache.pulsar.shade.io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:722)
+        at org.apache.pulsar.shade.io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658)
+        at org.apache.pulsar.shade.io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584)
+        at org.apache.pulsar.shade.io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496)
+        at org.apache.pulsar.shade.io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:995)
+        at org.apache.pulsar.shade.io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at org.apache.pulsar.shade.io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(Thread.java:750)
+Caused by: org.apache.pulsar.shade.javax.ws.rs.InternalServerErrorException: HTTP 500 java.lang.IllegalArgumentException: Web service address was not set properly , isBrokerClientTlsEnabled: false, webServiceAddressTls: https://xxxx:xxx, webServiceAddress: null
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.JerseyInvocation.convertToException(JerseyInvocation.java:960)
+        at org.apache.pulsar.shade.org.glassfish.jersey.client.JerseyInvocation.access$700(JerseyInvocation.java:82)
+        ... 63 more
+
+
+### What did you expect to see?
+
+HTTP 500 java.lang.IllegalArgumentException
+
+### What did you see instead?
+
+Is there any other parameter setting TLS?
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

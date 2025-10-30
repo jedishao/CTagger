@@ -1,0 +1,13 @@
+PendingTaskBasedWorkerProvisioningStrategy does not scale nodes up if there are no workers
+### Description
+
+I configured the Druid Coordinator nodes to use the `PendingTaskBasedWorkerProvisioningStrategy` (`"pendingTask"` in the config) as the Auto Scaler's provisioning strategy. When the number of workers is 0 (`minNumWorkers` of 0) the autoscaler seems to never attempts to add more instances.
+
+Based on this [comment](https://github.com/apache/druid/blob/753bce324bdf8c7c5b2b602f89c720749bfa6e22/indexing-service/src/main/java/org/apache/druid/indexing/overlord/autoscaling/PendingTaskBasedWorkerProvisioningStrategy.java#L249) in the code it seems like this might be the intended behavior currently. If so would it be possible to change it so that it at least brings 1 node up so it begin executing the task and get an idea of what capacity looks like with a single worker running? If its intended and is not going to be changed, documenting this limitation either in comments or adding information about this provisioning strategy to the docs would probably be good.
+
+### Motivation
+
+There are two reasons I'm suggesting this change:
+- The simple provisioning strategy currently will scale ins if there are no workers, and it would be good to have this behavior be consistent.
+- The `PendingTaskBasedWorkerProvisioningStrategy` will terminate nodes in bulk (whereas the simple strategy scales in nodes 1 at time), for batch ingestion work loads with long times in between ingestion, its more beneficial from a time and money stand point to able to scale in faster when the work is done.
+

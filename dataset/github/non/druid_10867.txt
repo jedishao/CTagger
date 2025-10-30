@@ -1,0 +1,101 @@
+Ingestion task fails with java.nio.channels.ClosedByInterruptException: null
+### Affected Version
+
+0.20.0
+
+### Description
+
+We've seen tasks failing randomly. Didn't managed to get a pattern or cause, so I'm thinking might be some sort of bug.
+Cluster size: 27 Dataservers (Middlemanager + Historical), 2 Brokers, 2 Routers, 2 Overlords, 2 Coordinator, 3 Zookeeper (in dedicated hosts).
+Might or might not be related with the other issue I created #10866 
+
+Failure log:
+```
+2021-02-08T18:32:17,487 INFO [task-runner-0-priority-0] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/segments/druid-dataserver-8:8103_indexer-executor__default_tier_2021-02-08T14:26:18.432Z_7327df2e309f4740acae7d41c5a365a50]
+2021-02-08T18:32:17,600 WARN [[index_kafka_ssp-events-hourly_8634a3382846e76_bnnomidg]-appenderator-merge] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Failed to push merged index for segment[ssp-events-hourly_2021-02-08T17:00:00.000Z_2021-02-08T18:00:00.000Z_2021-02-08T17:24:56.150Z_143].
+java.nio.channels.ClosedByInterruptException: null
+	at java.nio.channels.spi.AbstractInterruptibleChannel.end(AbstractInterruptibleChannel.java:202) ~[?:1.8.0_275]
+	at sun.nio.ch.FileChannelImpl.write(FileChannelImpl.java:216) ~[?:1.8.0_275]
+	at org.apache.druid.io.Channels.writeFully(Channels.java:32) ~[druid-core-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.writeout.FileWriteOutBytes.flush(FileWriteOutBytes.java:62) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.writeout.FileWriteOutBytes.flushIfNeeded(FileWriteOutBytes.java:54) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.writeout.FileWriteOutBytes.write(FileWriteOutBytes.java:86) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.data.GenericIndexedWriter$1.writeTo(GenericIndexedWriter.java:123) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.data.GenericIndexedWriter$1.writeTo(GenericIndexedWriter.java:96) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.data.GenericIndexedWriter.write(GenericIndexedWriter.java:237) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.data.BlockLayoutColumnarDoublesSerializer.add(BlockLayoutColumnarDoublesSerializer.java:95) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.DoubleColumnSerializer.serialize(DoubleColumnSerializer.java:83) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.IndexMergerV9.mergeIndexesAndWriteColumns(IndexMergerV9.java:573) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.IndexMergerV9.makeIndexFiles(IndexMergerV9.java:267) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.IndexMergerV9.merge(IndexMergerV9.java:999) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.IndexMergerV9.mergeQueryableIndex(IndexMergerV9.java:917) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.IndexMergerV9.mergeQueryableIndex(IndexMergerV9.java:895) ~[druid-processing-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.mergeAndPush(AppenderatorImpl.java:769) ~[druid-server-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.lambda$push$1(AppenderatorImpl.java:660) ~[druid-server-0.20.0.jar:0.20.0]
+	at com.google.common.util.concurrent.Futures$1.apply(Futures.java:713) [guava-16.0.1.jar:?]
+	at com.google.common.util.concurrent.Futures$ChainingListenableFuture.run(Futures.java:861) [guava-16.0.1.jar:?]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_275]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_275]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_275]
+2021-02-08T18:32:17,743 ERROR [[index_kafka_ssp-events-hourly_8634a3382846e76_bnnomidg]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Incremental persist failed: {class=org.apache.druid.segment.realtime.appenderator.AppenderatorImpl, segment=ssp-events-hourly_2021-02-08T17:00:00.000Z_2021-02-08T18:00:00.000Z_2021-02-08T17:24:56.150Z_194, dataSource=ssp-events-hourly, count=0}
+2021-02-08T18:32:17,745 ERROR [[index_kafka_ssp-events-hourly_8634a3382846e76_bnnomidg]-appenderator-persist] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Persist failed, dying
+2021-02-08T18:32:17,760 INFO [task-runner-0-priority-0] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/internal-discovery/PEON/druid-dataserver-8:8103]
+2021-02-08T18:32:17,772 INFO [task-runner-0-priority-0] org.apache.druid.curator.discovery.CuratorDruidNodeAnnouncer - Unannounced self [{"druidNode":{"service":"druid/middleManager","host":"druid-dataserver-8","bindOnHost":false,"plaintextPort":8103,"port":-1,"tlsPort":-1,"enablePlaintextPort":true,"enableTlsPort":false},"nodeType":"peon","services":{"dataNodeService":{"type":"dataNodeService","tier":"_default_tier","maxSize":0,"type":"indexer-executor","priority":0},"lookupNodeService":{"type":"lookupNodeService","lookupTier":"__default"}}}].
+2021-02-08T18:32:17,772 INFO [task-runner-0-priority-0] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/announcements/druid-dataserver-8:8103]
+2021-02-08T18:32:17,782 ERROR [task-runner-0-priority-0] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Encountered exception while running task.
+java.lang.RuntimeException: java.util.concurrent.RejectedExecutionException: Got Interrupted while adding to the Queue
+	at org.apache.druid.segment.realtime.appenderator.StreamAppenderatorDriver.persist(StreamAppenderatorDriver.java:239) ~[druid-server-0.20.0.jar:0.20.0]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.runInternal(SeekableStreamIndexTaskRunner.java:756) ~[druid-indexing-service-0.20.0.jar:0.20.0]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.run(SeekableStreamIndexTaskRunner.java:267) [druid-indexing-service-0.20.0.jar:0.20.0]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask.run(SeekableStreamIndexTask.java:145) [druid-indexing-service-0.20.0.jar:0.20.0]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:451) [druid-indexing-service-0.20.0.jar:0.20.0]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:423) [druid-indexing-service-0.20.0.jar:0.20.0]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_275]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_275]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_275]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_275]
+Caused by: java.util.concurrent.RejectedExecutionException: Got Interrupted while adding to the Queue
+	at org.apache.druid.java.util.common.concurrent.Execs$1.rejectedExecution(Execs.java:152) ~[druid-core-0.20.0.jar:0.20.0]
+	at java.util.concurrent.ThreadPoolExecutor.reject(ThreadPoolExecutor.java:830) ~[?:1.8.0_275]
+	at java.util.concurrent.ThreadPoolExecutor.execute(ThreadPoolExecutor.java:1379) ~[?:1.8.0_275]
+	at com.google.common.util.concurrent.MoreExecutors$ListeningDecorator.execute(MoreExecutors.java:484) ~[guava-16.0.1.jar:?]
+	at java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:134) ~[?:1.8.0_275]
+	at com.google.common.util.concurrent.AbstractListeningExecutorService.submit(AbstractListeningExecutorService.java:58) ~[guava-16.0.1.jar:?]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.persistAll(AppenderatorImpl.java:539) ~[druid-server-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.realtime.appenderator.StreamAppenderatorDriver.persist(StreamAppenderatorDriver.java:231) ~[druid-server-0.20.0.jar:0.20.0]
+	... 9 more
+Caused by: java.lang.InterruptedException
+	at java.util.concurrent.SynchronousQueue.put(SynchronousQueue.java:879) ~[?:1.8.0_275]
+	at org.apache.druid.java.util.common.concurrent.Execs$1.rejectedExecution(Execs.java:149) ~[druid-core-0.20.0.jar:0.20.0]
+	at java.util.concurrent.ThreadPoolExecutor.reject(ThreadPoolExecutor.java:830) ~[?:1.8.0_275]
+	at java.util.concurrent.ThreadPoolExecutor.execute(ThreadPoolExecutor.java:1379) ~[?:1.8.0_275]
+	at com.google.common.util.concurrent.MoreExecutors$ListeningDecorator.execute(MoreExecutors.java:484) ~[guava-16.0.1.jar:?]
+	at java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:134) ~[?:1.8.0_275]
+	at com.google.common.util.concurrent.AbstractListeningExecutorService.submit(AbstractListeningExecutorService.java:58) ~[guava-16.0.1.jar:?]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.persistAll(AppenderatorImpl.java:539) ~[druid-server-0.20.0.jar:0.20.0]
+	at org.apache.druid.segment.realtime.appenderator.StreamAppenderatorDriver.persist(StreamAppenderatorDriver.java:231) ~[druid-server-0.20.0.jar:0.20.0]
+	... 9 more
+2021-02-08T18:32:17,801 INFO [parent-monitor-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Triggering JVM shutdown.
+2021-02-08T18:32:17,839 INFO [Thread-60] org.apache.druid.cli.CliPeon - Running shutdown hook
+2021-02-08T18:32:17,840 INFO [Thread-60] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [ANNOUNCEMENTS]
+2021-02-08T18:32:17,841 INFO [Thread-60] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [SERVER]
+2021-02-08T18:32:17,854 INFO [task-runner-0-priority-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Task completed with status: {
+  "id" : "index_kafka_ssp-events-hourly_8634a3382846e76_bnnomidg",
+  "status" : "FAILED",
+  "duration" : 14763329,
+  "errorMsg" : "java.lang.RuntimeException: java.util.concurrent.RejectedExecutionException: Got Interrupted while a...",
+  "location" : {
+    "host" : null,
+    "port" : -1,
+    "tlsPort" : -1
+  }
+}
+2021-02-08T18:32:17,863 INFO [main] org.apache.druid.cli.CliPeon - Thread [Thread[Thread-60,5,main]] is non daemon.
+2021-02-08T18:32:17,863 INFO [main] org.apache.druid.java.util.common.lifecycle.Lifecycle - Lifecycle [module] already stopped and stop was called. Silently skipping
+Cannot remove shutdown hook, already shutting down!
+Finished peon task
+2021-02-08T18:32:18,709 WARN [MonitorScheduler-0] org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor - [712] events thrown away. Possible causes: null events, events filtered out by transformSpec, or events outside earlyMessageRejectionPeriod / lateMessageRejectionPeriod.
+2021-02-08T18:32:47,938 INFO [Thread-60] org.eclipse.jetty.server.AbstractConnector - Stopped ServerConnector@1e5b33e5{HTTP/1.1, (http/1.1)}{0.0.0.0:8103}
+2021-02-08T18:32:47,939 INFO [Thread-60] org.eclipse.jetty.server.session - node0 Stopped scavenging
+2021-02-08T18:32:47,952 INFO [Thread-60] org.eclipse.jetty.server.handler.ContextHandler - Stopped o.e.j.s.ServletContextHandler@79e2606f{/,null,UNAVAILABLE}
+```

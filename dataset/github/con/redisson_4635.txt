@@ -1,0 +1,61 @@
+Scala Application is Getting in to Threadlocked, when calling redis get Key By Pattern 
+**Redisson version 3.9.1**, scala 2.11.8
+
+I have a code which is calling **redis get Key By Pattern** and on production environment it is getting stuck badely. The code is scala and spark. following are some sample thread traces
+
+STATE of both below thread is WAITING which means by definition A thread that is waiting indefinitely for another thread to perform a particular action is in this state
+
+```
+sun.misc.Unsafe.park(Native Method)
+java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:997)
+java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1304)
+java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)
+org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:182)
+org.redisson.RedissonKeys$2.iterator(RedissonKeys.java:127)
+org.redisson.RedissonKeys$2.iterator(RedissonKeys.java:123)
+org.redisson.BaseIterator.hasNext(BaseIterator.java:54)
+org.redisson.misc.CompositeIterator.hasNext(CompositeIterator.java:39)
+scala.collection.convert.Wrappers$JIteratorWrapper.hasNext(Wrappers.scala:42)
+scala.collection.Iterator$class.foreach(Iterator.scala:893)
+scala.collection.AbstractIterator.foreach(Iterator.scala:1336)
+scala.collection.IterableLike$class.foreach(IterableLike.scala:72)
+scala.collection.AbstractIterable.foreach(Iterable.scala:54)
+scala.collection.TraversableLike$class.filterImpl(TraversableLike.scala:247)
+scala.collection.TraversableLike$class.filterNot(TraversableLike.scala:267)
+scala.collection.AbstractTraversable.filterNot(Traversable.scala:104)
+```
+
+```
+java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:997)
+java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1304)
+java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)
+org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:182)
+org.redisson.RedissonKeys$2.iterator(RedissonKeys.java:127)
+org.redisson.RedissonKeys$2.iterator(RedissonKeys.java:123)
+org.redisson.BaseIterator.hasNext(BaseIterator.java:54)
+org.redisson.misc.CompositeIterator.hasNext(CompositeIterator.java:39)
+scala.collection.convert.Wrappers$JIteratorWrapper.hasNext(Wrappers.scala:42)
+scala.collection.Iterator$class.foreach(Iterator.scala:893)
+scala.collection.AbstractIterator.foreach(Iterator.scala:1336)
+scala.collection.IterableLike$class.foreach(IterableLike.scala:72)
+scala.collection.AbstractIterable.foreach(Iterable.scala:54)
+scala.collection.TraversableLike$class.filterImpl(TraversableLike.scala:247)
+scala.collection.TraversableLike$class.filterNot(TraversableLike.scala:267)
+scala.collection.AbstractTraversable.filterNot(Traversable.scala:104)
+com.mycomosi.eaa.common.infrastructure.topology.store.TopologyStoreEntityService$$anonfun$getTopologyInstanceIdsExcludingVersion$1$$anonfun$apply$7.apply(TopologyStoreEntityService.scala:73)
+com.mycomosi.eaa.common.infrastructure.topology.store.TopologyStoreEntityService$$anonfun$getTopologyInstanceIdsExcludingVersion$1$$anonfun$apply$7.apply(TopologyStoreEntityService.scala:70)
+```
+
+This is invoked from a Retry object which keep retrying for results for a given timeout on Await.result invocation in scala. Also when I run the query directly on redis master node, it get's results in 2-3 seconds but from redission library this is not getting completed even in 90 minutes. 
+
+Also when I restart my application number of times even then these threads are not resolving and getting un-lock and I am observing thread-dump as shown above. 
+
+Another observation have is that following configuration is also not coming effective:
+
+`{"sentinelServersConfig":{"idleConnectionTimeout":10000,"pingTimeout":1000,"connectTimeout":1200000,"timeout":1200000,"retryAttempts":60,"retryInterval":1500,"subscriptionsPerConnection":5,"sslEnableEndpointIdentification":true,"sslProvider":"JDK","pingConnectionInterval":0,"keepAlive":false,"tcpNoDelay":false,"loadBalancer":{"class":"org.redisson.connection.balancer.RoundRobinLoadBalancer"},"slaveConnectionMinimumIdleSize":8,"slaveConnectionPoolSize":8,"failedSlaveReconnectionInterval":3000,"failedSlaveCheckInterval":60000,"masterConnectionMinimumIdleSize":8,"masterConnectionPoolSize":8,"readMode":"MASTER","subscriptionMode":"MASTER","subscriptionConnectionMinimumIdleSize":1,"subscriptionConnectionPoolSize":5,"dnsMonitoringInterval":5000,"sentinelAddresses":["redis://eaa-platform-redis-app-sentinel-0:26379","redis://eaa-platform-redis-app-sentinel-1:26379","redis://eaa-platform-redis-app-sentinel-2:26379"],"masterName":"mymaster","database":8,"scanInterval":1000,"slaveSubscriptionConnectionPoolSize":5,"slaveSubscriptionConnectionMinimumIdleSize":1},"threads":2,"nettyThreads":32,"codec":{"class":"org.redisson.codec.SmileJacksonCodec"},"referenceCodecProvider":{"class":"org.redisson.codec.DefaultReferenceCodecProvider"},"referenceEnabled":true,"transportMode":"NIO","lockWatchdogTimeout":30000,"keepPubSubOrder":true,"useScriptCache":false,"addressResolverGroupFactory":{"class":"org.redisson.connection.DnsAddressResolverGroupFactory"},"useLinuxNativeEpoll":false}`
+
+Really appreciate for any guidance on this as I am new to Redis and Redission world both.

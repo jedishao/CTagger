@@ -1,0 +1,27 @@
+Redisson-Hibernate: Does not respect prefix for redisson-hibernate-timestamp
+Disclaimer: Willing to contribute on this - just want to clarify whether it is really a bug.
+
+Possible issue: To me it seems that redisson-hibernate is not respecting the prefix of the RedissonClient for its internal redisson-hibernate-timestamp entry.
+
+Versions used:
+
+Hibernate: 5.6.11.Final
+Redisson: org.redisson:redisson-hibernate-53:3.19.0
+
+Steps to reproduce:
+1. Apply a nameMapper via one of the `setNameMapper` method on the respective config (`e.g. redissonConfig.useClusterServers().setNameMapper()`)
+2. Do something that results in an entry in the hibernate cache
+
+Observed behavior:
+* Cached Entry has the correct prefix created by mapper
+* The `redisson-hibernate-timestamp` is not prefixed
+
+Expected behavior:
+* Cached Entry has the correct prefix created by the mapper
+* The `redisson-hibernate-timestamp` is having a prefix e.g. "my-prefix-redisson-hibernate-timestamp".
+
+
+I have seen that in the newer versions it would have been easier to fix on the Application side since the `RedissonClient` inside `RedissonRegionFactory` is not private anymore which makes extending and just overriding that method possible.
+
+Still I was wondering if that is a shortcoming of Redisson Hibernate to not respect the prefix for storing the redisson-hibernate-timestamp?
+

@@ -1,0 +1,26 @@
+Optimization to /druid/indexer/v1/supervisor/{id}/history implementation
+### Description
+
+Today when accessing /druid/indexer/v1/supervisor/{id}/history (implementation in SupervisorResource.java, specGetHistory), then actually a  SQL query is made that returns all the histories of all datasrouces.
+Then the code checks the returned map to see if there's a history for the ID requested, and returns it to caller.
+
+I wish to change the implementation so that SupervisorManager and SQLMetadataSupervisorManager would have a method which returns the history only for the requested ID.
+This would be done by generating a more exact SQL query, that would filter by the id requested.
+No change of the public APIs is needed.
+
+I intend to do the change myself, but I'll be happy to get input from experienced Druid developers.
+Any comments from the community about the motivation and the proposed implementation would be appreciated.
+
+### Motivation
+
+On a Druid deployment with tens/hundreds of datasources, fetching the history of a single datasource causes significant strain on the DB and on Druid, and results in slow response time.
+We're seeing response times of almost 2 seconds on one of our production clusters to fetch a history of any datasource, even if very small.
+
+### Proposed code change overview
+
+In SQLMetadataSupervisorManager there's quite a lot of boilerplate in handling the response from the DB in getAll(), so I'm not sure if it is a good idea to replicate all the lines there, just to create a new method that would be pretty similar, except for an additional WHERE statement in the SQL.
+
+What I thought can be done is to have a new private method get(Optional<String> id), that would contain all the code that is today in getAll(). This new private method would add the WHERE clause depending on the parameter it got, and will return a Map, just like getAll() today.
+The getAll() will be reduced to a single line, to call get(Optioanl.empty()) and return the value.
+A new public method of getSpecific(String id) would be added, that returns a nullable/optional List<VersionedSupervisorSpec>, and it would call get(Optional.of(id)), and see if the returned map contains the id requested.
+

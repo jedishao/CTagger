@@ -1,0 +1,342 @@
+io.grpc.StatusRuntimeException: INTERNAL: No value received for unary call
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+**io.grpc.StatusRuntimeException: INTERNAL: No value received for unary call** 
+I'm getting this Exception message from my grpc unary call  while running my signed apk  .
+I get this RunTime Exception Only when I Get a Release Version and not on debug mode please help me out I'm really getting frustrated: 
+
+here is my build.gradle (module):
+```
+apply plugin: 'com.android.application'
+apply plugin: 'com.google.protobuf'
+//TODO KOTLIN
+
+android {
+    compileSdkVersion 29
+    buildToolsVersion "30.0.3"
+    defaultConfig {
+        
+        minSdkVersion 19
+        targetSdkVersion 29
+        versionCode 97
+        versionName "2.2.6.7"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        multiDexEnabled true
+        sourceSets {
+            main {
+                proto {
+                    srcDir 'src/main/protos'
+                }
+            }
+        }
+    }
+    buildTypes {
+        debug {
+           // useProguard true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+
+        }
+
+            release {
+                minifyEnabled false
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                lintOptions {
+                    abortOnError false
+                    disable 'MissingTranslation'
+                }
+            }
+
+    }
+    dataBinding {
+        //noinspection DataBindingWithoutKapt
+        enabled = true;
+    }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
+
+    compileOptions {
+
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+
+}
+
+protobuf {
+    protoc { artifact = 'com.google.protobuf:protoc:4.0.0-rc-2' }
+    plugins {
+
+        grpc { artifact = 'io.grpc:protoc-gen-grpc-java:1.43.1'
+        }
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+                java { option 'lite' }
+            }
+            task.plugins {
+                grpc {
+                    option 'lite'
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+
+
+ 
+
+
+  
+
+    // ramotion , animation open cell
+    implementation 'com.ramotion.foldingcell:folding-cell:1.2.3'
+
+    // time piker persian
+    implementation 'com.mohamadamin:persianmaterialdatetimepicker:1.2.1'
+
+    // shine button animation
+    implementation 'com.sackcentury:shinebutton:1.0.0'
+
+    // navigation tab bar
+    implementation 'devlight.io:navigationtabbar:1.2.5'
+
+    // swipe layout
+    implementation 'com.daimajia.swipelayout:library:1.2.0'
+
+    // fab
+    implementation 'com.github.clans:fab:1.6.4'
+
+    // search bar
+    implementation 'com.miguelcatalan:materialsearchview:1.4.0'
+
+    // guid for app
+    implementation 'uk.co.samuelwall:material-tap-target-prompt:2.14.0'
+
+    // chart
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    // Sliding Up Panel
+    implementation 'com.sothree.slidinguppanel:library:3.4.0'
+
+    // barcode scanner
+    implementation 'me.dm7.barcodescanner:zxing:1.9.13'
+
+    // lib in app
+    implementation(name: 'RootTools', ext: 'aar')
+    implementation(name: 'RootShell', ext: 'aar')
+    implementation files('libs/achartengine-1.2.0.jar')
+    implementation files('libs/bixolon_printer_V132.jar')
+    implementation files('libs/jpos121-controls.jar')
+    implementation files('libs/xerces.jar')
+    implementation files('libs/urovo_sdk_v2.3.706.jar')
+    implementation 'androidx.ads:ads-identifier:1.0.0-alpha04'
+    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+
+
+
+    //problem in permissions
+    implementation 'androidx.preference:preference:1.1.1'
+
+    //Picasso
+    implementation 'com.squareup.picasso:picasso:2.71828'
+
+
+    //Glide
+
+    implementation("com.github.bumptech.glide:glide:4.9.0") {
+        exclude group: 'androidx.vectordrawable', module: 'vectordrawable-animated'
+    }
+
+
+
+
+
+
+
+
+
+
+    //rxjava2_retrofit
+    implementation "com.jakewharton.retrofit:retrofit2-rxjava2-adapter:1.0.0"
+
+    //rxjava_rxandroid
+    implementation 'io.reactivex.rxjava2:rxjava:2.1.9'
+    implementation 'io.reactivex.rxjava2:rxandroid:2.0.1'
+
+
+    //rxLifeCycle
+    implementation 'com.uber.autodispose:autodispose:1.1.0'
+    implementation 'com.uber.autodispose:autodispose-android-archcomponents:1.1.0'
+
+
+
+    implementation 'com.github.afshin1394:central_exception_handler:1.0.5'
+
+
+
+    //Grpc
+    implementation 'io.grpc:grpc-okhttp:1.43.1'
+    implementation 'io.grpc:grpc-protobuf-lite:1.43.1'
+    implementation 'io.grpc:grpc-stub:1.43.1'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53' // necessary for Java 9+
+
+
+
+
+}
+```
+
+and my build.gradle(project):
+```
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    repositories {
+        google()
+        jcenter()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://maven.google.com' }
+        flatDir {
+            dirs 'libs'
+        }
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.0.4'
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.17'
+//        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.6.0'
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        jcenter()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://maven.google.com' }
+        flatDir {
+            dirs 'libs'
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
+```
+
+here is one of my protobuf files:
+```
+syntax = "proto3";
+
+option java_package = "com.saphamrah";
+option java_outer_classname = "AccountTypeProto";
+
+package Amargar;
+
+service AccountType{
+  rpc GetAccountType(AccountTypeRequest) returns(AccountTypeReplyList);
+}
+
+message AccountTypeRequest{
+
+}
+
+message AccountTypeReply{
+  int32	AccountTypeID = 1;
+  string	AccountTypeName = 2;
+}
+
+message AccountTypeReplyList{
+  repeated AccountTypeReply AccountTypeReplys = 1;
+}
+```
+
+
+and this is how I create my unary calls:
+
+
+``` public void fetchNoeHesabGrpc(final Context context, final String activityNameForLog, final Response response)
+    {
+        try {
+            ServerIpModel serverIpModel = new PubFunc().new NetworkUtils().getServerFromShared(context);
+      
+            serverIpModel.setPort("5000");
+
+            if (serverIpModel.getServerIp().trim().equals("") || serverIpModel.getPort().trim().equals("")) {
+                String message = "can't find server";
+                PubFunc.Logger logger = new PubFunc().new Logger();
+                logger.insertLogToDB(context, Constants.LOG_EXCEPTION(), message, NoeHesabDAO.class.getSimpleName(), activityNameForLog, "fetchNoeHesabGrpc", "");
+                retrofitResponse.onFailed(Constants.HTTP_EXCEPTION(), message);
+            } else {
+
+                CompositeDisposable compositeDisposable = new CompositeDisposable();
+                ManagedChannel managedChannel = GrpcChannel.channel(serverIpModel);
+                AccountTypeGrpc.AccountTypeBlockingStub accountTypeBlockingStub = AccountTypeGrpc.newBlockingStub(managedChannel);
+                AccountTypeProto.AccountTypeRequest accountTypeRequest = AccountTypeProto.AccountTypeRequest.newBuilder().build();
+                Callable<AccountTypeProto.AccountTypeReplyList> accountTypeReplyListCallable = () -> accountTypeBlockingStub.getAccountType(accountTypeRequest);
+                RxAsync.makeObservable(accountTypeReplyListCallable)
+                        .map(accountTypeReplyList ->  {
+                            ArrayList<NoeHesabModel> models = new ArrayList<>();
+                            for (AccountTypeProto.AccountTypeReply reply : accountTypeReplyList.getAccountTypeReplysList()) {
+                                NoeHesabModel model = new NoeHesabModel();
+
+                                model.setCcNoeHesab(reply.getAccountTypeID());
+                                model.setNameNoeHesab(reply.getAccountTypeName());
+
+                            }
+                            return models;
+                        })
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(new Observer<ArrayList<NoeHesabModel>>() {
+                            @Override
+                            public void onSubscribe(@NonNull Disposable d) {
+                                compositeDisposable.add(d);
+                            }
+
+                            @Override
+                            public void onNext(@NonNull ArrayList<NoeHesabModel> noeHesabModels) {
+                                response.onSuccess(noeHesabModels);
+                            }
+
+                            @Override
+                            public void onError(@NonNull Throwable e) {
+                                response.onFailed(Constants.HTTP_EXCEPTION(), e.getMessage());
+                            }
+
+                            @Override
+                            public void onComplete() {
+                                if (!compositeDisposable.isDisposed()) {
+                                    compositeDisposable.dispose();
+                                }
+                                compositeDisposable.clear();
+                            }
+                        });
+
+            }
+        }catch (Exception exception){
+            PubFunc.Logger logger = new PubFunc().new Logger();
+            logger.insertLogToDB(context, Constants.LOG_EXCEPTION(), exception.getMessage(), NoeHesabDAO.class.getSimpleName(), activityNameForLog, "fetchNoeHesabGrpc", "");
+            retrofitResponse.onFailed(Constants.HTTP_EXCEPTION(), exception.getMessage());
+        }
+    }
+```
+
+thanks for your help

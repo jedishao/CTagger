@@ -1,0 +1,38 @@
+Inconsistency in secondary column vaule selector behaviour between tests and real use
+### Affected Version
+
+0.20.0
+
+### Description
+
+I have set up an aggregator extension which deals with two row values at a time in order to aggregate. It uses a collector object with the following `aggregate` method, based on pre-existing aggregators that use complex collector objects.
+
+```java
+private final ColumnValueSelector baseSelector;
+private final ColumnValueSelector refSelector;
+private final DoubleMinOfCollector collector = new DoubleMinOfCollector();
+
+...
+
+public void aggregate()
+  {
+    Object baseUpdate = baseSelector.getObject();
+    Object refUpdate = refSelector.getObject();
+
+    if (baseUpdate instanceof DoubleMinOfCollector) {
+      collector.update((DoubleMinOfCollector) baseUpdate);
+    } else if (baseUpdate instanceof List && refUpdate instanceof List) {
+      // Handle selector yield of lists of values
+    } else {
+      double base = Numbers.tryParseDouble(baseUpdate, Double.NaN);
+      double ref = Numbers.tryParseDouble(refUpdate, Double.POSITIVE_INFINITY);
+      collector.update(base, ref);
+    }
+  }
+```
+
+My tests use the `GroupByQuery` builder to simulate real world usage. While testing, whenever `baseUpdate` yields an instance of `DoubleMinOfCollector`, `refUpdate` is `null` and my conditional previously checked for this.
+
+However, having bundled the aggregator for production, in the same scenario `refUpdate` yields a `double` which is not a value in the dataset. I've loosened my conditional and the aggregator appears to work as expected, however I'm concerned about ignoring values and inconsistent behaviour between a test and production environment. Particularly as our use case requires more complex aggregations using two and three columns in a row, where it will be harder to spot inconsistencies in the final aggregated value.
+
+Should the above guarantee I'll get values from the same row? Is the production behaviour described as expected? Is there a way to test for this behaviour in a test environment?

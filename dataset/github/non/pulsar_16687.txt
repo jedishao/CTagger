@@ -1,0 +1,60 @@
+[Tiered storage] Offloaded objects are not deleted when topic is offloaded by `managedLedgerOffloadAutoTriggerSizeThresholdBytes`
+**Describe the bug**
+The objects offloaded to any major cloud provider (AWS / Azure / GCP) are not deleted whenever the offload is triggered by `managedLedgerOffloadAutoTriggerSizeThresholdBytes`, although all the messages on offloaded topic are consumed and the topic is deleted.
+
+**To Reproduce**
+The problem manifest on the master branch, but not on other branches (2.8, 2.9, 2.10).
+
+Steps to reproduce the behavior (pulsar standalone):
+```
+bin/pulsar-admin --admin-url  http://localhost:8080 topics create $TOPIC 
+bin/pulsar-admin topics create-subscription $TOPIC -s sub1 --admin-url  http://localhost:8080
+bin/pulsar-perf produce \
+                 --message-key-generation-mode autoIncrement -m 14000 -s 100 -z NONE -time 0\
+                 --exit-on-failure -i 20 -t 1 -r 1000 -u pulsar://localhost:6650/ \
+                 $TOPIC
+sleep 400 # wait until offloaded
+bin/pulsar-client --url pulsar://localhost:6650/ consume -p Earliest -s sub1 -n 14000 --hide-content $TOPIC 
+bin/pulsar-admin topics delete persistent://public/default/fixpulsarmasterautogcpoffload
+sleep 300
+echo "Now you can check whether the offloaded files have been removed from the bucket"
+```
+
+`broker.conf`:
+
+```
+managedLedgerOffloadAutoTriggerSizeThresholdBytes=1000
+managedLedgerOffloadDriver=google-cloud-storage
+gcsManagedLedgerOffloadRegion=<region>
+gcsManagedLedgerOffloadBucket=<bucket_name>
+gcsManagedLedgerOffloadServiceAccountKeyFile=<account_key_file>
+managedLedgerMaxEntriesPerLedger=5000
+
+# Minimum time between ledger rollover for a topic
+managedLedgerMinLedgerRolloverTimeMinutes=1
+
+# Maximum time before forcing a ledger rollover for a topic
+managedLedgerMaxLedgerRolloverTimeMinutes=2
+```
+
+**Expected behavior**
+All the offloaded objects should be deleted once the topic is deleted and / or the cluster is torn down.
+
+**Desktop (please complete the following information):**
+ - standalone
+ - kubernetes deployment 
+
+**Additional context**
+The problem manifests only on pulsar-master. Other branches (pulsar-2.7, pulsar-2.8, pulsar-2.9, pulsar-2.10) don't display the issue.
+
+Objects are not leaked when the offload is triggered: 
+
+```
+bin/pulsar-admin --admin-url  http://localhost:8080 topics offload $TOPIC -s 0
+```
+
+When `broker.conf`:
+
+```
+# managedLedgerOffloadAutoTriggerSizeThresholdBytes=1000
+```

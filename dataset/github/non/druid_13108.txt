@@ -1,0 +1,15 @@
+[Draft] feature request: add aggregator finalization to ingest
+The objective is for ingestion tasks to produce segments which can contain finalized aggregations.  This can eliminate the need for a an extra step (a query to produce finalized aggregations) to use the column as a primitive value.
+
+Example 1:
+- currently (as of around druid 0.23) realtime ingest using a stringLast aggregator should produce a column with a complex data type
+- To retrieve the primitive string value, the column values would need to be aggregated in a query with finalization 
+
+Questions/etc:
+- Would this feature require an additional ingest step such as a merge?
+  - Additional consequences of this? (eg, could it open the door for perfect rollup/non-dynamic partitioning in realtime ingests?)
+  - Would there need to be a way to force merging to ensure aggregator finalization when it might not otherwise be executed?
+- Should intermediate persists and even handed off segments remain unfinalized?
+- Could this be abstracted to work for batch ingests (indexing and compaction) and streaming ingests?
+- Obviously one tricky aspect is that once the aggregation is finalized, the value/column generally loses the aggregation's original semantics (eg, may no longer be combined with other finalized or unfinalized values using the same aggregator type and settings)
+  - eg, after finalizing some value `{"lhs":123,"rhs":"myStringLastValue"}` to `"myStringLastValue"`, the value could be combined with another stringLast value (finalized or unfinalized) but might require using the time value from the `__time` column which may not have been the parameter used to create the original unfinalized value in the first place -- ie, the semantics for performing "another operation" on the column do not necessarily work the same as they would have without the additional finalization operation

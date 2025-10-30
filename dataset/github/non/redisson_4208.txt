@@ -1,0 +1,21 @@
+Health check for slaves in AWS ElasticCache using ReplicatedServerConfig
+<!--
+Try Redisson PRO https://redisson.pro with with ultra-fast performance and support by SLA.
+-->
+
+Hi,
+
+I am using a spring boot app that is connecting to AWS ElasticCache cluster running in master-slave setup (clustering mode = disabled). The cluster has 1 master node & 3 replicas. The spring boot app fires only GET command.
+
+In ReplicatedServersConfig is as follows:
+* Node Addresses: elastic cache cluster write endpoint, elastic cache cluster read endpoint
+* Read Mode: SLAVE
+* Retry Attempts: 1
+* Retry Interval: 100 ms
+* Scan Interval: 8000 ms
+
+The rest of the configs are set to default. 
+
+The problem we are facing is when one of the replicas gets rebooted. During a replica node reboot, the cluster read endpoint still resolves to the replica that is rebooting. This leads to redisson client sending request to a unhealthy node and eventually the request fails. 
+
+I want to check what is the way to introduce health check for the connections created by redission (maybe using PING command) to avoid this problem of requests going to unhealthy slave. 

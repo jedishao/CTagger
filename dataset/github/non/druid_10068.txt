@@ -1,0 +1,32 @@
+RandomBalancerStrategy gets stuck into loop 
+Found while investigating https://github.com/apache/druid/issues/10067. RandomBalancerStrategy gets stuck into loop when the number of replicants is more than the number of nodes.
+
+### Affected Version
+
+All
+
+### Description
+
+Setup - I start with two empty historical with server size enough to load one segment of size 4,821,713. Replication factor is set to 3. This gets loaded but when the `RunRule` tries to find a place to load 3rd to load the segment, it gets stuck in a loop and never comes out. `RunRule` duty does not run after that. Here's the relevant thread dump where it gets stuck - 
+```
+"Coordinator-Exec--0" #217 daemon prio=5 os_prio=31 tid=0x00007fc6c023c800 nid=0x29a03 runnable [0x000070001aafc000]
+   java.lang.Thread.State: RUNNABLE
+  at org.apache.druid.server.coordinator.RandomBalancerStrategy.findNewSegmentHomeReplicator(RandomBalancerStrategy.java:40)
+  at org.apache.druid.server.coordinator.rules.LoadRule.assignReplicasForTier(LoadRule.java:298)
+  at org.apache.druid.server.coordinator.rules.LoadRule.assignReplicas(LoadRule.java:243)
+  at org.apache.druid.server.coordinator.rules.LoadRule.assign(LoadRule.java:105)
+  at org.apache.druid.server.coordinator.rules.LoadRule.run(LoadRule.java:78)
+  at org.apache.druid.server.coordinator.duty.RunRules.run(RunRules.java:113)
+  at org.apache.druid.server.coordinator.DruidCoordinator$DutiesRunnable.run(DruidCoordinator.java:710)
+  at org.apache.druid.server.coordinator.DruidCoordinator$2.call(DruidCoordinator.java:570)
+  at org.apache.druid.server.coordinator.DruidCoordinator$2.call(DruidCoordinator.java:563)
+  at org.apache.druid.java.util.common.concurrent.ScheduledExecutors$2.run(ScheduledExecutors.java:92)
+  at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+  at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+  at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+  at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+  at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+  at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+  at java.lang.Thread.run(Thread.java:748)
+```
+The code line where it gets stuck is this - https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/server/coordinator/RandomBalancerStrategy.java#L41. This is line 40 in my local codebase that's why the thread dump has `RandomBalancerStrategy.java:40`

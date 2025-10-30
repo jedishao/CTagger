@@ -1,0 +1,84 @@
+java.lang.IllegalStateException: Result is already complete
+### Description
+
+After upgrading to from **4.0.3** to **4.1.0** some of our instances end up in a failure-state where most http-calls timeout or fail.
+The only similarity between them is the occurrence of the exception shown below. However we do have a few of these exceptions without ending up in that failure-state.
+
+Could possibly be connected to commit [7fff420e6ba054cf3aada16b563d1553b2718cc4](https://github.com/eclipse-vertx/vert.x/commit/7fff420e6ba054cf3aada16b563d1553b2718cc4)
+
+### Version
+
+4.1.0
+With netty 4.1.65.Final (as specified by vertx)
+
+### StackTrace
+
+```
+java.lang.IllegalStateException: Result is already complete
+	at io.vertx.core.Promise.complete(Promise.java:67)
+	at io.vertx.core.http.impl.HttpClientImpl.lambda$null$6(HttpClientImpl.java:631)
+	at io.vertx.core.impl.future.FutureImpl$3.onSuccess(FutureImpl.java:124)
+	at io.vertx.core.impl.future.FutureBase.emitSuccess(FutureBase.java:62)
+	at io.vertx.core.impl.future.FutureImpl.addListener(FutureImpl.java:164)
+	at io.vertx.core.impl.future.PromiseImpl.addListener(PromiseImpl.java:23)
+	at io.vertx.core.impl.future.FutureImpl.onComplete(FutureImpl.java:132)
+	at io.vertx.core.impl.future.PromiseImpl.onComplete(PromiseImpl.java:23)
+	at io.vertx.core.http.impl.Http1xClientConnection.createStream(Http1xClientConnection.java:1036)
+	at io.vertx.core.http.impl.HttpClientImpl.lambda$doRequest$7(HttpClientImpl.java:614)
+	at io.vertx.core.net.impl.pool.Endpoint.lambda$getConnection$0(Endpoint.java:52)
+	at io.vertx.core.http.impl.SharedClientHttpStreamEndpoint$Request.handle(SharedClientHttpStreamEndpoint.java:161)
+	at io.vertx.core.http.impl.SharedClientHttpStreamEndpoint$Request.handle(SharedClientHttpStreamEndpoint.java:122)
+	at io.vertx.core.impl.EventLoopContext.emit(EventLoopContext.java:49)
+	at io.vertx.core.impl.ContextImpl.emit(ContextImpl.java:275)
+	at io.vertx.core.impl.EventLoopContext.emit(EventLoopContext.java:22)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool$LeaseImpl.emit(SimpleConnectionPool.java:624)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool$ConnectSuccess.lambda$execute$1(SimpleConnectionPool.java:316)
+	at io.vertx.core.net.impl.pool.CombinerExecutor.pollAndExecute(CombinerExecutor.java:55)
+	at io.vertx.core.net.impl.pool.CombinerExecutor.submit(CombinerExecutor.java:43)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool.execute(SimpleConnectionPool.java:231)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool.lambda$connect$2(SimpleConnectionPool.java:243)
+	at io.vertx.core.http.impl.SharedClientHttpStreamEndpoint.lambda$connect$2(SharedClientHttpStreamEndpoint.java:101)
+	at io.vertx.core.impl.future.FutureImpl$3.onSuccess(FutureImpl.java:124)
+	at io.vertx.core.impl.future.FutureBase.emitSuccess(FutureBase.java:62)
+	at io.vertx.core.impl.future.FutureImpl.tryComplete(FutureImpl.java:179)
+	at io.vertx.core.impl.future.Composition$1.onSuccess(Composition.java:62)
+	at io.vertx.core.impl.future.FutureBase.emitSuccess(FutureBase.java:62)
+	at io.vertx.core.impl.future.FutureImpl.addListener(FutureImpl.java:164)
+	at io.vertx.core.impl.future.PromiseImpl.addListener(PromiseImpl.java:23)
+	at io.vertx.core.impl.future.Composition.onSuccess(Composition.java:43)
+	at io.vertx.core.impl.future.FutureBase.emitSuccess(FutureBase.java:62)
+	at io.vertx.core.impl.future.FutureImpl.tryComplete(FutureImpl.java:179)
+	at io.vertx.core.impl.future.PromiseImpl.tryComplete(PromiseImpl.java:23)
+	at io.vertx.core.Promise.complete(Promise.java:66)
+	at io.vertx.core.net.impl.NetClientImpl.lambda$connected$6(NetClientImpl.java:261)
+	at io.vertx.core.net.impl.VertxHandler.setConnection(VertxHandler.java:83)
+	at io.vertx.core.net.impl.VertxHandler.handlerAdded(VertxHandler.java:89)
+	at io.netty.channel.AbstractChannelHandlerContext.callHandlerAdded(AbstractChannelHandlerContext.java:938)
+	at io.netty.channel.DefaultChannelPipeline.callHandlerAdded0(DefaultChannelPipeline.java:609)
+	at io.netty.channel.DefaultChannelPipeline.addLast(DefaultChannelPipeline.java:223)
+	at io.netty.channel.DefaultChannelPipeline.addLast(DefaultChannelPipeline.java:195)
+	at io.vertx.core.net.impl.NetClientImpl.connected(NetClientImpl.java:263)
+	at io.vertx.core.net.impl.NetClientImpl.lambda$connectInternal$1(NetClientImpl.java:228)
+	at io.vertx.core.impl.AbstractContext.dispatch(AbstractContext.java:96)
+	at io.vertx.core.net.impl.ChannelProvider.connected(ChannelProvider.java:174)
+	at io.vertx.core.net.impl.ChannelProvider.lambda$handleConnect$0(ChannelProvider.java:157)
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:578)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:571)
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:550)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:491)
+	at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:616)
+	at io.netty.util.concurrent.DefaultPromise.setSuccess0(DefaultPromise.java:605)
+	at io.netty.util.concurrent.DefaultPromise.trySuccess(DefaultPromise.java:104)
+	at io.netty.channel.DefaultChannelPromise.trySuccess(DefaultChannelPromise.java:84)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.fulfillConnectPromise(AbstractEpollChannel.java:653)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.finishConnect(AbstractEpollChannel.java:691)
+	at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.epollOutReady(AbstractEpollChannel.java:567)
+	at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:470)
+	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+	at io.netty.util.concurrent.SingleThreadEventExecutor
+```
+
+### Extra
+
+java 16
+kotlin 1.5.10

@@ -1,0 +1,27 @@
+vertx-health-check does not respond properly if using mountSubRouter()
+The health check returns `{"message": "Not found"}` if you use sub-router with the application path '/'.
+You want to send the request `http://127.0.0.1:8080/productsAPI/health` and you observe the JSON `{"status":"UP","checks":[{"id":"measured-data-adapter","status":"UP"}],"outcome":"UP"}` which works fine! But you observe  `{"message": "Not found"}` if the main router path turns from `productsAPI` to `/`.
+Prometheus is has a very similar programming approach but it is not buggy and it works as expected with any path in the main router.
+
+### Version
+
+4.1.2
+
+My code looks like this:
+
+```
+restAPI.route("/health")
+    .order(1)
+    .handler(HealthCheckHandler.create(vertx).register("measured-data-adapter", p -> p.complete(OK())));
+Router mainRouter = Router.router(vertx);
+mainRouter.mountSubRouter(serverPath, restAPI);
+mainRouter.errorHandler(HTTP_NOT_FOUND, h -> invalidRequest(HTTP_NOT_FOUND, h.request()));
+mainRouter.errorHandler(HTTP_INTERNAL_ERROR, h -> {
+    LOG.error("Internal Server Error", h.failure());
+    invalidRequest(HTTP_INTERNAL_ERROR, h.request());
+});
+
+httpServer.connectionHandler(this::handleConnection)
+    .requestHandler(mainRouter)
+    .listen(serverPort, serverHost, this::connectionHandler);
+```

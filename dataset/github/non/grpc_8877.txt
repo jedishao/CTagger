@@ -1,0 +1,177 @@
+Benchmark client doesn't support taking xds:///custom-target-string as server target
+<!-- Please answer these questions before submitting a feature request. -->
+
+### Is your feature request related to a problem?
+<!-- A clear and concise description of what the problem is. Ex. I'm always frustrated when [...] -->
+We are trying to use java benchmark workers in proxyless service mesh (PSM) tests. PSM tests supports is developed on top of [gRPC OSS benchmark framework](https://github.com/grpc/test-infra) as an additional feature.
+
+In non-proxied PSM tests, the server target passed to client becomes a string: xds:///custome-target-string,  instead of the actual server's ip address and port in the regular benchmark. Once starting, the benchmark client running non-proxied PSM tests should communicate with a fake control plane to figure out the address of the test server.
+
+Building java benchmark workers include xds jar is successful, but when testing, the logs from benchmark client shows that the benchmark client is expecting the server target to be in the form of socket address, it throws exceptions when given a xds:///target-string as an server target.
+
+```
+++ nproc
++ PROCESSOR_COUNT=8
++ echo 'Processor count: 8'
+Processor count: 8
++ BENCHMARK_WORKER_OPTS=-XX:ActiveProcessorCount=8
++ timeout --kill-after=30.000000 900 benchmarks/build/install/grpc-benchmarks/bin/benchmark_worker --driver_port=10000
+[0.029s][warning][gc] -XX:+PrintGCDetails is deprecated. Will use -Xlog:gc* instead.
+[0.032s][info   ][gc,heap] Heap region size: 1M
+[0.064s][info   ][gc     ] Using G1
+[0.064s][info   ][gc,heap,coops] Heap address: 0x0000000080000000, size: 2048 MB, Compressed Oops mode: 32-bit
+[0.064s][info   ][gc,cds       ] Mark closed archive regions in map: [0x00000000fff00000, 0x00000000fff68ff8]
+[0.064s][info   ][gc,cds       ] Mark open archive regions in map: [0x00000000ffe00000, 0x00000000ffe46ff8]
+Jan 31, 2022 7:35:23 PM io.grpc.benchmarks.driver.LoadClient <init>
+INFO: Client Config 
+server_targets: "xds:///defaultApiListener"
+client_type: ASYNC_CLIENT
+security_params {
+  use_test_ca: true
+  server_host_override: "foo.test.google.fr"
+}
+outstanding_rpcs_per_channel: 1
+client_channels: 1
+async_client_threads: 1
+rpc_type: STREAMING
+load_params {
+  closed_loop {
+  }
+}
+payload_config {
+  bytebuf_params {
+  }
+}
+histogram_params {
+  resolution: 0.01
+  max_possible: 6.0E10
+}
+channel_args {
+  name: "grpc.optimization_target"
+  str_value: "latency"
+}
+ 
+Jan 31, 2022 7:35:23 PM io.grpc.benchmarks.driver.LoadWorker$WorkerServiceImpl$2 onNext
+WARNING: Error running client
+java.lang.NumberFormatException: For input string: "///defaultApiListener"
+        at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
+        at java.base/java.lang.Integer.parseInt(Integer.java:638)
+        at java.base/java.lang.Integer.parseInt(Integer.java:770)
+        at io.grpc.benchmarks.Utils.parseSocketAddress(Utils.java:109)
+        at io.grpc.benchmarks.driver.LoadClient.<init>(LoadClient.java:85)
+        at io.grpc.benchmarks.driver.LoadWorker$WorkerServiceImpl$2.onNext(LoadWorker.java:198)
+        at io.grpc.benchmarks.driver.LoadWorker$WorkerServiceImpl$2.onNext(LoadWorker.java:192)
+        at io.grpc.stub.ServerCalls$StreamingServerCallHandler$StreamingServerCallListener.onMessage(ServerCalls.java:262)
+        at io.grpc.internal.ServerCallImpl$ServerStreamListenerImpl.messagesAvailableInternal(ServerCallImpl.java:318)
+        at io.grpc.internal.ServerCallImpl$ServerStreamListenerImpl.messagesAvailable(ServerCallImpl.java:301)
+        at io.grpc.internal.ServerImpl$JumpToApplicationThreadServerStreamListener$1MessagesAvailable.runInContext(ServerImpl.java:834)
+        at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+        at io.grpc.internal.SerializeReentrantCallsDirectExecutor.execute(SerializeReentrantCallsDirectExecutor.java:49)
+        at io.grpc.internal.ServerImpl$JumpToApplicationThreadServerStreamListener.messagesAvailable(ServerImpl.java:845)
+        at io.grpc.internal.AbstractStream$TransportState.messagesAvailable(AbstractStream.java:182)
+        at io.grpc.internal.MessageDeframer.processBody(MessageDeframer.java:412)
+        at io.grpc.internal.MessageDeframer.deliver(MessageDeframer.java:275)
+        at io.grpc.internal.MessageDeframer.deframe(MessageDeframer.java:177)
+        at io.grpc.internal.AbstractStream$TransportState.deframe(AbstractStream.java:210)
+        at io.grpc.internal.AbstractServerStream$TransportState.inboundDataReceived(AbstractServerStream.java:255)
+        at io.grpc.netty.NettyServerStream$TransportState.inboundDataReceived(NettyServerStream.java:226)
+        at io.grpc.netty.NettyServerHandler.onDataRead(NettyServerHandler.java:508)
+        at io.grpc.netty.NettyServerHandler.access$900(NettyServerHandler.java:106)
+        at io.grpc.netty.NettyServerHandler$FrameListener.onDataRead(NettyServerHandler.java:840)
+        at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$FrameReadListener.onDataRead(DefaultHttp2ConnectionDecoder.java:307)
+        at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$PrefaceFrameListener.onDataRead(DefaultHttp2ConnectionDecoder.java:691)
+        at io.netty.handler.codec.http2.Http2InboundFrameLogger$1.onDataRead(Http2InboundFrameLogger.java:48)
+        at io.netty.handler.codec.http2.DefaultHttp2FrameReader.readDataFrame(DefaultHttp2FrameReader.java:415)
+        at io.netty.handler.codec.http2.DefaultHttp2FrameReader.processPayloadState(DefaultHttp2FrameReader.java:250)
+        at io.netty.handler.codec.http2.DefaultHttp2FrameReader.readFrame(DefaultHttp2FrameReader.java:159)
+        at io.netty.handler.codec.http2.Http2InboundFrameLogger.readFrame(Http2InboundFrameLogger.java:41)
+        at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder.decodeFrame(DefaultHttp2ConnectionDecoder.java:173)
+        at io.netty.handler.codec.http2.Http2ConnectionHandler$FrameDecoder.decode(Http2ConnectionHandler.java:378)
+        at io.netty.handler.codec.http2.Http2ConnectionHandler$PrefaceDecoder.decode(Http2ConnectionHandler.java:242)
+        at io.netty.handler.codec.http2.Http2ConnectionHandler.decode(Http2ConnectionHandler.java:438)
+        at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:507)
+        at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:446)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+        at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:722)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584)
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at java.base/java.lang.Thread.run(Thread.java:829)
+ 
+Jan 31, 2022 7:35:23 PM io.grpc.internal.SerializeReentrantCallsDirectExecutor execute
+SEVERE: Exception while executing runnable io.grpc.internal.ServerImpl$JumpToApplicationThreadServerStreamListener$1MessagesAvailable@14233654
+java.lang.IllegalStateException: call already closed
+        at com.google.common.base.Preconditions.checkState(Preconditions.java:513)
+        at io.grpc.internal.ServerCallImpl.closeInternal(ServerCallImpl.java:214)
+        at io.grpc.internal.ServerCallImpl.close(ServerCallImpl.java:207)
+        at io.grpc.stub.ServerCalls$ServerCallStreamObserverImpl.onCompleted(ServerCalls.java:395)
+        at io.grpc.benchmarks.driver.LoadWorker$WorkerServiceImpl$2.onCompleted(LoadWorker.java:235)
+        at io.grpc.benchmarks.driver.LoadWorker$WorkerServiceImpl$2.onNext(LoadWorker.java:214)
+        at io.grpc.benchmarks.driver.LoadWorker$WorkerServiceImpl$2.onNext(LoadWorker.java:192)
+        at io.grpc.stub.ServerCalls$StreamingServerCallHandler$StreamingServerCallListener.onMessage(ServerCalls.java:262)
+        at io.grpc.internal.ServerCallImpl$ServerStreamListenerImpl.messagesAvailableInternal(ServerCallImpl.java:318)
+        at io.grpc.internal.ServerCallImpl$ServerStreamListenerImpl.messagesAvailable(ServerCallImpl.java:301)
+        at io.grpc.internal.ServerImpl$JumpToApplicationThreadServerStreamListener$1MessagesAvailable.runInContext(ServerImpl.java:834)
+        at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+        at io.grpc.internal.SerializeReentrantCallsDirectExecutor.execute(SerializeReentrantCallsDirectExecutor.java:49)
+        at io.grpc.internal.ServerImpl$JumpToApplicationThreadServerStreamListener.messagesAvailable(ServerImpl.java:845)
+        at io.grpc.internal.AbstractStream$TransportState.messagesAvailable(AbstractStream.java:182)
+        at io.grpc.internal.MessageDeframer.processBody(MessageDeframer.java:412)
+        at io.grpc.internal.MessageDeframer.deliver(MessageDeframer.java:275)
+        at io.grpc.internal.MessageDeframer.deframe(MessageDeframer.java:177)
+        at io.grpc.internal.AbstractStream$TransportState.deframe(AbstractStream.java:210)
+        at io.grpc.internal.AbstractServerStream$TransportState.inboundDataReceived(AbstractServerStream.java:255)
+        at io.grpc.netty.NettyServerStream$TransportState.inboundDataReceived(NettyServerStream.java:226)
+        at io.grpc.netty.NettyServerHandler.onDataRead(NettyServerHandler.java:508)
+        at io.grpc.netty.NettyServerHandler.access$900(NettyServerHandler.java:106)
+        at io.grpc.netty.NettyServerHandler$FrameListener.onDataRead(NettyServerHandler.java:840)
+        at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$FrameReadListener.onDataRead(DefaultHttp2ConnectionDecoder.java:307)
+        at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$PrefaceFrameListener.onDataRead(DefaultHttp2ConnectionDecoder.java:691)
+        at io.netty.handler.codec.http2.Http2InboundFrameLogger$1.onDataRead(Http2InboundFrameLogger.java:48)
+        at io.netty.handler.codec.http2.DefaultHttp2FrameReader.readDataFrame(DefaultHttp2FrameReader.java:415)
+        at io.netty.handler.codec.http2.DefaultHttp2FrameReader.processPayloadState(DefaultHttp2FrameReader.java:250)
+        at io.netty.handler.codec.http2.DefaultHttp2FrameReader.readFrame(DefaultHttp2FrameReader.java:159)
+        at io.netty.handler.codec.http2.Http2InboundFrameLogger.readFrame(Http2InboundFrameLogger.java:41)
+        at io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder.decodeFrame(DefaultHttp2ConnectionDecoder.java:173)
+        at io.netty.handler.codec.http2.Http2ConnectionHandler$FrameDecoder.decode(Http2ConnectionHandler.java:378)
+        at io.netty.handler.codec.http2.Http2ConnectionHandler$PrefaceDecoder.decode(Http2ConnectionHandler.java:242)
+        at io.netty.handler.codec.http2.Http2ConnectionHandler.decode(Http2ConnectionHandler.java:438)
+        at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:507)
+        at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:446)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+        at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:722)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658)
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584)
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at java.base/java.lang.Thread.run(Thread.java:829)
+```
+
+### Describe the solution you'd like
+<!-- A clear and concise description of what you want to happen. -->
+It would be great if the benchmark client is able to take string server target, such as xds:///custom-target-string.
+
+### Describe alternatives you've considered
+<!-- A clear and concise description of any alternative solutions or features you've considered. -->
+
+### Additional context
+<!-- Add any other context about the feature request here. -->

@@ -1,0 +1,81 @@
+Use the client to access the server executed by idea report error like "Query 20200908_101738_00003_bv8z7 failed: Unexpected response from"
+Hello, I follow the instructions on the official website to run presto in IntelliJ IDEA, but an error occurred as follows:
+
+    Query 20200908_101738_00003_bv8z7 failed: Unexpected response from 
+    http://192.168.18.128:8080/v1/task/20200908_101738_00003_bv8z7.0.0.0?summarize
+
+## My steps are as follows:
+
+#### 1. Configure the environment in Linux, run mvn clean install in the presto root directory to compile, success:
+
+#### 2. Open IntelliJ IDEA, click pom.xml to import the project:
+
+#### 3. Modify the config.properties file under the presto-main directory and comment out the following code:
+
+    #plugin.bundles=\
+    #  ../presto-blackhole/pom.xml,\
+    #  ../presto-memory/pom.xml,\
+    #  ../presto-jmx/pom.xml,\
+    #  ../presto-raptor/pom.xml,\
+    #  ../presto-hive-hadoop2/pom.xml,\
+    #  ../presto-example-http/pom.xml,\
+    #  ../presto-kafka/pom.xml, \
+    #  ../presto-tpch/pom.xml, \
+    #  ../presto-local-file/pom.xml, \
+    #  ../presto-mysql/pom.xml,\
+    #  ../presto-sqlserver/pom.xml, \
+    #  ../presto-postgresql/pom.xml, \
+    #  ../presto-tpcds/pom.xml, \
+    #  ../presto-i18n-functions/pom.xml,\
+    #  ../presto-function-namespace-managers/pom.xml
+
+#### 4. Modify the presto-main/src/main/java/com/facebook/presto/server/PluginManagerConfig.java code as follows:
+
+    //private File installedPluginsDir = new File("plugin");
+    private File installedPluginsDir = new File("/root/huangwj/new/presto/presto-server/target/presto-server-0.235.1/presto-server-0.235.1/plugin");
+
+#### 5. The catalog directory only retains mysql.properties, the others are deleted:
+
+    [root@master catalog]# cat mysql.properties
+    connector.name=mysql
+    connection-url=jdbc:mysql://localhost:3306
+    connection-user=root
+    connection-password=happy
+
+#### 6. Execute in IntelliJ IDEA, the display is as follows:
+
+    2020-09-08T18:00:08.115+0800	INFO	main	com.facebook.presto.metadata.StaticCatalogStore	-- Loading catalog properties etc/catalog/mysql.properties --
+    2020-09-08T18:00:08.117+0800	INFO	main	com.facebook.presto.metadata.StaticCatalogStore	-- Loading catalog mysql --
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	PROPERTY                                  DEFAULT     RUNTIME                      DESCRIPTION
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	case-insensitive-name-matching            false       false
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	case-insensitive-name-matching.cache-ttl  1.00m       1.00m
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	connection-password                       [REDACTED]  [REDACTED]
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	connection-url                            ----        jdbc:mysql://localhost:3306
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	connection-user                           ----        root
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	allow-drop-table                          false       false                        Allow connector to drop tables
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	mysql.auto-reconnect                      true        true
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	mysql.connection-timeout                  10.00s      10.00s
+    2020-09-08T18:00:08.509+0800	INFO	main	Bootstrap	mysql.max-reconnects                      3           3
+    2020-09-08T18:00:08.643+0800	INFO	main	com.facebook.airlift.bootstrap.LifeCycleManager	Life cycle starting...
+    2020-09-08T18:00:08.643+0800	INFO	main	com.facebook.airlift.bootstrap.LifeCycleManager	Life cycle startup complete. System ready.
+    2020-09-08T18:00:08.645+0800	INFO	main	com.facebook.presto.metadata.StaticCatalogStore	-- Added catalog mysql using connector mysql --
+    2020-09-08T18:00:08.684+0800	INFO	main	com.facebook.presto.security.AccessControlManager	-- Loading system access control --
+    2020-09-08T18:00:08.685+0800	INFO	main	com.facebook.presto.security.AccessControlManager	-- Loaded system access control allow-all --
+    2020-09-08T18:00:08.737+0800	INFO	main	com.facebook.presto.server.PrestoServer	======== SERVER STARTED ========
+
+#### 7. Use the client to connect presto server then report an error:
+
+    [root@master target]# java -jar presto-cli-0.235.1-executable.jar --server localhost:8080
+    presto> show catalogs;
+
+    Query 20200908_101738_00003_bv8z7, FAILED, 1 node
+    Splits: 1 total, 0 done (0.00%)
+    0:00 [0 rows, 0B] [0 rows/s, 0B/s]
+    
+    Query 20200908_101738_00003_bv8z7 failed: Unexpected response from http://192.168.18.128:8080/v1/task/20200908_101738_00003_bv8z7.0.0.0?summarize
+
+## Question:
+
+#### The strange thing is that I used the compiled package presto-server-0.235.1.tar.gz to decompress it, but it can be accessed normally with the same configuration and client. How can I solve the problem of running PrestoServer under idea, but use client connect presto server then report error?
+
+#### Looking forward to your reply, thank you very much.

@@ -1,0 +1,37 @@
+PIP-250: Add proxyVersion to CommandConnect
+### Motivation
+
+When clients connect through the proxy, it is valuable to know which version of the proxy connected to the broker. That information isn't currently logged or reported in any easily identifiable way. The only way to get information about the connection is to infer which proxy forwarded a connection based on matching up the IP address in the logs.
+
+An additional change proposed in the implementation is to log this new information along with the `clientVersion`, `clientProtocolVersion`, and relevant authentication role information. This information will improve debug-ability and could also serve as a form of audit logging.
+
+### Goal
+
+Improve the value of the broker's logs and metrics about connections to simplify debugging and to make it easier for Pulsar operators to understand how clients are connecting to their clusters.
+
+### API Changes
+
+Add the following:
+
+```proto
+message CommandConnect {
+
+     // Other fields omitted
+
+    optional string proxy_version = 11; // Version of the proxy. Should only be forwarded by a proxy.
+}
+
+```
+
+
+### Implementation
+
+Initial implementation: https://github.com/apache/pulsar/pull/19618
+
+### Alternatives
+
+The `CommandAuthResponse` has a `client_version` field. It's possible that someone would want this `proxy_version` field on that message. However, I think we should not continue down the path of duplicating fields in the connection handshake protocol.
+
+### Anything else?
+
+Future work could include exposing this `proxyVersion` and `clientVersion` information via Prometheus metrics.

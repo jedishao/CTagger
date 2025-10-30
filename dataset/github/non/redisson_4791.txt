@@ -1,0 +1,20 @@
+Is it possible to batch function executions with a Redis Cluster?
+### Redis version: 7.0.5
+### Redisson version: 3.19.0
+
+I have a simple local cluster server set up for testing:
+```
+127.0.0.1:26379> cluster nodes
+4a9d83b24cbff0363b72e4b591955e5782274f86 127.0.0.1:26383@36383 slave e5fbbe63db2380d65f871a1ccaad447106f04b96 0 1673540611000 3 connected
+540931c5f0452ae9f9b9661d415e89c88aa69c9d 127.0.0.1:26380@36380 master - 0 1673540612000 2 connected 5461-10922
+999b0282d98a724c5b5869c00c2bf88b3ab86541 127.0.0.1:26379@36379 myself,master - 0 1673540611000 1 connected 0-5460
+e5fbbe63db2380d65f871a1ccaad447106f04b96 127.0.0.1:26381@36381 master - 0 1673540611386 3 connected 10923-16383
+04654d1bdff89b59f909eda3ad5c12b92f6c44fb 127.0.0.1:26382@36382 slave 540931c5f0452ae9f9b9661d415e89c88aa69c9d 0 1673540611000 2 connected
+00e252cb0da7e052197f7066aefdc9ea44665ce9 127.0.0.1:26384@36384 slave 999b0282d98a724c5b5869c00c2bf88b3ab86541 0 1673540612435 1 connected
+```
+
+I've been trying to execute a batch consisting of calls to the same function (all nodes have this function loaded), but I'm getting a `org.redisson.client.RedisException: MOVED redirection loop detected. Node redis://127.0.0.1:26380 has further redirect to redis://127.0.0.1:26381`. The issue is encountered even when the function in question just returns true.
+
+My first thought was that my cluster configuration is incorrect (even more so when I noticed I never encountered the master at 26379 being mentioned in the exception), but one thing struck me as odd - non-batched function calls and batches filled with other, non-function operations (for example methods from RMapAsync) are working flawlessly.
+
+So is the thing I'm trying to do even supported? Any help would be appreciated.

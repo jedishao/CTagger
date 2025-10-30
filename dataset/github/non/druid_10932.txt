@@ -1,0 +1,7 @@
+`StandardCharsets.UTF-8` and `StringUtils.UTF8_STRING` used inconsistently
+`StandardCharsets.UTF-8` is used throughout the Druid code base despite the fact that `StringUtils` wraps it as `UTF8_CHARSET`. This means that despite`StringUtils` deprecating `UTF8_CHARSET` for performance reasons, `StandardCharsets.UTF-8` is still widely used and a number of Druid interfaces still take `CharSets` instead of the charset's String name.
+
+If the deprecation note for `UTF8_CHARSET` is still operative, we should migrate the uses of charsets to strings. If the note is not accurate, we should remove the deprecation notice and instead deprecate the string name constant (`UTF8_STRING`). Either way, as long as we are defining "wrapper" constants in `StringUtils`, we should remove the direct usages of `StandardCharsets.UTF-8` and consider adding it to the list of forbidden APIs.
+
+
+(For what it's worth, `StringUtils.UTF8_CHARSET` is never used in the Druid code base, while `String Utils.UTF8_STRING` is. This suggests to me that when `StringUtils.UTF8_CHARSET` was deprecated, someone made sure to migrate its uses but missed all the places where the standard charset constants were used directly.)

@@ -1,0 +1,40 @@
+redisson has a memory leak when redis cluster switched
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+when redis cluster switched, The client connection to the old node should not exist in memory,   and the nodeConnections should remove the old node.
+**Actual behavior**
+When the redis cluster whose ip address is 192.168.3.47 is suspended, the dns switches to the redis cluster whose ip address is 192.168.3.49.
+redisson keeps the redisclient that connects to the old node(192.168.3.47 ), and the connectionWatchDog keeps creating connections in the background to try to reconnect the old node.
+![1666937338494](https://user-images.githubusercontent.com/56341063/198515741-42902d99-cc23-4534-9b77-903541cb9fc4.jpg)
+![1666937338508](https://user-images.githubusercontent.com/56341063/198515787-c50215d8-fa47-48e4-8f68-9838874ca187.jpg)
+![1666937338520](https://user-images.githubusercontent.com/56341063/198515802-8a9ab3b7-6248-4ba7-9b74-9c880f26b9be.png)
+
+
+**Steps to reproduce or test case**
+step one: Prepare one dns service, two redis clusters, and one application service.
+step two: The application service continuously accesses redis through dns.
+step three: The dns switches to another redis cluster, the simulated redis cluster is suspended, and the new redis cluster is restarted.
+
+**Redis version**
+7.0.5
+**Redisson version**
+3.17.7
+**Redisson configuration**
+         Config config = new Config();
+        List<String> nodeAddresses = List.of("redis-test.com:7000").stream()
+                .map(node -> MessageFormat.format("redis://{0}", node))
+                .collect(Collectors.toList());
+        config.useClusterServers()
+                .setMasterConnectionMinimumIdleSize(3)
+                .setMasterConnectionPoolSize(30)
+                .setSlaveConnectionMinimumIdleSize(3)
+                .setSlaveConnectionPoolSize(30)
+                .setSubscriptionConnectionMinimumIdleSize(1)
+                .setSlaveConnectionPoolSize(1)
+                .setScanInterval(60000)
+//                    .setPassword(getClusterPassword())
+                .setNodeAddresses(nodeAddresses);
+        return Redisson.create(config);

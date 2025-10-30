@@ -1,0 +1,73 @@
+[Bug][txn] exclusive subscription would lead to high cpu usage when do tailing-read
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+- It seems this problem is the same as this pr described, https://github.com/apache/pulsar/pull/14286. 
+
+
+### Version
+
+server and client version: pulsar-2.9.4
+
+
+### Minimal reproduce step
+
+do txn produce and txn consume on a 200-partition topic by pulsar-perf. The throughput is 10MB/s, batchSize is 10, subscriptionType is exclusive. It is a tailing read, consuming the latest message
+
+produce config is :`-txn -nmt 1000 -time 0 -s 1024 -i 60 -bm 10 -b 1000 -bb 4194304 -r 10000 -mk random -threads 3`; 
+
+consume config is : `-txn -nmt 2000 -time 0 -i 60 -s sub_test_txn_p200 -ss sub_test_txn_p200  -sp Latest -ioThreads 1 -n 1`
+
+
+### What did you expect to see?
+
+The cpu usage should not be so high when it is exclusive subscription, tailing read and txn consume. 
+
+Actually the tailing read should not consume more resource than catchup read.
+
+
+
+### What did you see instead?
+
+1. when it is tailing read and exclusive subscription and txn consume, the cpu usage is 80%. But when it turn to catchup read, the cpu usage is 45%. 
+![企业微信截图_68d2681c-381c-4e4e-bf77-22a8560160b3](https://user-images.githubusercontent.com/13505225/211499987-b2999e11-ec5c-4401-ac67-731d688b75d6.png)
+
+2. Throughput would not influence the cpu usage, but if topic have more partition, the cpu usage is higher.
+
+
+3. ![wecom-temp-b401a17cdc200f2ae0bcaae843b8e908](https://user-images.githubusercontent.com/13505225/211498614-00db713e-ca3b-4ace-ba71-91341571db51.png)
+
+ I add some log in code and have found the cpu is consumed in "broker-topic-workers", which is mostly do PersistentDispatcherSingleActiveConsumer#readEntriesComplete and PersistentDispatcherSingleActiveConsumer#dispatchEntriesToConsumer.
+
+The problem is in PersistentDispatcherSingleActiveConsumer#dispatchEntriesToConsumer, then would invoke PersistentDispatcherSingleActiveConsumer#readMoreEntries and cursor.asyncReadEntriesOrWait
+
+In cursor.asyncReadEntriesOrWait, more than 100K/s readEntryRequest would go into hasMoreEntries()=true, readPosition is less than writerPosition and then do asyncReadEntries(), which would invoke ManagedLedgerImpl#asyncReadEntries and ManagedLedgerImpl#internalReadFromLedger.
+
+![企业微信截图_48f58d6a-f9e6-444f-8365-bd23e07f94d9](https://user-images.githubusercontent.com/13505225/211741686-8a5aae20-dc93-4eae-aa7a-c6be25189a87.png)
+
+However, this multiple readEntryRequest would enter opReadEntry.checkReadCompletion() and then directly complete(). It seems like there are so many useless readEntryRequest is executed. 
+
+![企业微信截图_43eab391-b0eb-4c0a-b11b-32bc2ee6db66](https://user-images.githubusercontent.com/13505225/211759685-4e25ec12-f43b-4b08-8fd7-36cd5b1688c4.png)
+![企业微信截图_c243ba86-3f28-4590-a3d8-21469de736e1](https://user-images.githubusercontent.com/13505225/211760151-8ee2e027-96e5-430b-9f07-b1247baba08c.png)
+
+
+
+
+
+
+4. I also add a metric of thread pool "broker-topic-workers", and found that when do tailing read, the completed task in thread pool is total 150K * 8 thread = 1200K/s, while the read throughput is 10K message/s. There are too many task in this thread pool.
+
+![企业微信截图_39976729-a720-46d5-8bdd-36c0a098f484](https://user-images.githubusercontent.com/13505225/211500513-a8c591b9-2d5a-4839-9d24-e20fdd55b268.png)
+
+![企业微信截图_082e1928-525e-4ef8-bc33-19bb7eb4e8e5](https://user-images.githubusercontent.com/13505225/211501046-fb5334f2-c193-41d0-ab7b-b8cd60f26cba.png)
+
+
+
+
+### Anything else?
+
+Although tested in 2.9.4, I guess this problem may also occur in master branch.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

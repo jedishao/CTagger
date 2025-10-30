@@ -1,0 +1,13 @@
+Iceberg REST Catalog might not be retrying correctly when conflict
+When two or more INSERTs run in parallel, the first succeeds and the second fails which is OK, but Trino tries to retry the operation (because the REST Catalog returns 409) but it is sending assert-ref-snapshot-id with the previous snapshot-id and not the updated/current ref snapshot-id.
+```
+insert into iceberg.main.my_table values (1, cast('2020-01-01' as date), 1.0)
+```
+This would be the flow:
+1. First commit creates snapshot-id = 2 (let's simplify numbering for sake of example and assume that table had previously current-snapshot-id = 1)
+2. Second commit fails because assert-ref-snapshot-id has snapshot-id = 1 which is correct.
+3. Trino reads again the table metadata from the REST catalog
+4. Trino retries the commit operation but keeps assert-ref-snapshot-id with snapshot-id = 1. Should'nt this be snapshot-id = 2? (since Trino reads the updated metadata and have the updated ref with the new snapshot-id).
+
+From Iceberg Spec:
+> When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. (...) Append operations have no requirements and can always be applied. 

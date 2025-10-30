@@ -1,0 +1,23 @@
+Client loses first body chunks if future is converted to java CompletableFuture
+### Version
+
+4.1.4
+
+### Context
+
+Again testing a server streaming a chunked response. When using Vertx HTTP client, if the futures from `.connect()` call and the one from `.body()` call are converted to `java.util.concurrent.CompletableFuture` by `.toCompletionStage().toCompletableFuture()`, then the client loses a few (2–3) first chunks of the response body. The same happens with just `.toCompletionStage()` – but I have included the `.toCompletableFuture()` step in the test too, as I do use that in the actual code where I first noticed this.
+
+### Do you have a reproducer?
+A modified version of the reproducer from #4072 – with new test added that does the conversion. The old tests all pass, but the new one fails on body assertions because of the lost chunks with something like
+```
+org.opentest4j.AssertionFailedError: expected: <chunk 1chunk 2chunk 3final chunk> but was: <final chunk>
+```
+
+[silmeth/vertx-chunked-reproducer](https://github.com/silmeth/vertx-chunked-reproducer)
+
+### Steps to reproduce
+
+1. Clone the repo linked above.
+2. Run `./gradlew test` from the repo’s directory.
+
+The code is in [`src/test/kotlin/chunked/reproducer/ChunkedTest.kt`](https://github.com/silmeth/vertx-chunked-reproducer/blob/main/src/test/kotlin/chunked/reproducer/ChunkedTest.kt)

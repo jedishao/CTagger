@@ -1,0 +1,159 @@
+Service unavailable error after server start() was called
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.36.1
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+MacOS BigSur 11.2.3
+openjdk version "15.0.2" 2021-01-19
+OpenJDK Runtime Environment AdoptOpenJDK (build 15.0.2+7)
+OpenJDK 64-Bit Server VM AdoptOpenJDK (build 15.0.2+7, mixed mode, sharing)
+
+### What did you expect to see?
+1.	create grpc server (netty) but don't start it
+2.	make a request and get an exception: io.grpc.StatusRuntimeException: UNAVAILABLE: io exception
+3.	start grpc server
+4.	make a request and get a response
+
+### What did you see instead?
+1.	create a grpc server (netty) but don't start it
+2.	make a request and get an exception: io.grpc.StatusRuntimeException: UNAVAILABLE: io exception
+3.	start a grpc server
+4.	make a request and get an exception (<-- this is an error)
+
+### Steps to reproduce the bug
+Grpc service definition:
+```protobuf
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "test";
+option java_outer_classname = "TestContract";
+
+package test;
+
+service TestService {
+    rpc simpleCall(TestRequest) returns (TestResponse) {}
+}
+
+message TestRequest {
+    string text = 1;
+}
+
+message TestResponse {
+    string text = 1;
+}
+```
+
+Test case:
+```java
+package test;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.Server;
+import io.grpc.netty.NettyServerBuilder;
+import io.grpc.stub.StreamObserver;
+import java.net.InetSocketAddress;
+
+public class Test {
+
+    static class TestService extends TestServiceGrpc.TestServiceImplBase {
+        @Override
+        public void simpleCall(TestRequest request, StreamObserver<TestResponse> responseObserver) {
+            System.out.println("simple call received");
+            String msg = request.getText();
+            responseObserver.onNext(TestResponse.newBuilder().setText("Hello " + msg).build());
+            responseObserver.onCompleted();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        InetSocketAddress socketAddr = new InetSocketAddress("localhost", 8080);
+        NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(socketAddr);
+        Server server = serverBuilder.addService(new TestService()).build();
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
+        TestServiceGrpc.TestServiceBlockingStub stub = TestServiceGrpc.newBlockingStub(channel);
+
+        try {
+            TestResponse response = stub.simpleCall(TestRequest.newBuilder().setText("world").build());
+            System.out.println(response.getText());
+        } catch (Exception e) {
+            // this is an expected exception
+            System.out.println("exception received: " + e.getMessage());
+        }
+        
+        server.start();
+        
+        // <-- here we get an exception that should not be raised
+        TestResponse response = stub.simpleCall(TestRequest.newBuilder().setText("world 3").build());
+        System.out.println(response.getText());
+        
+        server.shutdown();
+    }
+
+}
+```
+
+<details>
+<summary>Console output</summary>
+<p>
+
+```text
+18:10:09: Executing task 'Test.main()'...
+
+> Task :extractIncludeProto UP-TO-DATE
+> Task :extractProto UP-TO-DATE
+> Task :generateProto UP-TO-DATE
+> Task :compileJava
+> Task :processResources UP-TO-DATE
+> Task :classes
+
+> Task :Test.main() FAILED
+exception received: UNAVAILABLE: io exception
+6 actionable tasks: 2 executed, 4 up-to-date
+Exception in thread "main" io.grpc.StatusRuntimeException: UNAVAILABLE: io exception
+	at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+	at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+	at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+	at test.TestServiceGrpc$TestServiceBlockingStub.simpleCall(TestServiceGrpc.java:156)
+	at test.Test.main(Test.java:40)
+Caused by: io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: localhost/[0:0:0:0:0:0:0:1]:8080
+Caused by: java.net.ConnectException: Connection refused
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method)
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:660)
+	at java.base/sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:875)
+	at io.netty.channel.socket.nio.NioSocketChannel.doFinishConnect(NioSocketChannel.java:330)
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.finishConnect(AbstractNioChannel.java:334)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:702)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:832)
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':Test.main()'.
+> Process 'command '/Users/miha/Library/Java/JavaVirtualMachines/adopt-openjdk-15.0.2/Contents/Home/bin/java'' finished with non-zero exit value 1
+
+* Try:
+Run with --stacktrace option to get the stack trace. Run with --info or --debug option to get more log output. Run with --scan to get full insights.
+
+* Get more help at https://help.gradle.org
+
+BUILD FAILED in 1s
+18:10:12: Task execution finished 'Test.main()'.
+```
+
+</p>
+</details>
+
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->
+Here is a gradle project to reproduce a bug: [GrpcBugHunt.tar.gz](https://github.com/grpc/grpc-java/files/6237514/GrpcBugHunt.tar.gz)

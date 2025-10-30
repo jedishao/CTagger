@@ -1,0 +1,79 @@
+[Bug] Starting pulsar standalone in Docker on an ARM mac fails to start up roughly half the time
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.10.3
+MacOS 12.6.3 on M1
+Docker 4.17.0/20.10.23 with latest `binfmt` platform emulation as of 3/7/2023.
+
+### Minimal reproduce step
+
+Do 
+```bash
+docker run \
+		--rm \
+		--name chariot_local_pulsar \
+		-it \
+		-p 6650:6650 \
+		-p 8080:8080 \
+		--cap-add=SYS_PTRACE \
+		--platform linux/x86_64 \
+		apachepulsar/pulsar:2.10.3 \
+		bin/pulsar standalone -nss -nfw
+```
+
+### What did you expect to see?
+
+I expect the broker to become available and respond to admin API requests and/or publish/consume attempts within a reasonable amount of time; say a minute or so.
+
+### What did you see instead?
+
+These logs in the output, followed by an indefinite broker hang (no activity or connectibility for 10+ minutes). 
+```
+2023-03-07T15:22:25,719+0000 [SessionTracker] INFO  org.apache.zookeeper.server.ZooKeeperServer - Expiring session 0x100000868d70000, timeout of 6000ms exceeded
+2023-03-07T15:22:25,732+0000 [SessionTracker] INFO  org.apache.zookeeper.server.ZooKeeperServer - Expiring session 0x100000868d70002, timeout of 6000ms exceeded
+2023-03-07T15:22:26,113+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0xc0000000_0xffffffff disappeared
+2023-03-07T15:22:26,168+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0xc0000000_0xffffffff disappeared
+2023-03-07T15:22:26,173+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie localhost:8080 disappeared
+2023-03-07T15:22:26,173+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie localhost:8080 disappeared
+2023-03-07T15:22:26,174+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x40000000_0x80000000 disappeared
+2023-03-07T15:22:26,174+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x40000000_0x80000000 disappeared
+2023-03-07T15:22:26,175+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x00000000_0xffffffff disappeared
+2023-03-07T15:22:26,175+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x00000000_0xffffffff disappeared
+2023-03-07T15:22:26,176+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x80000000_0xc0000000 disappeared
+2023-03-07T15:22:26,176+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x80000000_0xc0000000 disappeared
+2023-03-07T15:22:26,177+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie leader disappeared
+2023-03-07T15:22:26,177+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie leader disappeared
+2023-03-07T15:22:26,178+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie -0000000003 disappeared
+2023-03-07T15:22:26,179+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie -0000000003 disappeared
+2023-03-07T15:22:26,179+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x00000000_0x40000000 disappeared
+2023-03-07T15:22:26,179+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x00000000_0x40000000 disappeared
+2023-03-07T15:22:26,180+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x00000000_0xffffffff disappeared
+2023-03-07T15:22:26,180+0000 [metadata-store-23-1] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationClient - Bookie 0x00000000_0xffffffff disappeared
+2023-03-07T15:22:26,825+0000 [main] INFO  org.eclipse.jetty.server.Server - jetty-9.4.48.v20220622; built: 2022-06-21T20:42:25.880Z; git: 6b67c5719d1f4371b33655ff2d047d24e171e49a; jvm 11.0.17+8-post-Ubuntu-1ubuntu220.04
+2023-03-07T15:22:26,965+0000 [main] INFO  org.eclipse.jetty.server.session - DefaultSessionIdManager workerName=node0
+2023-03-07T15:22:26,967+0000 [main] INFO  org.eclipse.jetty.server.session - No SessionScavenger set, using defaults
+2023-03-07T15:22:26,976+0000 [main] INFO  org.eclipse.jetty.server.session - node0 Scavenging every 660000ms
+Mar 07, 2023 3:22:28 PM org.glassfish.jersey.server.wadl.WadlFeature configure
+WARNING: JAXBContext implementation could not be found. WADL feature is disabled.
+2023-03-07T15:22:28,716+0000 [SessionTracker] INFO  org.apache.zookeeper.server.ZooKeeperServer - Expiring session 0x100000868d70001, timeout of 10000ms exceeded
+
+```
+
+### Anything else?
+
+This happens about half the time. Stopping and restarting the container seems to trigger a "roll of the dice" again, and sometimes it comes all the way up.
+
+Even when the broker launches successfully I still very often see lines like `Bookie 0x00000000_0xffffffff disappeared` in the logs.
+
+Keep in mind that this is on an M1 mac and it is an x86 container, so there are two layers of *extremely* latency-adding emulation in play: a Linux virtual machine used by Docker itself, and then a qemu architecture software emulation layer running inside that VM.
+
+In such an environment I expect things to be slow, but this seems to be causing a full crash/failure and not just elevated latency.
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

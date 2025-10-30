@@ -1,0 +1,31 @@
+Allow semicolon to be treated as normal character in query params
+### Questions
+
+Allow semicolon to be treated as normal character in query params
+
+### Version
+
+4.3.7
+
+### Context
+
+1. Client sends a request to an API e.g. http://host/someBasePath/myResource?transactionDetails=shopping;tesco&date=2013-01-01
+2. Notice the `;` within 'shopping;tesco'
+3. The API internally tries to fetch the query params from the `HttpServerRequest` i.e
+   `httpServerRequest.getParam("transactionDetails")`
+   Expectation is this would return `shopping;tesco` however it is only returning `shopping` instead
+
+Semicolons since 2014 from W3C recommendations are now illegal parameter separators and only `&` is allowed.
+There is a fix merged in netty -> https://github.com/netty/netty/issues/8855 (see QueryStringDecoder class)
+
+However HttpServerRequest doesn't seem to allow a way to get query params with treating semicolons as normal.
+
+It appears this is down to HttpUtils using a constructor of QueryStringDecoder which default to not treating semicolons as normal characters:
+https://github.com/eclipse-vertx/vert.x/blob/1807f72a01c70bb9c189ee232ce635d15be0d726/src/main/java/io/vertx/core/http/impl/HttpUtils.java#L498
+
+Should the above HttpUtils now use the new constructor of QueryStringDecoder and set semicolons to be treated as normal characters by default from vertx point of view? Alternatively some way for users of vertx to set this behaviour on/off?
+
+### Extra
+
+* Java 11
+* Vertx 4.3.7

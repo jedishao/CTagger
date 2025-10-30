@@ -1,0 +1,17 @@
+Question: a proper way to print a plan after a query finished
+Hello Trino community,
+
+I am trying to print a JSON logical plan for a query that has already terminated using `PlanPrinter` by pulling the plan from `QueryManager`. The conversion fails because `TableInfoSupplier` pulls table schema through `MetadataManager`, which in turn calls `TransactionManager#getCatalogMetadata(...)` which fails to find transaction metadata because transaction no longer exists.
+The relevant part of the exception trace:
+```
+Caused by: io.trino.NotInTransactionException: Unknown transaction ID: e5709181-a9fd-44cf-8839-8a0dd8bc522d. Possibly expired? Commands ignored until end of transaction block
+	at io.trino.transaction.InMemoryTransactionManager.getTransactionMetadata(InMemoryTransactionManager.java:274)
+	at io.trino.transaction.InMemoryTransactionManager.getCatalogMetadata(InMemoryTransactionManager.java:206)
+	at io.trino.metadata.MetadataManager.getCatalogMetadata(MetadataManager.java:2438)
+	at io.trino.metadata.MetadataManager.getTableSchema(MetadataManager.java:436)
+	at io.trino.sql.planner.planprinter.TableInfoSupplier.apply(TableInfoSupplier.java:44)
+	at io.trino.sql.planner.planprinter.TableInfoSupplier.apply(TableInfoSupplier.java:29)
+	at io.trino.sql.planner.planprinter.PlanPrinter$Visitor.visitTableScan(PlanPrinter.java:1087)
+	at io.trino.sql.planner.planprinter.PlanPrinter$Visitor.visitTableScan(PlanPrinter.java:585)
+```
+Is there a proper way to print the JSON plan after the transaction terminated by having only an instance of `Plan` pulled from the query manager? At the first glance, all necessary information should be available in the `TableScanNode` itself (however hidden by connector interfaces).

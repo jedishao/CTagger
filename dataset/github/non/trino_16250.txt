@@ -1,0 +1,31 @@
+Unknown codec:org.apache.hadoop.io.compress.DefaultCodec
+version 407 throws: Unknown codec:org.apache.hadoop.io.compress.DefaultCodec
+if hive table with RCFile format, and file is written with compression on, and use the default codec, trino failed to read it.
+The full call stack is as below:
+```
+        at io.trino.plugin.hive.rcfile.RcFilePageSourceFactory.createPageSource(RcFilePageSourceFactory.java:219)
+	at io.trino.plugin.hive.HivePageSourceProvider.createHivePageSource(HivePageSourceProvider.java:216)
+	at io.trino.plugin.hive.HivePageSourceProvider.createPageSource(HivePageSourceProvider.java:154)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSourceProvider.createPageSource(ClassLoaderSafeConnectorPageSourceProvider.java:49)
+	at io.trino.split.PageSourceManager.createPageSource(PageSourceManager.java:62)
+	at io.trino.operator.TableScanOperator.getOutput(TableScanOperator.java:298)
+	at io.trino.operator.Driver.processInternal(Driver.java:394)
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:297)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:689)
+	at io.trino.operator.Driver.process(Driver.java:289)
+	at io.trino.operator.Driver.processForDuration(Driver.java:260)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:773)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:165)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:523)
+	at io.trino.$gen.Trino_407____20230224_031218_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: java.lang.IllegalArgumentException: Unknown codec: org.apache.hadoop.io.compress.DefaultCodec
+	at io.trino.hive.formats.compression.CompressionKind.lambda$createCodecFromHadoopClassName$1(CompressionKind.java:124)
+	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+	at io.trino.hive.formats.compression.CompressionKind.createCodecFromHadoopClassName(CompressionKind.java:124)
+	at io.trino.hive.formats.rcfile.RcFileReader.<init>(RcFileReader.java:177)
+	at io.trino.hive.formats.rcfile.RcFileReader.<init>(RcFileReader.java:112)
+	at io.trino.plugin.hive.rcfile.RcFilePageSourceFactory.createPageSource(RcFilePageSourceFactory.java:201)
+```

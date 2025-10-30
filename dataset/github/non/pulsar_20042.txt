@@ -1,0 +1,58 @@
+[Bug][java-client] No Retry when subscribing to topic via pattern
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+v2.9.3 is working,
+v2.9.4, v2.10.x, v2.11.x aren't 
+
+### Minimal reproduce step
+
+Here is a sample main code that illustrate issue:
+```java
+import org.apache.pulsar.client.api.PulsarClient;
+import org.apache.pulsar.client.api.PulsarClientException;
+
+public class Main {
+    public static void main(String[] args) throws PulsarClientException {
+
+        PulsarClient client =  PulsarClient.builder()
+                .serviceUrl("pulsar://unresolvable.service:6650")
+                .build();
+
+        client.newConsumer().topicsPattern("public/default/.*").subscriptionName("test").subscribe();
+
+    }
+}
+```
+
+With client in version 2.9.3, you will see [theses logs](https://github.com/apache/pulsar/blob/aafba1ac18dc729b10de62eca0e2df91025e5bce/pulsar-client/src/main/java/org/apache/pulsar/client/impl/BinaryProtoLookupService.java#L310)
+```
+Failed to open connection to unresolvable.service:6650 : org.apache.pulsar.shade.io.netty.resolver.dns.DnsResolveContext$SearchDomainUnknownHostException: Failed to resolve 'unresolvable.service' and search domain query for configured domains failed as well: [.]
+...
+[namespace: public/default] Could not get connection while getTopicsUnderNamespace -- Will try again in 1459 ms
+multiple retry until timeout
+```
+
+With 2.9.4, you only have the first error, the future is never resolved, and the scheduled runnable is never run.
+
+The behavior is different with non pattern subscription, that retry until address resolves.
+
+### What did you expect to see?
+
+Same behavior as in v2.9.3
+
+### What did you see instead?
+
+See minimal step, uncompleted future when subscribing a multiple topic consumer.
+
+### Anything else?
+
+I've read commits between v2.9.3 and v2.9.4 and my guess is that https://github.com/apache/pulsar/commit/d9211c97776fe61baddb4d9b3c4049dfd37b48c7 may be responsible
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

@@ -1,0 +1,48 @@
+[Bug] python use tls connect error
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.7.4
+
+### Minimal reproduce step
+
+class TestPulsarClient():
+    def test_instance(self):
+        server_url = "pulsar+ssl://xxxxx:xxx/"
+        self._instance = pulsar.Client(server_url, tls_validate_hostname=False, tls_trust_certs_file_path="trust.pem", tls_allow_insecure_connection=False)
+        while True:
+            try:
+                consumer = self._instance.subscribe("persistent://public/default/test003", 'test01')
+                msg = consumer.receive(timeout_millis=3000)
+                print("msg:", msg)
+                consumer.acknowledge(msg)
+            except KeyboardInterrupt as e:
+                print("Process terminated by manual stop!{}", e)
+            except BaseException as e:
+                print("error:", e)
+            finally:
+                self._instance.close()
+                print("c")
+
+### What did you expect to see?
+
+connect to pulsar
+
+### What did you see instead?
+
+ssh://ossuser@xxx:22/opt/share/oss/xxxx/infers/venv/bin/python -u /tmp/pycharm_project_181/pulsarTest/TestTlsConnection.py
+0000-00-00 00:00:00.000 INFO  [0000-00-00 00:00:00.000 INFO  [
+Process finished with exit code 139
+
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

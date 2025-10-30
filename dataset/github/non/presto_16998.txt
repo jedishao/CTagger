@@ -1,0 +1,42 @@
+HiveQueryRunner cannot run query with HARD_AFFINITY
+presto:tpch1g> set session hive.node_selection_strategy='HARD_AFFINITY';
+presto:tpch1g> select * from lineitem;
+```
+Query 20211116_061008_00011_99wq2 failed: No nodes available to run query
+com.facebook.presto.spi.PrestoException: No nodes available to run query
+	at com.facebook.presto.execution.scheduler.nodeSelection.SimpleNodeSelector.computeAssignments(SimpleNodeSelector.java:183)
+	at com.facebook.presto.execution.scheduler.DynamicSplitPlacementPolicy.computeAssignments(DynamicSplitPlacementPolicy.java:42)
+	at com.facebook.presto.execution.scheduler.SourcePartitionedScheduler.schedule(SourcePartitionedScheduler.java:273)
+	at com.facebook.presto.execution.scheduler.SourcePartitionedScheduler$1.schedule(SourcePartitionedScheduler.java:147)
+	at com.facebook.presto.execution.scheduler.LegacySqlQueryScheduler.schedule(LegacySqlQueryScheduler.java:433)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run$$$capture(FutureTask.java:266)
+	at java.util.concurrent.FutureTask.run(FutureTask.java)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+```
+While SOFT_AFFINITY can run.
+
+The problem was `HiveSplit.getPreferredNodes()` uses `address` field for HARD_AFFINITY, but by default Hadoop file system just return "localhost" by default and it failed to be passed to valid addresses. 
+
+FileSystem.java:
+```
+public BlockLocation[] getFileBlockLocations(FileStatus file, long start, long len) throws IOException {
+        if (file == null) {
+            return null;
+        } else if (start >= 0L && len >= 0L) {
+            if (file.getLen() <= start) {
+                return new BlockLocation[0];
+            } else {
+                String[] name = new String[]{"localhost:50010"};
+                String[] host = new String[]{"localhost"};
+                return new BlockLocation[]{new BlockLocation(name, host, 0L, file.getLen())};
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid start or len parameter");
+        }
+    }
+```
+
+We need to at least make HiveQueryRunner work and add relevant tests.

@@ -1,0 +1,17 @@
+New kafka task can not start because of the previous task is PAUSED timeout
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+>=0.17.0
+
+### Description
+
+When a kafka task need to convert status from READING to PUSHING, overlord will send a PAUSE command, then the peon/indexer will stopping reading the data from kafka.
+
+If the worker do not response the PAUSE(from overlord) immediately, overlord will wait and retry to check the status of the worker(whether it is PAUSED after a while).
+
+Here is a coding bug resulting overlord retry unlimited times, leading to overlord can not start next task.
+
+This is related logs on overlord:
+![1](https://user-images.githubusercontent.com/87791354/126583075-0822ab0a-b351-459f-ba8d-b14922aba0c0.png)

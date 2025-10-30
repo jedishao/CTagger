@@ -1,0 +1,28 @@
+Druid 0.13.0 use s3 remote lookup, Lookup [id] not found
+### Affected Version
+
+Druid 0.13.0 
+
+### Description
+
+I use csv in aws s3 as lookup table, when query a lookuped dimension, the log reported `java.lang.NullPointerException: Lookup [advertiser_lookup_table] not found`
+
+but I can get response from `/druid/coordinator/v1/lookups/config/__default/advertiser_lookup_table`, which gets
+```
+{"version":"v0","lookupExtractorFactory":{"type":"cachedNamespace","extractionNamespace":{"fileRegex":".*csv","uriPrefix":"s3://XXX/data/metadata/20200609/XXX/","type":"uri","namespaceParseSpec":{"valueColumn":"advertiser","keyColumn":"advertiserID","columns":["advertiserID","advertiser","campaignID","campaign","siteID","site","placementID","placement","adSection","adFormLoc","adCreativity","adSize","purchaseUnit","adCarModelName","adGoal","hasEstimatedImp","hasEstimatedClick","impressionMonitoring","clickMonitoring","activityMonitoring"],"format":"csv"},"pollPeriod":"PT5M"}}}
+```
+
+
+There's also some other error infomiation in the log nearby :
+```
+java.lang.NullPointerException
+        at org.apache.druid.server.lookup.namespace.cache.OffHeapNamespaceExtractionCacheManager.monitor(OffHeapNamespaceExtractionCacheManager.java:242) ~[druid-lookups-cached-global-0.13.0-incubating.jar:0.13.0-incubating]
+        at org.apache.druid.server.lookup.namespace.cache.NamespaceExtractionCacheManager$1.run(NamespaceExtractionCacheManager.java:71) [druid-lookups-cached-global-0.13.0-incubating.jar:0.13.0-incubating]
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) [?:1.8.0_252]
+        at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:308) [?:1.8.0_252]
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$301(ScheduledThreadPoolExecutor.java:180) [?:1.8.0_252]
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:294) [?:1.8.0_252]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_252]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_252]
+        at java.lang.Thread.run(Thread.java:748) [?:1.8.0_252]
+```

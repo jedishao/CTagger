@@ -1,0 +1,46 @@
+[Bug] iowait should be considered as idle time.
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+all version. 
+
+### Minimal reproduce step
+
+CPU usage calculated in pulsar is implemented by reading `/proc/stat`, that is sum all cpu time and substract idle time.
+```
+     *     cpu  user   nice system idle    iowait irq softirq steal guest guest_nice
+     *     cpu  317808 128  58637  2503692 7634   0   13472   0     0     0
+```
+
+But real CPU usage should equal the sum substracting the idle cycles **(idle+iowait)**, because `%iowait` represents the percentage of time that **the CPU or CPUs were idle** during which the system had an outstanding disk I/O request.
+https://www.ibm.com/docs/en/linux-on-systems?topic=tests-understanding-cpu-utilization
+
+
+```
+%iowait:
+
+Percentage of time that the CPU or CPUs were idle during which the system had an outstanding disk I/O request.
+
+Therefore, %iowait means that from the CPU point of view, no tasks were runnable, but at least one I/O was in progress. iowait is simply a form of idle time when nothing could be scheduled. The value may or may not be useful in indicating a performance problem, but **it does tell the user that the system is idle and could have taken more work.** 
+```
+https://support.hpe.com/hpesc/public/docDisplay?docId=c02783994#:~:text=Percentage%20of%20time%20that%20the,when%20nothing%20could%20be%20scheduled.
+
+### What did you expect to see?
+
+,
+
+### What did you see instead?
+
+,
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

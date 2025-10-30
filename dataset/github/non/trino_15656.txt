@@ -1,0 +1,10 @@
+Metadata caching between "hive-style" catalogs
+When using multiple "hive-style" catalogs connected to same Hive Metastore or Glue with redirection (e.g. running Delta connector and Hive connector and redirecting between them), if metadata caching is enabled, the caches are not synced.
+
+This is a problem in scenarios where table or partition is created using one catalog and read using another, or dropped in one catalog but the other still sees it.
+
+It especially impacts a use case of changing table format (e.g. migrating from Hive to Delta) by dropping table in one catalog and recreating it in the other catalog. That gets Trino into a state where re-running DROP fails because "table doesn't exist" and trying to create it also fails because "table already exists" and the user needs to either flush cache manually or restart Trino to get catalogs back into consistent state.
+
+Currently this impacts Hive and Delta catalogs, because Iceberg catalog doesn't implement metadata caching, but if it ever does, it might be impacted as well.
+
+(I was asked to file this by @findepi on Trino Slack.)

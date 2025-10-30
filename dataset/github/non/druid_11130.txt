@@ -1,0 +1,11 @@
+create temporary file in directory with secure permissions 
+#### Motivation
+
+`File.createTempFile(String, String)` will create a temporary file in the system temporary directory if the `'java.io.tmpdir'`. The permissions on that file utilize the umask. In a majority of cases, this means that the file that java creates has the permissions: `-rw-r--r--`, thus, any other local user on that system can read the contents of that file.
+This can be a security concern if any sensitive data is stored in this file.
+
+#### Proposed changes
+Create a secure temp file using `PlatformDependent.createTempFile` instead of `File.createTempFile`. The change is released in [netty-4.1.63.Final](https://github.com/netty/netty/commit/c735357bf29d07856ad171c6611a2e1a0e0000ec) and Druid is upgraded to `netty-4.1.63.Final` in [this commit](https://github.com/apache/druid/pull/11117).
+
+#### Rationale
+Create temporary files with sane permissions by default.

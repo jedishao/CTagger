@@ -1,0 +1,85 @@
+Support Accumulo 2.x
+Attempting to create an internal table using the Accumulo connector fails silently with no log messages and reports that the table was created successfully. Attempting to [create an external table](https://prestodb.io/docs/current/connector/accumulo.html#external-tables) using the Accumulo connector fails with an exception.
+
+Per [discussion on the community slack](https://prestodb.slack.com/archives/C07JH9WMQ/p1615839501028200), this could be due to a jar mismatch and [changes in the underlying thrift protocol](https://prestodb.slack.com/archives/C07JH9WMQ/p1615845528032900?thread_ts=1615839501.028200&cid=C07JH9WMQ).
+
+## Version Details
+
+Accumulo 2.0.1
+Presto 0.248
+Zookeeper 3.5.5
+
+## Stack Trace
+
+### For `CREATE TABLE`
+
+```java
+com.facebook.presto.spi.PrestoException: Failed to create Accumulo table
+	at com.facebook.presto.accumulo.AccumuloTableManager.createAccumuloTable(AccumuloTableManager.java:88)
+	at com.facebook.presto.accumulo.AccumuloClient.createTable(AccumuloClient.java:146)
+	at com.facebook.presto.accumulo.AccumuloMetadata.createTable(AccumuloMetadata.java:120)
+	at com.facebook.presto.metadata.MetadataManager.createTable(MetadataManager.java:654)
+	at com.facebook.presto.execution.CreateTableTask.internalExecute(CreateTableTask.java:196)
+	at com.facebook.presto.execution.CreateTableTask.execute(CreateTableTask.java:83)
+	at com.facebook.presto.execution.CreateTableTask.execute(CreateTableTask.java:65)
+	at com.facebook.presto.execution.DataDefinitionExecution.start(DataDefinitionExecution.java:187)
+	at com.facebook.presto.$gen.Presto_0_247_a896816____20210315_145645_1.run(Unknown Source)
+	at com.facebook.presto.execution.SqlQueryManager.createQuery(SqlQueryManager.java:254)
+	at com.facebook.presto.dispatcher.LocalDispatchQuery.lambda$startExecution$5(LocalDispatchQuery.java:114)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: org.apache.accumulo.core.client.AccumuloException: Expected at least 4 arguments, saw :2
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.doFateOperation(TableOperationsImpl.java:300)
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.doFateOperation(TableOperationsImpl.java:261)
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.doTableFateOperation(TableOperationsImpl.java:1452)
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.create(TableOperationsImpl.java:188)
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.create(TableOperationsImpl.java:155)
+	at com.facebook.presto.accumulo.AccumuloTableManager.createAccumuloTable(AccumuloTableManager.java:85)
+	... 13 more
+Caused by: org.apache.accumulo.core.client.impl.thrift.ThriftTableOperationException: undefined
+	at org.apache.accumulo.core.master.thrift.FateService$executeFateOperation_result$executeFateOperation_resultStandardScheme.read(FateService.java:3138)
+	at org.apache.accumulo.core.master.thrift.FateService$executeFateOperation_result$executeFateOperation_resultStandardScheme.read(FateService.java:3115)
+	at org.apache.accumulo.core.master.thrift.FateService$executeFateOperation_result.read(FateService.java:3057)
+	at org.apache.thrift.TServiceClient.receiveBase(TServiceClient.java:78)
+	at org.apache.accumulo.core.master.thrift.FateService$Client.recv_executeFateOperation(FateService.java:146)
+	at org.apache.accumulo.core.master.thrift.FateService$Client.executeFateOperation(FateService.java:127)
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.executeFateOperation(TableOperationsImpl.java:217)
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.doFateOperation(TableOperationsImpl.java:270)
+	... 18 more
+```
+
+### For `SELECT * FROM external_table;`
+
+```java
+com.facebook.presto.spi.PrestoException: Failed to get splits from Accumulo
+	at com.facebook.presto.accumulo.AccumuloClient.getTabletSplits(AccumuloClient.java:713)
+	at com.facebook.presto.accumulo.AccumuloSplitManager.getSplits(AccumuloSplitManager.java:80)
+	at com.facebook.presto.split.SplitManager.getSplits(SplitManager.java:88)
+	at com.facebook.presto.split.CloseableSplitSourceProvider.getSplits(CloseableSplitSourceProvider.java:52)
+	at com.facebook.presto.sql.planner.SplitSourceFactory$Visitor.lambda$visitTableScan$0(SplitSourceFactory.java:155)
+	at com.facebook.presto.sql.planner.LazySplitSource.getDelegate(LazySplitSource.java:96)
+	at com.facebook.presto.sql.planner.LazySplitSource.getConnectorId(LazySplitSource.java:48)
+	at com.facebook.presto.execution.scheduler.SectionExecutionFactory.createStageScheduler(SectionExecutionFactory.java:281)
+	at com.facebook.presto.execution.scheduler.SectionExecutionFactory.createStreamingLinkedStageExecutions(SectionExecutionFactory.java:243)
+	at com.facebook.presto.execution.scheduler.SectionExecutionFactory.createStreamingLinkedStageExecutions(SectionExecutionFactory.java:221)
+	at com.facebook.presto.execution.scheduler.SectionExecutionFactory.createSectionExecutions(SectionExecutionFactory.java:167)
+	at com.facebook.presto.execution.scheduler.LegacySqlQueryScheduler.createStageExecutions(LegacySqlQueryScheduler.java:343)
+	at com.facebook.presto.execution.scheduler.LegacySqlQueryScheduler.<init>(LegacySqlQueryScheduler.java:233)
+	at com.facebook.presto.execution.scheduler.LegacySqlQueryScheduler.createSqlQueryScheduler(LegacySqlQueryScheduler.java:164)
+	at com.facebook.presto.execution.SqlQueryExecution.planDistribution(SqlQueryExecution.java:474)
+	at com.facebook.presto.execution.SqlQueryExecution.start(SqlQueryExecution.java:347)
+	at com.facebook.presto.$gen.Presto_0_247_a896816____20210315_145645_1.run(Unknown Source)
+	at com.facebook.presto.execution.SqlQueryManager.createQuery(SqlQueryManager.java:254)
+	at com.facebook.presto.dispatcher.LocalDispatchQuery.lambda$startExecution$5(LocalDispatchQuery.java:114)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: org.apache.accumulo.core.client.TableNotFoundException: Table external_table does not exist
+	at org.apache.accumulo.core.client.impl.Tables._getTableId(Tables.java:117)
+	at org.apache.accumulo.core.client.impl.Tables.getTableId(Tables.java:102)
+	at org.apache.accumulo.core.client.impl.TableOperationsImpl.splitRangeByTablets(TableOperationsImpl.java:957)
+	at com.facebook.presto.accumulo.AccumuloClient.splitByTabletBoundaries(AccumuloClient.java:767)
+	at com.facebook.presto.accumulo.AccumuloClient.getTabletSplits(AccumuloClient.java:685)
+	... 21 more
+```

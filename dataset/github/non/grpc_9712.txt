@@ -1,0 +1,49 @@
+Some pom files are generated with version ranges which breaks with maven flatten plugin  (possibly issue with Apache Maven 3.8.xx)
+<!-- Please answer these questions before submitting a bug report. -->
+Some pom files are generated with version ranges which maven does not like. If you add a dependency mgmt with the bom pom, you can compile. Otherwise you get things like the following:
+
+```Could not resolve dependencies for project XXX: Failed to collect dependencies at io.grpc:grpc-services:jar:1.51.0 -> io.grpc:grpc-core:jar:[1.51.0]: No versions available for io.grpc:grpc-core:jar:[1.51.0] within specified range```
+
+When using the flatten plugin, the final pom can not be compiled as it removes boms.
+
+Note that this happens with all artifacts (all grpc io artifacts use ranges when they reference artifacts from grpc io)
+
+### What version of gRPC-Java are you using?
+1.51.0 (but other versions like 1.41.xx or 1.45.xx have the same issue
+
+### What is your environment?
+All
+
+### What did you expect to see?
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-api</artifactId>
+      <version>1.51.0</version>
+      <scope>compile</scope>
+    </dependency>
+
+### What did you see instead?
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-api</artifactId>
+      <version>[1.51.0]</version>
+      <scope>compile</scope>
+    </dependency>
+### Steps to reproduce the bug
+
+Add  the following dependency
+```
+<dependency>
+  <groupId>io.grpc</groupId>
+  <artifactId>grpc-core</artifactId>
+  <version>1.51.0</version>
+</dependency>
+```
+
+And try to compile.  
+
+If you add the bom-pom then try with ```mvn flatten:flatten ``` and ```mvn clean package -f .flattened-pom.xml```
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->
+
+
+See also https://github.com/grpc/grpc-java/issues/8337

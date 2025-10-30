@@ -1,0 +1,8 @@
+StorageLocation.availableSizeBytes doesn't consider segment cache usage on disk
+One of our internal clusters had a weird issue where certain historicals were running out of disk space and during the investigation I came across the following behavior:
+It looks like [StorageLocation.availableSizeBytes()](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/segment/loading/StorageLocation.java#L179) isn't an accurate representation of the available size left in the segment cache.
+[StorageLocation.currSizeBytes](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/segment/loading/StorageLocation.java#L60) is zero every time a node starts up and therefore it doesn't account for segments already present in the segmentcache. 
+Lets say, a historical has filled up 50% of its 10GB segment cache capacity and the historical had to be restarted for some reason. Once the process comes back up, the currSizeBytes is zero and `StorageLocation.availableSizeBytes` would incorrectly return 10GB instead of 5GB. I would expect this method to work similar to [ServerHolder.getAvailableSize()](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/server/coordinator/ServerHolder.java#L97) which does take into account the actual usage of the server.
+Before treating it as a bug and fixing it, I wanted to check if this is indeed the expected behavior for `StorageLocation.availableSizeBytes()` and if it isn't expected to keep track of the actual segment cache size on disk?
+
+@jihoonson @clintropolis Any comments regarding this?

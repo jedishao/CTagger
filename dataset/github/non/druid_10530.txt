@@ -1,0 +1,35 @@
+Allow zero period for TIMESTAMPADD to help make Tableau operable 
+### Description
+
+Tableau provides an option to choose a time period representing the current month, 
+
+<img width="565" alt="Screen Shot 2020-10-24 at 5 25 41 PM" src="https://user-images.githubusercontent.com/4567245/97096253-46590080-161e-11eb-93c0-055438950486.png">
+
+which results in auto-generated SQL of the form, 
+
+```sql
+ TIMESTAMPADD(MONTH,0,...)
+```
+
+which results in Druid throwing an error per [here](https://github.com/apache/druid/blob/c6caae9a24ed0363380d2a6b1b12f5f8af9bd425/core/src/main/java/org/apache/druid/java/util/common/granularity/PeriodGranularity.java#L63) of the form, 
+
+```
+Unknown exception (java.lang.IllegalArgumentException): zero period is not acceptable in PeriodGranularity!
+``` 
+
+Granted adding a zero period is atypical, but I was wondering why this should be an error (the check was introduced in https://github.com/apache/druid/pull/3644). For reference MySQL et al. support having  a zero period, 
+
+```
+mysql> SELECT TIMESTAMPADD(MONTH,0,'2020-10-24');
++------------------------------------+
+| TIMESTAMPADD(MONTH,2,'2020-10-24') |
++------------------------------------+
+| 2020-10-24                         | 
++------------------------------------+
+1 row in set (0.00 sec)
+```
+
+### Motivation
+
+Please provide the following for the desired feature or change:
+- The `TIMESTAMPADD` should allow for an zero interval to ensure applications like Tableau are functional.

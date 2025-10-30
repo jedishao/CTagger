@@ -1,0 +1,17 @@
+Netty server loses exception during handshake
+Recently when debugging a server-caused handshake failure, we enabled logs and saw:
+
+```
+Sep 08, 2021 4:56:49 PM io.grpc.netty.shaded.io.grpc.netty.WriteBufferingAndExceptionHandler failWrites
+FINE: Ignoring duplicate failure
+io.grpc.StatusRuntimeException: UNAVAILABLE: Connection closed while performing protocol negotiation for [FilterChainMatchingProtocolNegotiators$FilterChainMatchingHandler#0, WriteBufferingAndExceptionHandler#0, DefaultChannelPipeline$TailContext#0]
+```
+
+But there was no earlier failure. This seems to be a problem introduced by the client/server protocol negotiator unification and WriteBufferingAndExceptionHandler. On client-side we issue a fake write (that gets thrown away by NettyClientHandler) and use it for detecting errors during handshake:
+
+https://github.com/grpc/grpc-java/blob/fb004630019ad6cc7de737e1230d993529a01e21/netty/src/main/java/io/grpc/netty/NettyClientTransport.java#L290
+
+
+We don't have anything similar on server-side, but WriteBufferingAndExceptionHandler is expecting to communicate a failure via a failed write.
+
+https://github.com/grpc/grpc-java/blob/fb004630019ad6cc7de737e1230d993529a01e21/netty/src/main/java/io/grpc/netty/NettyServerTransport.java#L153-L154

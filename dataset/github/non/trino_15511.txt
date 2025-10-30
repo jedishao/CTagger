@@ -1,0 +1,24 @@
+Optimize HiveSplit
+The [HiveSplit](https://github.com/trinodb/trino/blob/master/plugin/trino-hive/src/main/java/io/trino/plugin/hive/HiveSplit.java) includes the [Properties schema](https://github.com/trinodb/trino/blob/master/plugin/trino-hive/src/main/java/io/trino/plugin/hive/HiveSplit.java#L50) field.
+
+This fields may include a lot of unnecessary information as it stores:
+
+- All table properties: https://github.com/trinodb/trino/blob/master/plugin/trino-hive/src/main/java/io/trino/plugin/hive/metastore/MetastoreUtil.java#L209
+- All serde properties: https://github.com/trinodb/trino/blob/master/plugin/trino-hive/src/main/java/io/trino/plugin/hive/metastore/MetastoreUtil.java#L155
+
+While some of table and serde properties may be necessary to create a reader, it may also include some arbitrary properties (such as comments, descriptions, etc.).
+
+The schema also includes information that is either duplicated or can be expressed in a more concise way, for example:
+
+- Column names and types: https://github.com/trinodb/trino/blob/master/plugin/trino-hive/src/main/java/io/trino/plugin/hive/metastore/MetastoreUtil.java#L183
+- Storage format: https://github.com/trinodb/trino/blob/master/plugin/trino-hive/src/main/java/io/trino/plugin/hive/metastore/MetastoreUtil.java#L140
+- And more ...
+
+
+Since this information is stored for every split it creates unnecessary serialization / deserialization overhead as well as extra memory overhead used by the multiple split buffers (on coordinator and on workers).
+
+It should be possible to significantly reduce the amount of data sent as part of the `schema` or completely eliminate it. The similar effort was successfully undergone in Presto some time ago: https://github.com/prestodb/presto/pull/13453. 
+
+In addition to reducing / eliminating `Properties schema` it would be good to also check if there's any other unnecessary (or duplicated) information included with each split? Think what information could be delivered to workers as part of a plan (via TableHandle) vs with each and every split?
+
+

@@ -1,0 +1,125 @@
+java.lang.NoClassDefFoundError: org/springframework/data/redis/connection/RedisZSetCommands$Tuple
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+
+**Actual behavior**
+
+![image](https://user-images.githubusercontent.com/44340137/202149335-bd510bc5-5fca-44f5-94a5-f7d692ceed3f.png)
+
+
+**Steps to reproduce or test case**
+springboot3 with redisson, follow the code
+```java
+private final RedisTemplate<String,Object> redisTemplate;
+......
+redisTemplate.opsForHash().putAll(user.getId(), map);
+```
+**Redis version**
+
+**Redisson version**
+3.18.0
+**Redisson configuration**
+```java
+package org.xiaowu.behappy.netty.chatroom.config;
+
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import org.redisson.spring.starter.RedissonAutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cache.interceptor.KeyGenerator;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
+
+/**
+ * @author xiaowu
+ * redis 配置类
+ */
+@Configuration
+@AutoConfigureBefore(RedissonAutoConfiguration.class)
+@EnableConfigurationProperties({RedisProperties.class})
+public class RedisAutoConfiguration {
+
+    @Bean
+    public RedisSerializer<String> redisKeySerializer() {
+        return RedisSerializer.string();
+    }
+
+    @Bean
+    public RedisSerializer<Object> redisValueSerializer() {
+        return new GenericJackson2JsonRedisSerializer(getObjectMapper());
+    }
+
+    /**
+     * StringRedisTemplate配置
+     */
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory factory
+            , RedisSerializer<String> redisKeySerializer, RedisSerializer<Object> redisValueSerializer) {
+        StringRedisTemplate redisTemplate = new StringRedisTemplate();
+        redisTemplate.setConnectionFactory(factory);
+        redisTemplate.setDefaultSerializer(redisValueSerializer);
+        redisTemplate.setKeySerializer(redisKeySerializer);
+        redisTemplate.setHashKeySerializer(redisKeySerializer);
+        redisTemplate.afterPropertiesSet();
+        return redisTemplate;
+    }
+
+    /**
+     * RedisTemplate配置
+     */
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory
+            , RedisSerializer<String> redisKeySerializer, RedisSerializer<Object> redisValueSerializer) {
+        RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
+        redisTemplate.setConnectionFactory(factory);
+        redisTemplate.setDefaultSerializer(redisValueSerializer);
+        redisTemplate.setKeySerializer(redisKeySerializer);
+        redisTemplate.setHashKeySerializer(redisKeySerializer);
+        redisTemplate.afterPropertiesSet();
+        return redisTemplate;
+    }
+
+    private static ObjectMapper getObjectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        objectMapper.registerModule((new SimpleModule()));
+        objectMapper.configure(MapperFeature.USE_ANNOTATIONS, false);
+        objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+        objectMapper.activateDefaultTyping(LaissezFaireSubTypeValidator.instance, ObjectMapper.DefaultTyping.NON_FINAL);
+        return objectMapper;
+    }
+}
+```
+
+```yaml
+spring:
+  data:
+    redis:
+      host: 
+      password: 
+      port: 
+      lettuce:
+        pool:
+          enabled: true
+          maxactive: 64
+          maxidle: 64
+          maxwait: -1
+          minidle: 1
+```

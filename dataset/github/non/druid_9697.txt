@@ -1,0 +1,42 @@
+TopN and GroupBy aggregating on Scan subqueries with multi-value columns fail
+Queries with scan subqueries which select multi-value dimension do not work correctly fro TopN and Group By queries.
+
+### Affected Version
+
+0.18.0
+
+### Description
+A side-effect of the joins work in 0.18, an `InlineDataSource` was added which allows subqueries on arbitrary query types instead of just being a special group by mode that only allows other group by queries to be the subqueries. This means that scan queries can now be subqueries, which means the broker sometimes now has to handle aggregating on multi-value dimensions if the scan subquery selected them. However, it is ill prepared, and is making assumptions that the absence of column capabilities means that it can assume there are no multi-value dimensions, which is no longer true.
+
+group by error:
+```
+java.lang.IllegalStateException: Not supported for multi-value dimensions
+	at com.google.common.base.Preconditions.checkState(Preconditions.java:176) ~[guava-16.0.1.jar:?]
+	at org.apache.druid.query.groupby.epinephelinae.column.DictionaryBuildingStringGroupByColumnSelectorStrategy.getOnlyValue(DictionaryBuildingStringGroupByColumnSelectorStrategy.java:112) ~[druid-processing-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2$HashAggregateIterator.aggregateSingleValueDims(GroupByQueryEngineV2.java:669) ~[druid-processing-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2$GroupByEngineIterator.initNewDelegate(GroupByQueryEngineV2.java:457) ~[druid-processing-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2$GroupByEngineIterator.hasNext(GroupByQueryEngineV2.java:511) ~[druid-processing-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.BaseSequence.accumulate(BaseSequence.java:43) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.ConcatSequence.lambda$accumulate$0(ConcatSequence.java:41) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.MappingAccumulator.accumulate(MappingAccumulator.java:40) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.BaseSequence.accumulate(BaseSequence.java:44) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.MappedSequence.accumulate(MappedSequence.java:43) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.ConcatSequence.accumulate(ConcatSequence.java:41) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.WrappingSequence$1.get(WrappingSequence.java:50) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.SequenceWrapper.wrap(SequenceWrapper.java:55) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.java.util.common.guava.WrappingSequence.accumulate(WrappingSequence.java:45) ~[druid-core-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2$1$1$1.call(GroupByMergingQueryRunnerV2.java:246) [druid-processing-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+	at org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2$1$1$1.call(GroupByMergingQueryRunnerV2.java:233) [druid-processing-0.18.0-iap-preview8-SNAPSHOT.jar:0.18.0-iap-preview8-SNAPSHOT]
+...
+```
+
+topn error:
+```
+2020-04-13T16:08:11,837 ERROR [main] org.apache.druid.query.ChainedExecutionQueryRunner - Exception with one of the sequences!
+java.lang.UnsupportedOperationException: Cannot operate on a dimension with no dictionary
+	at org.apache.druid.query.topn.PooledTopNAlgorithm.makeInitParams(PooledTopNAlgorithm.java:222) ~[classes/:?]
+	at org.apache.druid.query.topn.PooledTopNAlgorithm.makeInitParams(PooledTopNAlgorithm.java:53) ~[classes/:?]
+	at org.apache.druid.query.topn.TopNMapFn.apply(TopNMapFn.java:62) ~[classes/:?]
+	at org.apache.druid.query.topn.TopNQueryEngine.lambda$query$0(TopNQueryEngine.java:91) ~[classes/:?]
+...
+```

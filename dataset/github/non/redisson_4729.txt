@@ -1,0 +1,87 @@
+RFunction does not pass keys correctly
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+I have a function in my cache (not the real function, but this has the same result):
+```
+local function myFunction(keys, args)
+    local key = keys[1]
+    redis.log(redis.LOG_NOTICE, key)
+    local recordExists = redis.call('exists', key)
+    if not recordExists then
+        redis.call('hset', key, unpack(args))
+        return 0
+    end
+    return 1
+end
+```
+
+If I call this function like I do below
+
+```
+RBatch batch = client.getBatch();
+RFunctionAsync function = batch.getFunction();
+
+function.callAsync(
+            FunctionMode.WRITE,
+            "myFunction",
+            FunctionResult.LONG,
+            List.of("realKey"),
+            {"field1", "value1", "field2", "value2"}
+);
+...
+batch.execute()
+```
+
+I expect this to roughly translate to the CLI as `FCALL 1 realKey field1 value1 field2 value2`.  Inside Redis, this would look like `myFunction({"realKey"}, {"field1", "value1", "field2", "value2"})`, which would set a hash to the key `realKey`.
+
+**Actual behavior**
+
+Instead, the `keys` table in the lua function looks like `{"[realKey]"}`. Note that the square brackets are part of the key, indicating the arguments have not been correctly passed to Redis. If I add another key to the key list:
+
+```
+function.callAsync(
+            FunctionMode.WRITE,
+            "myFunction",
+            FunctionResult.LONG,
+            List.of("realKey1", "realKey2"),
+            {"field1", "value1", "field2", "value2"}
+);
+```
+Then the `keys` table in the Lua function looks like `{"[realKey1, realKey2]", "field1"}`. So the Lua function takes the first two arguments (as expected), but the first argument is a stringified version of the keys list.
+
+**Solution**
+From my testing, this is because the list of keys is added [here](https://github.com/redisson/redisson/blob/master/redisson/src/main/java/org/redisson/RedissonFuction.java#L202), rather than adding the contents of the keys list to the args list. I made the change locally, built my project with it, and it works as expected.
+
+```
+        if (keys.size() > 0) {
+            args.add(keys);
+        }
+```
+Should become
+```
+        if (keys.size() > 0) {
+            args.addAll(keys);
+        }
+```
+There are also no unit tests which verify key behavior. I will add some in a PR.
+
+**Steps to reproduce or test case**
+
+1. Create a function which takes in keys and args, and upload it to the cache.
+2. Call the function using `RFunction.call(...)` or `RFunction.callAsync(...)`.
+3. Observe the incorrect keys being passed in.
+
+**Redis version**
+7.0.4
+
+**Redisson version**
+3.18.0
+
+**Redisson configuration**
+```
+config.useSingleServer().setAddress("redis://127.0.0.1:6379");
+```
+Using a simple JSON codec which uses a jackson `ObjectMapper` under the hood for values, and the default `String` codec for keys.

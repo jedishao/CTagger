@@ -1,0 +1,56 @@
+Iceberg REST catalog silently ignores 'location' schema and table property
+When using the REST catalog with the iceberg connector, the location property is ignored when passed to `CREATE SCHEMA/CREATE TABLE`. 
+
+Instead, the bucket location associated with the warehouse `iceberg.rest-catalog.warehouse` is always utilized. 
+
+This was confusing, probably better is explicitly erroring out when attempting to use the `location` property with the iceberg REST catalog instead of silently ignoring the property.  
+
+Example:
+```
+trino> create schema iceberg.grant_test with (location='s3://bucketnamehere/');
+CREATE SCHEMA
+trino> show create schema iceberg.grant_test;
+                                    Create Schema                                     
+--------------------------------------------------------------------------------------
+ CREATE SCHEMA iceberg.grant_test                                                     
+ WITH (                                                                               
+    location = 's3://warehousebucketlocation/cd0c8e4f-76d5-44e6-b098-94a5a82c4b4b/' 
+ )                                                                                    
+(1 row)
+```
+```
+trino> create table iceberg.grant_test.test_table with (location='s3://bucketnamehere/tablenamehere/') as select * from tpch.tiny.lineitem limit 20;
+CREATE TABLE: 20 rows
+
+Query 20230306_230107_00004_jwzzs, FINISHED, 1 node
+Splits: 38 total, 38 done (100.00%)
+5.74 [27.4K rows, 0B] [4.78K rows/s, 0B/s]
+
+trino> show create table iceberg.grant_test.test_table;
+                                                       Create Table                                                       
+--------------------------------------------------------------------------------------------------------------------------
+ CREATE TABLE iceberg.grant_test.test_table (                                                                             
+    orderkey bigint,                                                                                                      
+    partkey bigint,                                                                                                       
+    suppkey bigint,                                                                                                       
+    linenumber integer,                                                                                                   
+    quantity double,                                                                                                      
+    extendedprice double,                                                                                                 
+    discount double,                                                                                                      
+    tax double,                                                                                                           
+    returnflag varchar,                                                                                                   
+    linestatus varchar,                                                                                                   
+    shipdate date,                                                                                                        
+    commitdate date,                                                                                                      
+    receiptdate date,                                                                                                     
+    shipinstruct varchar,                                                                                                 
+    shipmode varchar,                                                                                                     
+    comment varchar                                                                                                       
+ )                                                                                                                        
+ WITH (                                                                                                                   
+    format = 'ORC',                                                                                                       
+    format_version = 2,                                                                                                   
+    location = 's3://warehousebucketlocation/cd0c8e4f-76d5-44e6-b098-94a5a82c4b4b/87aff472-87d1-4ee0-aa6a-d09908ff9e25' 
+ )                                                                                                                        
+(1 row)
+```

@@ -1,0 +1,106 @@
+Druid Docker-Image not compatible with OpenShift default SecurityContextConstraint (SCC)
+### Affected Version
+
+Druid Version:
+0.20.0
+
+OpenShift Version:
+4
+
+### Description
+
+When trying to start Druid in an OpenShift environment based on the [Helm-Chart](https://github.com/helm/charts/tree/master/incubator/druid), it fails. The Deployments of Druid-Broker, Druid-Coordinator, Druid-Router and Druid-Historical all fail start start their pods because of missing permission to create files at the container start. We assume this is because OpenShift does not run the pods as User 1000 but rather as a random UserId and the random User is not permitted to manipulate some files.
+
+We further assume, that owning the required files by the root group (group Id 0) and making those files writeable by the group will alleviate the issue - as described [here](https://stackoverflow.com/questions/42363105/permission-denied-mkdir-in-container-on-openshift) and [here](https://docs.openshift.com/container-platform/3.3/creating_images/guidelines.html#openshift-container-platform-specific-guidelines)
+
+We use the default helm values to deploy the druid to openshift.
+
+### pod logs
+Druid-Broker
+2021-01-19T08:01:06+0000 startup service broker
+Setting druid.host=10.86.0.214 in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.indexer.logs.type=file in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.extensions.loadList=["druid-histogram", "druid-datasketches", "druid-lookups-cached-global", "postgresql-metadata-storage"] in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.processing.numMergeBuffers=2 in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.emitter.http.recipientBaseUrl=http://druid_exporter_url:druid_exporter_port/druid in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.metadata.storage.type=postgresql in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.processing.numThreads=1 in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.metadata.storage.connector.connectURI=jdbc:postgresql://test-druid-postgresql:5432/druid in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.storage.type=local in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.metadata.storage.connector.user=druid in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.zk.service.host=test-druid-zookeeper-headless:2181 in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.indexer.logs.directory=/opt/data/indexing-logs in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.emitter=noop in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.metadata.storage.connector.password=druid in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.processing.buffer.sizeBytes=50000000 in /tmp/conf/druid/cluster/query/broker/runtime.properties
+Setting druid.emitter.logging.logLevel=debug in /tmp/conf/druid/cluster/query/broker/runtime.properties
+mkdir: can't create directory 'var/tmp': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+ 
+Coordinator:
+2021-01-19T08:01:57+0000 startup service coordinator
+Setting druid.host=10.86.0.215 in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.indexer.logs.type=file in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.extensions.loadList=["druid-histogram", "druid-datasketches", "druid-lookups-cached-global", "postgresql-metadata-storage"] in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.metadata.storage.type=postgresql in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.emitter.http.recipientBaseUrl=http://druid_exporter_url:druid_exporter_port/druid in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.metadata.storage.connector.connectURI=jdbc:postgresql://test-druid-postgresql:5432/druid in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.storage.type=local in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.metadata.storage.connector.user=druid in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.indexer.logs.directory=/opt/data/indexing-logs in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.zk.service.host=test-druid-zookeeper-headless:2181 in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.emitter=noop in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.metadata.storage.connector.password=druid in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+Setting druid.emitter.logging.logLevel=debug in /tmp/conf/druid/cluster/master/coordinator-overlord/runtime.properties
+mkdir: can't create directory 'var/tmp': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+ 
+Router
+2021-01-19T08:03:26+0000 startup service router
+Setting druid.host=10.86.0.216 in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.indexer.logs.type=file in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.extensions.loadList=["druid-histogram", "druid-datasketches", "druid-lookups-cached-global", "postgresql-metadata-storage"] in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.emitter.http.recipientBaseUrl=http://druid_exporter_url:druid_exporter_port/druid in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.metadata.storage.type=postgresql in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.metadata.storage.connector.connectURI=jdbc:postgresql://test-druid-postgresql:5432/druid in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.storage.type=local in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.metadata.storage.connector.user=druid in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.indexer.logs.directory=/opt/data/indexing-logs in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.zk.service.host=test-druid-zookeeper-headless:2181 in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.emitter=noop in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.metadata.storage.connector.password=druid in /tmp/conf/druid/cluster/query/router/runtime.properties
+Setting druid.emitter.logging.logLevel=debug in /tmp/conf/druid/cluster/query/router/runtime.properties
+mkdir: can't create directory 'var/tmp': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+
+Historical
+2021-01-19T08:04:24+0000 startup service historical
+Setting druid.host=10.86.0.221 in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.indexer.logs.type=file in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.extensions.loadList=["druid-histogram", "druid-datasketches", "druid-lookups-cached-global", "postgresql-metadata-storage"] in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.processing.numMergeBuffers=2 in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.emitter.http.recipientBaseUrl=http://druid_exporter_url:druid_exporter_port/druid in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.metadata.storage.type=postgresql in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.processing.numThreads=1 in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.metadata.storage.connector.connectURI=jdbc:postgresql://test-druid-postgresql:5432/druid in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.storage.type=local in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.metadata.storage.connector.user=druid in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.zk.service.host=test-druid-zookeeper-headless:2181 in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.indexer.logs.directory=/opt/data/indexing-logs in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.emitter=noop in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.processing.buffer.sizeBytes=50000000 in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.metadata.storage.connector.password=druid in /tmp/conf/druid/cluster/data/historical/runtime.properties
+Setting druid.emitter.logging.logLevel=debug in /tmp/conf/druid/cluster/data/historical/runtime.properties
+mkdir: can't create directory 'var/tmp': Permission denied

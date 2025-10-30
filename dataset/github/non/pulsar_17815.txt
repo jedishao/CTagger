@@ -1,0 +1,37 @@
+[Bug] incorrect CPU usage collected by pulsar
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+pulsar 2.9.3
+linux 4.19.16
+
+### Minimal reproduce step
+
+1. enable CGROUP
+2. assign 23 CPUs to broker process,while there are 40 CPUs in the system
+```taskset fffffe0000 bin/***```
+
+
+### What did you expect to see?
+
+1. cpu usage is smaller than 100%
+
+### What did you see instead?
+
+1. cpu usage is greater than 100%,and the cpu usage reported by pulsar need to be fixed by multiply 23/40.
+2. for example,pulsar could report 150%,but the real cpu usage is 150*23/40=86.25%
+
+### Anything else?
+
+this is because Runtime.getRuntime().availableProcessors() method return 23, which is the number of processors can be utilized by this process, but what we need is 40.
+we could retrieve metadata from ZK, and verify that the limit of cpu is 2300, not 4000.
+<img width="277" alt="image" src="https://user-images.githubusercontent.com/52550727/191927561-98d0db4d-a28c-4441-b261-3b87cadf3df3.png">
+
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

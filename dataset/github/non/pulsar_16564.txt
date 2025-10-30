@@ -1,0 +1,53 @@
+Confused with method getMemUsage() in LinuxBrokerHostUsageImpl.java
+**Environment**
+1. broker run in kubernetes, set memory request to 20GB and limit to 20GB
+2. pulsar version 2.8.1
+3. os:ubuntu:20.04
+4. jdk: openjdk version "11.0.11" 2021-04-20
+5. PULSAR_GC:   -XX:+UseG1GC -XX:MaxGCPauseMillis=10 -Dio.netty.leakDetectionLevel=disabled -Dio.netty.recycler.linkCapacity=1024 -XX:+ParallelRefProcEnabled -XX:+UnlockExperimentalVMOptions -XX:+DoEscapeAnalysis -XX:ParallelGCThreads=4 -XX:ConcGCThreads=4 -XX:G1NewSizePercent=50 -XX:+DisableExplicitGC -XX:-ResizePLAB -XX:+ExitOnOutOfMemoryError -XX:+PerfDisableSharedMem
+6. PULSAR_MEM:  -Xms8G -Xmx8G -XX:MaxDirectMemorySize=8G
+
+**Describe the bug**
+When running broker in our cluster, some broker pod may occur memory usage over 85%, and then cause to unloading namespace bundles from this broker, but from monitor of pod, we found the usage of memory is not high；on the other side, we found that when unloading bundles,  jvm heap memory is very high, and the monitoring curve of `jvm_memory_bytes_used` is very similar to `pulsar_lb_memory_usage`
+
+**Question**
+Does LinuxBrokerHostUsageImpl.getMemUsage() return error results? Why get different result in same pod?
+
+**To Reproduce**
+1. test in the broker pod
+```
+import com.sun.management.OperatingSystemMXBean;
+import java.lang.management.ManagementFactory;
+
+public class MemTest {
+
+    public static void main(String[] args) {
+        OperatingSystemMXBean systemBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        double total = ((double) systemBean.getTotalPhysicalMemorySize()) / (1024 * 1024);
+        double free = ((double) systemBean.getFreePhysicalMemorySize()) / (1024 * 1024);
+
+        System.out.println("total:" + total);
+        System.out.println("free:" + free);
+    }
+}
+```
+and result of limit is 20GB.
+
+![image](https://user-images.githubusercontent.com/5668441/178664087-8cfb9b42-6876-4d9c-9e41-8258686d40bc.png)
+2. use arthas to see the real return of LinuxBrokerHostUsageImpl.getMemUsage, and can see that the limit is 8GB.
+![image](https://user-images.githubusercontent.com/5668441/178664310-eac62b1c-63f1-435f-899e-fcb3ab7d6fad.png)
+
+
+**Expected behavior**
+
+LinuxBrokerHostUsageImpl.getMemUsage return the real memory of pod rather than the heap memory of jvm.
+
+**Screenshots**
+1.monitor of broker pod 
+![image](https://user-images.githubusercontent.com/5668441/178664667-f4dd890a-7697-4bb7-be36-d5d84d482177.png)
+2.monitor of pulsar_lb_memory_usage
+![image](https://user-images.githubusercontent.com/5668441/178664715-bb12f5ed-a767-4d3e-9fb9-6eeba1a84adf.png)
+
+
+Thanks for any suggestions.
+

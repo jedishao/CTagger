@@ -1,0 +1,46 @@
+Can't embed JSON values in JSON_OBJECT or JSON_ARRAY
+I'm using trino 410 in docker, out of the box installation:
+
+```
+docker pull trinodb/trino
+docker run -p 8080:8080 --name TRINO trinodb/trino
+```
+
+Using connector:
+
+```sql
+use memory.default;
+```
+
+Given this schema:
+
+```sql
+create table t (j json);
+insert into t values (json '[1]');
+```
+
+I would expect these queries to work, but they don't:
+
+```sql
+select json_object(key 'x' value j) from t;
+select json_array(j) from t;
+```
+
+I'm guessing this is because of the stance expressed here in the manual:
+https://trino.io/docs/current/functions/json.html#json-object
+
+<img width="643" alt="image" src="https://user-images.githubusercontent.com/734593/224723185-59293899-2782-4cb2-8621-d3be5a337506.png">
+
+Although, I couldn't find any clear indications otherwise regarding any deprecation of the `JSON` type. Even if the SQL standard doesn't have it, I think it is a mistake to deprecate the type. Oracle, who was one of the main drivers for the SQL/JSON standards, has now added a formal `JSON` type as well, even in MySQL. Treating any arbitrary `VARCHAR` as `JSON` is cumbersome. One always has to distinguish between `'1'` the string and `'1'` the JSON value containing a number, etc. This is a PITA that could be avoided with formal support for the `JSON` type, everywhere, including `JSON_OBJECT(... RETURNING JSON)`, etc.
+
+## Workarounds
+
+These approaches work:
+
+```sql
+-- Avoid JSON_OBJECT()
+select cast(map(array['x'], array[j]) as json) from t;
+
+-- Format and parse again (very lame)
+select json_object(key 'x' value json_format(j) format json) from t;
+```

@@ -1,0 +1,57 @@
+How the "nodeAddresses" differentiate master/slave in the clusterServersConfig mode?
+Hi Redisson community,
+
+I think I have a dumb question but I didn't find anywhere explain it. Hope anyone can give me a hint.
+
+Let's assume we have a 6 nodes Redis cluster (3 masters and 3 slaves). And we have 2 different configurations for Redisson client.
+
+**Version A**
+
+```
+clusterServersConfig:
+  ...
+  ...
+  ...
+  slaveConnectionMinimumIdleSize: 100
+  slaveConnectionPoolSize: 300
+  masterConnectionMinimumIdleSize: 100
+  masterConnectionPoolSize: 300
+  readMode: "SLAVE"
+  ...
+  nodeAddresses:
+  - "redis://master1.com:6379"
+  - "redis://master2.com:6379"
+  - "redis://master3.com:6379"
+  - "redis://slave1.con:6380"
+  - "redis://slave2.con:6380"
+  - "redis://slave3.con:6380"
+```
+
+**Version B**
+
+```
+clusterServersConfig:
+  ...
+  ...
+  ...
+  slaveConnectionMinimumIdleSize: 100
+  slaveConnectionPoolSize: 300
+  masterConnectionMinimumIdleSize: 100
+  masterConnectionPoolSize: 300
+  readMode: "MASTER_SLAVE"
+  ...
+  nodeAddresses:
+  - "redis://master1.com:6379"
+  - "redis://master2.com:6379"
+  - "redis://master3.com:6379"
+```
+
+
+I test of these 2 different types of configurations in my environment, and I don't notice anything different. But I wonder 
+
+1. In the "Version A", I put all master & slave together in the "nodeAddresses". Is Redisson client able to differentiate the master and slave? And then only route the "READ" operation to slave nodes?
+2. In the "Version B", I put "readMode: MASTER_SLAVE", but I only gave master nodes addresses in "nodeAddresses". Will Redisson client find the slave nodes and balance the "READ" operation to slave nodes?
+
+Thanks for your time and patience!
+
+Jack

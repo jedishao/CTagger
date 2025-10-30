@@ -1,0 +1,15 @@
+Kafka ingestion sometimes produces rows that aren't aggregated
+### Affected Version
+
+0.18.1
+
+### Description
+
+Hi, this problem seems to be similar from what I saw in #8276, but unfortunately I'm not really able to understand what the solution was in that case and this problem is affecting my ability to produce reports that are quick and accurate. We have a Kafka ingestion task that occasionally produces more than one row for the same dimension (data is pushed out onto the topic every 30s), but in my case the values aren't duplicated but they fail to be aggregated and instead appear as two separate rows which then throw off any aggregations in queries if I don't use a `longMax`, which then hinders my ability to do aggregation of other types because `longSum` suddenly produces extremely large values only some of the time
+
+Example screenshot of issue (dimension value excluded here):
+![image](https://user-images.githubusercontent.com/24203105/93486466-3852ea00-f8d2-11ea-94e8-71f48276acd9.png)
+
+I did see compressing segments should aggregate these values in the referenced issue, and tried to do that but I don't believe that's a solution that particularly works since this is a real-time data set I need for visualization and waiting for segment compression to happen is a non-starter and I can't remember if it even solved the issue when I did try, though its quite possible I wasn't doing it correctly.
+
+Any help would be greatly appreciated, thanks!

@@ -1,0 +1,138 @@
+About the performance of using JDBC and HTTP to request Druids
+This is the case. At present, the company always uses HTTP to request Druids, but the problem is also very obvious. HTTP makes a query cumbersome. Can we make the Druid request as simple as JDBC. Therefore, I learned that Druid was requested by JDBC, and everything was very smooth by integrating mybatis plus. Just when I wanted to finish work, the problem occurred。By means of jemter pressure measurement，I found that the speed of HTTP query for the same SQL is 10 times faster than that of JDBC. The pressure test configuration is 10 threads,After checking the relevant information, I still can't get the answer, so please help me to see what the situation is
+
+HTTP request 1 is jdbc test
+HTTP request2 is http test
+
+![image](https://user-images.githubusercontent.com/53367253/185859078-5b335212-ad85-4080-a540-a6bae4e0ea17.png)
+
+
+```java
+@GetMapping("testList1")
+    public String list1() {
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        List<ApmServiceMetric> appExceptionDataMinList = druidMapper.getApmService();
+        stopWatch.stop();
+        System.out.println("stopWatch.getTotalTimeSeconds() = " + stopWatch.getTotalTimeSeconds());
+        for (ApmServiceMetric apmServiceMetric : appExceptionDataMinList) {
+            System.out.println(apmServiceMetric);
+        }
+        return "success";
+    }`
+
+@Options(statementType = StatementType.STATEMENT)
+    List<ApmServiceMetric> getApmService();
+```
+```html
+<select id="getApmService" resultType="com.tingyun.entity.ApmServiceMetric">
+        select
+            (CURRENT_TIMESTAMP - INTERVAL '5' MINUTE) as "datetime",
+            TIMESTAMP_TO_MILLIS(CURRENT_TIMESTAMP - INTERVAL '5' MINUTE) as "timestamp",
+            biz_system_id as "bizSystemId",
+            application_id as "applicationId",
+            sum("count") / 5.0 as "APMServiceCPM",
+            sum("count") as "APMServiceCallCount",
+            sum("count") - sum("success_count") as "APMServiceFailCount",
+            (sum("resp_time") * 1.0) / sum("success_count") as "APMServiceAvgResponseTime"
+        from SVR_ACTION_DATA_MIN
+        where
+            "data_type" = 'APP'
+            and "__time" > CURRENT_TIMESTAMP - INTERVAL '10' MINUTE and "__time" <![CDATA[ <= ]]> CURRENT_TIMESTAMP - INTERVAL '5' MINUTE
+        group by
+            biz_system_id, application_id
+    </select>
+```
+
+Use HTTP to request Druid
+`public String list3() {
+        StopWatch stopWatch = new StopWatch();
+
+        stopWatch.start("组装参数");
+        HashMap<String, Object> paramMap = new HashMap<>();
+        paramMap.put("username", "admin");
+        paramMap.put("password", "nEtben@2_19");
+        paramMap.put("timeout", 6000);
+        paramMap.put("query", "select\n" +
+                "            (CURRENT_TIMESTAMP - INTERVAL '5' MINUTE) as \"datetime\",\n" +
+                "            TIMESTAMP_TO_MILLIS(CURRENT_TIMESTAMP - INTERVAL '5' MINUTE) as \"timestamp\",\n" +
+                "            biz_system_id as \"bizSystemId\",\n" +
+                "            application_id as \"applicationId\",\n" +
+                "            sum(\"count\") / 5.0 as \"APMServiceCPM\",\n" +
+                "            sum(\"count\") as \"APMServiceCallCount\",\n" +
+                "            sum(\"count\") - sum(\"success_count\") as \"APMServiceFailCount\",\n" +
+                "            (sum(\"resp_time\") * 1.0) / sum(\"success_count\") as \"APMServiceAvgResponseTime\"\n" +
+                "        from SVR_ACTION_DATA_MIN\n" +
+                "        where\n" +
+                "            \"data_type\" = 'APP'\n" +
+                "            and \"__time\" > CURRENT_TIMESTAMP - INTERVAL '10' MINUTE and \"__time\"  <=  CURRENT_TIMESTAMP - INTERVAL '5' MINUTE\n" +
+                "        group by\n" +
+                "            biz_system_id, application_id");
+
+        stopWatch.stop();
+
+        stopWatch.start("发起请求");
+        String body = HttpRequest.post("http://10.128.2.90:8082/druid/v2/sql")
+                .header("Content-Type", "application/json")
+                .body(JSONUtil.toJsonStr(paramMap))
+                .execute()
+                .body();
+        stopWatch.stop();
+
+        stopWatch.start("结果处理");
+        List<ApmServiceMetric> apmServiceMetricList = JSONUtil.toList(body, ApmServiceMetric.class);
+        stopWatch.stop();
+        System.out.println("stopWatch.prettyPrint() = " + stopWatch.prettyPrint());
+
+        return "success";
+    }`
+
+<img width="613" alt="image" src="https://user-images.githubusercontent.com/53367253/185860073-2292aa51-596e-43d4-859e-f1e6b4bc3ddb.png">
+
+Use pure JDBC without using ORM framework
+`public String test12() {
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start("建立链接,准备PreparedStatement");
+        String url = "jdbc:avatica:remote:url=http://10.128.2.90:8082/druid/v2/sql/avatica/";
+
+        Properties connectionProperties = new Properties();
+
+        Connection connection = DriverManager.getConnection(url, connectionProperties);
+        PreparedStatement statement = connection.prepareStatement(
+                "SELECT\n" +
+                        "        (CURRENT_TIMESTAMP - INTERVAL '5' MINUTE) as \"datetime\",\n" +
+                        "        TIMESTAMP_TO_MILLIS(CURRENT_TIMESTAMP - INTERVAL '5' MINUTE) as \"timestamp\",\n" +
+                        "        biz_system_id as \"biz_system_id\",\n" +
+                        "        application_id as \"application_id\",\n" +
+                        "        component_name as \"component_name\",\n" +
+                        "        op_name as \"op_name\",\n" +
+                        "        component_subtype as \"component_subtype\",\n" +
+                        "        sum(\"count\") / 5.0 as \"APMServiceCPM\",\n" +
+                        "        sum(\"count\") as \"apmservice_call_count\",\n" +
+                        "        sum(\"exception_count\") as \"apmservice_error_count\",\n" +
+                        "        (sum(\"resp_time\") * 1.0) / sum(\"success_count\") as \"apmservice_avg_response_time\"\n" +
+                        "      FROM \"SVR_COMPONENT_DATA_MIN\"\n" +
+                        "      WHERE\n" +
+                        "        \"data_type\" = 'OP' and \"component_type\" = 'External'\n" +
+                        "        and \"__time\" > CURRENT_TIMESTAMP - INTERVAL '10' MINUTE and \"__time\" <= CURRENT_TIMESTAMP - INTERVAL '5' MINUTE\n" +
+                        "      GROUP BY biz_system_id, application_id, component_name, op_name, component_subtype");
+
+        stopWatch.stop();
+
+        stopWatch.start("执行 sql");
+        ResultSet resultSet = statement.executeQuery();
+        stopWatch.stop();
+        stopWatch.start("关闭链接");
+
+        connection.close();
+        resultSet.close();
+        System.out.println("resultSet = " + resultSet);
+        stopWatch.stop();
+        System.out.println(stopWatch.prettyPrint());
+        return "success";
+    }`
+
+result
+<img width="613" alt="image" src="https://user-images.githubusercontent.com/53367253/185860681-29a3ccaf-56a4-40ea-b553-16c94f3a1142.png">
+
+

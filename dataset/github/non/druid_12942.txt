@@ -1,0 +1,179 @@
+No implicit String <-> Numeric conversion during a join
+It seems like an implict conversion should occur during a join (String dimension ON numerical dimension)
+### Affected Version
+0.22.1
+
+
+### Description
+I was doing some test for a query in which I do a join. I was trying to join on a String dimension and a numerical value like
+`INNER JOIN someDataSource ON someDataSource."id" = 3
+`Where id is a string type.
+Then I receive a : 
+```
+Error: Unknown exception
+....
+org.apache.druid.java.util.common.ISE
+```
+However, if I do a basic query with a basic condition over the said id like that :
+```
+SELECT *
+FROM someDataSource
+WHERE id = 3
+```
+it works.
+
+Here are two ingestion payload and 4 queries.
+Three of them work while one doesn't but should (if I'm not wrong)
+
+Ingestion specs : 
+```
+{
+    "type": "index_parallel",
+    "spec": {
+        "ioConfig": {
+            "type": "index_parallel",
+            "inputSource": {
+                "type": "inline",
+                "data": "id,name\n\"1\",\"bob\"\n\"2\",\"max\"\n\"3\",\"simon\""
+            },
+            "inputFormat": {
+                "type": "csv",
+                "findColumnsFromHeader": true
+            }
+        },
+        "tuningConfig": {
+            "type": "index_parallel",
+            "partitionsSpec": {
+                "type": "dynamic"
+            }
+        },
+        "dataSchema": {
+            "dataSource": "datasource_example_one",
+            "timestampSpec": {
+                "column": "!!!_no_such_column_!!!",
+                "missingValue": "1970-01-01T00:00:00Z"
+            },
+            "transformSpec": {},
+            "dimensionsSpec": {
+                "dimensions": [
+                    {
+                        "type": "string",
+                        "name": "id",
+                        "createBitmapIndex": true
+                    },
+                    {
+                        "type": "string",
+                        "name": "name",
+                        "createBitmapIndex": true
+                    }
+                ]
+            },
+            "granularitySpec": {
+                "queryGranularity": "none",
+                "rollup": false,
+                "segmentGranularity": "year"
+            }
+        }
+    }
+}
+```
+
+```
+{
+    "type": "index_parallel",
+    "spec": {
+        "ioConfig": {
+            "type": "index_parallel",
+            "inputSource": {
+                "type": "inline",
+                "data": "id,color,size,batch\n\"1\",\"blue\",\"big\",\"100\"\n\"2\",\"magenta\",\"medium\",\"100\"\n\"3\",\"scarlet\",\"small\",\"200\""
+            },
+            "inputFormat": {
+                "type": "csv",
+                "findColumnsFromHeader": true
+            }
+        },
+        "tuningConfig": {
+            "type": "index_parallel",
+            "partitionsSpec": {
+                "type": "dynamic"
+            }
+        },
+        "dataSchema": {
+            "dataSource": "datasource_example_second",
+            "timestampSpec": {
+                "column": "!!!_no_such_column_!!!",
+                "missingValue": "1970-01-01T00:00:00Z"
+            },
+            "transformSpec": {},
+            "dimensionsSpec": {
+                "dimensions": [
+                    {
+                        "type": "string",
+                        "name": "id",
+                        "createBitmapIndex": true
+                    },
+                    {
+                        "type": "string",
+                        "name": "color",
+                        "createBitmapIndex": true
+                    },
+                    {
+                        "type": "string",
+                        "name": "size",
+                        "createBitmapIndex": true
+                    },
+                    {
+                        "type": "string",
+                        "name": "batch",
+                        "createBitmapIndex": true
+                    }
+                ]
+            },
+            "granularitySpec": {
+                "queryGranularity": "none",
+                "rollup": false,
+                "segmentGranularity": "year"
+            }
+        }
+    }
+}
+```
+
+Here are the queries : 
+
+Work ✅ 
+```
+SELECT
+  datasource_example_one."id",
+  datasource_example_one."name"
+FROM datasource_example_one
+INNER JOIN datasource_example_second sec ON datasource_example_one."id" = sec."id" WHERE sec."batch" = '100'
+```
+
+Work ✅
+```
+SELECT
+  datasource_example_one."id",
+  datasource_example_one."name"
+FROM datasource_example_one
+INNER JOIN datasource_example_second sec ON datasource_example_one."id" = sec."id" WHERE sec."batch" = 100
+```
+
+Work ✅
+```
+SELECT
+  datasource_example_one."id",
+  datasource_example_one."name"
+FROM datasource_example_one
+INNER JOIN datasource_example_second sec ON datasource_example_one."id" = sec."id" AND sec."batch" = '100'
+```
+
+Doesn't work 🛑 
+```
+SELECT
+  datasource_example_one."id",
+  datasource_example_one."name"
+FROM datasource_example_one
+INNER JOIN datasource_example_second sec ON datasource_example_one."id" = sec."id" AND sec."batch" = 100
+```

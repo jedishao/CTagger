@@ -1,0 +1,141 @@
+INTERNAL: Panic! This is a bug! at io.grpc.stub.ClientCalls.toStatusRuntimeException caused by NullPointerException
+### What version of gRPC-Java are you using?
+1.37.0
+
+### What is your environment?
+jdk 1.8, appengine
+
+### What did you expect to see?
+Expect to see a successful call, I have also added retry on Internal and that does not seem to work for this error. Though I've tested it works with typical INTERNAL errors.
+
+### What did you see instead?
+Internal Runtime Exception, the request does not make it out from the client.
+
+### Steps to reproduce the bug
+I am unable to reproduce the bug, it sporadically occurs.
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->
+
+Here is how I setup my stub:
+
+```java
+jwt_token = input.readLine();
+Metadata header = new Metadata();
+Metadata.Key key = Metadata.Key.of("JWT", Metadata.ASCII_STRING_MARSHALLER);
+header.put(key, "");
+channel = ManagedChannelBuilder.forTarget(target)
+  .forAddress(host, port)
+  .overrideAuthority(target)
+  .defaultServiceConfig(serviceConfig)
+  .enableRetry()
+  .maxRetryAttempts(MAX_RETRY_ATTEMPTS)
+  .maxInboundMessageSize(INBOUND_MESSAGE_MAX_LIMIT)
+  .build();
+blockingStub = MetadataUtils.attachHeaders(SigningServiceGrpc.newBlockingStub(channel), header);
+stub = MetadataUtils.attachHeaders(SigningServiceGrpc.newStub(channel), header);
+```
+
+And here is my retry_config:
+
+```json
+{
+    "methodConfig":
+    [
+        {
+            "name": [{}],
+            "retryPolicy":
+            {
+                "maxAttempts": 6,
+                "initialBackoff": "0.5s",
+                "maxBackoff": "30s",
+                "backoffMultiplier": 2,
+                "retryableStatusCodes":
+                [
+                    "UNAVAILABLE",
+                    "INTERNAL"
+                ]
+            }
+        }
+    ]
+}
+```
+
+```
+Stack Trace: SigningServiceGrpc is our proto generated code.
+INTERNAL: Panic! This is a bug!
+    at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+    at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+    at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+    at com..signingservice.SigningServiceGrpc$SigningServiceBlockingStub.sign(SigningServiceGrpc.java:184)
+    at com.registration.release.SigningServiceClient.sign(SigningServiceClient.java:117)
+    at com.registration.release.DockerReleaser.copyToDockerRegistry(DockerReleaser.java:773)
+    at com.registration.release.DockerReleaser.releaseDockerImagesForServiceMesh(DockerReleaser.java:997)
+    at com.registration.release.ServiceMeshReleaser.processPostBuildActionImpl(ServiceMeshReleaser.java:180)
+    at com.registration.release.ServiceMeshReleaser.processPostBuildAction(ServiceMeshReleaser.java:109)
+    at com.registration.release.Releaser.lambda$null$2(Releaser.java:1044)
+    at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+    at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+    at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+    at java.base/java.lang.Thread.run(Thread.java:829)
+caused by: java.lang.NullPointerException: null
+    at io.grpc.Metadata.valueAsBytes(Metadata.java:180)
+    at io.grpc.Metadata.serialize(Metadata.java:471)
+    at io.grpc.InternalMetadata.serialize(InternalMetadata.java:78)
+    at io.grpc.internal.TransportFrameUtil.toHttp2Headers(TransportFrameUtil.java:51)
+    at io.grpc.netty.shaded.io.grpc.netty.Utils.convertClientHeaders(Utils.java:222)
+    at io.grpc.netty.shaded.io.grpc.netty.NettyClientStream$Sink.writeHeadersInternal(NettyClientStream.java:145)
+    at io.grpc.netty.shaded.io.grpc.netty.NettyClientStream$Sink.writeHeaders(NettyClientStream.java:121)
+    at io.grpc.internal.AbstractClientStream.start(AbstractClientStream.java:159)
+    at io.grpc.internal.ForwardingClientStream.start(ForwardingClientStream.java:92)
+    at io.grpc.internal.InternalSubchannel$CallTracingTransport$1.start(InternalSubchannel.java:681)
+    at io.grpc.internal.DelayedStream.internalStart(DelayedStream.java:256)
+    at io.grpc.internal.DelayedStream.setStream(DelayedStream.java:143)
+    at io.grpc.internal.DelayedClientTransport$PendingStream.createRealStream(DelayedClientTransport.java:364)
+    at io.grpc.internal.DelayedClientTransport$PendingStream.access$300(DelayedClientTransport.java:346)
+    at io.grpc.internal.DelayedClientTransport.reprocess(DelayedClientTransport.java:304)
+    at io.grpc.internal.ManagedChannelImpl.updateSubchannelPicker(ManagedChannelImpl.java:886)
+    at io.grpc.internal.ManagedChannelImpl.access$5200(ManagedChannelImpl.java:118)
+    at io.grpc.internal.ManagedChannelImpl$LbHelperImpl$1UpdateBalancingState.run(ManagedChannelImpl.java:1439)
+    at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+    at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+    at io.grpc.internal.InternalSubchannel$TransportListener.transportReady(InternalSubchannel.java:546)
+    at io.grpc.netty.shaded.io.grpc.netty.ClientTransportLifecycleManager.notifyReady(ClientTransportLifecycleManager.java:44)
+    at io.grpc.netty.shaded.io.grpc.netty.NettyClientHandler$FrameListener.onSettingsRead(NettyClientHandler.java:915)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$FrameReadListener.onSettingsRead(DefaultHttp2ConnectionDecoder.java:479)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$PrefaceFrameListener.onSettingsRead(DefaultHttp2ConnectionDecoder.java:702)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2InboundFrameLogger$1.onSettingsRead(Http2InboundFrameLogger.java:93)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2FrameReader.readSettingsFrame(DefaultHttp2FrameReader.java:542)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2FrameReader.processPayloadState(DefaultHttp2FrameReader.java:263)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2FrameReader.readFrame(DefaultHttp2FrameReader.java:160)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2InboundFrameLogger.readFrame(Http2InboundFrameLogger.java:41)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder.decodeFrame(DefaultHttp2ConnectionDecoder.java:174)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2ConnectionHandler$FrameDecoder.decode(Http2ConnectionHandler.java:378)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2ConnectionHandler$PrefaceDecoder.decode(Http2ConnectionHandler.java:242)
+    at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2ConnectionHandler.decode(Http2ConnectionHandler.java:438)
+    at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501)
+    at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:440)
+    at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+    at io.grpc.netty.shaded.io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1526)
+    at io.grpc.netty.shaded.io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1275)
+    at io.grpc.netty.shaded.io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1322)
+    at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501)
+    at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:440)
+    at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+    at io.grpc.netty.shaded.io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+    at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+    at io.grpc.netty.shaded.io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+    at io.grpc.netty.shaded.io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:795)
+    at io.grpc.netty.shaded.io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:475)
+    at io.grpc.netty.shaded.io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+    at io.grpc.netty.shaded.io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+    at io.grpc.netty.shaded.io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+    at io.grpc.netty.shaded.io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+... 1 common frames elided
+```

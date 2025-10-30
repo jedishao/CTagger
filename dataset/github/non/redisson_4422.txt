@@ -1,0 +1,48 @@
+Incompatible version
+**Our project is using redisson.yaml to  set the config**.we use **redisson-3.11.2.jar** and **redisson-spring-boot-starter-3.11.2.jar** **current**.
+We are going to upgrade the redisson version to 3.15.6. However ,when we upgrade the version,the follwing questions are encountered.
+**First**: redisson-spring-boot-starter-3.15.6 version at the RedissonAutoConfiguration.class (the following is the source code), the Config.fromYaml will always  encounter errors ，so it will go to  Config.fromJSON. But we are using redisson.yaml to set the config,
+redisson-spring-boot-starter-3.15.6 version cannot compatible with our previous configuration
+        if (redissonProperties.getConfig() != null) {
+            try {
+                **config = Config.fromYAML(redissonProperties.getConfig());**
+            } catch (IOException e) {
+                try {
+                    config = **Config.fromJSON**(redissonProperties.getConfig());
+                } catch (IOException e1) {
+                    throw new IllegalArgumentException("Can't parse config", e1);
+                }
+            }
+        } else if (redissonProperties.getFile() != null) {
+            try {
+                InputStream is = getConfigStream();
+                config = Config.fromYAML(is);
+            } catch (IOException e) {
+                // trying next format
+                try {
+                    InputStream is = getConfigStream();
+                    config = Config.fromJSON(is);
+                } catch (IOException e1) {
+                    throw new IllegalArgumentException("Can't parse config", e1);
+                }
+            }
+Second:  the following are our configuration and the configuration is userd on multiple production environments . in redisson-3.11.2.jar, the BaseConfig.class has the propertity of pingTimeout. But ,in redisson-3.15.6,the pingtimeout attribute has been deleted.
+singleServerConfig:
+    address: "redis://127.0.0.1:6379"
+    **pingTimeout:3000**
+    password: null
+    clientName: null
+    idleConnectionTimeout: 10000
+    connectTimeout: 10000
+    timeout: 3000
+    retryAttempts: 3
+    retryInterval: 1500
+    subscriptionsPerConnection: 5
+    subscriptionConnectionMinimumIdleSize: 1
+    subscriptionConnectionPoolSize: 50
+    connectionMinimumIdleSize: 32
+    connectionPoolSize: 64
+    dnsMonitoringInterval: 5000
+codec: !<org.redisson.client.codec.StringCodec> {}
+
+**All these make it difficult for us to upgrade.if we upgrade the version,multiple unknown production environments will be affected.But we have to upgrade the version to use the redisson versions that have fixed some bugs. So I want to know  what can solve our problem.**

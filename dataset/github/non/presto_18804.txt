@@ -1,0 +1,26 @@
+Presto write hive table，ACL is not correct
+We use Presto 0.24 and find that ACL for hdfs directory is not correct. For example, Hive database is called db, and user A and B are both    administrators for this database. Use A create template table called db.tmp_tbl. When B want to query the table db.tmp_tbl, it will failed.
+Error massage like that: 
+```
+Query 20221214_083323_03906_i8xza failed: Error opening Hive split hdfs://bj04-region03/region03/74120/warehouse/tpch_text_300/tmp_insert_test1/20221214_083226_03903_i8xza_7f4c2eed-dc55-499e-ad61-9cacf595dd78 (offset=0, length=103639): Permission denied: user=B, access=READ, inode="/region03/74120/warehouse/tpch_text_300/tmp_insert_test1/20221214_083226_03903_i8xza_7f4c2eed-dc55-499e-ad61-9cacf595dd78":A:supergroup:-rw-rw----
+        at org.apache.hadoop.hdfs.server.namenode.FSPermissionChecker.check(FSPermissionChecker.java:399)
+        at org.apache.hadoop.hdfs.server.namenode.FSPermissionChecker.checkPermission(FSPermissionChecker.java:261)
+        at org.apache.hadoop.hdfs.server.namenode.FSPermissionChecker.checkPermission(FSPermissionChecker.java:193)
+        at org.apache.hadoop.hdfs.server.namenode.FSDirectory.checkPermission(FSDirectory.java:1857)
+        at org.apache.hadoop.hdfs.server.namenode.FSDirectory.checkPermission(FSDirectory.java:1841)
+        at org.apache.hadoop.hdfs.server.namenode.FSDirectory.checkPathAccess(FSDirectory.java:1791)
+        at org.apache.hadoop.hdfs.server.namenode.FSDirStatAndListingOp.getBlockLocations(FSDirStatAndListingOp.java:161)
+        at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.getBlockLocations(FSNamesystem.java:1941)
+        at org.apache.hadoop.hdfs.server.namenode.NameNodeRpcServer.getBlockLocations(NameNodeRpcServer.java:738)
+        at org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolServerSideTranslatorPB.getBlockLocations(ClientNamenodeProtocolServerSideTranslatorPB.java:426)
+        at org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos$ClientNamenodeProtocol$2.callBlockingMethod(ClientNamenodeProtocolProtos.java)
+        at org.apache.hadoop.ipc.ProtobufRpcEngine$Server$ProtoBufRpcInvoker.call(ProtobufRpcEngine.java:524)
+        at org.apache.hadoop.ipc.RPC$Server.call(RPC.java:1025)
+        at org.apache.hadoop.ipc.Server$RpcCall.run(Server.java:876)
+        at org.apache.hadoop.ipc.Server$RpcCall.run(Server.java:822)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at javax.security.auth.Subject.doAs(Subject.java:422)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1730)
+        at org.apache.hadoop.ipc.Server$Handler.run(Server.java:2682)
+```
+Has this problem been fixed? If it has been repaired, please tell me the commit id. Thanks!

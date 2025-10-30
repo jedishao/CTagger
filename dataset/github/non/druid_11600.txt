@@ -1,0 +1,75 @@
+Kafka schema registry Avro decoder should raise parser exception when schema not found
+### Description
+
+Given the the Avro schema:
+
+```
+{
+  "type": "record",
+  "name": "location",
+  "fields": [
+    {
+      "name": "hilltop",
+      "type": {
+        "type": "record",
+        "name": "anotherNameDescribingType",
+        "fields": [
+          {
+            "name": "timestamp",
+            "type": "string",
+            "doc": "Local time",
+            "default": ""
+          },
+          {
+            "name": "view",
+            "type": "string",
+            "doc": "doYouSeeWhatISee",
+            "default": ""
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+And the following sequence of Kafka records:
+
+```
+{    "hilltop": {        "timestamp": "2021-08-17T08:15:51.000",        "view": "cloudy"    }}
+{    "hilltop": {        "timestamp": "2021-08-17T16:27:50.000",        "view": "amazing"    }}
+rubbish
+{    "hilltop": {        "timestamp": "2021-08-17T18:03:52.000",        "view": "sunset"    }}
+```
+
+And the datasource tuning config set to:
+
+```
+"tuningConfig": {
+  "type": "kafka",
+  "reportParseExceptions": false,
+  "logParseExceptions": true
+}
+```
+
+When the third record is processed the supervisor stops ingesting records and all its tasks will fail with:
+
+```
+org.apache.druid.java.util.common.RE: Failed to get Avro schema: ...
+```
+
+### Motivation
+
+I would expect the ingestion task to ignore the third record which is not an Avro record, log the error out and continue ingesting. However, the decoder takes the first bytes of the message, convert them to int and tries to load a schema with that value which in turn doesn't exist in the schema registry because the record is not an Avro record, then the `RE` is thrown. The question is whether the decoder should raise a `ParserException` instead and keep ingesting the topic.
+
+The current behaviour makes the ingestion tasks fail forever and the supervisor won't make further progress.
+
+Arguably, a missing schema should be considered a parsing error since there is no way to decode the message bytes correctly.
+
+If you agree with changing this behaviour I'll be happy to raise a PR with the change. If not please explain the rationale behind the current behaviour and how to deal with this scenario.
+
+To keep the code compatible with the current behaviour, a new tuning property could be added, let's say:
+
+```
+boolean treatMissingSchemaAsParserException
+```

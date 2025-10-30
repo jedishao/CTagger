@@ -1,0 +1,31 @@
+Support CREATE TYPE
+SQL spec 16 11.51 defined `<user-defined type definition>`. The full feature is quite complicated with extensive type support, here we are only aiming at some minimal implementations.
+```
+<user-defined type definition> ::=
+  CREATE TYPE <user-defined type body>
+<user-defined type body> ::= <schema-resolved user-defined type name>
+      [ AS <representation> ]
+ <representation> ::=
+    <predefined type>
+  | <collection type>
+  | <member list>
+<member list> ::=
+  <left paren> <member> [ { <comma> <member> }... ] <right paren>
+<member> ::=
+  <attribute definition>
+ <attribute definition> ::= <attribute name> <data type>
+<attribute name> ::=
+  <identifier>
+```
+subtypes are not supported in this iteration. All types introduced with this syntax are implicitly `FINAL` and `INSTANTIABLE`. This is consistent with the default behavior described in the spec.
+An example:
+```
+CREATE TYPE testing.type.user_id AS bigint;
+CREATE TYPE testing.type.email AS varchar;
+CREATE TYPE testing.type.person AS (
+  user_id testing.type.user_id,
+  first_name varchar,
+  last_name varchar,
+  age tinyint,
+  email testing.type.email);
+```

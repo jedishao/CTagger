@@ -1,0 +1,14 @@
+Add The Ability to View SQL Queries in Druid Web UI + Ability to Cancel Long Running Queries
+### Description
+
+Add the ability in the web UI to view currently running SQL queries (Queries executed through /sql api and those executed through the web console) w/ the ability to cancel currently running queries (using the cancel query api introduced in druid 0.23.0).  The UI at a bare minimum should include the Query Creation Time, QueryID, SQL Query Executed, Current Runtime, Status (RUNNING, CANCELLED, COMPLETED), Return Code (200, 4xx, 5xxx etc...)
+
+### Motivation
+
+The benefit of being able to view and/or cancel queries will allow the administrators of druid clusters to be able to better troubleshoot and debug SQL queries that are being executed against the druid platform in real time.  Currently, debugging queries executed against the druid cluster is a long and tedious process that requires manually linking the queryID to a given Broker for every request executed against the platform (Requires external platforms like ELK or some log management system to correlate a queryID to a particular query being executed).  This will simplify the overall troubleshooting experience and provide useful information for administrators to better manage the platform.  
+
+### Possible approach
+
+1. The Broker should maintain a temporary cache ( w/ a configurable expiry?) of all queryId's that are being executed against the platform and the current state of those queries (Running, Cancelled/Stopped etc...).  
+2. The broker then should expose an API endpoint that allows the router to query the broker metadatacache for all available queryId's to be displayed in the web console UI   This API can also be used to pull all queryId's that are running against the cluster.
+3. Router Web Console UI displays all QueryID's + SQL Query + Button to cancel query (API now available in 0.23.0)

@@ -1,0 +1,50 @@
+Assemble error while using latest gRPC plugin on Android -> Input is shadowed in the --proto_path (Gradle 7.0.1)
+I am trying to update an Android project to use the latest gradle plugin (7.0.1), from the current 3.6.4 that it is using. In order to do this, considering the project is using protobuf, I need to update the protobuf and gRPC dependencies, as the current ones are not compatible with the latest plugin.
+
+I have followed https://github.com/grpc/grpc-java in order to use the latest dependency versions. I updated the dependencies to the following versions:
+
+    implementation 'io.grpc:grpc-okhttp:1.40.1'
+    implementation 'io.grpc:grpc-protobuf-lite:1.40.1'
+    implementation 'io.grpc:grpc-stub:1.40.1'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+    protobuf "com.google.protobuf:protobuf-java:3.17.3"
+I am using the latest protobuf plugin
+
+
+    plugins {
+        id 'com.google.protobuf' version '0.8.17'
+    }
+And use the following block for code-gen
+
+    protobuf {
+      protoc {
+        artifact = "com.google.protobuf:protoc:3.17.3"
+      }
+      plugins {
+        grpc {
+          artifact = "io.grpc:protoc-gen-grpc-java:1.40.1"
+        }
+      }
+      generateProtoTasks {
+        all().each { task ->
+          task.builtins {
+            java { option 'lite' }
+          }
+          task.plugins {
+            grpc { option 'lite' }
+          }
+        }
+      }
+    }
+The gradle sync succeeds while using those, the problem is when I try to assemble the project, I get the following error:
+> Execution failed for task ':App:generateDebugProto'.
+> protoc: stdout: . stderr: C:\Users\phantom\AndroidStudioProjects\Protobuf\App\build\extracted-protos\main\google\protobuf\any.proto: Input is shadowed in the --proto_path by "C:/Users/phantom/AndroidStudioProjects/Protobuf/App/build/extracted-include-protos/debug/google/protobuf/any.proto".  Either use the latter file as your input or reorder the --proto_path so that the former file's location comes first.
+
+From what I understand while reading the error, the problem is that the proto files are generated now in both *extracted-protos* and *extracted-include-protos* build files, and the latter shadows the first one. I have checked, in the previous version, the files were generated solely in the *extracted-protos* build files.
+
+By removing the profobuf dependency, as some articles suggested:
+    protobuf "com.google.protobuf:protobuf-java:3.17.3"
+There is another assemble error present:
+> Execution failed for task ':Library:generateDebugProto'. > protoc: stdout: . stderr: google/protobuf/descriptor.proto: File not found. google/api/annotations.proto:20:1: Import "google/protobuf/descriptor.proto" was not found or had errors. google/api/annotations.proto:26:8: "google.protobuf.MethodOptions" is not defined.
+
+Can someone please shed some light on this? Thank you.

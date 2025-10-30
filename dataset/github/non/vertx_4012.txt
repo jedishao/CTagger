@@ -1,0 +1,37 @@
+webSocket  EventBus  Timed out after waiting 30000(ms) for a reply
+### Questions
+
+Timed out after waiting 30000(ms) for a reply.
+
+```java
+@ExtendWith(VertxExtension.class)
+public class VertxTest {
+Vertx vertx = Vertx.vertx();
+void start(Vertx vertx) throws InterruptedException {
+EventBus bus = vertx.eventBus();
+AtomicReference<String> id = new AtomicReference();
+        vertx.createHttpServer().webSocketHandler(h -> {
+            id.set(h.binaryHandlerID());
+        }).listen(3000);
+        vertx.createHttpClient().webSocket(3000, "127.0.0.1", "").onComplete(h -> {
+            if (h.succeeded()) {
+                WebSocket webSocket = h.result();
+                webSocket.handler(h1->{
+                   log.info(h1.toString()+" "+webSocket.binaryHandlerID()+">"+webSocket.textHandlerID());
+                    webSocket.writeBinaryMessage(Buffer.buffer(">>>>1"));
+                    webSocket.writeTextMessage("a");
+                    webSocket.write(Buffer.buffer(">>>>2"));
+               });
+            }
+        });
+        TimeUnit.SECONDS.sleep(2);
+        bus.request(id.get(), Buffer.buffer("1"),h->{
+                if (h.succeeded()) {
+                    log.info(h.result().body().toString());
+                } else log.error(h.cause().getMessage());
+        });
+}
+}
+```
+### Version
+4.1.1

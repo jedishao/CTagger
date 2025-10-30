@@ -1,0 +1,20 @@
+Promote druid-kubernetes-extensions out of experimental status
+Currently, the `druid-kubernetes-extension` is in experimental status: https://druid.apache.org/docs/latest/development/extensions-core/kubernetes.html:
+
+> Consider this an [EXPERIMENTAL](https://druid.apache.org/docs/latest/development/experimental.html) feature mostly because it has not been tested yet on a wide variety of long running Druid clusters.
+
+The functionality is quite useful, since it allows people to run Druid on k8s without reliance on ZooKeeper. So, we'd like to promote it out of experimental status. To do that, we need:
+
+1. Robust experience in production scenarios.
+2. Volunteers to maintain the extension.
+
+Let's use this issue as a place people can chime in about this stuff.
+
+---
+
+Notes on testing. I checked and found:
+
+- Unit tests with about 55% coverage. The uncovered code is mostly the prod implementations of certain interfaces where we have text-fixture implementations in unit tests. So, the coverage is about as good as it can be. The prod implementations interface directly with k8s, so they need to be tested in integration tests.
+- An integration test, "(Compile=openjdk8, Run=openjdk8, Cluster Build On K8s) ITNestedQueryPushDownTest integration test" added in #10669 by @zhangyue19921010 (thank you 🙌). It runs one test case, ITNestedQueryPushDownTest, which exercises aspects of ingestion and query.
+
+I didn't see integration tests for cases like servers going on and offline, or for leader failover. That'd be a great direction to extend the tests in. Note that we have a project going on right now to create a simpler and easier-to-use integration test framework, in #12359. It may be prudent to implement new tests on top of that new framework when it's available.

@@ -1,0 +1,31 @@
+RST_STREAM 1 error with GRPC and ESP
+Redirect from grpc/grpc-java#9019
+@gombasp @redapple1900
+
+What version of gRPC and what language are you using?
+Java, tried to upgrade to latest grpc version of 1.44.0
+
+What operating system (Linux, Windows,...) and version?
+Linux
+
+What runtime / compiler are you using (e.g. python version or version of gcc)
+Java 17, Spring Boot 2.6
+
+What did you do?
+We are using grpc between services inside a cluster and extensible service proxy (ESP) transcoding for communicating with outside. When i tried to upgrade to latest 1.44.0 from a (much) older version i found that i get a response like:
+
+"message": "Received RST_STREAM with error code 1",
+I also contacted Google support - as the app i support runs on GCP - and they lead me to a direction that it has to do with the content-length header of the request. I see that some strict checking was recently introduced in the grpc lib, after 1.41.0 or so. Can it happen that this calculates wrongly? Please see the cases in the attached example file where i describe various cases with different versions of the libs.
+Note that for reproducing the issues you dont need to run anything in GCP environment, its possible to run ESP locally. See:
+
+https://cloud.google.com/endpoints/docs/openapi/running-esp-localdev
+
+The question is whether the issue i see is an issue of the grpc lib or its an issue of the ESP...?
+
+[example.zip](https://github.com/grpc/grpc/files/8200720/example.zip)
+
+What did you expect to see?
+Expectation is that the API works correctly trough ESP transcoding as well.
+
+What did you see instead?
+Above error. For other cases see the example.txt in the zip.

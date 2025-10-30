@@ -1,0 +1,31 @@
+Address thread safety concerns in ServerCnx for auth related data
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+There is access to auth related data that is not obviously thread safe.
+
+Here are two methods called by other threads:
+
+https://github.com/apache/pulsar/blob/804969091ca0d38132f9938fd6ffc519699eaeb6/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java#L443-L456
+
+https://github.com/apache/pulsar/blob/804969091ca0d38132f9938fd6ffc519699eaeb6/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java#L779-L797
+
+### Solution
+
+It would be better to update the paradigm to ensure correct access of the data. I think we should avoid making the variables `volatile` and instead make them only accessed from the netty event loop.
+
+### Alternatives
+
+Make the variables `volatile`.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

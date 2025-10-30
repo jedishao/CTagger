@@ -1,0 +1,27 @@
+How to close keepalive watchdog？
+I got an error in client like :
+```
+io.grpc.StatusRuntimeException: UNAVAILABLE: keepalive watchdog timeout
+	at io.grpc.Status.asRuntimeException(Status.java:533) ~[grpc-api-1.33.1.jar!/:1.33.1]
+	at io.grpc.stub.ClientCalls$StreamObserverToCallListenerAdapter.onClose(ClientCalls.java:478) [grpc-stub-1.33.1.jar!/:1.33.1]
+	at io.grpc.internal.ClientCallImpl.closeObserver(ClientCallImpl.java:617) [grpc-core-1.33.1.jar!/:1.33.1]
+	at io.grpc.internal.ClientCallImpl.access$300(ClientCallImpl.java:70) [grpc-core-1.33.1.jar!/:1.33.1]
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInternal(ClientCallImpl.java:803) [grpc-core-1.33.1.jar!/:1.33.1]
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInContext(ClientCallImpl.java:782) [grpc-core-1.33.1.jar!/:1.33.1]
+	at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37) [grpc-core-1.33.1.jar!/:1.33.1]
+	at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:123) [grpc-core-1.33.1.jar!/:1.33.1]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_272]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_272]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_272]
+```
+
+after that, when the client try to send req to server, I just got :
+```
+o.grpc.StatusRuntimeException: DEADLINE_EXCEEDED: deadline exceeded after 9.999868620s. [buffered_nanos=10000984594, waiting_for_connection]
+	at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262) ~[grpc-stub-1.33.1.jar!/:1.33.1]
+	at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243) ~[grpc-stub-1.33.1.jar!/:1.33.1]
+	at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156) ~[grpc-stub-1.33.1.jar!/:1.33.1]
+```
+
+and I sniffered the packet，notice the client didn't send req to server any more, that was not what i hope
+so can I just close the watchdog， or is there any way to let the clinet keep send req (even the server is in DEADLINE_EXCEEDED)?

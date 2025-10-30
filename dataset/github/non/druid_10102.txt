@@ -1,0 +1,37 @@
+Implement 3-Valued logic for Null handling 
+### Description
+As per the [SQL Standard](http://web.cecs.pdx.edu/~len/sql1999.pdf), predicates/expressions handling NULLs should follow 3-valued logic. However in current druid filters only return true/false which can lead to inconsistent results involving NOT/AND/OR and null values.  
+
+### Motivation
+
+Some  queries returns incorrect results  as per SQL standard-> 
+> SELECT dim1, not(dim1 like 'abc'), (dim1 like 'abc') FROM druid.foo 
+> returns row #0: [null, true, false]
+
+> SELECT dim1 FROM druid.foo WHERE dim1 > 1 OR dim1 < 2
+> returns - row #0: [null]
+
+### Proposal 
+the proposal is to implement 3-valued logic wherein predicates/expressions return one of [true/false/unknown] values and follows below logic for AND/NOT/OR - 
+### NOT 
+* NOT ( true ) is false 
+* NOT ( false ) is true 
+* NOT ( unknown ) is unknown
+### AND 
+
+|AND| true| false| unknown|
+|-----|----|------|----------|
+true| true| false| unknown
+false| false| false| false
+unknown| unknown| false| unknown
+
+### OR 
+|OR| true| false| unknown|
+|-----|----|------|----------|
+|true| true| true| true|
+|false| true| false| unknown|
+|unknown| true| unknown| unknown|
+
+
+TODO: I havn't figured out the implementation details yet.  
+

@@ -1,0 +1,32 @@
+Support SHOW CREATE FUNCTION
+Currently, user do not have the ability to see the definition of the SQL functions after they created them. Similar to `SHOW CREATE TABLE` and `SHOW CREATE VIEW`, we should also support a similar (though not specified in SQL-standard) syntax for this functionality.
+
+# Syntax
+For `SHOW CREATE TABLE/VIEW`, given a fully-qualified name of a table/view, the object is always unique. However, this is not the case for `SHOW CREATE FUNCTION` as there might be multiple signatures for the same name.
+
+Hence, I'm proposing the following syntax. This is similar to `DROP FUNCTION` and `ALTER FUNCTION` where an optional data type list is allowed.
+
+```
+<show create function statement> ::=
+    SHOW CREATE <specific routine designator>
+
+<specific routine designator> ::=
+    <routine type> <member name>
+
+<routine type> ::=
+    FUNCTION
+
+<member name> ::=
+    <member name alternatives> [ <data type list> ]
+
+<member name alternatives> ::=
+    <schema qualified routine name>
+
+<data type list> ::=
+    <left paren> [ <data type> [ { <comma> <data type> }... ] ] <right paren>
+```
+
+# Behavior
+A `SHOW CREATE FUNCTION` query outputs one column "Create Function", the formatted SQL text that would create the exact same function, for each signature that matches what the query specifies.
+
+cc @rongrong @kaikalur 

@@ -1,0 +1,93 @@
+[Bug] Incompatible schema when having Avro schema without nullable string fields
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Using Pulsar 2.9.1.
+
+### Minimal reproduce step
+
+Here is the project with the minimal reproducible example that leads to this problem: https://github.com/trojczak/pulsar-avro-schema-problem
+
+Steps to reproduce:
+1. Create topics and schemas from `README.md`. Use `Person.avsc` from the given repo as a schema for the topic.
+2. Try to run `PersonFunction` class using `LocalRunner` from `PersonFunctionTest`.
+3. See:
+```
+Caused by: org.apache.pulsar.client.api.PulsarClientException$IncompatibleSchemaException: {"errorMsg":"org.apache.pulsar.broker.service.schema.exceptions.IncompatibleSchemaException: org.apache.avro.SchemaValidationException: Unable to read schema: 
+{
+  "type" : "record",
+  "name" : "Person",
+  "namespace" : "pl.trojczak.pocs.model",
+  "fields" : [ {
+    "name" : "birthYear",
+    "type" : "int"
+  }, {
+    "name" : "name",
+    "type" : [ "null", "string" ],
+    "default" : null
+  } ]
+}
+using schema:
+{
+  "type" : "record",
+  "name" : "Person",
+  "namespace" : "pl.trojczak.pocs.model",
+  "fields" : [ {
+    "name" : "name",
+    "type" : "string"
+  }, {
+    "name" : "birthYear",
+    "type" : "int"
+  } ]
+}
+```
+
+### What did you expect to see?
+
+I expect to have a way for the `Person.avsc` schema to work with the given function.
+
+### What did you see instead?
+
+I get the following exception:
+
+```
+Caused by: org.apache.pulsar.client.api.PulsarClientException$IncompatibleSchemaException: {"errorMsg":"org.apache.pulsar.broker.service.schema.exceptions.IncompatibleSchemaException: org.apache.avro.SchemaValidationException: Unable to read schema: 
+{
+  "type" : "record",
+  "name" : "Person",
+  "namespace" : "pl.trojczak.pocs.model",
+  "fields" : [ {
+    "name" : "birthYear",
+    "type" : "int"
+  }, {
+    "name" : "name",
+    "type" : [ "null", "string" ],
+    "default" : null
+  } ]
+}
+using schema:
+{
+  "type" : "record",
+  "name" : "Person",
+  "namespace" : "pl.trojczak.pocs.model",
+  "fields" : [ {
+    "name" : "name",
+    "type" : "string"
+  }, {
+    "name" : "birthYear",
+    "type" : "int"
+  } ]
+}
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

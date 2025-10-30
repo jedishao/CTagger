@@ -1,0 +1,57 @@
+Depolying verticle by name can't initialize non-static field of the verticle class
+When deploying verticle in Vert.X, if we want to deploy multiple instances of the specified verticle, we can only deploy by name of the verticle, otherwise an exception like this will be thrown: "can't specify > 1 instances for already created verticle".
+However, the way of deploying by name calls the constructor without parameters of the verticle instance by default. In this way, if there are non static field in the verticle instance, they will not be initialized correctly as expected. In this case, we can only change the field in the verticle instance to static, but if we want to deploy multiple verticle instances with different values of one of itself non-static field, how should we implement this in the current Vert.x 4.x? I look forward to your response. Thanks in advance!
+
+Here is my sample code：
+```java
+@SpringBootApplication
+@Configuration
+public class Application {
+    @Value("${ws.port}")
+    private int wsPort;
+
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+
+    @EventListener(classes = {ApplicationReadyEvent.class})
+    public void afterStarted(final ApplicationReadyEvent applicationReadyEvent) {
+        final ConfigurableApplicationContext applicationContext = applicationReadyEvent.getApplicationContext();
+        VerticleUtils.deployVerticle(WebSocketServerVerticle.class, false, 1, applicationContext);
+        WebSocketClientVerticle.setWsPort(wsPort);
+        VerticleUtils.deployVerticle(WebSocketClientVerticle.class.getName(), false, 10, applicationContext);
+        VerticleUtils.deployVerticle(WebSocketClient2Verticle.class, false, 1, applicationContext);
+    }
+}
+```
+
+```java
+@Slf4j
+@Component
+public class WebSocketClientVerticle extends AbstractVerticle {
+    //@Value("${ws.port}")
+    private static int wsPort;
+
+    @Override
+    public void start() throws Exception {
+        HttpClient client = vertx.createHttpClient();
+        client.webSocket(wsPort, "127.0.0.1", "/ws/123", asyncResult -> {
+            WebSocket webSocket = asyncResult.result();
+            webSocket.writeTextMessage("ping");
+            webSocket.textMessageHandler(message -> {
+                log.info("Recieve message From WebSocket Server：{}", message);
+                if("pong".equals(message)) {
+                    webSocket.writeTextMessage("ping");
+                }
+            });
+        });
+    }
+
+    public static void setWsPort(int wsPort) {
+        WebSocketClientVerticle.wsPort = wsPort;
+    }
+}
+```
+
+Vert.x version: 4.2.1
+JDK version: 1.8.0_241

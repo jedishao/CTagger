@@ -1,0 +1,18 @@
+[Design] Dynamically discovered HiveMetastore
+## Introduction
+Currently, Presto only supports a static list of thrift HiveMetastore (HMS) hosts provided. 
+- This approach has the classic cons of scalability, availability and fault tolerance being affected. 
+- Also, load balancing, enabled through multiple metastore config, is very rudimentary, 
+
+At Uber, we have implemented a HTTP backed discovery mechanism for thrift HMS hosts. This proposal is to add support to discover HMS hosts through HTTP, zookeeper, or any other discovery mechanism going forward.
+
+## Implementation
+
+<img width="726" alt="Screenshot 2020-11-25 at 8 22 09 PM" src="https://user-images.githubusercontent.com/12148503/100243477-eb3b6600-2f5b-11eb-9cb2-4eaa19c69900.png">
+
+- A parallel implementation of HiveCluster, DynamicHiveCluster (along with the current StaticHiveCluster) would define fetching HMS client by discovering a HMS host on the go.
+- The discovery call is a low latency call that returns the thrift URI of an healthy HMS host.
+- Hive properties file will have the discovery URI (or an equivalent in case of non-http based discovery) defined which will be used to fetch HMS URI.
+- ThriftMetastoreModule binds the appropriate HiveCluster implementation based on a type defined in hive properties.
+
+Draft of the implementation - https://github.com/prestodb/presto/pull/15694

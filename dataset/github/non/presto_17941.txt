@@ -1,0 +1,25 @@
+Introduce a config to tune between linear and binary search for segmented aggregation
+[#17886](https://github.com/prestodb/presto/pull/17886) introduced segmented aggregation. In the current implementation, it uses [linear search](https://github.com/prestodb/presto/blob/315023f89e3b3a21d480bacbe9dbfcbdd4402a59/presto-main/src/main/java/com/facebook/presto/operator/HashAggregationOperator.java#L521-L529) to look for the start row of the last segment in each page. We tried binary search which was implemented as follows:
+```JAVA
+private int findLastSegmentStart(PagesHashStrategy pagesHashStrategy, Page page)
+{
+    int left = 0;
+    int right = page.getPositionCount() - 1;
+    while (left < right) {
+        int middle = left + (right - left) / 2;
+        if (pagesHashStrategy.rowEqualsRow(page.getPositionCount() - 1, page, middle, page)) {
+            // Same segment - The last segment starts somewhere in [lo, mid]
+            right = middle;
+        }
+        else {
+            // Different segment - The last segment starts somewhere in (mid ~ hi]
+            left = middle + 1;
+        }
+    }
+    return right;
+}
+```
+
+As no significant improvement was observed based on our testing, we switched it back to linear search given that the code would be more readable and concise.
+
+However, ideally we'd like to keep both implementations and introduce a config to let the user decide to use which approach.

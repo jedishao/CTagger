@@ -1,0 +1,56 @@
+Redisson configuration with Spring Boot with multiple Redisson Clients and environments
+Hi,
+
+we have a Spring Boot service communicating with different Redis clusters in different environments. We recently upgraded from 3.15.4 --> 3.19.3 and face an issue how we configure our Redisson clientS within our application now.
+
+What we used to do was the following
+
+
+    @ConfigurationProperties("com.acme.redis.first")
+    public class FirstRedisConfigurationProperties {
+        
+        private Config config;
+        
+    }
+
+    @ConfigurationProperties("com.acme.redis.second")
+    public class SecondRedisConfigurationProperties {
+
+        private Config config;
+
+} 
+
+
+This would allow us to have a application.yml file like this:
+
+
+    com:
+      acme:
+        redis:
+          first:
+            singleServerConfig:
+              address: redis://first-redis:6379
+          second:
+            singleServerConfig:
+              address: redis://second-redis:6379
+
+
+This was working in our prior Redisson version since the setter for the singleServerConfig was public before. Changed in this PR: https://github.com/redisson/redisson/commit/4ad3a59270c31ede91c18acb404835ac29694d16 For some reason the modifier was changed to protected and therefore this approach is not working for us anymore.
+
+We did this for three main reasons:
+1. having a yaml based configuration is more maintable than a single huge configuration string
+2. Using Spring properties allows us to use environment variables for overrides following Spring standard
+3. we can easily have multiple Redis clients configured in the same application.yml file, setting defaults, and even override those in environment specific property files
+
+The current configuration approach for Spring is etiher to point to a file OR have a huge configuration String (see https://github.com/redisson/redisson/blob/master/redisson-spring-boot-starter/src/main/java/org/redisson/spring/starter/RedissonProperties.java). Which is basically the same as using the Config.fromYAML methods directly. This has a couple of drawbacks in real life imho:
+
+1. when having multiple Redis clients, the RedissonProperties cannot be used as is since prefix is `spring.redis.redisson`. One way to solve this would be to have RedissonProperties nested in other properties like we have above BUT
+2. the configuration String is not very 12 factor-ish imho. If we want to change a single configuration property (just for testing or whatever), we have to override the whole config string which is pretty ugly and error prone.
+3. it breaks with how Spring configuration works in general. Config properties are NOT configurable individually but only the whole config
+4. pointing to a file requires to have a lot of different extra configuration files when you have multiple environments to support. There is no easy way to have a default configuration and then just change required properties as needed for each environment. Also, those files are not part of the Spring configuration (ie we cannot use Spring's env var standard to override porperties)
+
+The funny part is, this all could be resolved by just changing the modifiers back to public so we can have real Spring configuration again. It wouldn't even break folks who use the Config.fromYAML or existing RedissonProperties. 
+
+What I would like to ask if what the recommended way for our setup is? I can imagine most people have multiple environments and want to use environment variables for easy override from time to time. The Redisson provided env vars are nice but not following the Spring env var syntax standard, and also not allowing multiple clients AFAIK.
+
+I raised this as a question but imho this is actually more a bug since Redisson is violating a couple of different Spring standards here :-) 

@@ -1,0 +1,119 @@
+Docker failed to start due to failure of creating directories under 'var'
+
+### Affected Version
+
+This problem is first reported based on 0.21.0-rc1. And it also exists on master branch
+
+### Description
+
+When starting druid cluster in docker with the docker-compose(distribution/docker/docker-compose.yml), ALL druid's service nodes failed to start with messages as below:
+```
+coordinator      | mkdir: can't create directory 'var/tmp': Permission denied
+coordinator      | mkdir: can't create directory 'var/druid/': Permission denied
+coordinator      | mkdir: can't create directory 'var/druid/': Permission denied
+coordinator      | mkdir: can't create directory 'var/druid/': Permission denied
+coordinator      | mkdir: can't create directory 'var/druid/': Permission denied
+coordinator      | mkdir: can't create directory 'var/druid/': Permission denied
+```
+
+Inside the container,  listing the owner of all directories under `/opt/druid` showes
+```
+/opt/apache-druid-0.21.0 $ ls -l
+total 196
+-rw-r--r--    1 druid    druid        70924 Apr 27 04:17 LICENSE
+-rw-r--r--    1 druid    druid        71187 Apr 27 04:17 NOTICE
+-rw-r--r--    1 druid    druid         8228 Apr 27 04:17 README
+drwxr-xr-x    2 druid    druid         4096 Apr 27 09:13 bin
+drwxr-xr-x    5 druid    druid         4096 Apr 27 09:13 conf
+drwxr-xr-x   29 druid    druid         4096 Apr 27 09:13 extensions
+drwxr-xr-x    3 druid    druid         4096 Apr 27 09:13 hadoop-dependencies
+drwxr-xr-x    2 druid    druid        12288 Apr 27 09:13 lib
+drwxr-xr-x    4 druid    druid         4096 Apr 16 18:33 licenses
+drwxr-xr-x    4 druid    druid         4096 Apr 27 09:13 quickstart
+drwxr-xr-x    2 root     root          4096 Apr 26 10:38 var
+```
+
+**Note that `var` directory is belong to `root`** instead of `druid`. Since the process inside container is launched by user `druid`, of course it has no permission to create directories under `var`.
+
+### Analysis
+This problem is introduced by #10506 . Looking at the scripts after 10506,
+
+```
+RUN addgroup -S -g 1000 druid \
+ && adduser -S -u 1000 -D -H -h /opt/druid -s /bin/sh -g '' -G druid druid \
+ && mkdir -p /opt/druid/var \
+ && chown -R druid:druid /opt \
+ && chmod 775 /opt/druid/var
+
+COPY --chown=druid:druid --from=builder /opt /opt
+COPY distribution/docker/druid.sh /druid.sh
+```
+
+At first, we create `/opt/druid/var` directory and change owner of `/opt` and its all sub-dirs to `druid`. This instruction looks OK.
+
+But the following  command `COPY --chown=druid:druid --from=builder /opt /opt` replaces the entire `/opt`, including its sub-directory `opt/druid/var`, **which means there's no such directory inside the container**.
+
+Since `/opt/druid/var` is declared as a VOLUME, when cluster is brought up, docker is responsible for creating such directory. And docker is running as `root`  on user's computer, the  owner of `var` is now `root` instead of `druid` we expect.
+
+Before 10506, there's no such problem, see the scripts below, `/opt/druid/var` is created after COPY, so that dir exists inside the container after build.
+
+```
+COPY --from=builder /opt /opt
+COPY distribution/docker/druid.sh /druid.sh
+
+RUN addgroup -S -g 1000 druid \
+ && adduser -S -u 1000 -D -H -h /opt/druid -s /bin/sh -g '' -G druid druid \
+ && mkdir -p /opt/druid/var \
+ && chown -R druid:druid /opt \
+ && chmod 775 /opt/druid/var
+```
+
+### Some proof
+To find out the problem, I added "ls" command to Dockerfile to observe directories and their owner during image building.
+
+1. directories before COPY command, there's a directory `druid` we created by command RUN before COPY
+
+```
+Step 12/20 : RUN ["ls", "-l", "/opt"]
+ ---> Running in c33a81079773
+total 4
+drwxr-xr-x    3 druid    druid         4096 Apr 27 09:20 druid
+```
+
+2. execute COPY command
+```
+Step 13/20 : COPY --chown=druid:druid --from=builder /opt /opt
+Step 14/20 : COPY distribution/docker/druid.sh /druid.sh
+```
+
+3. directories after COPY, `druid` now changes to symbolic link we created at the beginning of Dockerfile
+```
+Step 15/20 : RUN ["ls", "-l", "/opt/druid"]
+lrwxrwxrwx    1 druid    druid           24 Apr 27 09:20 /opt/druid -> /opt/apache-druid-0.21.0
+```
+
+4. directories of `/opt/apache-druid-0.21.0`, **note that there' NO `var` directory**
+```
+Step 16/20 : RUN ["ls", "-l", "/opt/apache-druid-0.21.0"]
+total 192
+-rw-r--r--    1 druid    druid        70924 Apr 27 04:17 LICENSE
+-rw-r--r--    1 druid    druid        71187 Apr 27 04:17 NOTICE
+-rw-r--r--    1 druid    druid         8228 Apr 27 04:17 README
+drwxr-xr-x    2 druid    druid         4096 Apr 27 09:20 bin
+drwxr-xr-x    5 druid    druid         4096 Apr 27 09:20 conf
+drwxr-xr-x   29 druid    druid         4096 Apr 27 09:20 extensions
+drwxr-xr-x    3 druid    druid         4096 Apr 27 09:20 hadoop-dependencies
+drwxr-xr-x    2 druid    druid        12288 Apr 27 09:20 lib
+drwxr-xr-x    4 druid    druid         4096 Apr 16 18:33 licenses
+drwxr-xr-x    4 druid    druid         4096 Apr 27 09:20 quickstart
+```
+
+I'm not sure why this problem didn't come out in some other environment.  I guess it has something to do with VOLUME. I'm not familiar with that, and this is my guess: since volume is also on HOST env, if there's such a directory (saying created by previous image), the `var` dir won't be created as root. 
+
+### Fix
+The fix I can come up with is putting `mkdir -p /opt/druid/var` after COPY command. 
+Back to what 10506 tries to solve, the change I propose only creates a new directory and makes no changes to the files, and it won't double the image size.
+
+On my test environment, the image size shows 547MiB
+
+cc @jihoonson @gianm 

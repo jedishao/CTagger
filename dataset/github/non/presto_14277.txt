@@ -1,0 +1,24 @@
+Cryptic error message when I query Pinot and sum more than one metric
+If I run the following query, it fails.  The error code is at the bottom.  If I remove any reference to cost, it works fine.
+
+```
+WITH stats AS (
+  SELECT parent_id, id, SUM(clicks) AS sum_clicks, SUM(cost) AS sum_cost
+  FROM pinot.default.events
+  WHERE parent_id = 123
+  GROUP BY parent_id, id
+  ORDER BY sum(clicks)
+)
+SELECT stats.id, status, sum_clicks, sum_cost
+FROM stats
+INNER JOIN mysql.mydb.entities
+ON (stats.parent_id = mysql.mydb.entities.parent_id AND stats.id = mysql.mydb.entities.id)
+WHERE mysql.mydb.entities.parent_id = 123;
+```
+
+Query 20200322_051636_00065_p75wc failed: Unexpected response status: 500 for request  to url http://192.168.0.29:8000/debug/routingTable/events, with headers {Accept=[application/json]}, full response 
+
+The console logs from the PrestoServer are pretty useless.  No indication of an error.
+
+2020-03-22T13:37:56.930-0700	INFO	query-execution-145	com.facebook.presto.event.QueryMonitor	TIMELINE: Query 20200322_051636_00065_p75wc :: Transaction:[cdb0b01d-d911-4b76-9ae9-6681599fbaa4] :: elapsed 116ms :: planning 56ms :: scheduling 60ms :: running 0ms :: finishing 60ms :: begin 2020-03-22T13:37:56.811-07:00 :: end 2020-03-22T13:37:56.927-07:00
+

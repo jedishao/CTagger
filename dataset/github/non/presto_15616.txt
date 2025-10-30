@@ -1,0 +1,58 @@
+Presto is throwing NullPointerException from ES Connector if Object field has any unsupported datatype
+The query is failing if the table has an Object field with unsupported data type in presto,
+I have the Object field '**geoip**', which has the field '**location**' of geo_point datatype.
+
+Which is why any type of query on testtable is failing with below error:
+
+presto> select * from default.testtable;
+Query 20210117_124226_00003_4fm44 failed: type is null
+java.lang.NullPointerException: type is null
+        at java.util.Objects.requireNonNull(Objects.java:228)
+        at com.facebook.presto.common.type.RowType$Field.<init>(RowType.java:201)
+        at com.facebook.presto.common.type.RowType.field(RowType.java:82)
+        at com.facebook.presto.elasticsearch.ElasticsearchMetadata.lambda$toPrestoType$1(ElasticsearchMetadata.java:266)
+        at java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:193)
+        at java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:948)
+        at java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:482)
+        at java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:472)
+        at java.util.stream.ReduceOps$ReduceOp.evaluateSequential(ReduceOps.java:708)
+        at java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+        at java.util.stream.ReferencePipeline.collect(ReferencePipeline.java:499)
+        at com.facebook.presto.elasticsearch.ElasticsearchMetadata.toPrestoType(ElasticsearchMetadata.java:267)
+        at com.facebook.presto.elasticsearch.ElasticsearchMetadata.toPrestoType(ElasticsearchMetadata.java:220)
+        at com.facebook.presto.elasticsearch.ElasticsearchMetadata.getColumnFields(ElasticsearchMetadata.java:156)
+        at com.facebook.presto.elasticsearch.ElasticsearchMetadata.makeInternalTableMetadata(ElasticsearchMetadata.java:143)
+        at com.facebook.presto.elasticsearch.ElasticsearchMetadata.getTableMetadata(ElasticsearchMetadata.java:130)
+        at com.facebook.presto.elasticsearch.ElasticsearchMetadata.getTableMetadata(ElasticsearchMetadata.java:125)
+        at com.facebook.presto.metadata.MetadataManager.getTableMetadata(MetadataManager.java:498)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:1015)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:284)
+        at com.facebook.presto.sql.tree.Table.accept(Table.java:53)
+        at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:298)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.analyzeFrom(StatementAnalyzer.java:2028)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:1120)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:284)
+        at com.facebook.presto.sql.tree.QuerySpecification.accept(QuerySpecification.java:127)
+        at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:298)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:308)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:833)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:284)
+        at com.facebook.presto.sql.tree.Query.accept(Query.java:94)
+        at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:298)
+        at com.facebook.presto.sql.analyzer.StatementAnalyzer.analyze(StatementAnalyzer.java:276)
+        at com.facebook.presto.sql.analyzer.Analyzer.analyze(Analyzer.java:82)
+        at com.facebook.presto.sql.analyzer.Analyzer.analyze(Analyzer.java:74)
+        at com.facebook.presto.execution.SqlQueryExecution.<init>(SqlQueryExecution.java:176)
+        at com.facebook.presto.execution.SqlQueryExecution.<init>(SqlQueryExecution.java:92)
+        at com.facebook.presto.execution.SqlQueryExecution$SqlQueryExecutionFactory.createQueryExecution(SqlQueryExecution.java:742)
+        at com.facebook.presto.dispatcher.LocalDispatchQueryFactory.lambda$createDispatchQuery$0(LocalDispatchQueryFactory.java:116)
+        at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:125)
+        at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:57)
+        at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:78)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at java.lang.Thread.run(Thread.java:748)
+

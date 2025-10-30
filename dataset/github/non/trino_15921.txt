@@ -1,0 +1,44 @@
+Decouple Trino from Hadoop and Hive codebases
+# Background
+
+The Trino Hive connector, along with Iceberg, Delta Lake, and Hudi, were built on top of the Hadoop and Hive libraries for features like Hive Metastore client for catalog metadata, clients for HDFS and cloud object stores, reading and writing data files, and so on.  Over the past 10 years, we have slowly been replacing or extending many of these core features to fix bugs, improve performance, add monitoring, and improve reliability. At the same time the Hive and Hadoop libraries have slowed in maintenance and feature development which has made the maintenance of the Trino Hive connector more difficult (e.g., fixing CVEs).
+
+# Proposal
+
+Replace all uses of Hadoop and Hive libraries with native Trino code. Trino will no longer depend on the Hive library at all, and Hadoop will be an optional dependency that is only used for accessing HDFS. The major areas that will require rewrites, porting, and new code are described below.
+
+# Metadata
+
+Metadata has been abstracted for a long time now with direct implementations for Glue, File, and a bridge to the Hive Thrift Metastore. Recently the HMS Thrift client implementation [has been replaced](https://github.com/trinodb/trino/pull/15833) with a [Trino specific client](https://github.com/trinodb/hive-thrift) generated using the newest Thrift code (the old version used by Hive had CVEs).
+
+# File Systems
+
+The Hive plugin uses the Hadoop file system API for accessing files, but the usage has been highly controlled since the [custom S3 file system](https://github.com/trinodb/trino/blob/master/plugin/trino-hive/src/main/java/io/trino/plugin/hive/s3/TrinoS3FileSystem.java) was introduced. Recently, we created the [`TrinoFileSystem`](https://github.com/trinodb/trino/blob/master/lib/trino-filesystem/src/main/java/io/trino/filesystem/TrinoFileSystem.java) API to abstract away from Hadoop APIs and this abstraction is already integrated into the Iceberg and Delta connectors. For this project, we will add Trino file system implementations for S3, GCS, and Azure storage system. HDFS will continue to be supported, of course, but via an implementation of the Trino file system API.
+
+# File Formats
+
+There are Trino native implementations of [ORC](https://github.com/trinodb/trino/tree/master/lib/trino-orc/src/main/java/io/trino/orc), [Parquet](https://github.com/trinodb/trino/tree/master/lib/trino-parquet/src/main/java/io/trino/parquet), and [RCFile](https://github.com/trinodb/trino/tree/master/lib/trino-rcfile/src/main/java/io/trino/rcfile). For this project, we will write native implementations for the other formats supported by Trino (CSV, JSON, Regex, TextFile, SequenceFile, and Avro). The old implementations will be available as a fallback during a transition period. Eventually, we will remove support for Hive input formats and serdes. This means that custom formats, which were never officially supported in Trino, will no longer work.
+
+# Hive Type
+
+The Hive plugin uses the internal Hive type system in several places for convenience.  The single biggest user of Hive types is during interactions with Hive file formats, and the transition to native implementation will eliminate these.
+
+# Tasks
+
+* #15482 
+* #15630
+* #15775 
+* #15833 
+* #15918
+* #16004
+* #16020
+* #16053
+* #16073
+* #16164
+* #16172
+* #16174
+* #16175
+* #16271
+* #16226
+* #16373
+* #16454

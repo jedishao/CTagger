@@ -1,0 +1,109 @@
+[Bug] Failed to publish message when using DbLedgerStorage in the pulsar standalone
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Master branch, at least 08f5766d95034ce27c44ee30e4734d2a8f078e11
+
+### Minimal reproduce step
+
+* Start the pulsar standalone (Note that do not use the zookeeper as the metadata store) with the default configuration
+* Publish some large messages. It seems to work when publishing no-chunked messages.
+* The error occurred
+
+### What did you expect to see?
+
+Success to publish large messages
+
+### What did you see instead?
+
+Throw these exceptions with dead loop:
+```
+2022-10-17T11:16:58,804+0800 [BookieWriteThreadPool-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.common.util.OrderedExecutor - Runnable WriteEntry(-1, -1):class org.apache.bookkeeper.proto.WriteEntryProcessor took too long 10002535 micros to execute.
+2022-10-17T11:16:58,806+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.PendingAddOp - Failed to write entry (1, 0): Too many requests to the same Bookie
+2022-10-17T11:16:58,818+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl - Failed to find 1 bookies : excludeBookies [<Bookie:127.0.0.1:3181>], allBookies [<Bookie:127.0.0.1:3181>].
+2022-10-17T11:16:58,818+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl - Failed to choose a bookie: excluded [<Bookie:127.0.0.1:3181>], fallback to choose bookie randomly from the cluster.
+2022-10-17T11:16:58,819+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl - Failed to find 1 bookies : excludeBookies [<Bookie:127.0.0.1:3181>], allBookies [<Bookie:127.0.0.1:3181>].
+2022-10-17T11:16:58,819+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl - Failed to find 1 bookies : excludeBookies [<Bookie:127.0.0.1:3181>], allBookies [<Bookie:127.0.0.1:3181>].
+2022-10-17T11:16:58,819+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl - Failed to choose a bookie: excluded [<Bookie:127.0.0.1:3181>], fallback to choose bookie randomly from the cluster.
+2022-10-17T11:16:58,822+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl - Failed to find 1 bookies : excludeBookies [<Bookie:127.0.0.1:3181>], allBookies [<Bookie:127.0.0.1:3181>].
+2022-10-17T11:16:58,822+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.bookkeeper.client.MetadataUpdateLoop - UpdateLoop(ledgerId=1,loopId=44f16df5) Exception updating
+org.apache.bookkeeper.client.BKException$BKNotEnoughBookiesException: Not enough non-faulty bookies available
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectRandomInternal(RackawareEnsemblePlacementPolicyImpl.java:780) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectRandom(RackawareEnsemblePlacementPolicyImpl.java:697) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectFromNetworkLocation(RackawareEnsemblePlacementPolicyImpl.java:586) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy.selectFromNetworkLocation(RackawareEnsemblePlacementPolicy.java:206) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectFromNetworkLocation(RackawareEnsemblePlacementPolicyImpl.java:546) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy.selectFromNetworkLocation(RackawareEnsemblePlacementPolicy.java:227) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.replaceBookie(RackawareEnsemblePlacementPolicyImpl.java:474) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy.replaceBookie(RackawareEnsemblePlacementPolicy.java:120) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.BookieWatcherImpl.replaceBookie(BookieWatcherImpl.java:334) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.EnsembleUtils.replaceBookiesInEnsemble(EnsembleUtils.java:71) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.LedgerHandle.lambda$ensembleChangeLoop$2(LedgerHandle.java:1949) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.MetadataUpdateLoop.writeLoop(MetadataUpdateLoop.java:134) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.MetadataUpdateLoop.run(MetadataUpdateLoop.java:123) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.LedgerHandle.ensembleChangeLoop(LedgerHandle.java:1968) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.LedgerHandle.handleBookieFailure(LedgerHandle.java:1917) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.PendingAddOp.writeComplete(PendingAddOp.java:378) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.writeComplete(PerChannelBookieClient.java:2177) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleResponse(PerChannelBookieClient.java:2234) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleV2Response(PerChannelBookieClient.java:2213) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$ReadV2ResponseCallback.safeRun(PerChannelBookieClient.java:1391) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.common.util.SafeRunnable.run(SafeRunnable.java:36) ~[bookkeeper-common-4.15.1.jar:4.15.1]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635) ~[?:?]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at java.lang.Thread.run(Thread.java:833) ~[?:?]
+2022-10-17T11:16:58,860+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] WARN  org.apache.bookkeeper.client.LedgerHandle - [EnsembleChange(ledger:1, change-id:0000000001)][attempt:1] Exception changing ensemble
+org.apache.bookkeeper.client.BKException$BKNotEnoughBookiesException: Not enough non-faulty bookies available
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectRandomInternal(RackawareEnsemblePlacementPolicyImpl.java:780) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectRandom(RackawareEnsemblePlacementPolicyImpl.java:697) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectFromNetworkLocation(RackawareEnsemblePlacementPolicyImpl.java:586) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy.selectFromNetworkLocation(RackawareEnsemblePlacementPolicy.java:206) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.selectFromNetworkLocation(RackawareEnsemblePlacementPolicyImpl.java:546) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy.selectFromNetworkLocation(RackawareEnsemblePlacementPolicy.java:227) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl.replaceBookie(RackawareEnsemblePlacementPolicyImpl.java:474) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy.replaceBookie(RackawareEnsemblePlacementPolicy.java:120) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.BookieWatcherImpl.replaceBookie(BookieWatcherImpl.java:334) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.EnsembleUtils.replaceBookiesInEnsemble(EnsembleUtils.java:71) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.LedgerHandle.lambda$ensembleChangeLoop$2(LedgerHandle.java:1949) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.MetadataUpdateLoop.writeLoop(MetadataUpdateLoop.java:134) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.MetadataUpdateLoop.run(MetadataUpdateLoop.java:123) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.LedgerHandle.ensembleChangeLoop(LedgerHandle.java:1968) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.LedgerHandle.handleBookieFailure(LedgerHandle.java:1917) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.client.PendingAddOp.writeComplete(PendingAddOp.java:378) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.writeComplete(PerChannelBookieClient.java:2177) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleResponse(PerChannelBookieClient.java:2234) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$AddCompletion.handleV2Response(PerChannelBookieClient.java:2213) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.proto.PerChannelBookieClient$ReadV2ResponseCallback.safeRun(PerChannelBookieClient.java:1391) ~[bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.common.util.SafeRunnable.run(SafeRunnable.java:36) ~[bookkeeper-common-4.15.1.jar:4.15.1]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635) ~[?:?]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at java.lang.Thread.run(Thread.java:833) ~[?:?]
+2022-10-17T11:16:58,942+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.bookkeeper.client.LedgerHandle - Closing ledger 1 due to NotEnoughBookiesException: Not enough non-faulty bookies available
+2022-10-17T11:16:58,943+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.bookkeeper.client.PendingAddOp - Write of ledger entry to quorum failed: L1 E0
+2022-10-17T11:16:58,943+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.bookkeeper.client.PendingAddOp - Write of ledger entry to quorum failed: L1 E1
+2022-10-17T11:16:58,943+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.bookkeeper.client.PendingAddOp - Write of ledger entry to quorum failed: L1 E2
+2022-10-17T11:16:58,944+0800 [BookKeeperClientWorker-OrderedExecutor-0-0] ERROR org.apache.bookkeeper.client.PendingAddOp - Write of ledger entry to quorum failed: L1 E3
+```
+
+### Anything else?
+
+The problem may be related to this configuration:
+```
+ledgerStorageClass=org.apache.bookkeeper.bookie.storage.ldb.DbLedgerStorage
+```
+
+It works fine when I set it to use `SortedLedgerStorage `.
+
+For more context see: https://github.com/apache/pulsar/pull/17985#issue-1402829309
+
+
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

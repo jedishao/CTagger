@@ -1,0 +1,16 @@
+S3 extensions does not retry on 503 slow down responses
+### Affected Version
+
+0.19
+
+### Description
+
+While ingesting a large amount of data using the parallel index method, subtasks and sometimes even the parent task will fail because of an exception due to 503 slow down responses. This is likely because (1) we have lots of files and (2) we were querying the data with Athena at the same time. Either way, the expectation is that Druid would retry these types of failures and expose configurations for tuning the backoff and retry policies.
+
+The current workaround for us is several fold:
+
+1. Using fewer larger files, but this has disadvantages for our ETL pipeline
+2. Limit the use of other high volume jobs reading from the bucket, but this directly impacts other jobs than can properly handle failures
+3. Build retry logic into our Druid loading process, but this logic seems better suited for Druid to handle.
+
+This particular type of error is particularly painful since there is no configurable retry logic for top level tasks  (https://github.com/apache/druid/issues/5428). 

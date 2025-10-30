@@ -1,0 +1,89 @@
+Trino worker parallelism becomes 0
+Hello Team,
+We are running into `WORKER PARALLELISM becoming 0` and it stays for `30-40 minutes` even though there are enough queries in the queue and in running state.
+
+Attaching the thread dump and images of the same
+<img width="1189" alt="Screenshot 2022-11-16 at 2 54 51 PM" src="https://user-images.githubusercontent.com/24311511/202177679-1871e599-8c9c-4c15-b779-b9a04a073acd.png">
+<img width="1786" alt="Screenshot 2022-11-16 at 3 11 47 PM" src="https://user-images.githubusercontent.com/24311511/202177701-16ae9d1f-f101-4830-8fb6-c71d46ed3a6a.png">
+<img width="1126" alt="Screenshot 2022-11-16 at 3 12 33 PM" src="https://user-images.githubusercontent.com/24311511/202177710-c1a435e3-7a91-4eed-b1fe-702e01f712c5.png">
+[threadDump_16Nov2.out.zip](https://github.com/trinodb/trino/files/10021502/threadDump_16Nov2.out.zip)
+
+
+
+When we looked at the thread dump, we found out that one of the thread which has entered the `synchronized` block which is interacting with `hadoop API` in our case `azure storage` is stuck under retries due to some underlying reason unknown. And all the other threads are waiting upon this Thread to release the lock to enter the block
+
+```
+The stack trace for initial thread which is holding the lock
+
+dispatcher-query-22sleeping , holding [ 0x00007fa04fc79108 0x00007fa0e37d52f0 ]
+at java.lang.Thread.sleep(java.base@11.0.15/Native Method)
+at io.trino.hadoop.$internal.com.microsoft.azure.storage.core.ExecutionEngine.executeWithRetry(ExecutionEngine.java:265)
+at io.trino.hadoop.$internal.com.microsoft.azure.storage.blob.CloudBlobContainer.exists(CloudBlobContainer.java:769)
+at io.trino.hadoop.$internal.com.microsoft.azure.storage.blob.CloudBlobContainer.exists(CloudBlobContainer.java:756)
+at org.apache.hadoop.fs.azure.StorageInterfaceImpl$CloudBlobContainerWrapperImpl.exists(StorageInterfaceImpl.java:233)
+at io.trino.plugin.hive.fs.TrinoFileSystemCache.createFileSystem(TrinoFileSystemCache.java:164)
+at io.trino.plugin.hive.fs.TrinoFileSystemCache.getInternal(TrinoFileSystemCache.java:120)
+at io.trino.plugin.hive.fs.TrinoFileSystemCache.get(TrinoFileSystemCache.java:88)
+at org.apache.hadoop.fs.ForwardingFileSystemCache.get(ForwardingFileSystemCache.java:38)
+at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:479)
+at org.apache.hadoop.fs.Path.getFileSystem(Path.java:361)
+at io.trino.plugin.hive.HdfsEnvironment.lambda$getFileSystem$0(HdfsEnvironment.java:78)
+at io.trino.plugin.hive.HdfsEnvironment$$Lambda$13335/0x00007f94df1bcd08.run(Unknown Source)
+at io.trino.plugin.hive.authentication.NoHdfsAuthentication.doAs(NoHdfsAuthentication.java:25)
+at io.trino.plugin.hive.HdfsEnvironment.getFileSystem(HdfsEnvironment.java:77)
+at io.trino.plugin.hive.HdfsEnvironment.getFileSystem(HdfsEnvironment.java:71)
+at io.trino.plugin.hive.util.HiveWriteUtils.isS3FileSystem(HiveWriteUtils.java:482)
+at io.trino.plugin.hive.HiveMetadata.checkExternalPath(HiveMetadata.java:1121)
+at io.trino.plugin.hive.HiveMetadata.createTable(HiveMetadata.java:908)
+at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.createTable(ClassLoaderSafeConnectorMetadata.java:382)
+at io.trino.metadata.MetadataManager.createTable(MetadataManager.java:640)
+at io.trino.execution.CreateTableTask.internalExecute(CreateTableTask.java:270)
+at io.trino.execution.CreateTableTask.execute(CreateTableTask.java:119)
+at io.trino.execution.CreateTableTask.execute(CreateTableTask.java:85)
+at io.trino.execution.DataDefinitionExecution.start(DataDefinitionExecution.java:145)
+at io.trino.execution.SqlQueryManager.createQuery(SqlQueryManager.java:243)
+at io.trino.dispatcher.LocalDispatchQueryFactory$$Lambda$9271/0x00007f96eb0fa8b8.accept(Unknown Source)
+at io.trino.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:143)
+at io.trino.dispatcher.LocalDispatchQuery$$Lambda$9871/0x00007f96e868b8b8.run(Unknown Source)
+at io.trino.$gen.Trino_387____20221116_085646_2.run(Unknown Source)
+at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.15/ThreadPoolExecutor.java:1128)
+at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.15/ThreadPoolExecutor.java:628)
+at java.lang.Thread.run(java.base@11.0.15/Thread.java:829)
+
+Other threads which are blocked
+
+"dispatcher-query-103" #97965 daemon prio=5 os_prio=0 cpu=70.98ms elapsed=52.19s tid=0x00007f9a28011420 nid=0x8d40 waiting for monitor entry  [0x00007f95035f3000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at io.trino.plugin.hive.fs.TrinoFileSystemCache.getInternal(TrinoFileSystemCache.java:108)
+waiting to lock <0x00007fa04fc79108> (a io.trino.plugin.hive.fs.TrinoFileSystemCache)
+        at io.trino.plugin.hive.fs.TrinoFileSystemCache.get(TrinoFileSystemCache.java:88)
+        at org.apache.hadoop.fs.ForwardingFileSystemCache.get(ForwardingFileSystemCache.java:38)
+        at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:479)
+        at org.apache.hadoop.fs.Path.getFileSystem(Path.java:361)
+        at io.trino.plugin.hive.HdfsEnvironment.lambda$getFileSystem$0(HdfsEnvironment.java:78)
+        at io.trino.plugin.hive.HdfsEnvironment$$Lambda$13335/0x00007f94df1bcd08.run(Unknown Source)
+        at io.trino.plugin.hive.authentication.NoHdfsAuthentication.doAs(NoHdfsAuthentication.java:25)
+        at io.trino.plugin.hive.HdfsEnvironment.getFileSystem(HdfsEnvironment.java:77)
+        at io.trino.plugin.hive.HdfsEnvironment.getFileSystem(HdfsEnvironment.java:71)
+        at io.trino.plugin.hive.util.HiveWriteUtils.isS3FileSystem(HiveWriteUtils.java:482)
+        at io.trino.plugin.hive.HiveMetadata.checkExternalPath(HiveMetadata.java:1121)
+        at io.trino.plugin.hive.HiveMetadata.createTable(HiveMetadata.java:908)
+        at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.createTable(ClassLoaderSafeConnectorMetadata.java:382)
+        at io.trino.metadata.MetadataManager.createTable(MetadataManager.java:640)
+        at io.trino.execution.CreateTableTask.internalExecute(CreateTableTask.java:270)
+        at io.trino.execution.CreateTableTask.execute(CreateTableTask.java:119)
+        at io.trino.execution.CreateTableTask.execute(CreateTableTask.java:85)
+        at io.trino.execution.DataDefinitionExecution.start(DataDefinitionExecution.java:145)
+        at io.trino.execution.SqlQueryManager.createQuery(SqlQueryManager.java:243)
+        at io.trino.dispatcher.LocalDispatchQueryFactory$$Lambda$9271/0x00007f96eb0fa8b8.accept(Unknown Source)
+        at io.trino.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:143)
+        at io.trino.dispatcher.LocalDispatchQuery$$Lambda$9871/0x00007f96e868b8b8.run(Unknown Source)
+        at io.trino.$gen.Trino_387____20221116_085646_2.run(Unknown Source)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.15/ThreadPoolExecutor.java:1128)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.15/ThreadPoolExecutor.java:628)
+        at java.lang.Thread.run(java.base@11.0.15/Thread.java:829)
+```
+
+`TrinoFileSystemCache.java` is the class and `getInternal` is the method. 
+
+This PR seems to have solved the issue `https://github.com/trinodb/trino-hadoop-apache/pull/39`, this was already merged but i couldn't see the change even in the latest branch.

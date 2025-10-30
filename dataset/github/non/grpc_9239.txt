@@ -1,0 +1,34 @@
+BouncyCastle ALPN broken when running with JDK 11 code compiled with JDK 8
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.44
+
+### What is your environment?
+linux, jdk 11.0.15, bc-fips.jar 1.0.2
+
+### What did you expect to see?
+on ProtocolNegotiators.class:
+"TLS negotiation succeeded."
+
+### What did you see instead?
+on ProtocolNegotiators.class:
+**"UNAVAILABLE: Failed ALPN negotiation: Unable to find compatible protocol"**
+
+
+### Steps to reproduce the bug
+on existing grpc client server env
+set the BouncyCastleFipsProvider (required bc-fips-1.0.2.jar as multi-release jar) by `Security.addProvider(new BouncyCastleFipsProvider());` on the application startup.
+set the grpc java client to use the jdk provider:
+```
+SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
+                    .sslProvider(SslProvider.JDK)
+                    .applicationProtocolConfig(new ApplicationProtocolConfig(
+                            ApplicationProtocolConfig.Protocol.ALPN, 
+                            ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                        	ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                            Collections.singletonList("h2")));
+```
+
+
+It looks like BouncyCastleFipsProvider, by its SSLParamertesUtil class, somehow remove the "h2" from the suggested application protocols list. increasing grpc version to 1.46 didn't help.

@@ -1,0 +1,76 @@
+`bazel build //...` fails because `//rls/...`, `//xds/...` are broken: Using type javax.annotation.Generated from an indirect dependency
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+master
+
+### What is your environment?
+```
+❯ sw_vers
+ProductName:	macOS
+ProductVersion:	12.6.1
+BuildVersion:	21G217
+❯ uname -mprsv
+Darwin 21.6.0 Darwin Kernel Version 21.6.0: Thu Sep 29 20:12:57 PDT 2022; root:xnu-8020.240.7~1/RELEASE_X86_64 x86_64 i386
+❯ java -version
+openjdk version "11.0.17" 2022-10-18
+OpenJDK Runtime Environment (build 11.0.17+8)
+```
+
+### What did you expect to see?
+bazel build success
+
+### What did you see instead?
+bazel build error
+
+### Steps to reproduce the bug
+
+rls:
+```
+❯ bazel build --verbose_failures //rls/...
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //rls:rls_java_grpc: Proto source with label @io_grpc_grpc_proto//:rls_proto should be in same package as consuming rule
+INFO: Analyzed 2 targets (0 packages loaded, 0 targets configured).
+INFO: Found 2 targets...
+ERROR: /Users/sergiitk/Development/grpc-java/rls/BUILD.bazel:3:13: Building rls/librls.jar (16 source files) and running annotation processors (AutoValueProcessor) failed: (Exit 1): java failed: error executing command
+  (cd /private/var/tmp/_bazel_sergiitk/a795a63b8b2fe2da0cd858d3e615d407/execroot/io_grpc_grpc_java && \
+  exec env - \
+    LC_CTYPE=en_US.UTF-8 \
+    PATH=/Users/sergiitk/Library/Caches/bazelisk/downloads/bazelbuild/bazel-5.3.2-darwin-x86_64/bin:/Users/sergiitk/mdproxy/bin:/Users/sergiitk/.bin:/opt/local/bin:/opt/local/sbin:/usr/local/git/git-google/bin:/usr/local/git/current/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/Applications/Wireshark.app/Contents/MacOS:/Users/sergiitk/Development/Android/sdk/cmdline-tools/latest/bin:/Users/sergiitk/Development/Android/sdk/platform-tools:/opt/local/Library/Frameworks/Python.framework/Versions/3.10/bin \
+  external/remotejdk11_macos/bin/java -XX:-CompactStrings '--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.resources=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED' '--add-opens=java.base/java.nio=ALL-UNNAMED' '--add-opens=java.base/java.lang=ALL-UNNAMED' '--patch-module=java.compiler=external/remote_java_tools/java_tools/java_compiler.jar' '--patch-module=jdk.compiler=external/remote_java_tools/java_tools/jdk_compiler.jar' -jar external/remote_java_tools/java_tools/JavaBuilder_deploy.jar @bazel-out/darwin-fastbuild/bin/rls/librls.jar-0.params @bazel-out/darwin-fastbuild/bin/rls/librls.jar-1.params)
+# Configuration: c75b52840eea6dcbe1b8559af2885f9d37de38614db15e782e3b011d421f690b
+# Execution platform: @local_config_platform//:host
+bazel-out/darwin-fastbuild/bin/rls/_javac/rls/librls_sources/io/grpc/rls/AutoValue_RlsProtoData_RouteLookupRequest.java:6: error: [strict] Using type javax.annotation.Generated from an indirect dependency (TOOL_INFO: "bazel-out/darwin-fastbuild/bin/external/maven/v1/https/repo.maven.apache.org/maven2/org/apache/tomcat/annotations-api/6.0.53/header_annotations-api-6.0.53.jar").
+@Generated("com.google.auto.value.processor.AutoValueProcessor")
+ ^
+INFO: Elapsed time: 1.192s, Critical Path: 0.88s
+INFO: 2 processes: 2 internal.
+FAILED: Build did NOT complete successfully
+```
+
+xds:
+```
+❯ bazel build --verbose_failures //xds/...
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //xds:envoy_service_status_v3_java_grpc: Proto source with label @envoy_api//envoy/service/status/v3:pkg should be in same package as consuming rule
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //xds:envoy_service_load_stats_v3_java_grpc: Proto source with label @envoy_api//envoy/service/load_stats/v3:pkg should be in same package as consuming rule
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //xds:envoy_service_discovery_v2_java_grpc: Proto source with label @envoy_api//envoy/service/discovery/v2:pkg should be in same package as consuming rule
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //xds:xds_service_orca_v3_java_grpc: Proto source with label @com_github_cncf_xds//xds/service/orca/v3:pkg should be in same package as consuming rule
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //xds:envoy_service_load_stats_v2_java_grpc: Proto source with label @envoy_api//envoy/service/load_stats/v2:pkg should be in same package as consuming rule
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //xds:envoy_service_discovery_v3_java_grpc: Proto source with label @envoy_api//envoy/service/discovery/v3:pkg should be in same package as consuming rule
+DEBUG: /Users/sergiitk/Development/grpc-java/java_grpc_library.bzl:76:14: in srcs attribute of //grpclb:load_balancer_java_grpc: Proto source with label @io_grpc_grpc_proto//:grpclb_load_balancer_proto should be in same package as consuming rule
+INFO: Analyzed 11 targets (4 packages loaded, 204 targets configured).
+INFO: Found 11 targets...
+ERROR: /Users/sergiitk/Development/grpc-java/xds/BUILD.bazel:16:13: Building xds/libxds-class.jar (109 source files) and running annotation processors (AutoValueProcessor) failed: (Exit 1): java failed: error executing command
+  (cd /private/var/tmp/_bazel_sergiitk/a795a63b8b2fe2da0cd858d3e615d407/execroot/io_grpc_grpc_java && \
+  exec env - \
+    LC_CTYPE=en_US.UTF-8 \
+    PATH=/Users/sergiitk/Library/Caches/bazelisk/downloads/bazelbuild/bazel-5.3.2-darwin-x86_64/bin:/Users/sergiitk/mdproxy/bin:/Users/sergiitk/.bin:/opt/local/bin:/opt/local/sbin:/usr/local/git/git-google/bin:/usr/local/git/current/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/Applications/Wireshark.app/Contents/MacOS:/Users/sergiitk/Development/Android/sdk/cmdline-tools/latest/bin:/Users/sergiitk/Development/Android/sdk/platform-tools:/opt/local/Library/Frameworks/Python.framework/Versions/3.10/bin \
+  external/remotejdk11_macos/bin/java -XX:-CompactStrings '--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.resources=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED' '--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED' '--add-opens=java.base/java.nio=ALL-UNNAMED' '--add-opens=java.base/java.lang=ALL-UNNAMED' '--patch-module=java.compiler=external/remote_java_tools/java_tools/java_compiler.jar' '--patch-module=jdk.compiler=external/remote_java_tools/java_tools/jdk_compiler.jar' -jar external/remote_java_tools/java_tools/JavaBuilder_deploy.jar @bazel-out/darwin-fastbuild/bin/xds/libxds-class.jar-0.params @bazel-out/darwin-fastbuild/bin/xds/libxds-class.jar-1.params)
+# Configuration: c75b52840eea6dcbe1b8559af2885f9d37de38614db15e782e3b011d421f690b
+# Execution platform: @local_config_platform//:host
+bazel-out/darwin-fastbuild/bin/xds/_javac/xds/libxds-class_sources/io/grpc/xds/AutoValue_Bootstrapper_ServerInfo.java:6: error: [strict] Using type javax.annotation.Generated from an indirect dependency (TOOL_INFO: "bazel-out/darwin-fastbuild/bin/external/maven/v1/https/repo.maven.apache.org/maven2/org/apache/tomcat/annotations-api/6.0.53/header_annotations-api-6.0.53.jar").
+@Generated("com.google.auto.value.processor.AutoValueProcessor")
+ ^
+INFO: Elapsed time: 3.877s, Critical Path: 3.58s
+INFO: 2 processes: 2 internal.
+FAILED: Build did NOT complete successfully
+```

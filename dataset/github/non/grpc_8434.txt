@@ -1,0 +1,43 @@
+API to eagerly send headers from a service
+I'd like to conditionally send headers from my server to a client at the beginning of a call. I have constructed an interceptor that will invoke `ServerCall.sendHeaders()`, and the client does receive those headers. My confusion is that after sending the headers the call will always immediately fail when the server tries to send a message, since `ServerCallStreamObserverImpl` always tries to send headers again in its implementation of `onNext()`:
+
+```java
+// ...
+if (!sentHeaders) {
+  call.sendHeaders(new Metadata());
+  sentHeaders = true;
+}
+call.sendMessage(response);
+```
+
+I've solved this by returning a "header-dropping" forwarding ServerCall from my interceptor:
+```java
+public class MetadataSendingInterceptor implements ServerInterceptor {
+  @Override
+  public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+    ServerCall<ReqT, RespT> call,
+    Metadata headers, 
+    ServerCallHandler<ReqT, RespT> next
+  ) {
+    if (shouldSendHeaders()) {
+      call.sendHeaders(customResponseHeaders());
+      return next.startCall(
+          new SimpleForwardingServerCall<ReqT, RespT>(call) {
+            @Override public void sendHeaders(Metadata headers) {
+              // these headers should always be empty per the snippet above
+            }
+          },
+          headers
+      );
+    } else {
+      return next.startCall(call, headers);
+    }
+  }
+}
+```
+
+Is this the recommended practice or is there a way to indicate that gRPC should not proceed to attempt to send back empty headers?
+
+I also realize that I'll have to consolidate any future interceptors that want to send back metadata as well since obviously any downstream attempts to send metadata will fail with or without this no-op - either the call will terminate or I'll be dropping it.
+
+Thanks!

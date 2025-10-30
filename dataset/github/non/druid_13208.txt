@@ -1,0 +1,50 @@
+Coordinator crashes trying to compact a datasource ingested through MSQ with PARTITIONED BY ALL
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+Tested on latest master branch 25.0.0-SNAPSHOT
+
+
+### Description
+
+Ingested a json file with only the following 2 rows through MSQ
+
+```
+ % cat lookup_data_small.json 
+{"k": "stringggggggggggggggggggggggggggggggggggggggggg0", "v": "stringValuegggggggggggggggggggggggggggggggggggggg0"}
+{"k": "stringggggggggggggggggggggggggggggggggggggggggg1", "v": "stringValuegggggggggggggggggggggggggggggggggggggg1"}
+%
+```
+
+I just kept clicking through the web-console screens, taking whatever defaults were provided. The spec generated produced an insert with a `PARTITIONED BY ALL` clause. The interval detected by this is 
+
+```
+"intervals": {
+        "type": "intervals",
+        "intervals": [
+          "-146136543-09-08T08:23:32.096Z/146140482-04-24T15:36:27.903Z"
+        ]
+      },
+```
+
+After the table is ingested configure auto-compaction on the table. To do this I simply changed the default config to the following
+
+```
+{
+  "dataSource": "lookup_data_small",
+  "granularitySpec": {
+    "segmentGranularity": "DAY"
+  },
+  "tuningConfig": {
+    "partitionsSpec": {
+      "type": "dynamic"
+    }
+  }
+}
+```
+
+The only difference here is the addition of the granulartySpec. 
+
+Wait for the next coorindator indexer cycle to run (I just changed by setting `druid.coordinator.period.indexingPeriod=PT60s` in coordinator runtime properties file)
+
+This causes the Coordinator to crash and take up a ton of CPU and memory before doing so. I believe the issue is in building the interval to segments map here: https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/server/coordinator/duty/NewestSegmentFirstIterator.java#L121

@@ -1,0 +1,14 @@
+Inconsistent closing behavior of `HttpClientImpl`
+### Version
+
+4.3.4
+
+### Context
+
+I am currently analyzing some issues we are having with the `WebClient` while, by chance, I found an odd anomaly in the `HttpClientImpl`, which I don't know if this is actually intended behavior or not:
+
+Calling `webClient.close()` lets `WebClientBase` invoke `client.close()` on the `HttpClient`. However the method is overloaded 3 times, where `close()` and `close(Handler)` behave identical in closing the underlying `netClient`, however there is a third `close(Promise)` from the closable `Closeable` interface, which actually does "more" and also closes the underlying `ConnectionManager` etc. Invoking the "normal" `close()`, doesn't close the underlying `ConnectionManager` (reproducer is available to proof that).
+
+Question: Is there a reason for this strange two-sided close behavior and wouldn't it make sense to properly cleanup the `HttpClientImpl` on `close()` similar to `close(Promise)`? See [1].
+
+[1] https://github.com/eclipse-vertx/vert.x/blob/master/src/main/java/io/vertx/core/http/impl/HttpClientImpl.java#L473

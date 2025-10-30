@@ -1,0 +1,39 @@
+Catalog Server Prototype
+# Catalog Server
+## Overview
+
+Fetching and reading metadata from external dependencies often can become overloaded and hurt our tail latency. To get stable and fast performance, a common solution is to use our own caching solutions to remove these dependencies for the cache hit cases and also reduce the overall load on them. 
+
+We currently cache the table metadata, file listing results and handle getSplits in the Coordinator. The file list needed by all queries in a cluster could be huge. Caching all of them in a single coordinator is impractise. Besides, the getSplits is expensive and doing it in the Coordinator is not ideal.
+
+The multi-coordinator effort adds the capability of scaling the coordinator horizontally. But the metadata cached in one coordinator can only be used by the queries assigned to it. The multiple coordinators could cache duplicate table/partition metadatas which will be a waste of resources. Enabling affinity for the coordinators can make the cache sharing more effective but it can easily lead to imbalance load issues.
+
+Thus, we introduce the CatalogServer to address the above issues, which serves as a distributed cache for metadata.
+
+## Motivations
+- Reduce the cpu/memory pressure for the Coordinator.
+- Reduce the overall number of external calls for external dependencies.
+
+## High Level Design
+<img width="589" alt="Screen Shot 2022-06-27 at 10 24 11 AM" src="https://user-images.githubusercontent.com/46385457/175999516-6c0a3c78-21f1-49e7-9544-bb47443887ba.png">
+
+The catalog server is essentially a distributed cache of query metadata shared by all queries in this cluster. We could enable affinity for the requests to the CatalogServer and compute the scheduling hash based on the partition directory path for GetSplits requests or table name for GetTableMetadata requests. In this way, the partition metadatas are shared across the catalog servers by partitions and the table metadatas are shared by tables. This could avoid storing duplicate data in the cache.
+
+We can still have a smaller cache in the coordinator and only fallback to the CatalogServer when cache misses. It will allow most high QPS repeated query patterns to bypass a central RPC service while still scaling the cache effectively.
+
+## Supported Methods
+There are more than 70+ metadata methods, to determine which ones to implement on CatalogServer, we’d like to take the following two factors into consideration.
+- Read vs Write: the main benefit of introducing CatalogServer is to cache the metadata, which only applies to read operations like getTableHandle() and getView(). For write operations, CatalogServer just adds an extra step on the query execution path so it’s unnecessary to implement.
+- Coordinator Time Breakdown: Based on the coordinator time breakdown, methods like getView() and getMaterializedView() are relatively more expensive and it will be more beneficial to move them onto CatalogServer and cache their results.
+- Methods list
+  - [schemaExists()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L282)
+  - [catalogExists()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L296)
+  - [listSchemaNames()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L302)
+  - [getTableHandle()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L321)
+  - [listTables()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L559)
+  - [listViews()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L959)
+  - [getViews()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L982)
+  - [getView()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L1009)
+  - [getMaterializedView()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L1053)
+  - [getReferencedMaterializedViews()](https://github.com/prestodb/presto/blob/4b568c1e9c19d6ec675c2834f3f2d82827bdbdfd/presto-main/src/main/java/com/facebook/presto/metadata/MetadataManager.java#L1119)
+

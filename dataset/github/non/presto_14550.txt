@@ -1,0 +1,24 @@
+presto-postgresql tests fail on ppc64le
+**ENV:
+arch=ppc64le
+os=RHEL7.6
+maven=3.6.3**
+
+I was able to compile presto commit c51b285 on ppc64le RHEL 7.6 as `mvn install -DskipTests`. However, there were test failures for presto-postgresql caused by the following error:
+```
+io.airlift.command.CommandFailedException: [/tmp/testing-postgresql-server5907429493503395537/bin/pg_ctl, stop, -D, /tmp/testing-postgresql-server5907429493503395537/data, -m, fast, -t, 5, -w] failed to start: Cannot run program "/tmp/testing-postgresql-server5907429493503395537/bin/pg_ctl" (in directory "/root/presto/presto-postgresql/."): error=2, No such file or directory
+```
+After some debugging, I found that the issue was due to missing **postgresql-Linux-ppc64le.tar.gz** in **~/.m2/repository/com/facebook/airlift/testing-postgresql-server/9.6.3-4/testing-postgresql-server-9.6.3-4.jar**. I could get this particular issue resolved by adding the necessary binaries, libraries, etc. from rh-postgresql96 installation from my setup to postgresql-Linux-ppc64le.tar.gz and then adding that as a part of testing-postgresql-server-9.6.3-4.jar in the local maven repo.
+
+However, I started getting a different error after that:
+```
+2020-05-13T10:33:14.269-0500 SEVERE could not stop postmaster in /tmp/testing-postgresql-server9157088070576433197
+java.lang.RuntimeException: io.airlift.command.CommandFailedException: [/tmp/testing-postgresql-server9157088070576433197/bin/pg_ctl, stop, -D, /tmp/testing-postgresql-server9157088070576433197/data, -m, fast, -t, 5, -w] exited with 1
+pg_ctl: directory "/tmp/testing-postgresql-server9157088070576433197/data" does not exist
+```
+
+I tried creating a directory data as a part of the tarball in the jar itself alongside the bin, lib, etc. directories. But that didn't help either.
+
+Please provide me a pointer to help resolve this issue.
+
+Thanks in advance!

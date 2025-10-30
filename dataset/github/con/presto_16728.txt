@@ -1,0 +1,28 @@
+ARRAY_CONCAT seems to be stateful and not thread-safe
+It seems to be all kind of bad. Sometimes I get:
+
+presto> select sum(cardinality(s)) from (SELECT REDUCE_AGG(x, cast(array[] as array<bigint>), (x,y)->x||sequence(1, y), (x,y)->x||y) s FROM (SELECT x FROM (SELECT 1) CROSS JOIN UNNEST(SEQUENCE(1, 1000)) T(x)) group by random(100) );
+
+Query 20210910_183113_54865_wx7hd failed: com.facebook.presto.common.block.LongArrayBlockBuilder
+
+
+java.lang.UnsupportedOperationException: com.facebook.presto.common.block.LongArrayBlockBuilder
+	at com.facebook.presto.common.block.BlockBuilder.appendStructure(BlockBuilder.java:95)
+	at com.facebook.presto.common.type.ArrayType.writeObject(ArrayType.java:195)
+	at com.facebook.presto.operator.aggregation.state.BlockState.write(BlockState.java:36)
+	at com.facebook.presto.$gen.BigintBigintReduceAggGroupedAccumulator_20210910_183114_43520.evaluateFinal(Unknown Source)
+	at com.facebook.presto.operator.aggregation.builder.InMemoryHashAggregationBuilder$Aggregator.evaluate(InMemoryHashAggregationBuilder.java:451)
+	at com.facebook.presto.operator.aggregation.builder.InMemoryHashAggregationBuilder.lambda$buildResult$3(InMemoryHashAggregationBuilder.java:302)
+
+And some other times I get:
+
+presto> select sum(cardinality(s)) from (SELECT REDUCE_AGG(x, cast(array[] as array<bigint>), (x,y)->x||sequence(1, y), (x,y)->x||y) s FROM (SELECT x FROM (SELECT 1) CROSS JOIN UNNEST(SEQUENCE(1, 7000)) T(x)) group by random(100) );
+
+Query 20210910_183557_00071_ue9rt, FAILED, 1 node
+Splits: 10 total, 4 done (40.00%)
+0:02 [0 rows, 0B] [0 rows/s, 0B/s]
+
+Query 20210910_183557_00071_ue9rt failed: Invalid position 86989 and length 19596 in block with 106583 positions
+
+
+Seems to happen only when used from lambdas in reduce_agg. Couldn't repro any other way.

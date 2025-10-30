@@ -1,0 +1,54 @@
+[Design] Separate connector module for Hudi
+## Abstraction
+
+In this article, we propose a separate connector module for Hudi support, in order to make it more extendable, maintainable and performant.
+
+## Motivation
+
+Hudi is widely used in our production environment in ByteDance. We have added lots of internal optimizations and customizations to Hudi, some of which are going to contribute to the Hudi open source community. And we are using Presto to query Hudi tables.
+
+The support for querying Hudi tables in Presto are implemented in presto-hive connector module. 
+- For a Hudi COW or MOR-RO table, Presto processes it as the normal Parquet table with an additional path filter HoodieROTablePathFilter to prune invalid files during split generation. 
+- For a Hudi MOR-RT table, Presto delegates the split generation to  HoodieParquetRealtimeInputFormat#getSplits , and delegates the data scan to the record reader created by HoodieParquetRealtimeInputFormat#getRecordReader. 
+- CustomSplitConverter is applied when marshaling and unmarshaling connector splits as HiveSplit lacks attributes that are necessary for Hudi splits.
+
+The implementation could take advantage of existing code in presto-hive module. But there are some drawbacks.
+Due to the MVCC-like design, the file layout of Hudi tables is quite different from that of regular Hive tables. Mixing the split generation for Hudi and regular tables makes it hard to extend to integrate  custom or advance split scheduling algorithms. The code like HoodieROTablePathFilter and CustomSplitConverter works, but  looks tricky, and lowers the codebase quality.
+
+By delegating most of work to HoodieParquetRealtimeInputFormat ,  memory usage is out of control of the memory management mechanism. That hurts the system robust: workers tend to crash for OOM when querying a large MOR-RT table. Moreover, HoodieParquetRealtimeInputFormat is not performant. 
+
+With the evolution of Hudi project, there will be more new features which are designed specifically for Hudi. If we continue to cram the code for this kind of feature into presto-hive module, we will find that it will be more and more difficult to code and test. Finally we will get a large and messy presto-hive module.
+
+A separate Hudi connector also separates Hudi's bugs away from Hive connector. We will feel more confident to add new code,  since they would never break the hive connector.
+
+## Design
+
+### Architecture
+
+The diagram below illustrates the architecture of Hudi connector module, which will implement the connector SPI as other connectors do. Existing code, especially in modules like presto-hive, presto-hive-metastore, presto-parquet and etc, will be reused. Integrating components from Hudi will be quite convenient. 
+
+![image](https://user-images.githubusercontent.com/5550004/142119805-b9c5da05-54ea-464d-a467-7f1fedf3d5eb.png)
+
+### Catalog remapping
+
+End users tend to query Hudi tables as normal Hive tables. They are used to writing queries like select * from hive.db.hudi_table. After introducing Hudi connector, end users are required to rewrite the queries as select * from hudi.db.hudi_table . In order to eliminate the migration cost, we propose to add catalog remapping: when a table is checked to be a Hudi table, its catalog would be changed to hudi internally. The work might be executed during the statement analyzing. A plugin interface will be added to Presto SPI, so that developers could implement their own mappers to statisfy real deployment.
+
+### Optimizing MOR-RT read
+
+HoodieParquetRealtimeInputFormat is not performant. We could accelerate the 
+- New split generating method to improve split parallelism:
+- New page source to improve scan performance: 
+  - Use Presto's optimized vectorized parquet readers to replace Hive's RecordReader
+  - Enable predicate pushdown based on Presto's parquet reader
+
+### Features in plan
+The separate Hudi connector makes it more efficient to implement interesting features:
+- Support incremental queries
+- Support insert/update/delete statements
+- Support schema evolution
+- Support bootstrap tables
+
+
+References
+- https://issues.apache.org/jira/browse/HUDI-2687
+- https://github.com/apache/hudi/pull/3957

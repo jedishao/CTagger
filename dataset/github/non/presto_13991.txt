@@ -1,0 +1,89 @@
+like_pattern row expression interpretation errors out on SERIALIZABLE optimization level
+Can be reproduced with tpch query. It was not an issue in 0.228
+```sql
+SELECT
+    *
+FROM (
+    SELECT
+        name,
+        comment
+    FROM customer
+    WHERE
+        name NOT LIKE 'test_|%' ESCAPE '|'
+        AND name = 'di'
+) a
+JOIN (
+    SELECT
+        shipmode,
+        comment
+    FROM lineitem
+) b
+    ON a.name = b.shipmode
+```
+
+Stacktrace
+```
+java.lang.IllegalStateException
+	at com.google.common.base.Preconditions.checkState(Preconditions.java:491)
+	at com.facebook.presto.sql.planner.RowExpressionInterpreter$Visitor.tryHandleLike(RowExpressionInterpreter.java:886)
+	at com.facebook.presto.sql.planner.RowExpressionInterpreter$Visitor.visitCall(RowExpressionInterpreter.java:250)
+	at com.facebook.presto.spi.relation.CallExpression.accept(CallExpression.java:107)
+	at com.facebook.presto.sql.planner.RowExpressionInterpreter$Visitor.visitCall(RowExpressionInterpreter.java:217)
+	at com.facebook.presto.spi.relation.CallExpression.accept(CallExpression.java:107)
+	at com.facebook.presto.sql.planner.RowExpressionInterpreter$Visitor.visitSpecialForm(RowExpressionInterpreter.java:400)
+	at com.facebook.presto.spi.relation.SpecialFormExpression.accept(SpecialFormExpression.java:102)
+	at com.facebook.presto.sql.planner.RowExpressionInterpreter.optimize(RowExpressionInterpreter.java:184)
+	at com.facebook.presto.sql.planner.RowExpressionInterpreter.optimize(RowExpressionInterpreter.java:175)
+	at com.facebook.presto.sql.relational.RowExpressionOptimizer.optimize(RowExpressionOptimizer.java:43)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.simplifyExpression(RowExpressionPredicatePushDown.java:984)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitTableScan(RowExpressionPredicatePushDown.java:1301)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitTableScan(RowExpressionPredicatePushDown.java:131)
+	at com.facebook.presto.spi.plan.TableScanNode.accept(TableScanNode.java:152)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:86)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitFilter(RowExpressionPredicatePushDown.java:369)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitFilter(RowExpressionPredicatePushDown.java:131)
+	at com.facebook.presto.spi.plan.FilterNode.accept(FilterNode.java:80)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:86)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitExchange(RowExpressionPredicatePushDown.java:191)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitExchange(RowExpressionPredicatePushDown.java:131)
+	at com.facebook.presto.sql.planner.plan.ExchangeNode.accept(ExchangeNode.java:305)
+	at com.facebook.presto.sql.planner.plan.InternalPlanNode.accept(InternalPlanNode.java:33)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:86)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitJoin(RowExpressionPredicatePushDown.java:451)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitJoin(RowExpressionPredicatePushDown.java:131)
+	at com.facebook.presto.sql.planner.plan.JoinNode.accept(JoinNode.java:281)
+	at com.facebook.presto.sql.planner.plan.InternalPlanNode.accept(InternalPlanNode.java:33)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:86)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitExchange(RowExpressionPredicatePushDown.java:191)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitExchange(RowExpressionPredicatePushDown.java:131)
+	at com.facebook.presto.sql.planner.plan.ExchangeNode.accept(ExchangeNode.java:305)
+	at com.facebook.presto.sql.planner.plan.InternalPlanNode.accept(InternalPlanNode.java:33)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:86)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.lambda$defaultRewrite$0(SimplePlanRewriter.java:75)
+	at java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:193)
+	at java.util.Collections$2.tryAdvance(Collections.java:4717)
+	at java.util.Collections$2.forEachRemaining(Collections.java:4725)
+	at java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:481)
+	at java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:471)
+	at java.util.stream.ReduceOps$ReduceOp.evaluateSequential(ReduceOps.java:708)
+	at java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+	at java.util.stream.ReferencePipeline.collect(ReferencePipeline.java:499)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter$RewriteContext.defaultRewrite(SimplePlanRewriter.java:76)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitPlan(RowExpressionPredicatePushDown.java:168)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown$Rewriter.visitPlan(RowExpressionPredicatePushDown.java:131)
+	at com.facebook.presto.sql.planner.plan.InternalPlanVisitor.visitOutput(InternalPlanVisitor.java:29)
+	at com.facebook.presto.sql.planner.plan.OutputNode.accept(OutputNode.java:84)
+	at com.facebook.presto.sql.planner.plan.InternalPlanNode.accept(InternalPlanNode.java:33)
+	at com.facebook.presto.sql.planner.plan.SimplePlanRewriter.rewriteWith(SimplePlanRewriter.java:34)
+	at com.facebook.presto.sql.planner.optimizations.RowExpressionPredicatePushDown.optimize(RowExpressionPredicatePushDown.java:125)
+	at com.facebook.presto.sql.planner.optimizations.StatsRecordingPlanOptimizer.optimize(StatsRecordingPlanOptimizer.java:58)
+	at com.facebook.presto.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:187)
+	at com.facebook.presto.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:176)
+	at com.facebook.presto.execution.SqlQueryExecution.doAnalyzeQuery(SqlQueryExecution.java:431)
+	at com.facebook.presto.execution.SqlQueryExecution.analyzeQuery(SqlQueryExecution.java:416)
+	at com.facebook.presto.execution.SqlQueryExecution.startExecution(SqlQueryExecution.java:360)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)

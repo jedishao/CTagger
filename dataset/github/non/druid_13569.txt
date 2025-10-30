@@ -1,0 +1,16 @@
+Tune the computed value of druid.processing.buffer.sizeBytes
+Follow up to #13365 
+
+As seen in [this comment](https://github.com/apache/druid/pull/13563#issuecomment-1352295279) on #13563 , ingestion of a large data set fails with the Indexer due to insufficient memory being given to the processing buffers.
+
+This value is calculated in the code as follows:
+```
+druid.processing.numThreads=(available cpus - 1)
+druid.processing.numMergeBuffers=max(2, numThreads / 4) 
+druid.processing.buffer.sizeBytes=<direct mem> / (numThreads + numMergeBuffers + 1)  
+```
+
+When total memory given to the `start-druid` script is 16g, the direct memory allocated to the indexer is about 1g which brings the buffer size to about 50MB on a machine with 16 cpus.
+
+The ingestion works fine with `-m 28g` or higher as that brings the buffer size closer to 100MiB.
+The reason we would want this to work even with `-m 16g` on an indexer is that it already works with a middle manager with the same total memory.

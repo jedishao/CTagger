@@ -1,0 +1,18 @@
+Lambda body is not optimized after RowExpression refactor
+Previously, we will run `ExpressionOptimizer` on `RowExpression`, which will do constant folding on in lambda body:
+```
+        @Override
+        public RowExpression visitLambda(LambdaDefinitionExpression lambda, Void context)
+        {
+            return new LambdaDefinitionExpression(lambda.getArgumentTypes(), lambda.getArguments(), lambda.getBody().accept(this, context));
+        }
+```
+Commit: https://github.com/prestodb/presto/pull/13389/commits/98f05bfc12771b3ec2f59ca413f6497c456d28f3 has removed it. 
+
+
+As a result, queries like following become slower (since we now have to do the calculation every row):
+
+```
+select transform(array['1', '2'], k -> cast(json_parse('{"1":"2", "2":"3"}') AS MAP<VARCHAR,VARCHAR>)[k]);
+```
+

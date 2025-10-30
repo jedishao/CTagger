@@ -1,0 +1,34 @@
+Hive query fails when hive file name contains "_" & ":" in the url
+The stack trace:
+
+```java
+java.lang.IllegalArgumentException: Illegal character in scheme name at index 5: hel_o:world.parquet
+	at java.net.URI.create(URI.java:852)
+	at java.net.URI.resolve(URI.java:1036)
+	at com.facebook.presto.hive.InternalHiveSplit.getPath(InternalHiveSplit.java:117)
+	at com.facebook.presto.hive.HiveSplitSource.lambda$getNextBatch$2(HiveSplitSource.java:473)
+	at com.facebook.presto.hive.util.AsyncQueue.lambda$borrowBatchAsync$2(AsyncQueue.java:190)
+	at com.google.common.util.concurrent.AbstractTransformFuture$TransformFuture.doTransform(AbstractTransformFuture.java:239)
+	at com.google.common.util.concurrent.AbstractTransformFuture$TransformFuture.doTransform(AbstractTransformFuture.java:229)
+	at com.google.common.util.concurrent.AbstractTransformFuture.run(AbstractTransformFuture.java:111)
+	at com.google.common.util.concurrent.MoreExecutors$DirectExecutor.execute(MoreExecutors.java:398)
+	at com.google.common.util.concurrent.AbstractFuture.executeListener(AbstractFuture.java:1027)
+	at com.google.common.util.concurrent.AbstractFuture.complete(AbstractFuture.java:868)
+	at com.google.common.util.concurrent.AbstractFuture.set(AbstractFuture.java:691)
+	at com.google.common.util.concurrent.AbstractTransformFuture$TransformFuture.setResult(AbstractTransformFuture.java:245)
+	at com.google.common.util.concurrent.AbstractTransformFuture.run(AbstractTransformFuture.java:160)
+	at com.google.common.util.concurrent.MoreExecutors$5$1.run(MoreExecutors.java:992)
+	at io.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:78)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: java.net.URISyntaxException: Illegal character in scheme name at index 5: hel_o:world.parquet
+	at java.net.URI$Parser.fail(URI.java:2848)
+	at java.net.URI$Parser.checkChars(URI.java:3021)
+	at java.net.URI$Parser.parse(URI.java:3048)
+	at java.net.URI.<init>(URI.java:588)
+	at java.net.URI.create(URI.java:850)
+	... 18 more
+```
+
+The reason is that: while `hel_o:world.parquet` is a totally valid file name, but it is not a valid param to `URI.create()`.

@@ -1,0 +1,103 @@
+[Bug] Unable to run locally using IntelliJ + Ventura MacOS
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+OS : 13.0.1 Ventura MacOS
+Pulsar : 2.10.2
+JDK : Eclipse Temurin-17
+IntelliJ : 2022.2.1
+
+### Minimal reproduce step
+
+build.gradle.kts :
+```
+dependencies {
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
+
+    implementation("io.ktor:ktor-server-netty:2.1.3")
+
+    implementation("org.apache.pulsar:pulsar-client:2.10.2")
+     
+```
+ 
+ also tried :
+  ```
+     runtimeOnly("io.netty:netty-resolver-dns-classes-macos:4.1.85.Final")
+     runtimeOnly("io.netty:netty-resolver-dns-classes-macos:4.1.85.Final:osx-x86_64")
+   ```
+
+Main.kt : 
+```
+ Pulsar.client().use {
+        val producer = Pulsar.producer(it)
+        producer.send("message".toByteArray())
+ }
+```
+
+Pulsar.kt
+```
+object Pulsar {
+    private const val EVENTS_TOPIC = "topic"
+
+    internal fun client() = PulsarClient.builder().serviceUrl("pulsar://localhost:6650").build()
+
+    internal fun producer(client: PulsarClient): Producer<ByteArray> {
+        return client
+            .newProducer()
+            .topic(EVENTS_TOPIC)
+            .create()
+    }
+```
+
+
+### What did you expect to see?
+
+Being able to produce message (send messages through a producer)
+
+
+### What did you see instead?
+
+When trying to use a producer to send messages it says :
+```
+[pulsar-client-io-1-1] WARN org.apache.pulsar.client.impl.ConnectionPool - Failed to open connection to localhost/<unresolved>:6650 : org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: localhost/127.0.0.1:6650
+
+[pulsar-client-scheduled-5-1] WARN org.apache.pulsar.client.impl.PulsarClientImpl - [topic: persistent://public/default/topic] Could not get connection while getPartitionedTopicMetadata -- Will try again in 100 ms
+
+[pulsar-client-scheduled-5-1] DEBUG org.apache.pulsar.client.impl.ConnectionPool - Connection for localhost/<unresolved>:6650 not found in cache
+```
+
+Also, I don't know if it's related, but I also get the following stacktrace when building a client :
+```
+[main] WARN org.apache.pulsar.shade.io.netty.resolver.dns.DnsServerAddressStreamProviders - Can not find org.apache.pulsar.shade.io.netty.resolver.dns.macos.MacOSDnsServerAddressStreamProvider in the classpath, fallback to system defaults. This may result in incorrect DNS resolutions on MacOS.
+[main] WARN org.apache.pulsar.common.util.netty.DnsResolverUtil - Cannot get DNS TTL settings from sun.net.InetAddressCachePolicy class
+java.lang.IllegalAccessException: class org.apache.pulsar.common.util.netty.DnsResolverUtil cannot access class sun.net.InetAddressCachePolicy (in module java.base) because module java.base does not export sun.net to unnamed module @3aefe5e5
+	at java.base/jdk.internal.reflect.Reflection.newIllegalAccessException(Reflection.java:392)
+	at java.base/java.lang.reflect.AccessibleObject.checkAccess(AccessibleObject.java:674)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:560)
+	at org.apache.pulsar.common.util.netty.DnsResolverUtil.<clinit>(DnsResolverUtil.java:46)
+	at org.apache.pulsar.client.impl.ConnectionPool.createAddressResolver(ConnectionPool.java:121)
+	at org.apache.pulsar.client.impl.ConnectionPool.lambda$new$1(ConnectionPool.java:109)
+	at java.base/java.util.Optional.orElseGet(Optional.java:364)
+	at org.apache.pulsar.client.impl.ConnectionPool.<init>(ConnectionPool.java:109)
+	at org.apache.pulsar.client.impl.ConnectionPool.<init>(ConnectionPool.java:78)
+	at org.apache.pulsar.client.impl.ConnectionPool.<init>(ConnectionPool.java:73)
+	at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:194)
+	at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:150)
+	at org.apache.pulsar.client.impl.ClientBuilderImpl.build(ClientBuilderImpl.java:67)
+	at MainKt.main(Main.kt:72)
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

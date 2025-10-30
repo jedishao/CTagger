@@ -1,0 +1,17 @@
+When using RRateLimiter, multiple requests will cause the ttl of both permits and values to change to -1
+            //init
+             RRateLimiter rateLimiter = redissonClient.getRateLimiter(key);
+             rateLimiter.trySetRate(RateType.OVERALL, requestLimiter.rate(), requestLimiter.rateInterval(),requestLimiter.rateIntervalUnit());
+             //Two keys, permits and value, can be generated
+             rateLimiter.acquire();
+             rateLimiter.expire(60, TimeUnit.SECONDS);
+             //put in a map
+             map.put(key,rateLimiter);
+             ------------------------
+            //For example, key1: 'rk'  , key2: '{rk}:permits' ,key3: '{rk}:value'
+            //use
+            map.get(key).acquire(); // key2 and key3  change to ttl = -1 ,But key1 doesn't change
+
+            Why can't key2 and key3 hold the expiration time set before ttl?
+
+            redission version = 3.14.0

@@ -1,0 +1,52 @@
+Redisson is not using name mapper on getKeys
+Hi there, thanks for the awesome library :)
+I'm using redisson name mapper in order to have multiple environments (test/prod) working in the same redis cluster, where each environment has its own "namespace". EG.: test:key1, test:key2, prod:key1, prod:key2.
+Redisson automatically adds my key prefix when using `getBucket` `getAtomicLong` `getMap` ...
+But it does not automatically adds my key prefix if I use `getKeys`
+
+**Expected behavior**
+I expected redisson to use the name mapper on getKeys:
+`redissonClient.getKeys().delete("K1", "K2");`
+
+**Actual behavior**
+Redisson does not use the name mapper, I have to add it myself to delete multiple keys:
+`redissonClient.getKeys().delete("test:K1", "test:K2");`
+
+**Steps to reproduce or test case**
+Configure redisson to use a name mapper with a prefix.
+Create a bucket:
+`redissonClient.getBucket("K1").set("value");`
+Try to delete the bucket:
+`redissonClient.getKeys().delete("K1");`
+Check if bucket was deleted:
+`redissonClient.getBucket("K1").get()`
+
+**Redis version**
+6.2
+
+**Redisson version**
+3.17.7
+
+**Redisson configuration**
+```
+Config config = new Config();
+config.useSingleServer()
+        .setAddress(String.format("redis://%s:%s", REDIS_HOST, REDIS_PORT))
+        .setNameMapper(createNameMapper()); //Current project namespace prefix
+
+private NameMapper createNameMapper() {
+    return new NameMapper() {
+        public final String nameSpace = GAE_PROJECT + ":";
+
+        @Override
+        public String map(String name) {
+            return nameSpace + name;
+        }
+
+        @Override
+        public String unmap(String name) {
+            return name.substring(nameSpace.length());
+        }
+    };
+}
+```

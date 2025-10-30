@@ -1,0 +1,16 @@
+Delta Lake `analyze` improvements
+The Delta connector currently only collects statistics for NDVs, using an HLL, and column sizes. This was done because in most situations the transaction log contains the rest of the statistics we need on a per file basis. We could improve on that in a couple ways
+
+1: Add file level stats to files without them 
+
+Files written by older versions of Delta's Spark writer may not have min/max/null count stats attached to the files in the transaction log manifest. We could add them when analyzing the table.
+
+2: Collect partition level min/max/null count stats
+
+Accumulating statistics from all data files during planning is relatively expensive, but partition level stats could be a good enough estimate while reducing the cost of reading them.
+
+3: Reconcile the Trino stats storage with Spark's
+
+Trino and Spark have two completely separate stats storage solutions, but it would be nice if analyzing a table in one produced stats readable by the other, similarly to the Iceberg Puffin stats files.
+
+cc: @findepi @pajaks @findinpath

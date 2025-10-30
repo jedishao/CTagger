@@ -1,0 +1,32 @@
+[improve] Too much time spent on waiting writer creation while initializing Transaction Buffer.
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+While testing transactional feature in **pulsar 2.9.x**, i find that the unavailable time spent on initializing TB is too long, which is unacceptable. 
+ Restarting brokers will triggering bundle unloading and loading and reinitializing TB corresponding to topics, which will cause into a few minutes of unavailable time. 
+And i do some logs to find which part of the code  is time-consuming. 
+
+<img width="598" alt="image" src="https://user-images.githubusercontent.com/52550727/205051819-88a0fe6e-91ce-4429-83f6-8b0c38f18fc9.png">
+
+The result is that **most of the time is spent on waiting for creating `takeSnapshotWriter`**. But it seems that there is no need to use `takeSnapshotWriter` while recovering TB, and there is no such kind of waiting in the master branch of pulsar. 
+
+
+### Solution
+
+remove waiting for  creating `takeSnapshotWriter` in pulsar 2.9.x .
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

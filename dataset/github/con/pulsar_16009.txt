@@ -1,0 +1,15 @@
+When using the Python pulsar client, crashes occasionally happen on connect/disconnect/close due to pthread_mutex_lock assertion failures
+**Describe the bug**
+Occasionally, in flakey CI tests that run Python code in a heavily threaded environment, we have segfaults when calling `connect`, `create_producer`, or `producer.close()` on Pulsar client objects.
+
+I wish I had more debugging info or a full C system call trace, but the failures occur only in CI where I can't use `gdb`, and Python's `faulthandler` doesn't seem to provide a stacktrace unfortunately.
+
+The errors always have these characteristics:
+- They exist in an environment with many threads.
+- Some of the threads have previously used a Pulsar client, and still exist, but are not using that client.
+- The current thread attempting to use the Pulsar client is doing a `connect`, `create_producer`, or `producer.close()` operation.
+- The error line is either an unhandled SIGSEGV, or an abort with the description `[__pthread_mutex_lock: Assertion `mutex->__data.__owner == 0' failed](https://stackoverflow.com/questions/9239999/pthread-mutex-lock-c62-pthread-mutex-lock-assertion-mutex-data-owner)`.
+
+I'm sorry I don't have more specific debugging or reproduction information.
+
+This only occurs on client 2.10.0; we're using that client with Python 3.7.13 on Linux, in Docker, x86_64 arch.

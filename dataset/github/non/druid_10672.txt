@@ -1,0 +1,88 @@
+LOST_CONTACT_WITH_STREAM issue with big load
+Druid Supervisor fails with `LOST_CONTACT_WITH_STREAM` after running for a while and it happens after 1 or 2 Kafka log clean-up. 
+
+### Affected Version
+
+0.20.0
+
+### Description
+
+Please include as much detailed information about the problem as possible.
+
+- Cluster Size: 1 Master, 1 Query (Both 16 CPUs and 64GB Memory), 2 Data Nodes (Both 64 CPUs and 196GB Memory)
+- A number of Topics: 5 Topics (1 big topic is with 1000 partitions)
+- Ingestion Rate: 4 Topic Ingest around 100k each and 1 with around 1 million
+- Supervisor Config for biggest topic:
+```
+{
+    "type": "kafka",
+    "spec": {
+        "ioConfig": {
+            "type": "kafka",
+            "topic": "table1",
+            "consumerProperties": {
+                "bootstrap.servers": "10.128.0.96:9092"
+            },
+            "inputFormat": {
+                "type": "json"
+            },
+            "useEarliestOffset": true,
+            "appendToExisting": true
+        },
+        "tuningConfig": {
+            "type": "kafka",
+            "resetOffsetAutomatically": true
+        },
+        "dataSchema": {
+            "dataSource": "table1",
+            "granularitySpec": {
+                "type": "uniform",
+                "queryGranularity": "NONE",
+                "segmentGranularity": "HOUR",
+                "rollup": false
+            },
+            "timestampSpec": {
+                "column": "Time",
+                "format": "millis"
+            },
+            "dimensionsSpec": {
+                "dimensions": [
+                    "AddressSpace",
+                    "Field1",
+                    "Field2",
+                    {
+                        "type": "long",
+                        "name": "Gauge"
+                    },
+                    {
+                        "type": "long",
+                        "name": "Gauge2"
+                    },
+                    "Field3",
+                    "Field4",
+                    "Field4",
+                    "Field5",
+                    "Field6",
+                    "Field7",
+                    "Field8"
+                ]
+            }
+        }
+    }
+}
+```
+
+- Steps to Reproduce: Druid can consume all the messages until 1st or 2nd log clean up runs on the Kafka side. Once it runs Supervisor fails with `LOST_CONTACT_WITH_STREAM` and the following error:
+
+```
+{
+      "timestamp": "2020-12-11T12:09:19.517Z",
+      "exceptionClass": "org.apache.druid.java.util.common.ISE",
+      "message": "org.apache.druid.java.util.common.ISE: Previous sequenceNumber [716362] is no longer available for partition [461] - automatically resetting sequence",
+      "streamException": true
+    }
+```
+
+Can someone please help me with this issue?
+
+Thank you

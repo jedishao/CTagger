@@ -1,0 +1,15 @@
+SSLSession not being reused in Vertx 4.x when multiple instances of verticle is deployed
+Hi there,
+
+When the client is sending a ClientHello with the previously negotiated SessionID, the Vertx HTTP server is not reusing the existing session and sending back a new SessionID leading to a Full SSL Handshake which is a performance hit for us. 
+
+This is because `SSLHelper` instance is not being shared by the `HttpServerWorker` instances when multiple instances of the verticles are deployed.
+
+A sample project to reproduce the issue is attached. Steps:
+- Please run `TestServer` 
+- Start the `tcpdump` to capture packets.
+- Then run `TestClient`. 
+- Analyse the SSL Handshake in tcpdump output.
+
+[vertx4-session-reuse-bug.zip](https://github.com/eclipse-vertx/vert.x/files/8069749/vertx4-session-reuse-bug.zip)
+

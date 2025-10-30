@@ -1,0 +1,38 @@
+HttpClient's uncatchable exception on illegal HTTP header name
+
+### Version
+
+I use vert.x 4.2.3
+
+### Context
+
+When trying to send an invalid header name with the Vert.x HTTP Client, an exception is thrown by [this line](https://github.com/eclipse-vertx/vert.x/blob/de2edcdead9e91f6e47970449bde4f0cf7254a8b/src/main/java/io/vertx/core/http/impl/HttpClientImpl.java#L639) and the exception is not catchable at the HTTP Client level but at the event loop level.
+
+### Proposed solution
+This error should be either : 
+- thrown eagerly : so the RequestOptions.addHeader() should validate header names (this is currently not the case)
+- catchable at the HTTP client level : as in the http server, we should have `httpClient.invalidRequestHandler(...)`
+
+I think the first option is the best to aim for as it's easier to achieve. But it could be interesting to have any exceptions hapenig during this process redirected to `client.request(...)` future result.
+
+### Reproducer
+
+```java
+ void shouldFailProperlyOnInvalidHeaderName() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        HttpClient client = Vertx.vertx().createHttpClient();
+        RequestOptions options = new RequestOptions().setMethod(GET)
+                                                     .setHost("localhost")
+                                                     .setPort(8181)
+                                                     .addHeader("=", "invalid header name");
+        Vertx.vertx().createHttpServer()
+             .requestHandler(request -> request.response().setStatusCode(200).end())
+             .listen(8181)
+             .compose(unused -> client.request(options))
+             .onComplete(ar -> {
+                 // The test never goes here and thus run forever.
+                 latch.countDown();
+             });
+        latch.await();
+    }
+```

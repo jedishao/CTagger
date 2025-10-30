@@ -1,0 +1,19 @@
+[bug][broker] The local police IsolationGroups permanent cover the defaultIsolationGroups
+**Describe the bug**
+When we set the isolation policy `bookkeeperClientIsolationGroups=group1`  in `broker.conf`  as the `defaultIsolationGroups` for the namespace bundle which in the brokers , and then we set the dynamic isolation policy like `set-bookie-affinity-group public/default --primary-group group2` the IsolationGroups is covered by the local policy.
+But after invoke `delete-bookie-affinity-group public/default `,  the `newEnsemble` also choice the bookie from group2.  The correct behavior is when `we delete-bookie-affinity-group `  the namespace isolation policy can rollback to the config in `broker.conf` as default.
+The `defaultIsolationGroups` are permanent  covered by the latest local police IsolationGroups.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Set the isolation policy `bookkeeperClientIsolationGroups=group1`  in `broker.conf`.
+2. Start one broker and create a  topic, producer some message, the newEnsemble will use `defaultIsolationGroups`  and choice the bookies in group1.
+3. invoke `bin/pulsar-admin  namespaces set-bookie-affinity-group public/default --primary-group group2`; when the topic create new ledger will use the new policy and choice bookie in group2.
+4. invoke `bin/pulsar-admin namespaces delete-bookie-affinity-group public/default`; when the topic create new ledger will use `defaultIsolationGroups`  but not choice bookie in group1 which choice the bookie in group2 always.  The `defaultIsolationGroups` is permanent covered.
+
+**Expected behavior**
+The `defaultIsolationGroups` should not be covered.  When we `delete-bookie-affinity-group` and the `bookkeeperClientIsolationGroups` is present in `broker.conf`,  we can use the default isolation policy.
+
+
+**Additional context**
+Use the master branch code.

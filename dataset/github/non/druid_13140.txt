@@ -1,0 +1,62 @@
+connection timeout properties for PGSQL is either useless or cause NPE
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+ Druid 1.2.12
+
+### Description
+
+DruidAbstractDataSource#createPhysicalConnection add `loginTimeout` and `socketTimeout` with integer value.
+
+``` java
+// com.alibaba.druid.pool.DruidAbstractDataSource#createPhysicalConnection()
+
+  // connectTimeout is primitive integer
+   protected volatile int connectTimeout;
+   public PhysicalConnectionInfo createPhysicalConnection() throws SQLException {
+   ...
+        if (this.connectTimeout > 0) {
+            if (this.isMySql) {
+                physicalConnectProperties.put("connectTimeout", this.connectTimeout);
+            } else if (this.isOracle) {
+                physicalConnectProperties.put("oracle.net.CONNECT_TIMEOUT", this.connectTimeout);
+            } else if (this.driver != null && "org.postgresql.Driver".equals(this.driver.getClass().getName())) {
+                // add loginTimeout & socketTimeout,, the value is integer instead of string
+                physicalConnectProperties.put("loginTimeout", this.connectTimeout);
+                physicalConnectProperties.put("socketTimeout", this.connectTimeout);
+            }
+        }
+```
+
+but PosgresSQL Driver only read string properties makes the timeout configurations useless
+``` java
+// org.postgresql.Driver#connect from pgdriver:42.4.1
+    Properties props = new Properties(defaults);
+    if (info != null) {
+      // notice the line below
+      Set<String> e = info.stringPropertyNames();
+      for (String propName : e) {
+        String propValue = info.getProperty(propName);
+        if (propValue == null) {
+          throw new PSQLException(
+              GT.tr("Properties for the driver contains a non-string value for the key ")
+                  + propName,
+              PSQLState.UNEXPECTED_ERROR);
+        }
+        props.setProperty(propName, propValue);
+      }
+    }
+```
+
+and it cause the NPE in the old version of PG:
+``` java
+       Properties props = new Properties(defaults);
+        Enumeration e = info.propertyNames();
+
+        while(e.hasMoreElements()) {
+            String propName = (String)e.nextElement();
+            // the line below cause NPE , getProperty traits non-string value as null
+            props.setProperty(propName, info.getProperty(propName));
+        }
+```

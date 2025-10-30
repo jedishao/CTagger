@@ -1,0 +1,100 @@
+grpc-java 1.33.0 Futures.addCallback(responseFuture, ResponseCallback) delayed for 60seconds
+This issue is in production environment.
+
+*grpc-java futureStub* client sends request  *grpc-cpp* server. (futureStub is set `withDeadlineAfter()`)
+
+`Futures.addCallback` is used to wait for *ResponseCallback*. (sample code part)
+
+Intermittently (not always, not easy to reproduce), *ResponseCallback* call is delayed ~60seconds. 
+From io.grpc.netty log, it seems grpc-java client received response from grpc-cpp server (15:56:38,494), but *ResponseCall* is not called immediately. (15:57:38,494 showed in the log)
+
+
+client host is not in high load, threads are all alive.
+is there any possible racing issue, or any magic wait for that 60 seconds, or my usage error?
+
+===
+OS:
+aws EC2: Linux 4.14.193-149.317.amzn2.aarch64
+
+4core 8G memory
+
+Java:
+build 1.8.0_271-b09
+
+grpc-java version: 1.33.0
+
+sample code:
+```
+class OrderGrpcClient {
+  public OrderGrpcClient(String addr) {
+    this.channel =  ManagedChannelBuilder.forTarget(address)
+        .usePlaintext()
+        .idleTimeout(10, TimeUnit.MINUTES)
+        .build();
+
+    this.orderFutureStub = TradingEngineGrpc
+        .newFutureStub(channel);
+  }
+
+  public ListenableFuture<OrderResponse> createOrder(int id, String args, ...) {
+    OrderRequest request = OrderRequest.newBuilder()
+        .setArgs(args)
+        ...
+        .build()
+
+        return this.orderFutureStub
+        .withDeadlineAfter(timeoutMs,TimeUnit.MILLISECONDS)
+        .createOrder(orderRequestBuilder.build());
+  }
+}
+class OrderService {
+
+  OrderGrpcClient grpClient = new OrderGrpcClient("10.xx.xx.xx:5555");
+
+  private Executor resultExecutor =  Executors.newFixedThreadPool(worker, new ThreadFactory() {
+    @Override
+    public Thread newThread(Runnable r) {
+        Thread t = new Thread(r, "grpc-reader");
+        return t;
+    }
+  });
+
+  public void createOrderFunc() {
+
+    log.info("GRPC REQ  xxx");
+
+    ListenableFuture<OrderResponse> resFuture = grpClient.createOrder(1, "order-id-xxx", ...);
+
+    Futures.addCallback(resFuture, new FutureCallback<CreateOrderResponse>() {
+        @Override
+        public void onSuccess(@NullableDecl CreateOrderResponse res) {
+            log.info("GRPC Acked  xxx");
+            ...
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            log.info("GRPC Error xxx" );
+            ...
+        }
+    }, resultExecutor);
+  }
+}
+
+
+```
+
+LOG: 
+```
+ 2021-05-27 15:56:38,493 INFO c.p.g.c.OrderService[boundedElastic-1467] GRPC REQ xxxxxx
+ 2021-05-27 15:56:38,493 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.yy.yy.yy:11111 - R:/10.xx.xx.xx:5555] OUTBOUND HEADERS: streamId=611481                           headers=GrpcHttp2OutboundHeaders[:authority: 10.xx.xx.xx:5555, :path: /xx.cppservice/CreateOrder, :method: POST, :scheme: http, content-type: application/grpc, te: trailers, user-agent: grpc-java-netty/1.33.0, grpc-accept-encoding: gzip, grpc-timeout: 59999990u] streamDependency=0 weight=16 exclusive=false padding=0 endStream=false
+ 2021-05-27 15:56:38,493 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.yy.yy.yy:11111 - R:/10.xx.xx.xx:5555] OUTBOUND DATA: streamId=611481 padding=0 endStream=true     length=42 bytes=00000000250a0c100548e5933050d2828ab21d301f3802400248c6cb1450c80160027801880103900101
+ 2021-05-27 15:56:38,494 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.yy.yy.yy:11111  - R:/10.xx.xx.xx:5555] INBOUND HEADERS: streamId=611481                            headers=GrpcHttp2ResponseHeaders[:status: 200, content-type: application/grpc, grpc-accept-encoding: identity,deflate,gzip, accept-encoding: identity,gzip] padding=0 endStream=false
+ 2021-05-27 15:56:38,494 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.yy.yy.yy:11111  - R:/10.xx.xx.xx:5555] INBOUND DATA: streamId=611481 padding=0 endStream=false     length=173 bytes=00000000a81a084e4f5f4552524f52229b0110a7e9d11a1a0c08b682bf850610b0c6b0e90120e5933028d2828ab21d301f380240014801522463653466666430...
+ 2021-05-27 15:56:38,494 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.yy.yy.yy:11111  - R:/10.xx.xx.xx:5555] OUTBOUND PING: ack=false bytes=1234
+ 2021-05-27 15:56:38,494 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.yy.yy.yy:11111  - R:/10.xx.xx.xx:5555] INBOUND HEADERS: streamId=611481                            headers=GrpcHttp2ResponseHeaders[grpc-status: 0] padding=0 endStream=true
+ 2021-05-27 15:56:38,494 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.yy.yy.yy:11111 - R:/10.xx.xx.xx:5555] INBOUND WINDOW_UPDATE: streamId=0 windowSizeIncrement=42    2021-05-27 15:56:38,495 DEBUG i.g.n.NettyClientHandler [grpc-nio-worker-ELG-5-1] [id: 0xabe30722, L:/10.88.20.46:42294 - R:/10.88.20.90:9081] INBOUND PING: ack=true bytes=1234
+ 
+ ....
+ 2021-05-27 15:57:38,494 INFO c.p.g.c.OrderService [gRPC-Reader-2] GRPC Acked xxxx
+```

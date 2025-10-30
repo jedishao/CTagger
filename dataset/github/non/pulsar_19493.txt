@@ -1,0 +1,53 @@
+[Bug] topicsPattern cannot subscribe to non-persistent topics
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+ApachePulsar 2.11.0
+
+### Minimal reproduce step
+
+```java
+pulsarClient.newConsumer()
+        .subscriptionName("my-sub")
+        .topicsPattern("public/default/.*")
+        .subscriptionTopicsMode(RegexSubscriptionMode.NonPersistentOnly)
+        .subscribe();
+```
+
+### What did you expect to see?
+
+Ability to subscribe to non-persistent topics
+
+### What did you see instead?
+
+Not subscribed to non-persistent topics. After DEBUG, it was found that the Topic list could not be obtained from Broker:
+```java
+ // The topicsList is empty
+List<String> topicsList = getTopicsResult.getTopics();
+if (!getTopicsResult.isFiltered()) {
+   topicsList = TopicList.filterTopics(getTopicsResult.getTopics(), conf.getTopicsPattern());
+}
+conf.getTopicNames().addAll(topicsList);
+ConsumerBase<T> consumer = new PatternMultiTopicsConsumerImpl<>(conf.getTopicsPattern(),
+        getTopicsResult.getTopicsHash(),
+        PulsarClientImpl.this,
+        conf,
+        externalExecutorProvider,
+        consumerSubscribedFuture,
+        schema, subscriptionMode, interceptors);
+
+consumers.add(consumer);
+```
+It appears that information on non-persistent topics is not synchronized across the cluster. My cluster has a total of three nodes. The non-persistent topic list was not obtained during the first two startups, but it obtained da during the third startup.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

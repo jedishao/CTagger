@@ -1,0 +1,66 @@
+org.redisson.client.RedisException: ERR invalid command. channel ...command: (CLIENT REPLY), promise: RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@33fe3a52(incomplete)], params: [OFF]
+Hello there,
+
+I use these command to a redis 4.0 cluster, and then got the error above. Let me know if it can be fix. thanks~
+
+BatchOptions options = BatchOptions.defaults().skipResult();
+options.retryAttempts(3);
+options.retryInterval(100,TimeUnit.MILLISECONDS);
+RBatch batch = client.createBatch(options);
+
+batch.getMap(redisKey, new ByteArrayCodec()).putAllAsync(doing_value, 500);
+batch.getMap(redisKey, new ByteArrayCodec()).expireAsync(expireSeconds, TimeUnit.SECONDS);
+
+batch.execute();
+
+redisson version: 3.16.3
+
+error message detail:
+
+[ERROR 2022-09-06 17:12:13 (org.apache.spark.internal.Logging$class:91)] Exception in task 2.2 in stage 27.0 (TID 2424)
+org.redisson.client.RedisException: ERR invalid command. channel: [id: 0xe717009a, L:/172.22.54.73:55880 - R:10.241.25.47/10.241.25.47:6379] command: (CLIENT REPLY), promise: RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@33fe3a52(incomplete)], params: [OFF]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:370)
+	at org.redisson.client.handler.CommandDecoder.decodeCommandBatch(CommandDecoder.java:271)
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:210)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:137)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:113)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:489)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:367)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:265)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:340)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1359)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:362)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:348)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:935)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:138)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:645)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:580)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:497)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:459)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:858)
+	at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:138)
+	at java.lang.Thread.run(Thread.java:748)
+
+
+
+
+
+

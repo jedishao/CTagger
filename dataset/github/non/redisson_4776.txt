@@ -1,0 +1,114 @@
+Sharded pub/sub listener throws exception
+**Expected behavior**
+
+Receiving a message from the topic/channel.
+
+**Actual behavior**
+
+When a message is published, the listener fails with this error 
+```
+2023-01-05 17:07:57.740 [redisson-netty-5-7] ERROR o.r.c.handler.CommandPubSubDecoder - Unable to decode data. channel: [id: 0xc63cda4a, L:/10.0.73.240:41502 - R:10.0.11.57/10.0.11.57:6379], reply: ReplayingDecoderByteBuf(ridx=40, widx=40)
+java.lang.NullPointerException: Cannot invoke "org.redisson.client.protocol.CommandData.getCommand()" because "data" is null
+	at org.redisson.client.handler.CommandPubSubDecoder.messageDecoder(CommandPubSubDecoder.java:243)
+	at org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:438)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:399)
+	at org.redisson.client.handler.CommandPubSubDecoder.decodeCommand(CommandPubSubDecoder.java:86)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:94)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1373)
+	at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1236)
+	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1285)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:468)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+2023-01-05 17:07:57.740 [redisson-netty-5-7] ERROR o.r.c.handler.ErrorsLoggingHandler - Exception occured. Channel: [id: 0xc63cda4a, L:/10.0.73.240:41502 - R:10.0.11.57/10.0.11.57:6379]
+io.netty.handler.codec.DecoderException: java.lang.NullPointerException: Cannot invoke "org.redisson.client.protocol.CommandData.getCommand()" because "data" is null
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:421)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1373)
+	at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1236)
+	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1285)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:468)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:290)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:444)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:412)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:440)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:420)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: java.lang.NullPointerException: Cannot invoke "org.redisson.client.protocol.CommandData.getCommand()" because "data" is null
+	at org.redisson.client.handler.CommandPubSubDecoder.messageDecoder(CommandPubSubDecoder.java:243)
+	at org.redisson.client.handler.CommandDecoder.decodeList(CommandDecoder.java:438)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:399)
+	at org.redisson.client.handler.CommandPubSubDecoder.decodeCommand(CommandPubSubDecoder.java:86)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:94)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:529)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	... 26 common frames omitted
+```
+
+**Steps to reproduce or test case**
+
+```
+        RTopic topic = redisson.getShardedTopic("test123");
+        topic.addListener(Integer.class, (c, v) -> {
+            System.out.println(v);
+        });
+        int message = 5555;
+        topic.publish(message);
+```
+
+**Redis version**
+
+7.0.5 (AWS Elasticache)
+
+**Redisson version**
+
+3.19.0
+
+**Redisson configuration**
+
+```
+        Config config = new Config();
+        config.useClusterServers()
+            .addNodeAddress("rediss://...:6379")
+            .setPassword("PW");
+        RedissonClient redisson = Redisson.create(config);
+```

@@ -1,0 +1,90 @@
+[Bug] Geo Replication failed using Proxy
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.10.0
+
+Environment:
+2 Kubernetes Clusters
+2 Pulsar Clusters
+
+### Minimal reproduce step
+
+Create two Pulsar clusters on different k8s clusters.
+Expose brokers using the proxy.
+
+To create a cluster entry on each cluster for geo-replication using proxy
+On cluster 2:
+` cluster1.yaml content`
+```
+serviceUrlTls: "https://pulsar-dev-web-1:8443"
+proxyServiceUrl: "pulsar+ssl://broker-dev-proxy-1:6652"
+brokerClientTlsEnabled: true
+brokerClientTrustCertsFilePath: "/broker/certs/ca.crt"
+```
+`pulsar-admin clusters create --cluster-config-file /pulsar/conf/cluster1.yaml cluster1`
+On cluster 1:
+` cluster2.yaml content`
+```
+serviceUrlTls: "https://pulsar-dev-web-2:8443"
+proxyServiceUrl: "pulsar+ssl://broker-dev-proxy-2:6652"
+brokerClientTlsEnabled: true
+brokerClientTrustCertsFilePath: "/broker/certs/ca.crt"
+```
+`pulsar-admin clusters create --cluster-config-file /pulsar/conf/cluster2.yaml cluster1`
+
+Give permision to tenant on both clusters
+```
+pulsar-admin tenants update test \
+  --allowed-clusters cluster2,cluster1
+```
+Give permissions on namespace to start replicating on other cluster1
+```
+pulsar-admin namespaces set-clusters test/testn \
+  --clusters cluster1,cluster2
+```
+
+
+
+### What did you expect to see?
+
+Geo-Replication executed
+
+### What did you see instead?
+
+I can see errors on Pulsar Cluster enabled for geo-replication cluster1->cluster2
+
+```
+2022-08-23T17:48:35,072+0000 [pulsar-io-7-3] INFO org.apache.pulsar.broker.service.AbstractReplicator - [persistent://test/testn/testt][cluster1 -> cluster2] Starting replicator
+2022-08-23T17:48:37,142+0000 [pulsar-io-7-4] INFO org.apache.pulsar.client.impl.ProducerImpl - [persistent://test/testn/testt] [pulsar.repl.cluster1-->cluster2] Creating producer on cnx [id: 0x68542ce5, L:/10.42.13.202:55626 - R:broker-0.brokers.pulsar-dev.svc.cluster.local/10.42.4.195:6651]
+2022-08-23T17:48:37,144+0000 [pulsar-io-7-6] WARN org.apache.pulsar.client.impl.ClientCnx - [id: 0x68542ce5, L:/10.42.13.202:55626 - R:broker-0.brokers.pulsar-dev.svc.cluster.local/10.42.4.195:6651] Received error from server: Namespace bundle for topic (persistent://test/testn/testt) not served by this instance. Please redo the lookup. Request is denied: namespace=test/testn
+2022-08-23T17:48:37,145+0000 [pulsar-io-7-6] ERROR org.apache.pulsar.client.impl.ProducerImpl - [persistent://test/testn/testt] [pulsar.repl.cluster1-->cluster2] Failed to create producer: {"errorMsg":"Namespace bundle for topic (persistent://test/testn/testt) not served by this instance. Please redo the lookup. Request is denied: namespace=test/testn","reqId":100250947237580004, "remote":"broker-0.brokers.pulsar-dev.svc.cluster.local/10.42.4.195:6651", "local":"/10.42.13.202:55626"}
+2022-08-23T17:48:37,145+0000 [pulsar-io-7-6] WARN org.apache.pulsar.client.impl.ConnectionHandler - [persistent://test/testn/testt] [pulsar.repl.cluster1-->cluster2] Could not get connection to broker: {"errorMsg":"Namespace bundle for topic (persistent://test/testn/testt) not served by this instance. Please redo the lookup. Request is denied: namespace=test/testn","reqId":100250947237580004, "remote":"broker-0.brokers.pulsar-dev.svc.cluster.local/10.42.4.195:6651", "local":"/10.42.13.202:55626"} -- Will try again in 0.1 s
+```
+
+**NOTE: BOTH CLUSTERS USE THE SAME NAMESPACES**
+
+We observe that even though our connection to another cluster was configured using the Proxy, seems that local cluster is trying to use the direction of the remote broker to local; rather than cluster 2 proxy handle the connection.
+
+If we search for the "remote" cluster in local we can see the next errors:
+
+```
+2022-08-23T17:48:37,143+0000 [pulsar-io-7-4] INFO org.apache.pulsar.broker.service.ServerCnx - [/10.42.13.202:55626][persistent://test/testn/testt] Creating producer. producerId=63
+2022-08-23T17:48:37,143+0000 [pulsar-io-7-4] WARN org.apache.pulsar.broker.service.BrokerService - Namespace bundle for topic (persistent://test/testn/testt) not served by this instance. Please redo the lookup. Request is denied: namespace=test/testn
+```
+
+### Anything else?
+
+Isn't supposed the remote proxy configured when creating the remote cluster to do a lookup on remote brokers and connect cluster 1 to cluster 2?
+
+For on-premise producers/customers connecting to cluster 1 proxy, we don't get any issues neither if we connect to cluster 2 proxy. Only when connecting cluster 1 -> cluster 2 via proxy as defined on the YAML above.
+
+**NOTE: BOTH CLUSTERS USE THE SAME NAMESPACES**
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

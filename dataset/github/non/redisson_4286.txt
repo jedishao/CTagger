@@ -1,0 +1,90 @@
+Redis is changed to access with password, and trylock takes more time
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:16.221 TRACE 20100 [redisson-netty-2-4] [CommandEncoder.java:112] channel: [id: 0x5eda2625, L:/xxx.xx.xx.xx:58206 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7002] message: *2
+$7
+CLUSTER
+$5
+NODES
+
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:16.235 TRACE 20100 [redisson-netty-2-4] [CommandDecoder.java:113] reply: $775
+a45ecb9201e0bf48665ed7e5a9846cbe6d753165 xxx.xx.xx.xx:7006@17006 slave f5d943dbd5806937e204ee35ea5f6aa65e46a6ca 0 1652189413455 6 connected
+f5d943dbd5806937e204ee35ea5f6aa65e46a6ca xxx.xx.xx.xx:7003@17003 master - 0 1652189414000 3 connected 10923-16383
+40e866c9d83596f7d50ff09ee92370f580c9add9 xxx.xx.xx.xx:7001@17001 master - 0 1652189415465 1 connected 0-5460
+f226329e04bda39971a532552f18a32bb2c1b7a8 xxx.xx.xx.xx:7005@17005 slave ced813a2fd0db10432dbc999befd3709ac2234a2 0 1652189414460 5 connected
+eccdd6be867c3fc36a27f2c1cc105c98c2d08879 xxx.xx.xx.xx:7004@17004 slave 40e866c9d83596f7d50ff09ee92370f580c9add9 0 1652189414000 1 connected
+ced813a2fd0db10432dbc999befd3709ac2234a2 xxx.xx.xx.xx:7002@17002 myself,master - 0 1652189413000 2 connected 5461-10922
+
+, channel: [id: 0x5eda2625, L:/xxx.xx.xx.xx:58206 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7002], command: CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@44c15e70(incomplete)], command=(CLUSTER NODES), params=[], codec=null]
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:16.236 DEBUG 20100 [redisson-netty-2-4] [ClusterConnectionManager.java:466] cluster nodes state got from xxx.xx.xx.xx/xxx.xx.xx.xx:7002:
+a45ecb9201e0bf48665ed7e5a9846cbe6d753165 xxx.xx.xx.xx:7006@17006 slave f5d943dbd5806937e204ee35ea5f6aa65e46a6ca 0 1652189413455 6 connected
+f5d943dbd5806937e204ee35ea5f6aa65e46a6ca xxx.xx.xx.xx:7003@17003 master - 0 1652189414000 3 connected 10923-16383
+40e866c9d83596f7d50ff09ee92370f580c9add9 xxx.xx.xx.xx:7001@17001 master - 0 1652189415465 1 connected 0-5460
+f226329e04bda39971a532552f18a32bb2c1b7a8 xxx.xx.xx.xx:7005@17005 slave ced813a2fd0db10432dbc999befd3709ac2234a2 0 1652189414460 5 connected
+eccdd6be867c3fc36a27f2c1cc105c98c2d08879 xxx.xx.xx.xx:7004@17004 slave 40e866c9d83596f7d50ff09ee92370f580c9add9 0 1652189414000 1 connected
+ced813a2fd0db10432dbc999befd3709ac2234a2 xxx.xx.xx.xx:7002@17002 myself,master - 0 1652189413000 2 connected 5461-10922
+
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:17.313 DEBUG 20100 [http-nio-8080-exec-3] [ClusterConnectionManager.java:751] slot 2875 for sync_tadata_lock
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:17.314 DEBUG 20100 [http-nio-8080-exec-3] [ClusterConnectionManager.java:751] slot 2875 for sync_tadata_lock
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:17.314 TRACE 20100 [redisson-netty-2-5] [CommandEncoder.java:112] channel: [id: 0x1dd4250d, L:/xxx.xx.xx.xx:58207 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7001] message: *6
+$4
+EVAL
+$339
+if (redis.call('exists', KEYS[1]) == 0) then redis.call('hincrby', KEYS[1], ARGV[2], 1); redis.call('pexpire', KEYS[1], ARGV[1]); return nil; end; if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then redis.call('hincrby', KEYS[1], ARGV[2], 1); redis.call('pexpire', KEYS[1], ARGV[1]); return nil; end; return redis.call('pttl', KEYS[1]);
+$1
+1
+$16
+sync_tadata_lock
+$6
+600000
+$40
+8f9cbb23-40dd-4457-a13a-6f8041461ba5:194
+
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:17.315 TRACE 20100 [redisson-netty-2-5] [CommandEncoder.java:112] channel: [id: 0x1dd4250d, L:/xxx.xx.xx.xx:58207 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7001] message: *6
+$4
+EVAL
+$339
+if (redis.call('exists', KEYS[1]) == 0) then redis.call('hincrby', KEYS[1], ARGV[2], 1); redis.call('pexpire', KEYS[1], ARGV[1]); return nil; end; if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then redis.call('hincrby', KEYS[1], ARGV[2], 1); redis.call('pexpire', KEYS[1], ARGV[1]); return nil; end; return redis.call('pttl', KEYS[1]);
+$1
+1
+$16
+sync_tadata_lock
+$6
+600000
+$40
+8f9cbb23-40dd-4457-a13a-6f8041461ba5:194
+*3
+$4
+WAIT
+$1
+1
+$4
+1000
+
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:17.332 TRACE 20100 [redisson-netty-2-5] [CommandDecoder.java:113] reply: $-1
+, channel: [id: 0x1dd4250d, L:/xxx.xx.xx.xx:58207 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7001], command: CommandsData [commands=[CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@5dfb7633(incomplete)], command=(EVAL), params=[if (redis.call('exists', KEYS[1]) == 0) then redis.call('hincrby', KEYS[1], ARGV[2], 1); redis.call(..., 1, sync_tadata_lock, 600000, 8f9cbb23-40dd-4457-a13a-6f8041461ba5:194], codec=org.redisson.client.codec.LongCodec], CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@ee60138(incomplete)], command=(WAIT), params=[1, 1000], codec=org.redisson.client.codec.StringCodec]]]
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:18.255 TRACE 20100 [redisson-netty-2-4] [CommandEncoder.java:112] channel: [id: 0x5eda2625, L:/xxx.xx.xx.xx:58206 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7002] message: *2
+$7
+CLUSTER
+$5
+NODES
+
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:18.271 TRACE 20100 [redisson-netty-2-4] [CommandDecoder.java:113] reply: $775
+a45ecb9201e0bf48665ed7e5a9846cbe6d753165 xxx.xx.xx.xx:7006@17006 slave f5d943dbd5806937e204ee35ea5f6aa65e46a6ca 0 1652189416468 6 connected
+f5d943dbd5806937e204ee35ea5f6aa65e46a6ca xxx.xx.xx.xx:7003@17003 master - 0 1652189414000 3 connected 10923-16383
+40e866c9d83596f7d50ff09ee92370f580c9add9 xxx.xx.xx.xx:7001@17001 master - 0 1652189415465 1 connected 0-5460
+f226329e04bda39971a532552f18a32bb2c1b7a8 xxx.xx.xx.xx:7005@17005 slave ced813a2fd0db10432dbc999befd3709ac2234a2 0 1652189416000 5 connected
+eccdd6be867c3fc36a27f2c1cc105c98c2d08879 xxx.xx.xx.xx:7004@17004 slave 40e866c9d83596f7d50ff09ee92370f580c9add9 0 1652189417471 1 connected
+ced813a2fd0db10432dbc999befd3709ac2234a2 xxx.xx.xx.xx:7002@17002 myself,master - 0 1652189415000 2 connected 5461-10922
+
+, channel: [id: 0x5eda2625, L:/xxx.xx.xx.xx:58206 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7002], command: CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@3c593bb7(incomplete)], command=(CLUSTER NODES), params=[], codec=null]
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:18.272 DEBUG 20100 [redisson-netty-2-4] [ClusterConnectionManager.java:466] cluster nodes state got from xxx.xx.xx.xx/xxx.xx.xx.xx:7002:
+a45ecb9201e0bf48665ed7e5a9846cbe6d753165 xxx.xx.xx.xx:7006@17006 slave f5d943dbd5806937e204ee35ea5f6aa65e46a6ca 0 1652189416468 6 connected
+f5d943dbd5806937e204ee35ea5f6aa65e46a6ca xxx.xx.xx.xx:7003@17003 master - 0 1652189414000 3 connected 10923-16383
+40e866c9d83596f7d50ff09ee92370f580c9add9 xxx.xx.xx.xx:7001@17001 master - 0 1652189415465 1 connected 0-5460
+f226329e04bda39971a532552f18a32bb2c1b7a8 xxx.xx.xx.xx:7005@17005 slave ced813a2fd0db10432dbc999befd3709ac2234a2 0 1652189416000 5 connected
+eccdd6be867c3fc36a27f2c1cc105c98c2d08879 xxx.xx.xx.xx:7004@17004 slave 40e866c9d83596f7d50ff09ee92370f580c9add9 0 1652189417471 1 connected
+ced813a2fd0db10432dbc999befd3709ac2234a2 xxx.xx.xx.xx:7002@17002 myself,master - 0 1652189415000 2 connected 5461-10922
+
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:18.826 TRACE 20100 [redisson-netty-2-5] [CommandDecoder.java:113] reply: :0
+, channel: [id: 0x1dd4250d, L:/xxx.xx.xx.xx:58207 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7001], command: CommandsData [commands=[CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@5dfb7633(success)], command=(EVAL), params=[if (redis.call('exists', KEYS[1]) == 0) then redis.call('hincrby', KEYS[1], ARGV[2], 1); redis.call(..., 1, sync_tadata_lock, 600000, 8f9cbb23-40dd-4457-a13a-6f8041461ba5:194], codec=org.redisson.client.codec.LongCodec], CommandData [promise=RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@ee60138(incomplete)], command=(WAIT), params=[1, 1000], codec=org.redisson.client.codec.StringCodec]]]
+[basic-porter-tadata-xxx.xx.xx.xx-0000] 2022-05-10 21:30:18.827 DEBUG 20100 [redisson-netty-2-5] [RedisExecutor.java:522] connection released for command null and params null from slot NodeSource [slot=null, addr=null, redisClient=null, redirect=null, entry=MasterSlaveEntry [masterEntry=[freeSubscribeConnectionsAmount=1, freeSubscribeConnectionsCounter=value:50:queue:0, freeConnectionsAmount=24, freeConnectionsCounter=value:64:queue:0, freezeReason=null, client=[addr=redis://xxx.xx.xx.xx:7001], nodeType=MASTER, firstFail=0]]] using connection RedisConnection@1915911582 [redisClient=[addr=redis://xxx.xx.xx.xx:7001], channel=[id: 0x1dd4250d, L:/xxx.xx.xx.xx:58207 - R:xxx.xx.xx.xx/xxx.xx.xx.xx:7001], currentCommand=null]
+

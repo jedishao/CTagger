@@ -1,0 +1,41 @@
+[Bug] ArrayIndexOutOfBoundsException caused by optimistic locking in ConcurrentLongLongPairHashMap implementation
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+latest.
+
+### Minimal reproduce step
+
+ ConcurrentLongLongPairHashMap  use optimistic locking to read data in Section, but if there is another thread that is removing data from the same Section, and trigger the shrink process, then the index calculated  basing on dirty capacity exceed the array size,  an ArrayIndexOut0fBoundsException will be throw, which is not handled now. Eventually the connection with client will be closed.
+<img width="473" alt="企业微信截图_6c48e27c-dc0c-4cc5-8ff6-77563d379e6e" src="https://user-images.githubusercontent.com/52550727/200548263-fb885993-0799-499f-953a-c4f1f55ecacf.png">
+
+
+### What did you expect to see?
+,
+
+### What did you see instead?
+
+```
+WARN org.apache.pulsar.broker.service.Servernx-[] Got exception, cause: java.lang.ArrayIndexOut0fBoundsException: Index 6821 out of bounds for length 4
+096, stackTrace: java.lang.ArrayIndexOutOfBoundsException: Index 6821 out of bounds for length 4096
+atorg.apache.pulsar.common.util.collections.ConcurrentLongLongPairHashMap$Section.get(ConcurrentLongLongPairHashMap.java:331)
+atorg.apache.pulsar.common.util.collections.ConcurrentLongLongPairHashMap.get(ConcurrentLongLongPairHashMap.java:204)
+at org.apache.pulsar.common.util.collections.ConcurrentLongLongPairHashMap.containsKey(ConcurrentLongLongPairHashMap.java:208)
+at org.apache.pulsar.broker.service.Consumer.getAckOwnerConsumer(Consumer.java:596)
+at org.apache.pulsar.broker.service.Consumer.individualAckNormal(Consumer.java:408)
+at org.apache.pulsar.broker.service.Consumer.messageAcked(Consumer.java:395)
+at org.apache.pulsar .broker .service.ServerCnx.handleAck(Server(nx.java:1456)
+at org.apache.pulsar.common.protocol.PulsarDecoder.channelRead(PulsarDecoder.java:145)
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

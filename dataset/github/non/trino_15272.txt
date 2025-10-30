@@ -1,0 +1,47 @@
+HiveTableHandle cast error cause loading from different PluginClassLoder
+```java
+java.lang.ClassCastException: class io.trino.plugin.hive.HiveTableHandle cannot be cast to class io.trino.plugin.hive.HiveTableHandle (io.trino.plugin.hive.HiveTableHandle is in unnamed module of loader io.trino.server.PluginClassLoader @55396caf; io.trino.plugin.hive.HiveTableHandle is in unnamed module of loader io.trino.server.PluginClassLoader @4c683ff1)
+	at io.trino.plugin.hive.HivePageSourceProvider.createPageSource(HivePageSourceProvider.java:149)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSourceProvider.createPageSource(ClassLoaderSafeConnectorPageSourceProvider.java:49)
+	at io.trino.split.PageSourceManager.createPageSource(PageSourceManager.java:62)
+	at io.trino.operator.TableScanOperator.getOutput(TableScanOperator.java:308)
+	at io.trino.operator.Driver.processInternal(Driver.java:410)
+	at io.trino.operator.Driver.lambda$process$10(Driver.java:313)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:698)
+	at io.trino.operator.Driver.process(Driver.java:305)
+	at io.trino.operator.Driver.processForDuration(Driver.java:276)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:740)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:163)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:488)
+	at io.trino.$gen.Trino_389____20221128_064736_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:834
+```
+
+Is `ClassLoaderSafeConnectorPageSourceProvider` scoped PROTOTYPE?
+I didn't find any usages about it eventhrough retrieving the code, so it made me confused.
+Does it casue by another reason? please reply me soon as possible if u have a workaround.
+```java
+public class ClassLoaderSafeConnectorPageSourceProvider
+        implements ConnectorPageSourceProvider
+{
+    private final ConnectorPageSourceProvider delegate;
+    private final ClassLoader classLoader;
+
+    @Inject
+    public ClassLoaderSafeConnectorPageSourceProvider(@ForClassLoaderSafe ConnectorPageSourceProvider delegate, ClassLoader classLoader)
+    {
+        this.delegate = requireNonNull(delegate, "delegate is null");
+        this.classLoader = requireNonNull(classLoader, "classLoader is null");
+    }
+
+    @Override
+    public ConnectorPageSource createPageSource(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorSplit split, ConnectorTableHandle table, List<ColumnHandle> columns, DynamicFilter dynamicFilter)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.createPageSource(transaction, session, split, table, columns, dynamicFilter);
+        }
+    }
+}
+```

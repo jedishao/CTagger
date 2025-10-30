@@ -1,0 +1,8 @@
+ServerSecurityPolicyTest is flaky
+The test has been flaky since I added binder to the android CI in #8365.
+
+Looks like the test would flake if some other test that uses SecurityPolicies runs before ServerSecurityPolicyTest, as SecurityPolicies.MY_UID would then get loaded to the "wrong" UID and `ShadowProcess.setUid(MY_UID)` within the test wouldn't impact the class. This isn't too surprising of a test bug since many test runs in Bazel run in separate JVMs.
+
+We have StaticTestingClassLoader from context's test which could maybe help. But I don't know how compatible it is with Robolectric and there's enough tests that it'd seem annoying to use.
+
+https://source.cloud.google.com/results/invocations/979a82b8-6346-4b22-8556-c0bed051be6f/log

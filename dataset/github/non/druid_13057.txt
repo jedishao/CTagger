@@ -1,0 +1,31 @@
+Ingestion task can't be launched in docker
+#12839 introduces a script `run-java` to start the peon tasks, and this script requires bash to execute it.
+
+However, the busybox that docker images installs does not ship bash but sh, so when a task is launched by middle manager, following exception is thrown.
+
+```bash
+middlemanager    | java.io.IOException: Cannot run program "bin/run-java": error=2, No such file or directory
+middlemanager    |      at java.lang.ProcessBuilder.start(ProcessBuilder.java:1128) ~[?:?]
+middlemanager    |      at java.lang.ProcessBuilder.start(ProcessBuilder.java:1071) ~[?:?]
+middlemanager    |      at org.apache.druid.indexing.overlord.ForkingTaskRunner.runTaskProcess(ForkingTaskRunner.java:491) ~[druid-indexing-service-25.0.0-SNAPSHOT.jar:25.0.0-SNAPSHOT]
+middlemanager    |      at org.apache.druid.indexing.overlord.ForkingTaskRunner$1.call(ForkingTaskRunner.java:390) ~[druid-indexing-service-25.0.0-SNAPSHOT.jar:25.0.0-SNAPSHOT]
+middlemanager    |      at org.apache.druid.indexing.overlord.ForkingTaskRunner$1.call(ForkingTaskRunner.java:153) ~[druid-indexing-service-25.0.0-SNAPSHOT.jar:25.0.0-SNAPSHOT]
+middlemanager    |      at java.util.concurrent.FutureTask.run(FutureTask.java:264) ~[?:?]
+middlemanager    |      at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[?:?]
+middlemanager    |      at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[?:?]
+middlemanager    |      at java.lang.Thread.run(Thread.java:829) ~[?:?]
+middlemanager    | Caused by: java.io.IOException: error=2, No such file or directory
+middlemanager    |      at java.lang.ProcessImpl.forkAndExec(Native Method) ~[?:?]
+middlemanager    |      at java.lang.ProcessImpl.<init>(ProcessImpl.java:340) ~[?:?]
+middlemanager    |      at java.lang.ProcessImpl.start(ProcessImpl.java:271) ~[?:?]
+middlemanager    |      at java.lang.ProcessBuilder.start(ProcessBuilder.java:1107) ~[?:?]
+```
+
+
+The solution is:
+1. replace the directive of `#!/bin/bash -eu` of `run-java` file to `#!/bin/sh`
+2. Or install bash to docker
+
+I think the 2nd alternative is better.
+
+

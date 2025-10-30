@@ -1,0 +1,48 @@
+grpc calls failing after upgrading to 1.47.0
+Hi all,
+
+After upgrading to grpc version 1.47.0, our program stopped working. The usage scenario is very simple: we create a ManagedChannel via: `NettyChannelBuilder.forAddress(getHost(), getPort()).defaultLoadBalancingPolicy("round_robin").usePlaintext().build()`. We then create the stub simply by using `newBlockingStub()`. Using the stub results in the below error.
+
+```
+Caused by: io.netty.channel.AbstractChannel$AnnotatedConnectException: connect(..) failed: Address family not supported by protocol: /abc.xyz:50051
+Caused by: java.net.ConnectException: connect(..) failed: Address family not supported by protocol
+        at io.netty.channel.unix.Errors.newConnectException0(Errors.java:155)
+        at io.netty.channel.unix.Errors.handleConnectErrno(Errors.java:128)
+        at io.netty.channel.unix.Socket.connect(Socket.java:312)
+        at io.netty.channel.epoll.AbstractEpollChannel.doConnect0(AbstractEpollChannel.java:773)
+        at io.netty.channel.epoll.EpollSocketChannel.doConnect0(EpollSocketChannel.java:138)
+        at io.netty.channel.epoll.AbstractEpollChannel.doConnect(AbstractEpollChannel.java:758)
+        at io.netty.channel.epoll.AbstractEpollChannel$AbstractEpollUnsafe.connect(AbstractEpollChannel.java:600)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.connect(DefaultChannelPipeline.java:1342)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeConnect(AbstractChannelHandlerContext.java:548)
+        at io.netty.channel.AbstractChannelHandlerContext.connect(AbstractChannelHandlerContext.java:533)
+        at io.netty.channel.ChannelDuplexHandler.connect(ChannelDuplexHandler.java:54)
+        at io.grpc.netty.WriteBufferingAndExceptionHandler.connect(WriteBufferingAndExceptionHandler.java:157)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeConnect(AbstractChannelHandlerContext.java:548)
+        at io.netty.channel.AbstractChannelHandlerContext.connect(AbstractChannelHandlerContext.java:533)
+        at io.netty.channel.AbstractChannelHandlerContext.connect(AbstractChannelHandlerContext.java:517)
+        at io.netty.channel.AbstractChannelHandlerContext.connect(AbstractChannelHandlerContext.java:457)
+        at io.netty.channel.DefaultChannelPipeline.connect(DefaultChannelPipeline.java:942)
+        at io.netty.channel.AbstractChannel.connect(AbstractChannel.java:229)
+        at io.grpc.netty.NettyClientTransport.start(NettyClientTransport.java:306)
+        at io.grpc.internal.ForwardingConnectionClientTransport.start(ForwardingConnectionClientTransport.java:34)
+        at io.grpc.internal.ForwardingConnectionClientTransport.start(ForwardingConnectionClientTransport.java:34)
+        at io.grpc.internal.InternalSubchannel.startNewTransport(InternalSubchannel.java:259)
+        at io.grpc.internal.InternalSubchannel.access$400(InternalSubchannel.java:66)
+        at io.grpc.internal.InternalSubchannel$1EndOfCurrentBackoff.run(InternalSubchannel.java:280)
+        at io.grpc.SynchronizationContext$ManagedRunnable.run(SynchronizationContext.java:182)
+        at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+        at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+        at io.grpc.SynchronizationContext$1.run(SynchronizationContext.java:155)
+        at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98)
+        at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:170)
+        at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164)
+        at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:469)
+        at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:384)
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.base/java.lang.Thread.run(Thread.java:833)
+```
+
+After downgrading back to 1.45.1, the issue went away. Note that in the above example, `abc.xyz` is a simple dns address for a k8s service that has multiple replicas behind it.

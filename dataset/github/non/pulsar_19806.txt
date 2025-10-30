@@ -1,0 +1,61 @@
+PIP-255: Make the partition assignment strategy pluggable
+### Motivation
+
+With all existing Pulsar load balancing algorithms, it is difficult to balance the load of Pulsar cluster nodes. It often happens that some nodes are highly loaded while others are idle, and the CPU of each Broker is very different.
+![image](https://user-images.githubusercontent.com/9758905/224992293-8074379f-eaca-4052-a563-4f0a95eda121.png)
+There are three reasons why the existing way will make the cluster unbalanced:
+1. The load managed by each Bundle is not even. Even if the number of partitions managed by each bundle is the same, there is no guarantee that the sum of the loads of these partitions will be the same.
+2. Doesn't shed loads very well. The existing default policy ThresholdShedder has a relatively high usage threshold, and various traffic thresholds need to be set. Many clusters with high TPS and small message bodies may have high CPU but low traffic; And for many small-scale clusters, the threshold needs to be modified according to the actual business.
+3. The removed Bundle cannot be well distributed to other Brokers. The load information of each Broker will be reported at regular intervals, so the judgment of the Leader Broker when allocating Bundles cannot be guaranteed to be completely correct. Secondly, if there are a large number of Bundles to be redistributed, the Leader may make the low-load Broker a new high-load node when the load information is not up-to-date.
+
+### Goal
+Make the partition assignment strategy pluggable,  users can customize the assignment algorithm according to their own special scenarios.
+
+### API Changes
+
+1. When lookup, partitions will be assigned to bundle:
+
+      Lookup -> NamespaceService#getBrokerServiceUrlAsync -> NamespaceService#getBundleAsync -> 
+      NamespaceBundles#findBundle
+      
+      Consistent hashing is now used to assign partitions to bundle in NamespaceBundles#findBundle.
+      
+      We should add a configuration item `partitionAssignerClassName`, so that different partition assignment strategy can be dynamically configured.
+      
+      The existing strategy will be used as the default （`partitionAssignerClassName=ConsistentHashingPartitionAssigner`）
+
+### Implementation
+Add interface `PartitionAssignmentStrategy `
+```
+public interface PartitionAssignmentStrategy {
+    NamespaceBundle findBundle(TopicName topicName);
+
+    void onBundleSplit(NamespaceBundle bundle);
+
+    void onBundleUnload(NamespaceBundle bundle);
+
+    void onBundleOwned(NamespaceBundle namespaceBundle);
+}
+```
+Add a factory to create implementations
+```
+public class PartitionAssignmentFactory {
+    static PartitionAssignmentStrategy create(PulsarAdmin adminClient, ServiceConfigration config) {
+              //....
+     };
+}
+```
+
+1. Call methods `onBundleSplit`  `onBundleUnload` `onBundleOwned` when the bundle is splitted, unloaded and owned.
+2. In the default implementation class (ConsistentHashingPartitionAssigner),  these three methods do nothing
+3. When the `NamespaceBundles` is initialized, the implementation class will be created through the factory class
+
+### Security Considerations
+
+None
+
+### Alternatives
+
+_No response_
+
+

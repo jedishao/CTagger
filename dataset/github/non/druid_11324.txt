@@ -1,0 +1,52 @@
+GeneratorInputSource defaults lead to exception
+MiddleManager fails to ingest using `generator` input source with a `basic` schema.
+
+### Affected Version
+
+Druid 0.21
+
+### Description
+
+1. Run `./bin/start-micro-quickstart`
+2. Run this script to create an ingestion task:
+```bash
+dt=`date -u +"%Y-%m-%dT%H:%M:%SZ"`
+curl -X POST http://localhost:8888/druid/indexer/v1/task -d '
+{
+    "type": "index_parallel",
+    "id": "test-'$dt'",
+    "spec": {
+      "ioConfig": {
+        "type": "index_parallel",
+        "inputSource": {
+          "type": "generator",
+          "partitions": 10,
+          "schemaName": "basic",
+          "numRows": 200000000,
+          "numSplits": 10
+        }
+      },
+      "dataSchema": {
+        "dataSource": "datagenerator",
+        "granularitySpec": {
+          "type": "uniform",
+          "queryGranularity": "HOUR"
+        },
+        "timestampSpec": {
+          "column": "!!!_no_such_column_!!!",
+          "missingValue": "2010-01-01T00:00:00Z"
+        }    
+      }
+    }
+}
+' -H "Content-Type: application/json"
+```
+See exception in middleManager.log:
+```
+21-06-01T18:17:36,491 ERROR [qtp1888420238-67] com.sun.jersey.spi.container.ContainerResponse - Mapped exception to response: 500 (Interna
+l Server Error)
+javax.ws.rs.WebApplicationException: com.sun.jersey.api.MessageException: A message body writer for Java class com.google.common.collect.Sin
+gletonImmutableBiMap, and Java type class com.google.common.collect.SingletonImmutableBiMap, and MIME media type application/octet-stream wa
+s not found.
+```
+The task cannot be killed and always in WAITING state.

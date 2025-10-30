@@ -1,0 +1,82 @@
+i got this exception "ResourceGroupManagerError while executing refreshAndStartQueries"
+I want test the feature of resource manager, this exception came out. do u have guide of resource manager?
+i didn't find the guide in `https://prestodb.io/docs/current/overview.html`
+`presto 272.1`
+`jdk 1.8.0_191`
+```
+ERROR	ResourceGroupManager	com.facebook.presto.execution.resourceGroups.InternalResourceGroupManager	Error while executing refreshAndStartQueries
+com.facebook.drift.client.UncheckedTTransportException: No hosts available
+	at com.facebook.drift.client.DriftInvocationHandler.invoke(DriftInvocationHandler.java:126)
+	at com.sun.proxy.$Proxy128.getResourceGroupInfo(Unknown Source)
+	at com.facebook.presto.resourcemanager.ResourceManagerResourceGroupService.getResourceGroupInfos(ResourceManagerResourceGroupService.java:85)
+	at com.facebook.presto.resourcemanager.ResourceManagerResourceGroupService.lambda$new$0(ResourceManagerResourceGroupService.java:70)
+	at com.facebook.presto.resourcemanager.ResourceManagerResourceGroupService.getResourceGroupInfo(ResourceManagerResourceGroupService.java:79)
+	at com.facebook.presto.execution.resourceGroups.InternalResourceGroupManager.refreshResourceGroupRuntimeInfo(InternalResourceGroupManager.java:239)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: com.facebook.drift.protocol.TTransportException: No hosts available
+	at com.facebook.drift.client.DriftMethodInvocation.fail(DriftMethodInvocation.java:331)
+	at com.facebook.drift.client.DriftMethodInvocation.nextAttempt(DriftMethodInvocation.java:161)
+	at com.facebook.drift.client.DriftMethodInvocation.createDriftMethodInvocation(DriftMethodInvocation.java:115)
+	at com.facebook.drift.client.DriftMethodHandler.invoke(DriftMethodHandler.java:97)
+	at com.facebook.drift.client.DriftInvocationHandler.invoke(DriftInvocationHandler.java:94)
+	... 12 more
+	Suppressed: com.facebook.drift.client.RetriesFailedException: No hosts available (invocationAttempts: 0, duration: 38.14us, failedConnections: 0, overloadedRejects: 0, attemptedAddresses: [])
+		at com.facebook.drift.client.DriftMethodInvocation.fail(DriftMethodInvocation.java:337)
+		... 16 more
+
+```
+
+**coordinator config.properties**
+
+```
+coordinator=true
+node-scheduler.include-coordinator=true
+http-server.http.port=7005
+discovery.uri=http://example:7005
+discovery-server.enabled=true
+query.max-memory=12GB
+query.max-memory-per-node=4GB
+query.max-total-memory-per-node=7GB
+memory.heap-headroom-per-node=6GB
+query.low-memory-killer.policy=total-reservation-on-blocked-nodes
+experimental.reserved-pool-enabled=false
+optimizer.optimize-hash-generation=true
+resource-manager-enabled=true
+```
+
+**resource manager config.properties**
+```
+resource-manager=true
+resource-manager-enabled=true
+coordinator=false
+node-scheduler.include-coordinator=false
+http-server.http.port=7005
+query.max-memory=12GB
+query.max-memory-per-node=4GB
+query.max-total-memory-per-node=7GB
+memory.heap-headroom-per-node=6GB
+discovery-server.enabled=true
+discovery.uri=http://example:7005
+```
+
+**works config.properties**
+```
+coordinator=false
+node-scheduler.include-coordinator=true
+http-server.http.port=7005
+discovery.uri=http://example:7005
+query.max-memory=12GB
+query.max-memory-per-node=4GB
+query.max-total-memory-per-node=7GB
+memory.heap-headroom-per-node=6GB
+query.low-memory-killer.policy=total-reservation-on-blocked-nodes
+experimental.reserved-pool-enabled=false
+optimizer.optimize-hash-generation=true
+resource-manager-enabled=true
+```

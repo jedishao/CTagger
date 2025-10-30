@@ -1,0 +1,15 @@
+Historical Crashing - Historical Zookeeper Client jute.maxbuffer with large number of segments
+Druid Version: v0.20.0
+
+Context: This issue occurred when a historical has a huge load queue and connect to Zookeeper  to retrieve the set of segments to be loaded. The ZK connection fails with the above error and the historical goes into a loop trying to connect.
+
+I got this error on historical
+    `WARN [main-SendThread(druid-zk-cs.***-druid-usw2-prd-prd.svc.cluster.local:2181)] org.apache.zookeeper.ClientCnxn - Session 0x3773fd9a99b0004 for server druid-zk-cs.***-druid-usw2-prd-prd.svc.cluster.local/100.65.169.30:2181, unexpected error, closing socket connection and attempting reconnect
+java.io.IOException: Packet len17315950 is out of range!`
+
+I bumped up the jute.maxbuffer to 173159500 (10x) on Zookeeper and can see that zookeeper has the new value in command line
+    `/usr/lib/jvm/java-8-openjdk-amd64/bin/java -Dzookeeper.log.dir=/var/log/zookeeper -Dzookeeper.root.logger=INFO,CONSOLE -cp /usr/bin/../build/classes:/usr/bin/../build/lib/*.jar:/usr/bin/../share/zookeeper/zookeeper-3.4.10.jar:/usr/bin/../share/zookeeper/slf4j-log4j12-1.6.1.jar:/usr/bin/../share/zookeeper/slf4j-api-1.6.1.jar:/usr/bin/../share/zookeeper/netty-3.10.5.Final.jar:/usr/bin/../share/zookeeper/log4j-1.2.16.jar:/usr/bin/../share/zookeeper/jline-0.9.94.jar:/usr/bin/../src/java/lib/*.jar:/usr/bin/../etc/zookeeper: -Djute.maxbuffer=173159500 -Xmx18G -Xms18G -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.local.only=false org.apache.zookeeper.server.quorum.QuorumPeerMain /usr/bin/../etc/zookeeper/zoo.cfg`
+
+But I am still seeing the `java.io.IOException: Packet len17315950 is out of range!` error from historical
+
+Do i need to bump it up on the client side too? If yes, where should I add this config? 

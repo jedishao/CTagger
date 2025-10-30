@@ -1,0 +1,40 @@
+Can't connect to SSL enabled Redis server
+I am trying to connect to SSL enabled server and can successfully connect using Jedis, but fail with Redisson. Below test case I am using for both along with redisson-config file. When connecting with Redisson, I am getting exception
+
+```org.redisson.client.RedisException: ERR unencrypted connection is prohibited. channel: [id: 0x13ab6603, L:/172.21.54.97:35186 - R:rediss-server/10.175.186.86:21234] command: (AUTH), params: (password masked)```
+
+**Test Case**
+```
+@Slf4j
+public class RedisTest {
+    @Test
+    void testRedisson() throws IOException {
+        final InputStream resourceAsStream = getClass().getClassLoader().getResourceAsStream("redisson-config.yml");
+
+        final Config config = Config.fromYAML(resourceAsStream);
+        final RedissonClient redissonClient = Redisson.create(config);
+        final RBuckets buckets = redissonClient.getBuckets();
+        log.info(buckets.toString());
+    }
+
+    @Test
+    void testJedis(){
+        JedisPoolConfig config = new JedisPoolConfig();
+
+        JedisPool pool = new JedisPool(config, "redis-server-name", 21234,3000, "password1", true);
+        final Jedis resource = pool.getResource();
+        resource.set("test019", "test");
+        final String test019 = resource.get("test019");
+        Assertions.assertEquals(test019, "test");
+    }
+}
+```
+
+**redis-config.yml**
+```
+singleServerConfig:
+  address: "redis://redis-server:21234"
+  password: "password1"
+  sslTruststore: "file:/usr/local/jdk-11/lib/security/cacerts"
+  sslTruststorePassword: "changeit"
+```

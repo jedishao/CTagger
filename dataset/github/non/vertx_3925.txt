@@ -1,0 +1,59 @@
+Clustered eventbus not removing old node/pod on kubernetes rolling deployment
+I have two vertx micro services running in cluster and communicate with each other using a headless service(link) in on premise cloud. Whenever I do a rolling deployment I am facing connectivity issue within services. When I analysed the log I can see that old node/pod is getting removed from cluster list but the event bus is not removing it and using it in round robin basis. I am pretty sure that event is passed to hazelcast but not to event bus. I am not sure if there is any listener that I could listen and remove dead pods.
+
+Below is the member group information before deployment
+```
+Member [192.168.4.54]:5701 - ace32cef-8cb2-4a3b-b15a-2728db068b80        //pod 1
+Member [192.168.4.54]:5705 - f0c39a6d-4834-4b1d-a179-1f0d74cabbce this
+Member [192.168.101.79]:5701 - ac0dcea9-898a-4818-b7e2-e9f8aaefb447      //pod 2
+```
+When deployment is started, pod 2 gets removed from the member list,
+```
+[192.168.4.54]:5701 [dev] [4.0.2] Could not connect to: /192.168.101.79:5701. Reason: SocketException[Connection refused to address /192.168.101.79:5701]
+Removing connection to endpoint [192.168.101.79]:5701 Cause => java.net.SocketException {Connection refused to address /192.168.101.79:5701}, Error-Count: 5
+Removing Member [192.168.101.79]:5701 - ac0dcea9-898a-4818-b7e2-e9f8aaefb447
+```
+And new member is added
+```
+Member [192.168.4.54]:5701 - ace32cef-8cb2-4a3b-b15a-2728db068b80
+Member [192.168.4.54]:5705 - f0c39a6d-4834-4b1d-a179-1f0d74cabbce this
+Member [192.168.94.85]:5701 - 1347e755-1b55-45a3-bb9c-70e07a29d55b  //new pod
+All migration tasks have been completed. (repartitionTime=Mon May 10 08:54:19 MST 2021, plannedMigrations=358, completedMigrations=358, remainingMigrations=0, totalCompletedMigrations=3348, elapsedMigrationTime=1948ms, totalElapsedMigrationTime=27796ms
+```
+I have two vertx micro services running in cluster and communicate with each other using a headless service(link) in on premise cloud. Whenever I do a rolling deployment I am facing connectivity issue within services. When I analysed the log I can see that old node/pod is getting removed from cluster list but the event bus is not removing it and using it in round robin basis.
+
+Below is the member group information before deployment
+
+```
+    Member [192.168.4.54]:5701 - ace32cef-8cb2-4a3b-b15a-2728db068b80        //pod 1
+    Member [192.168.4.54]:5705 - f0c39a6d-4834-4b1d-a179-1f0d74cabbce this
+    Member [192.168.101.79]:5701 - ac0dcea9-898a-4818-b7e2-e9f8aaefb447      //pod 2
+```
+When deployment is started, pod 2 gets removed from the member list,
+```
+[192.168.4.54]:5701 [dev] [4.0.2] Could not connect to: /192.168.101.79:5701. Reason: SocketException[Connection refused to address /192.168.101.79:5701]
+    Removing connection to endpoint [192.168.101.79]:5701 Cause => java.net.SocketException {Connection refused to address /192.168.101.79:5701}, Error-Count: 5
+    Removing Member [192.168.101.79]:5701 - ac0dcea9-898a-4818-b7e2-e9f8aaefb447
+```
+And new member is added,
+```
+Member [192.168.4.54]:5701 - ace32cef-8cb2-4a3b-b15a-2728db068b80
+    Member [192.168.4.54]:5705 - f0c39a6d-4834-4b1d-a179-1f0d74cabbce this
+    Member [192.168.94.85]:5701 - 1347e755-1b55-45a3-bb9c-70e07a29d55b  //new pod
+All migration tasks have been completed. (repartitionTime=Mon May 10 08:54:19 MST 2021, plannedMigrations=358, completedMigrations=358, remainingMigrations=0, totalCompletedMigrations=3348, elapsedMigrationTime=1948ms, totalElapsedMigrationTime=27796ms)
+```
+But when a request is made to the deployed service, event though old pod is removed from member group the event bus is using the old pod/service reference(ac0dcea9-898a-4818-b7e2-e9f8aaefb447)
+```
+`[vert.x-eventloop-thread-1] DEBUG io.vertx.core.eventbus.impl.clustered.ConnectionHolder - tx.id=f9f5cfc9-8ad8-4eb1-b12c-322feb0d1acd Not connected to server ac0dcea9-898a-4818-b7e2-e9f8aaefb447 - starting queuing`
+### Version
+```
+
+I am using vertx 4.0.3 and hazelcast kubernetes 1.2.2. My verticle class is extending AbstractVerticle and deploying using,
+
+Vertx.clusteredVertx(options, vertx -> {
+                    vertx.result().deployVerticle(verticleName, deploymentOptions);
+Sorry for the long post, any help is highly appreciated.
+
+As mentioned earlier this happens only on deployment and if I restart the pods the issue is not getting reproduced.
+This happens only on vertx4 4.0.3 and with vertx3 i haven't seen this issue.
+Also I am not able to find event bus functionality that I can use it to removes the node info.

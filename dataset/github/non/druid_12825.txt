@@ -1,0 +1,592 @@
+[Draft] 24.0 Release notes
+Apache Druid 24.0.0 contains over 300 new features, bug fixes, performance enhancements, documentation improvements, and additional test coverage from 67 contributors. [See the complete set of changes for additional details](https://github.com/apache/druid/milestone/46).
+
+# <a name="24.0.0-new-features" href="#24.0.0-new-features">#</a> New Features
+
+## <a name="24.0.0-new-features-multi-stage-query-task-engine" href="#24.0.0-new-features-multi-stage-query-task-engine">#</a> Multi-stage query task engine
+
+SQL-based ingestion for Apache Druid uses a distributed multi-stage query architecture, which includes a query engine called the multi-stage query task engine (MSQ task engine). The MSQ task engine extends Druid's query capabilities, so you can write queries that reference external data as well as perform ingestion with SQL INSERT and REPLACE. Essentially, you can perform SQL-based ingestion instead of using JSON ingestion specs that Druid's native ingestion uses. In addition to the easy-to-use syntax, the SQL interface lets you perform transformations that involve multiple shuffles of data. 
+
+SQL-based ingestion using the multi-stage query task engine is the recommended solution starting in Druid 24.0.0. Alternative ingestion solutions such as native batch and Hadoop-based ingestion systems will still be supported. We recommend you read all known issues and test the feature in a development environment before rolling out in production. Using the multi-stage query task engine with `SELECT` statements that do not write to a datasource is experimental.
+
+The extension for it (druid-multi-stage-query) is loaded by default. If you're upgrading from an earlier version of Druid or you're using Docker, you'll need to add the extension to `druid.extensions.loadlist` in your `common.runtime.properties` file.
+
+For more information, see the overview for the multi-stage query architecture.
+
+#12524
+#12386
+#12523
+#12589
+
+## <a name="24.0.0-new-features-nested-columns-" href="#24.0.0-new-features-nested-columns-">#</a> Nested columns 
+Druid now supports directly storing nested data structures in a newly added `COMPLEX<json>` column type. `COMPLEX<json>` columns store a copy of the structured data in JSON format as well as specialized internal columns and indexes for nested literal values—`STRING`, `LONG`, and `DOUBLE` types. An optimized virtual column allows Druid to read and filter these values at speeds consistent with standard Druid `LONG`, `DOUBLE`, and `STRING` columns.
+
+Newly added Druid SQL, native JSON functions, and virtual column allow you to extract, transform, and create `COMPLEX<json>` values in at query time. You can also use the JSON functions in `INSERT` and `REPLACE` statements in SQL-based ingestion, or in a `transformSpec` in native ingestion as an alternative to using a `flattenSpec` object to "flatten" nested data for ingestion.
+
+See [SQL JSON functions](docs/querying/sql-json-functions.md), [native JSON functions](docs/misc/math-expr.md#json-functions), [Nested columns](docs/querying/nested-columns.md), [virtual columns](docs/querying/virtual-columns.md#nested-field-virtual-column), and the [feature summary](https://github.com/apache/druid/issues/12695) for more detail.
+
+#12753
+#12714 
+#12753 
+#12920 
+
+
+## <a name="24.0.0-new-features-updated-java-support" href="#24.0.0-new-features-updated-java-support">#</a> Updated Java support
+
+Java 11 is fully supported is no longer experimental. Java 17 support is improved.
+
+#12839
+
+# <a name="24.0.0-query-engine-updates" href="#24.0.0-query-engine-updates">#</a> Query engine updates
+
+### <a name="24.0.0-query-engine-updates-updated-column-indexes-and-query-processing-of-filters" href="#24.0.0-query-engine-updates-updated-column-indexes-and-query-processing-of-filters">#</a> Updated column indexes and query processing of filters
+
+Reworked column indexes to be extraordinarily flexible, which will eventually allow us to model a wide range of index types. Added machinery to build the filters that use the updated indexes, while also allowing for other column implementations to implement the built-in index types to provide adapters to make use indexing in the current set filters that Druid provides.
+
+#12388 
+
+### <a name="24.0.0-query-engine-updates-time-filter-operator" href="#24.0.0-query-engine-updates-time-filter-operator">#</a> Time filter operator
+
+You can now use the Druid SQL operator TIME_IN_INTERVAL to filter query results based on time. Prefer TIME_IN_INTERVAL over the SQL BETWEEN operator to filter on time. For more information, see [Date and time functions](docs/querying/sql-scalar.md#date-and-time-functions).
+
+#12662
+
+### <a name="24.0.0-query-engine-updates-null-values-and-the-%22in%22-filter" href="#24.0.0-query-engine-updates-null-values-and-the-%22in%22-filter">#</a> Null values and the "in" filter
+If a `values` array contains `null`, the "in" filter matches null values. This differs from the SQL IN filter, which does not match null values.
+
+For more information, see [Query filters](/docs/querying/filters.md) and [SQL data types](/docs/querying/sql-data-types.md).
+#12863
+
+### <a name="24.0.0-query-engine-updates-virtual-columns-in-search-queries" href="#24.0.0-query-engine-updates-virtual-columns-in-search-queries">#</a> Virtual columns in search queries
+Previously, a [search query](/docs/querying/searchquery.md) could only search on dimensions that existed in the data source. Search queries now support [virtual columns](/docs/querying/virtual-columns.md) as a parameter in the query.
+
+#12720
+
+### <a name="24.0.0-query-engine-updates-optimize-simple-min-%2F-max-sql-queries-on-__time" href="#24.0.0-query-engine-updates-optimize-simple-min-%2F-max-sql-queries-on-__time">#</a> Optimize simple MIN / MAX SQL queries on __time
+Simple queries like `select max(__time) from ds` now run as a `timeBoundary` queries to take advantage of the time dimension sorting in a segment. You can set a feature flag to enable this feature.
+
+#12472
+#12491 
+
+### <a name="24.0.0-query-engine-updates-string-aggregation-results" href="#24.0.0-query-engine-updates-string-aggregation-results">#</a> String aggregation results
+The first/last string aggregator now only compares based on values. Previously, the first/last string aggregator’s values were compared based on the `_time` column first and then on values.
+
+If you have existing queries and want to continue using both the `_time` column and values, update your queries to use ORDER BY MAX(timeCol).
+
+#12773
+
+### <a name="24.0.0-query-engine-updates-reduced-allocations-due-to-jackson-serialization" href="#24.0.0-query-engine-updates-reduced-allocations-due-to-jackson-serialization">#</a> Reduced allocations due to Jackson serialization
+Introduced and implemented new helper functions in `JacksonUtils` to enable reuse of
+`SerializerProvider` objects. 
+
+Additionally, disabled backwards compatibility for map-based rows in the `GroupByQueryToolChest` by default, which eliminates the need to copy the heavyweight `ObjectMapper`. Introduced a configuration option to allow administrators to explicitly enable backwards compatibility.
+
+#12468
+
+### <a name="24.0.0-query-engine-updates-updated-ipaddress-java-library-" href="#24.0.0-query-engine-updates-updated-ipaddress-java-library-">#</a> Updated IPAddress Java library 
+
+Added a new [IPAddress](https://github.com/seancfoley/IPAddress) Java library dependency to handle IP addresses. The library includes IPv6 support. Additionally, migrated IPv4 functions to use the new library.
+
+#11634
+
+### <a name="24.0.0-query-engine-updates-query-performance-improvements" href="#24.0.0-query-engine-updates-query-performance-improvements">#</a> Query performance improvements
+
+Optimized SQL operations and functions as follows:
+- Vectorized numeric latest aggregators (#12439)
+- Optimized `isEmpty()` and `equals()` on RangeSets (#12477)
+- Optimized reuse of Yielder objects (#12475)
+- Operations on numeric columns with indexes are now faster (#12830) 
+- Optimized GroupBy by reducing allocations. Reduced allocations by reusing entry and key holders (#12474)
+- Added a vectorized version of string last aggregator (#12493)
+- Added Direct UTF-8 access for IN filters (#12517)
+- Enabled virtual columns to cache their outputs in case Druid calls them multiple times on the same underlying row (#12577)
+- Druid now rewrites a join as a filter when possible in IN joins (#12225)
+- Added automatic sizing for GroupBy dictionaries (#12763)
+- Druid now distributes JDBC connections more evenly amongst brokers (#12817)
+
+## <a name="24.0.0-streaming-ingestion" href="#24.0.0-streaming-ingestion">#</a> Streaming ingestion
+
+### <a name="24.0.0-streaming-ingestion-kafka-consumers" href="#24.0.0-streaming-ingestion-kafka-consumers">#</a> Kafka consumers
+Previously, consumers that were registered and used for ingestion persisted until Kafka deleted them. They were only used to make sure that an entire topic was consumed. There are no longer consumer groups that linger.
+
+#12842
+
+### <a name="24.0.0-streaming-ingestion-kinesis-ingestion" href="#24.0.0-streaming-ingestion-kinesis-ingestion">#</a> Kinesis ingestion
+You can now perform Kinesis ingestion even if there are empty shards. Previously, all shards had to have at least one record.
+
+#12792
+
+## <a name="24.0.0-batch-ingestion" href="#24.0.0-batch-ingestion">#</a> Batch ingestion
+
+### <a name="24.0.0-batch-ingestion-batch-ingestion-from-s3" href="#24.0.0-batch-ingestion-batch-ingestion-from-s3">#</a> Batch ingestion from S3
+You can now ingest data from endpoints that are different from your default S3 endpoint and signing region. 
+For more information, see [S3 config](../development/extensions-core/s3.md#connecting-to-s3-configuration).
+#11798
+
+## <a name="24.0.0-improvements-to-ingestion-in-general" href="#24.0.0-improvements-to-ingestion-in-general">#</a> Improvements to ingestion in general
+
+This release includes the following  improvements for ingestion in general.
+
+### <a name="24.0.0-improvements-to-ingestion-in-general-increased-robustness-for-task-management" href="#24.0.0-improvements-to-ingestion-in-general-increased-robustness-for-task-management">#</a> Increased robustness for task management
+
+Added `setNumProcessorsPerTask` to prevent various automatically-sized thread pools from becoming unreasonably large. It isn't ideal for each task to size its pools as if it is the only process on the entire machine. On large machines, this solves a common cause of `OutOfMemoryError` due to "unable to create native thread".
+
+#12592
+
+### <a name="24.0.0-improvements-to-ingestion-in-general-avatica-jdbc-driver" href="#24.0.0-improvements-to-ingestion-in-general-avatica-jdbc-driver">#</a> Avatica JDBC driver
+
+The JDBC driver now follows the JDBC standard and uses two kinds of statements, Statement and PreparedStatement.
+
+#12709 
+
+### <a name="24.0.0-improvements-to-ingestion-in-general-eight-hour-granularity" href="#24.0.0-improvements-to-ingestion-in-general-eight-hour-granularity">#</a> Eight hour granularity
+
+Druid now accepts the `EIGHT_HOUR` granularity. You can segment incoming data to `EIGHT_HOUR` buckets as well as group query results by eight hour granularity.
+#12717
+
+## <a name="24.0.0-ingestion-general" href="#24.0.0-ingestion-general">#</a> Ingestion general
+
+### <a name="24.0.0-ingestion-general-updated-avro-extension" href="#24.0.0-ingestion-general-updated-avro-extension">#</a> Updated Avro extension
+
+The previous Avro extension leaked objects from the parser. If these objects leaked into your ingestion, you had objects being stored as a string column with the value as the .toString(). This string column will remain after you upgrade but will return `Map.toString()` instead of `GenericRecord.toString`. If you relied on the previous behavior, you can use the Avro extension from an earlier release.
+
+#12828
+
+### <a name="24.0.0-ingestion-general-sampler-api" href="#24.0.0-ingestion-general-sampler-api">#</a> Sampler API
+
+The sampler API has additional limits: `maxBytesInMemory` and `maxClientResponseBytes`. These options augment the existing options `numRows` and `timeoutMs`.  `maxBytesInMemory` can be used to control the memory usage on the Overlord while sampling.  `maxClientResponseBytes` can be used by clients to specify the maximum size of response they would prefer to handle.
+
+#12947 
+
+## <a name="24.0.0-sql" href="#24.0.0-sql">#</a> SQL
+
+### <a name="24.0.0-sql-column-order" href="#24.0.0-sql-column-order">#</a> Column order
+
+The `DruidSchema` and `SegmentMetadataQuery` properties now preserve column order instead of ordering columns alphabetically. This means that query order better matches ingestion order.
+
+#12754 
+
+### <a name="24.0.0-sql-converting-joins-to-filter" href="#24.0.0-sql-converting-joins-to-filter">#</a> Converting JOINs to filter
+You can improve performance by pushing JOINs partially or fully to the base table as a filter at runtime by setting the `enableRewriteJoinToFilter` context parameter to `true` for a query.
+
+Druid now pushes down join filters in case the query computing join references any columns from the right side.
+
+#12749 
+#12868
+
+### <a name="24.0.0-sql-add-is_active-to-sys.segments" href="#24.0.0-sql-add-is_active-to-sys.segments">#</a> Add is_active to sys.segments
+
+Added `is_active` as shorthand for `(is_published = 1 AND is_overshadowed = 0) OR is_realtime = 1)`. This represents "all the segments that should be queryable, whether or not they actually are right now".
+
+#11550
+
+### <a name="24.0.0-sql-%60usenativequeryexplain%60-now-defaults-to-true" href="#24.0.0-sql-%60usenativequeryexplain%60-now-defaults-to-true">#</a> `useNativeQueryExplain` now defaults to true
+
+The `useNativeQueryExplain` property now defaults to `true`. This means that EXPLAIN PLAN FOR returns the explain plan as a JSON representation of equivalent native query(s) by default. For more information, see [Broker Generated Query Configuration Supplementation](/docs/configuration/index.md).
+
+#12936 
+
+### <a name="24.0.0-inline-query-engine" href="#24.0.0-inline-query-engine">#</a> Running queries with inline data using druid query engine
+
+Some queries  that do not refer to any table, such as `select 1`, are now always translated to a native Druid query with `InlineDataSource` before execution. If translation is not possible, for queries such as `SELECT (1, 2)`, then an error occurs. In earlier versions, this query would still run.
+
+#12897 
+
+## <a name="24.0.0-coordinator%2Foverlord" href="#24.0.0-coordinator%2Foverlord">#</a> Coordinator/Overlord
+
+### <a name="24.0.0-coordinator%2Foverlord-you-can-configure-the-coordinator-to-kill-segments-in-the-future" href="#24.0.0-coordinator%2Foverlord-you-can-configure-the-coordinator-to-kill-segments-in-the-future">#</a> You can configure the Coordinator to kill segments in the future
+
+You can now set `druid.coordinator.kill.durationToRetain` to a negative period to configure the Druid cluster to kill segments whose `interval_end` is a date in the future. For example, PT-24H would allow segments to be killed if their interval_end date was 24 hours or less into the future at the time that the kill task is generated by the system.
+A cluster operator can also disregard the `druid.coordinator.kill.durationToRetain` entirely by setting a new configuration, `druid.coordinator.kill.ignoreDurationToRetain=true`. This ignores `interval_end` date when looking for segments to kill, and can instead kill any segment marked unused. This new configuration is turned off by default, and a cluster operator should fully understand and accept the risks before enabling it.
+
+### <a name="24.0.0-coordinator%2Foverlord-improved-overlord-stability" href="#24.0.0-coordinator%2Foverlord-improved-overlord-stability">#</a> Improved Overlord stability
+
+Reduced contention between the management thread and the reception of status updates from the cluster. This improves the stability of Overlord and all tasks in a cluster when there are large (1000+) task counts.
+
+#12099
+
+### <a name="24.0.0-coordinator%2Foverlord-improved-coordinator-segment-logging" href="#24.0.0-coordinator%2Foverlord-improved-coordinator-segment-logging">#</a> Improved Coordinator segment logging
+
+Updated Coordinator load rule logging to include current replication levels. Added missing segment ID and tier information from some of the log messages.
+
+#12511
+
+### <a name="24.0.0-coordinator%2Foverlord-optimized-overlord-get-tasks-memory-usage" href="#24.0.0-coordinator%2Foverlord-optimized-overlord-get-tasks-memory-usage">#</a> Optimized overlord GET tasks memory usage
+
+Addressed the significant memory overhead caused by the web-console indirectly calling the Overlord’s GET tasks API. This could cause unresponsiveness or Overlord failure when the ingestion tab was opened multiple times.
+
+#12404 
+
+### <a name="24.0.0-coordinator%2Foverlord-reduced-time-to-create-intervals" href="#24.0.0-coordinator%2Foverlord-reduced-time-to-create-intervals">#</a> Reduced time to create intervals
+
+In order to optimize segment cost computation time by reducing time taken for interval creation, store segment interval instead of creating it each time from primitives and reduce memory overhead of storing intervals by interning them. The set of intervals for segments is low in cardinality.
+
+#12670
+
+## <a name="24.0.0--brokers%2Foverlord" href="#24.0.0--brokers%2Foverlord">#</a>  Brokers/Overlord
+
+Brokers now have a default of 25MB maximum queued per query. Previously, there was no default limit. Depending on your use case, you may need to increase the value, especially if you have large result sets or large amounts of intermediate data. To adjust the maximum memory available, use the `druid.broker.http.maxQueuedBytes` property.
+For more information, see [Configuration reference](docs/configuration/index.md).
+
+## <a name="24.0.0--brokers%2Foverlord-web-console" href="#24.0.0--brokers%2Foverlord-web-console">#</a> Web console
+> Prepare to have your Web Console experience elevated! - @vogievetsky
+ 
+### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support">#</a> New query view (WorkbenchView) with tabs and long running query support
+
+![](https://user-images.githubusercontent.com/177816/185309077-8840ff85-19a9-4fc0-8398-4f2446ff29b3.png)
+
+You can use the new query view to execute multi-stage, task based, queries with the /druid/v2/sql/task and /druid/indexer/v1/task/* APIs as well as native and sql-native queries just like the old Query view. A key point of the sql-msq-task based queries is that they may run for a long time. This inspired / necessitated many UX changes including, but not limited to the following:
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-tabs" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-tabs">#</a> Tabs
+
+You can now have many queries stored and running at the same time, significantly improving the query view UX.
+
+![](https://user-images.githubusercontent.com/177816/185309114-fe82cccd-a917-415c-a394-a3485403226d.png)
+
+You can open several tabs, duplicate them, and copy them as text to paste into any console and reopen there.
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-progress-reports-%28counter-reports%29" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-progress-reports-%28counter-reports%29">#</a> Progress reports (counter reports)
+
+Queries run with the multi-stage query task engine have detailed progress reports shown in the summary progress bar and the in detail execution table that provides summaries of the counters for every step.
+
+![](https://user-images.githubusercontent.com/177816/185309244-cba3d640-c48a-49bd-8c72-ed3e842b0cb2.png)
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-error-and-warning-reports" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-error-and-warning-reports">#</a> Error and warning reports
+
+Queries run with the multi-stage query task engine present user friendly warnings and errors should anything go wrong.
+The new query view has components to visualize these with their full detail including a stack-trace.
+
+![](https://user-images.githubusercontent.com/177816/185309488-421e7410-251d-4590-88f1-92fb23f4be13.png)
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-recent-query-tasks-panel" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-recent-query-tasks-panel">#</a> Recent query tasks panel
+
+Queries run with the multi-stage query task engine are tasks. This makes it possible to show queries that are executing currently and that have executed in the recent past.
+
+![](https://user-images.githubusercontent.com/177816/185309579-e2ce021c-6bf6-4576-bdee-ff552e1c4c3b.png)
+
+For any query in the Recent query tasks  panel you can view the execution details for it and you can also attach it as a new tab and continue iterating on the query. It is also possible to download the "query detail archive", a JSON file containing all the important details for a given query to use  for troubleshooting.
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-connect-external-data-flow" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-connect-external-data-flow">#</a> Connect external data flow
+
+Connect external data flow lets you use the sampler to sample your source data to, determine its schema and generate a fully formed SQL query that you can edit to fit your use case before you launch your ingestion job. This point-and-click flow will save you much  typing.
+
+![](https://user-images.githubusercontent.com/177816/185309631-5ceed7d0-2bb2-43b9-83ed-fdcad4a152be.png)
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-preview-button" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-preview-button">#</a> Preview button
+
+The Preview button appears when you type in an INSERT or REPLACE SQL query. Click the button to remove the INSERT or REPLACE clause and  execute your query as an "inline" query with a limi). This gives you a sense of the shape of your data after Druid applies all your transformations from your SQL query.
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-results-table" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-results-table">#</a> Results table
+
+The query results table has been improved in style and function. It now shows you type icons for the column types and supports the ability to manipulate nested columns with ease.
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-helper-queries" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-helper-queries">#</a> Helper queries
+
+The Web Console now has some UI affordances for notebook and CTE users. You can reference helper queries, collapsable elements that hold a query, from the main query just like they were defined with a WITH statement. When you are composing a complicated query, it is helpful to break it down into multiple queries to preview the parts individually.
+
+#### <a name="24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-additional-web-console-tools" href="#24.0.0--brokers%2Foverlord-web-console-new-query-view-%28workbenchview%29-with-tabs-and-long-running-query-support-additional-web-console-tools">#</a> Additional Web Console tools
+
+More tools are available from the  ... menu:
+- Explain query - show the query plan for  sql-native and multi-stage query task engine queries.
+- Convert ingestion spec to SQL - Helps you migrate your native batch and Hadoop based specs to the SQL-based format.
+- Open query detail archive - lets you open a query detail archive downloaded earlier.
+- Load demo queries - lets you load a set of pre-made queries to play around with multi-stage query task engine functionality.
+
+### <a name="24.0.0--brokers%2Foverlord-web-console-new-sql-based-data-loader" href="#24.0.0--brokers%2Foverlord-web-console-new-sql-based-data-loader">#</a> New SQL-based data loader
+The data loader exists as a GUI wizard to help users craft a JSON ingestion spec using point and click and quick previews. The SQL data loader is the SQL-based ingestion analog of that.
+
+Like the native based data loader, the SQL-based data loader stores all the state in the SQL query itself. You can opt to manipulate the query directly at any stage. See (#12919) for more information about how the data loader differs from the **Connect external data** workflow.
+
+### <a name="24.0.0--brokers%2Foverlord-web-console-other-changes-and-improvements" href="#24.0.0--brokers%2Foverlord-web-console-other-changes-and-improvements">#</a> Other changes and improvements
+- The query view has so much new functionality that it has moved to the far left as the first view available in the header.
+- You can now click on a datasource or segment to see a preview of the data within.
+- The task table now explicitly shows if a task has been canceled in a different color than a failed task.
+- The user experience when you view a JSON payload in the Druid console has been improved. There’s now syntax highlighting and a search.
+- The Druid console can now use the column order returned by a scan query to determine the column order for reindexing data.
+- The way errors are displayed in the Druid console has been improved. Errors no longer appear as a single long line.
+
+See  (#12919) for more details and other improvements
+
+## <a name="24.0.0--brokers%2Foverlord-metrics" href="#24.0.0--brokers%2Foverlord-metrics">#</a> Metrics
+### <a name="24.0.0--brokers%2Foverlord-metrics-sysmonitor-stats-for-peons" href="#24.0.0--brokers%2Foverlord-metrics-sysmonitor-stats-for-peons">#</a> Sysmonitor stats for Peons
+
+Sysmonitor stats, like memory or swap, are no longer reported since Peons always run on the same host as MiddleManagerse. This means that duplicate stats will no longer be reported.
+
+#12802 
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-prometheus-" href="#24.0.0--brokers%2Foverlord-metrics-prometheus-">#</a> Prometheus 
+
+You can now include the host and service as labels for Prometheus by setting the following properties to true:
+- `druid.emitter.prometheus.addHostAsLabel`
+- `druid.emitter.prometheus.addServiceAsLabel`
+
+#12769 
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-rows-per-segment" href="#24.0.0--brokers%2Foverlord-metrics-rows-per-segment">#</a> Rows per segment
+
+(Experimental) You can now see the average number of rows in a segment and the distribution of segments in predefined buckets with the following metrics: `segment/rowCount/avg` and `segment/rowCount/range/count`. 
+Enable the metrics with the following property: `org.apache.druid.server.metrics.SegmentStatsMonitor` 
+#12730 
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-new-%60sqlquery%2Fplanningtimems%60-metric" href="#24.0.0--brokers%2Foverlord-metrics-new-%60sqlquery%2Fplanningtimems%60-metric">#</a> New `sqlQuery/planningTimeMs` metric
+
+There’s a new `sqlQuery/planningTimeMs` metric for SQL queries that computes the time it takes to build a native query from a SQL query.
+
+#12923 
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-statsd-metrics-reporter" href="#24.0.0--brokers%2Foverlord-metrics-statsd-metrics-reporter">#</a> StatsD metrics reporter
+
+The StatsD metrics reporter extension now includes the following metrics:
+- coordinator/time
+- coordinator/global/time
+- tier/required/capacity
+- tier/total/capacity
+- tier/replication/factor
+- tier/historical/count
+- compact/task/count
+- compactTask/maxSlot/count
+- compactTask/availableSlot/count
+- segment/waitCompact/bytes
+- segment/waitCompact/count
+- interval/waitCompact/count
+- segment/skipCompact/bytes
+- segment/skipCompact/count
+- interval/skipCompact/count
+- segment/compacted/bytes
+- segment/compacted/count
+- interval/compacted/count
+#12762 
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-new-worker-level-task-metrics" href="#24.0.0--brokers%2Foverlord-metrics-new-worker-level-task-metrics">#</a> New worker level task metrics
+
+Added a new monitor, `WorkerTaskCountStatsMonitor`, that allows each middle manage worker to report metrics for successful / failed tasks, and task slot usage. 
+
+#12446
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-improvements-to-the-jvmmonitor" href="#24.0.0--brokers%2Foverlord-metrics-improvements-to-the-jvmmonitor">#</a> Improvements to the JvmMonitor
+
+The JvmMonitor can now handle more generation and collector scenarios. The monitor is more robust and works properly for ZGC on both Java 11 and 15.
+
+#12469 
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-garbage-collection" href="#24.0.0--brokers%2Foverlord-metrics-garbage-collection">#</a> Garbage collection
+
+Garbage collection metrics now use MXBeans.
+
+#12481
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-metric-for-task-duration-in-the-pending-queue" href="#24.0.0--brokers%2Foverlord-metrics-metric-for-task-duration-in-the-pending-queue">#</a> Metric for task duration in the pending queue
+
+Introduced the metric `task/pending/time` to measure how long a task stays in the pending queue.
+
+#12492
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-emit-metrics-object-for-scan%2C-timeseries%2C-and-groupby-queries-during-cursor-creation" href="#24.0.0--brokers%2Foverlord-metrics-emit-metrics-object-for-scan%2C-timeseries%2C-and-groupby-queries-during-cursor-creation">#</a> Emit metrics object for Scan, Timeseries, and GroupBy queries during cursor creation
+
+Adds vectorized metric for scan, timeseries and groupby queries.
+
+#12484
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-emit-state-of-replace-and-append-for-native-batch-tasks" href="#24.0.0--brokers%2Foverlord-metrics-emit-state-of-replace-and-append-for-native-batch-tasks">#</a> Emit state of replace and append for native batch tasks
+
+Druid now emits metrics so you can monitor and assess the use of  different types of batch ingestion, in particular replace and tombstone creation.
+
+#12488
+#12840
+
+### <a name="24.0.0--brokers%2Foverlord-metrics-kafkaemitter-emits-%60querytype%60" href="#24.0.0--brokers%2Foverlord-metrics-kafkaemitter-emits-%60querytype%60">#</a> KafkaEmitter emits `queryType`
+
+The KafkaEmitter now properly emits the `queryType` property for native queries.
+
+#12915 
+
+## <a name="24.0.0--brokers%2Foverlord-security" href="#24.0.0--brokers%2Foverlord-security">#</a> Security
+
+You can now hide properties that are sensitive in the API response from `/status/properties`, such as S3 access keys. Use the `druid.server.hiddenProperties` property in `common.runtime.properties` to specify the properties (case insensitive) you want to hide.
+
+#12950
+
+## <a name="24.0.0--brokers%2Foverlord-other-changes" href="#24.0.0--brokers%2Foverlord-other-changes">#</a> Other changes
+
+- You can now configure the retention period for request logs stored on disk with the  `druid.request.logging.durationToRetain` property. Set the retention period to be longer than `P1D` (#12559)
+- You can now specify liveness and readiness probe delays for the historical StatefulSet in your values.yaml file. The default is 60 seconds (#12805)
+- Improved exception message for native binary operators (#12335)
+- ​​Improved error messages when URI points to a file that doesn't exist (#12490)
+- ​​Improved build performance of modules (#12486)
+- Improved lookups made using the druid-kafka-extraction-namespace extension to handle records that have been deleted from a kafka topic (#12819)
+- Updated core Apache Kafka dependencies to 3.2.0 (#12538)
+- Updated ORC to 1.7.5 (#12667)
+- Updated Jetty to 9.4.41.v20210516 (#12629)
+- Added `Zstandard` compression library to `CompressionStrategy` (#12408)
+- Updated the default gzip buffer size to 8 KB to for improved performance (#12579)
+- Updated the default `inputSegmentSizeBytes` in Compaction configuration to 100,000,000,000,000 (~100TB)
+
+# <a name="24.0.0-bug-fixes" href="#24.0.0-bug-fixes">#</a> Bug fixes
+
+Druid 24.0 contains over 68 bug fixes. You can find the complete list [here](https://github.com/apache/druid/issues?q=is%3Aclosed+label%3ABug+milestone%3A24.0.0+) 
+
+# <a name="24.0.0-upgrading-to-24.0" href="#24.0.0-upgrading-to-24.0">#</a> Upgrading to 24.0
+
+## <a name="24.0.0-upgrading-to-24.0-permissions-for-multi-stage-query-engine" href="#24.0.0-upgrading-to-24.0-permissions-for-multi-stage-query-engine">#</a> Permissions for multi-stage query engine
+
+To read external data using the multi-stage query task engine, you must have READ permissions for the [EXTERNAL resource type](/docs/operations/security-user-auth.md). Users without the correct permission encounter a 403 error when trying to run SQL queries that include EXTERN.
+
+The way you assign the permission depends on your authorizer. For example, with [basic security]((/docs/development/extensions-core/druid-basic-security.md) in Druid, add the `EXTERNAL READ` permission by sending a `POST` request to the [roles API](/docs/development/extensions-core/druid-basic-security.md#permissions).
+
+The example adds permissions for users with the `admin` role using a basic authorizer named `MyBasicMetadataAuthorizer`. The following permissions are granted:
+* DATASOURCE READ
+* DATASOURCE WRITE
+* CONFIG READ
+* CONFIG WRITE
+* STATE READ
+* STATE WRITE
+* EXTERNAL READ
+
+```
+curl --location --request POST 'http://localhost:8081/druid-ext/basic-security/authorization/db/MyBasicMetadataAuthorizer/roles/admin/permissions' \
+--header 'Content-Type: application/json' \
+--data-raw '[
+{
+  "resource": {
+    "name": ".*",
+    "type": "DATASOURCE"
+  },
+  "action": "READ"
+},
+{
+  "resource": {
+    "name": ".*",
+    "type": "DATASOURCE"
+  },
+  "action": "WRITE"
+},
+{
+  "resource": {
+    "name": ".*",
+    "type": "CONFIG"
+  },
+  "action": "READ"
+},
+{
+  "resource": {
+    "name": ".*",
+    "type": "CONFIG"
+  },
+  "action": "WRITE"
+},
+{
+  "resource": {
+    "name": ".*",
+    "type": "STATE"
+  },
+  "action": "READ"
+},
+{
+  "resource": {
+    "name": ".*",
+    "type": "STATE"
+  },
+  "action": "WRITE"
+},
+{
+  "resource": {
+    "name": "EXTERNAL",
+    "type": "EXTERNAL"
+  },
+  "action": "READ"
+}
+]'
+```
+
+## <a name="24.0.0-upgrading-to-24.0-behavior-for-unused-segments" href="#24.0.0-upgrading-to-24.0-behavior-for-unused-segments">#</a> Behavior for unused segments
+
+Druid automatically retains any segments marked as unused. Previously, Druid permanently deleted unused segments from metadata store and deep storage after their duration to retain passed. This behavior was reverted from `0.23.0`.
+#12693
+
+## <a name="24.0.0-upgrading-to-24.0-default-for-%60druid.processing.fifo%60" href="#24.0.0-upgrading-to-24.0-default-for-%60druid.processing.fifo%60">#</a> Default for `druid.processing.fifo`
+
+The default for `druid.processing.fifo` is now true. This means that tasks of equal priority are treated in a FIFO manner. For most use cases, this change can improve performance on heavily loaded clusters. 
+
+#12571
+
+## <a name="24.0.0-upgrading-to-24.0-update-to-jdbc-statement-closure" href="#24.0.0-upgrading-to-24.0-update-to-jdbc-statement-closure">#</a> Update to JDBC statement closure
+
+In previous releases, Druid automatically closed the JDBC Statement when the ResultSet was closed. Druid closed the ResultSet on EOF. Druid closed the statement on any exception. This behavior is, however, non-standard.
+In this release, Druid's JDBC driver follows the JDBC standards more closely:
+The ResultSet closes automatically on EOF, but does not close the Statement or PreparedStatement. Your code must close these statements, perhaps by using a try-with-resources block.
+The PreparedStatement can now be used multiple times with different parameters. (Previously this was not true since closing the ResultSet closed the PreparedStatement.)
+If any call to a Statement or PreparedStatement raises an error, the client code must still explicitly close the statement. According to the JDBC standards, statements are not closed automatically on errors. This allows you to obtain information about a failed statement before closing it.
+If you have code that depended on the old behavior, you may have to change your code to add the required close statement.
+
+#12709
+
+## <a name="24.0.0-upgrading-to-24.0-known-issues" href="#24.0.0-upgrading-to-24.0-known-issues">#</a> Known issues
+
+## <a name="24.0.0-upgrading-to-24.0-credit" href="#24.0.0-upgrading-to-24.0-credit">#</a> Credits
+@2bethere
+@317brian
+@a2l007
+@abhagraw
+@abhishekagarwal87
+@abhishekrb19
+@adarshsanjeev
+@aggarwalakshay
+@AmatyaAvadhanula
+@BartMiki
+@capistrant
+@chenrui333
+@churromorales
+@clintropolis
+@cloventt
+@CodingParsley
+@cryptoe
+@dampcake
+@dependabot[bot]
+@dherg
+@didip
+@dongjoon-hyun
+@ektravel
+@EsoragotoSpirit
+@exherb
+@FrankChen021
+@gianm
+@hellmarbecker
+@hwball
+@iandr413
+@imply-cheddar
+@jarnoux
+@jasonk000
+@jihoonson
+@jon-wei
+@kfaraz
+@LakshSingla
+@liujianhuanzz
+@liuxiaohui1221
+@lmsurpre
+@loquisgon
+@machine424
+@maytasm
+@MC-JY
+@Mihaylov93
+@nishantmonu51
+@paul-rogers
+@petermarshallio
+@pjfanning
+@rockc2020
+@rohangarg
+@somu-imply
+@suneet-s
+@superivaj
+@techdocsmith
+@tejaswini-imply
+@TSFenwick
+@vimil-saju
+@vogievetsky
+@vtlim
+@williamhyun
+@wiquan
+@writer-jill
+@xvrl
+@yuanlihan
+@zachjsh
+@zemin-piao

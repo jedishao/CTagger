@@ -1,0 +1,170 @@
+Failed to load netty_tcnative when open ssl enabled
+### Questions
+
+After upgrading from netty 3.9.8 to 3.9.12, an error accured to load netty_tcnative . 
+
+```
+2021-12-23T08:45:35.3662076Z 2021-12-23 08:45:35,231 [ERROR] [vert.x-eventloop-thread-3] -  (ClientVerticle.java:38)
+2021-12-23T08:45:35.3663026Z io.vertx.core.VertxException: OpenSSL is not available
+2021-12-23T08:45:35.3664335Z 	at io.vertx.core.net.impl.SSLHelper.resolveEngineOptions(SSLHelper.java:76)
+2021-12-23T08:45:35.3665692Z 	at io.vertx.core.net.impl.SSLHelper.<init>(SSLHelper.java:174)
+2021-12-23T08:45:35.3666811Z 	at io.vertx.core.net.impl.NetClientImpl.<init>(NetClientImpl.java:73)
+2021-12-23T08:45:35.3668012Z 	at io.vertx.core.net.impl.NetClientImpl.<init>(NetClientImpl.java:67)
+2021-12-23T08:45:35.3669303Z 	at io.vertx.core.impl.VertxImpl.createNetClient(VertxImpl.java:302)
+2021-12-23T08:45:35.3671334Z 	at org.apache.servicecomb.foundation.vertx.client.tcp.NetClientWrapper.<init>(NetClientWrapper.java:39)
+2021-12-23T08:45:35.3675175Z 	at org.apache.servicecomb.foundation.vertx.client.tcp.AbstractTcpClientPoolFactory.createClientPool(AbstractTcpClientPoolFactory.java:38)
+2021-12-23T08:45:35.3679333Z 	at org.apache.servicecomb.foundation.vertx.client.ClientPoolManager.createClientPool(ClientPoolManager.java:60)
+2021-12-23T08:45:35.3682320Z 	at org.apache.servicecomb.foundation.vertx.client.ClientVerticle.start(ClientVerticle.java:35)
+2021-12-23T08:45:35.3684185Z 	at io.vertx.core.AbstractVerticle.start(AbstractVerticle.java:108)
+2021-12-23T08:45:35.3685214Z 	at io.vertx.core.Verticle.start(Verticle.java:66)
+2021-12-23T08:45:35.3686397Z 	at io.vertx.core.impl.DeploymentManager.lambda$doDeploy$9(DeploymentManager.java:552)
+2021-12-23T08:45:35.3687843Z 	at io.vertx.core.impl.ContextImpl.executeTask(ContextImpl.java:366)
+2021-12-23T08:45:35.3689282Z 	at io.vertx.core.impl.EventLoopContext.lambda$executeAsync$0(EventLoopContext.java:38)
+2021-12-23T08:45:35.3691179Z 	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164)
+2021-12-23T08:45:35.3693680Z 	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:469)
+2021-12-23T08:45:35.3695526Z 	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:503)
+2021-12-23T08:45:35.3697121Z 	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+2021-12-23T08:45:35.3698836Z 	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+2021-12-23T08:45:35.3700534Z 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+2021-12-23T08:45:35.3701847Z 	at java.lang.Thread.run(Thread.java:748)
+2021-12-23T08:45:35.3703028Z Caused by: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+2021-12-23T08:45:35.3705067Z 	at io.netty.util.internal.NativeLibraryLoader.loadFirstAvailable(NativeLibraryLoader.java:107)
+2021-12-23T08:45:35.3706844Z 	at io.netty.handler.ssl.OpenSsl.loadTcNative(OpenSsl.java:705)
+2021-12-23T08:45:35.3707896Z 	at io.netty.handler.ssl.OpenSsl.<clinit>(OpenSsl.java:146)
+2021-12-23T08:45:35.3709238Z 	at io.vertx.core.net.impl.SSLHelper.resolveEngineOptions(SSLHelper.java:75)
+2021-12-23T08:45:35.3710612Z 	at io.vertx.core.net.impl.SSLHelper.<init>(SSLHelper.java:134)
+2021-12-23T08:45:35.3711760Z 	at io.vertx.core.http.impl.HttpClientImpl.<init>(HttpClientImpl.java:132)
+2021-12-23T08:45:35.3713126Z 	at io.vertx.core.impl.VertxImpl.createHttpClient(VertxImpl.java:338)
+2021-12-23T08:45:35.3715919Z 	at org.apache.servicecomb.foundation.vertx.client.http.HttpClientPoolFactory.createClientPool(HttpClientPoolFactory.java:40)
+2021-12-23T08:45:35.3720067Z 	at org.apache.servicecomb.foundation.vertx.client.http.HttpClientPoolFactory.createClientPool(HttpClientPoolFactory.java:29)
+2021-12-23T08:45:35.3722456Z 	... 14 common frames omitted
+2021-12-23T08:45:35.3726072Z 	Suppressed: java.lang.IllegalStateException: Multiple resources found for 'META-INF/native/libnetty_tcnative_linux_x86_64.so': [jar:file:////home/runner/.m2/repository/io/netty/netty-tcnative-boringssl-static/2.0.46.Final/netty-tcnative-boringssl-static-2.0.46.Final.jar!/META-INF/native/libnetty_tcnative_linux_x86_64.so, jar:file:/home/runner/.m2/repository/io/netty/netty-tcnative-boringssl-static/2.0.46.Final/netty-tcnative-boringssl-static-2.0.46.Final.jar!/META-INF/native/libnetty_tcnative_linux_x86_64.so]
+2021-12-23T08:45:35.3729843Z 		at io.netty.util.internal.NativeLibraryLoader.getResource(NativeLibraryLoader.java:253)
+2021-12-23T08:45:35.3731760Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:151)
+2021-12-23T08:45:35.3733770Z 		at io.netty.util.internal.NativeLibraryLoader.loadFirstAvailable(NativeLibraryLoader.java:98)
+2021-12-23T08:45:35.3735156Z 		... 22 common frames omitted
+2021-12-23T08:45:35.3736102Z 	Suppressed: java.lang.UnsatisfiedLinkError: could not load a native library: netty_tcnative_linux_x86_64_fedora
+2021-12-23T08:45:35.3737549Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:217)
+2021-12-23T08:45:35.3739931Z 		at io.netty.util.internal.NativeLibraryLoader.loadFirstAvailable(NativeLibraryLoader.java:98)
+2021-12-23T08:45:35.3741319Z 		... 22 common frames omitted
+2021-12-23T08:45:35.3742375Z 	Caused by: java.io.FileNotFoundException: META-INF/native/libnetty_tcnative_linux_x86_64_fedora.so
+2021-12-23T08:45:35.3743809Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:164)
+2021-12-23T08:45:35.3744864Z 		... 23 common frames omitted
+2021-12-23T08:45:35.3745720Z 		Suppressed: java.lang.UnsatisfiedLinkError: no netty_tcnative_linux_x86_64_fedora in java.library.path
+2021-12-23T08:45:35.3746884Z 			at java.lang.ClassLoader.loadLibrary(ClassLoader.java:1875)
+2021-12-23T08:45:35.3747882Z 			at java.lang.Runtime.loadLibrary0(Runtime.java:872)
+2021-12-23T08:45:35.3748749Z 			at java.lang.System.loadLibrary(System.java:1124)
+2021-12-23T08:45:35.3750077Z 			at io.netty.util.internal.NativeLibraryUtil.loadLibrary(NativeLibraryUtil.java:38)
+2021-12-23T08:45:35.3751996Z 			at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:319)
+2021-12-23T08:45:35.3753840Z 			at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:139)
+2021-12-23T08:45:35.3754888Z 			... 23 common frames omitted
+2021-12-23T08:45:35.3755738Z 			Suppressed: java.lang.UnsatisfiedLinkError: no netty_tcnative_linux_x86_64_fedora in java.library.path
+2021-12-23T08:45:35.3756888Z 				at java.lang.ClassLoader.loadLibrary(ClassLoader.java:1875)
+2021-12-23T08:45:35.3757866Z 				at java.lang.Runtime.loadLibrary0(Runtime.java:872)
+2021-12-23T08:45:35.3758718Z 				at java.lang.System.loadLibrary(System.java:1124)
+2021-12-23T08:45:35.3760034Z 				at io.netty.util.internal.NativeLibraryUtil.loadLibrary(NativeLibraryUtil.java:38)
+2021-12-23T08:45:35.3761656Z 				at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2021-12-23T08:45:35.3763179Z 				at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2021-12-23T08:45:35.3765044Z 				at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2021-12-23T08:45:35.3766488Z 				at java.lang.reflect.Method.invoke(Method.java:498)
+2021-12-23T08:45:35.3767694Z 				at io.netty.util.internal.NativeLibraryLoader$1.run(NativeLibraryLoader.java:353)
+2021-12-23T08:45:35.3775692Z 				at java.security.AccessController.doPrivileged(Native Method)
+2021-12-23T08:45:35.3777555Z 				at io.netty.util.internal.NativeLibraryLoader.loadLibraryByHelper(NativeLibraryLoader.java:345)
+2021-12-23T08:45:35.3779758Z 				at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:311)
+2021-12-23T08:45:35.3780984Z 				... 24 common frames omitted
+2021-12-23T08:45:35.3781785Z 	Suppressed: java.lang.UnsatisfiedLinkError: could not load a native library: netty_tcnative_x86_64
+2021-12-23T08:45:35.3783366Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:217)
+2021-12-23T08:45:35.3785374Z 		at io.netty.util.internal.NativeLibraryLoader.loadFirstAvailable(NativeLibraryLoader.java:98)
+2021-12-23T08:45:35.3786760Z 		... 22 common frames omitted
+2021-12-23T08:45:35.3787863Z 	Caused by: java.io.FileNotFoundException: META-INF/native/libnetty_tcnative_x86_64.so
+2021-12-23T08:45:35.3789243Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:164)
+2021-12-23T08:45:35.3790308Z 		... 23 common frames omitted
+2021-12-23T08:45:35.3791112Z 		Suppressed: java.lang.UnsatisfiedLinkError: no netty_tcnative_x86_64 in java.library.path
+2021-12-23T08:45:35.3792232Z 			at java.lang.ClassLoader.loadLibrary(ClassLoader.java:1875)
+2021-12-23T08:45:35.3793202Z 			at java.lang.Runtime.loadLibrary0(Runtime.java:872)
+2021-12-23T08:45:35.3794049Z 			at java.lang.System.loadLibrary(System.java:1124)
+2021-12-23T08:45:35.3795388Z 			at io.netty.util.internal.NativeLibraryUtil.loadLibrary(NativeLibraryUtil.java:38)
+2021-12-23T08:45:35.3797389Z 			at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:319)
+2021-12-23T08:45:35.3799235Z 			at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:139)
+2021-12-23T08:45:35.3800309Z 			... 23 common frames omitted
+2021-12-23T08:45:35.3801112Z 			Suppressed: java.lang.UnsatisfiedLinkError: no netty_tcnative_x86_64 in java.library.path
+2021-12-23T08:45:35.3802232Z 				at java.lang.ClassLoader.loadLibrary(ClassLoader.java:1875)
+2021-12-23T08:45:35.3803188Z 				at java.lang.Runtime.loadLibrary0(Runtime.java:872)
+2021-12-23T08:45:35.3804055Z 				at java.lang.System.loadLibrary(System.java:1124)
+2021-12-23T08:45:35.3805383Z 				at io.netty.util.internal.NativeLibraryUtil.loadLibrary(NativeLibraryUtil.java:38)
+2021-12-23T08:45:35.3806969Z 				at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2021-12-23T08:45:35.3808551Z 				at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2021-12-23T08:45:35.3810401Z 				at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2021-12-23T08:45:35.3811952Z 				at java.lang.reflect.Method.invoke(Method.java:498)
+2021-12-23T08:45:35.3813185Z 				at io.netty.util.internal.NativeLibraryLoader$1.run(NativeLibraryLoader.java:353)
+2021-12-23T08:45:35.3814590Z 				at java.security.AccessController.doPrivileged(Native Method)
+2021-12-23T08:45:35.3816452Z 				at io.netty.util.internal.NativeLibraryLoader.loadLibraryByHelper(NativeLibraryLoader.java:345)
+2021-12-23T08:45:35.3818662Z 				at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:311)
+2021-12-23T08:45:35.3819854Z 				... 24 common frames omitted
+2021-12-23T08:45:35.3820654Z 	Suppressed: java.lang.UnsatisfiedLinkError: could not load a native library: netty_tcnative
+2021-12-23T08:45:35.3822052Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:217)
+2021-12-23T08:45:35.3824069Z 		at io.netty.util.internal.NativeLibraryLoader.loadFirstAvailable(NativeLibraryLoader.java:98)
+2021-12-23T08:45:35.3825452Z 		... 22 common frames omitted
+2021-12-23T08:45:35.3826409Z 	Caused by: java.io.FileNotFoundException: META-INF/native/libnetty_tcnative.so
+2021-12-23T08:45:35.3827808Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:164)
+2021-12-23T08:45:35.3828852Z 		... 23 common frames omitted
+2021-12-23T08:45:35.3829660Z 		Suppressed: java.lang.UnsatisfiedLinkError: no netty_tcnative in java.library.path
+2021-12-23T08:45:35.3830778Z 			at java.lang.ClassLoader.loadLibrary(ClassLoader.java:1875)
+2021-12-23T08:45:35.3831735Z 			at java.lang.Runtime.loadLibrary0(Runtime.java:872)
+2021-12-23T08:45:35.3832589Z 			at java.lang.System.loadLibrary(System.java:1124)
+2021-12-23T08:45:35.3833905Z 			at io.netty.util.internal.NativeLibraryUtil.loadLibrary(NativeLibraryUtil.java:38)
+2021-12-23T08:45:35.3835935Z 			at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:319)
+2021-12-23T08:45:35.3837786Z 			at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:139)
+2021-12-23T08:45:35.3838833Z 			... 23 common frames omitted
+2021-12-23T08:45:35.3839639Z 			Suppressed: java.lang.UnsatisfiedLinkError: no netty_tcnative in java.library.path
+2021-12-23T08:45:35.3840731Z 				at java.lang.ClassLoader.loadLibrary(ClassLoader.java:1875)
+2021-12-23T08:45:35.3841706Z 				at java.lang.Runtime.loadLibrary0(Runtime.java:872)
+2021-12-23T08:45:35.3842554Z 				at java.lang.System.loadLibrary(System.java:1124)
+2021-12-23T08:45:35.3843892Z 				at io.netty.util.internal.NativeLibraryUtil.loadLibrary(NativeLibraryUtil.java:38)
+2021-12-23T08:45:35.3845498Z 				at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2021-12-23T08:45:35.3847024Z 				at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2021-12-23T08:45:35.3848890Z 				at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2021-12-23T08:45:35.3850422Z 				at java.lang.reflect.Method.invoke(Method.java:498)
+2021-12-23T08:45:35.3851705Z 				at io.netty.util.internal.NativeLibraryLoader$1.run(NativeLibraryLoader.java:353)
+2021-12-23T08:45:35.3853125Z 				at java.security.AccessController.doPrivileged(Native Method)
+2021-12-23T08:45:35.3854969Z 				at io.netty.util.internal.NativeLibraryLoader.loadLibraryByHelper(NativeLibraryLoader.java:345)
+2021-12-23T08:45:35.3857179Z 				at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:311)
+2021-12-23T08:45:35.3858397Z 				... 24 common frames omitted
+```
+
+From the stack trace, seems the error casused by 
+
+```
+2021-12-23T08:45:35.3726072Z 	Suppressed: java.lang.IllegalStateException: Multiple resources found for 'META-INF/native/libnetty_tcnative_linux_x86_64.so': [jar:file:////home/runner/.m2/repository/io/netty/netty-tcnative-boringssl-static/2.0.46.Final/netty-tcnative-boringssl-static-2.0.46.Final.jar!/META-INF/native/libnetty_tcnative_linux_x86_64.so, jar:file:/home/runner/.m2/repository/io/netty/netty-tcnative-boringssl-static/2.0.46.Final/netty-tcnative-boringssl-static-2.0.46.Final.jar!/META-INF/native/libnetty_tcnative_linux_x86_64.so]
+2021-12-23T08:45:35.3729843Z 		at io.netty.util.internal.NativeLibraryLoader.getResource(NativeLibraryLoader.java:253)
+2021-12-23T08:45:35.3731760Z 		at io.netty.util.internal.NativeLibraryLoader.load(NativeLibraryLoader.java:151)
+2021-12-23T08:45:35.3733770Z 		at io.netty.util.internal.NativeLibraryLoader.loadFirstAvailable(NativeLibraryLoader.java:98)
+```
+
+The class loader got two resources
+
+```
+jar:file:////home/runner/.m2/repository/io/netty/netty-tcnative-boringssl-static/2.0.46.Final/netty-tcnative-boringssl-static-2.0.46.Final.jar!/META-INF/native/libnetty_tcnative_linux_x86_64.so, 
+jar:file:/home/runner/.m2/repository/io/netty/netty-tcnative-boringssl-static/2.0.46.Final/netty-tcnative-boringssl-static-2.0.46.Final.jar!/META-INF/native/libnetty_tcnative_linux_x86_64.so
+```
+
+### Version
+
+3.9.12 + netty 4.1.72
+
+### Context
+
+when openssl enabled and running in linux(Ubuntu)
+
+### Do you have a reproducer?
+
+This error failed when running test cases in [servicecomb](https://github.com/apache/servicecomb-java-chassis/pull/2674/files)
+
+### Steps to reproduce
+
+
+### Extra
+
+* I am not sure if this error caused by netty or vert.x. From the stack trace, problem may related to vert.x ContextClassLoader or netty implementation.
+* I run other branch test cases using vert.x 4.1.7 + netty 4.1.72, do not have this problem. (In same machine and test case)
+* I run other branch test cases using vert.x 3.9.8 + netty 4.1.67, do not have this problem. (In same machine and test case)

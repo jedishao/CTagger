@@ -1,0 +1,48 @@
+Write behind with coalesce
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Is your feature request related to a problem? Please describe.**
+I believe there are no write-behind with coalesce feature.
+Currently from what I see at the [MapWriteBehindTask](https://github.com/redisson/redisson/blob/master/redisson/src/main/java/org/redisson/MapWriteBehindTask.java#L52) use a RedissonQueue that results in a standard Queue implementation.
+
+Problems come when we have a lot of updates per second.
+Example:
+- Let say there is around 50K unique keys
+- Around **1000 Updates per second** to the Redisson map
+- That updates can be **multiple times for 1 key**, for Example 10 updates per second for Key 1.
+- This results in 1000 elements at the queue per second, which results into 60K elements per minute
+- The biggest problems come when the write-behind persistence can only handle let's say **200 updates per second.**
+   - This results in the queue keeps increasing to a very huge amount and the DB keeps lagging behind
+   - I understand that the queue will be put into a map first (thus a map with size 100 might fetch more than 100 elements in the queue)
+   - Manually tweaking config to improve this might be possible (increasing batch size but it is really hard to predict the amount since we can't predict how the update order will be)
+   - And slow persistence is actually the main reason we should use batch and write-behind 
+
+**Describe the solution you'd like**
+Option to use Write coalesce queue
+- Basically, the queue only has the latest update
+- All old updates will not be stored to the queue
+
+Possible usual solution (I am not knowledgeable on Redis data structure, so it might not be possible or give bad performance, also not sure about the Atomicity or Consistency on failure):
+- Use a Coalesced Queue
+   - Possibly by making use of List and Map at Redis?
+   - Use the List for Map iteration reference 
+   - Since I don't think Redis have ordered list, Can simply iterate backward if want to iterate from "HEAD"
+- At addFirst :
+  - Lock at List and Map based on key?
+  - If exist in the list, then remove it from the list (There might be a better data structure to improve this O(n) for Redis?) 
+  - Update the Map
+  - Add the key back to the list
+  - Unlock
+- At poll 
+  - lock List and Map
+  - retrieve by BatchSize
+  - retrieve Map element
+  - Clear up the Map and List
+  - Unlock
+
+**Describe alternatives you've considered**
+
+Can't find an easy way beside Increasing batch size and re-batch it at the MapStore for the elements per transaction
+Not really efficient but it reduces the queue size better when the DB update can't catch up with it.

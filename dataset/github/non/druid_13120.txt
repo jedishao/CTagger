@@ -1,0 +1,81 @@
+Refine Query Context Security Model
+### Description
+
+Extend the recently-added query context security model to add another level of filtering defined via system configuration. System configuration will allow a site to say that selected context keys are either always allowed or never allowed. Security rules apply only when there are per-user exceptions to the disallowed keys.
+
+### Background
+
+Druid provides the query context feature in both SQL and native queries. Query context values provide a wide range of functionality including a custom query ID, controlling resources, affecting the behavior of execution engines and much more.
+
+Some of the query context values require deep knowledge of Druid internals. Setting these values without that knowledge can actually destabilize the Druid cluster. Because of this, some users want the ability to restrict usage of query context values.
+
+The current behavior, added within the last year, enforces security rules on context using Druid’s resource security system. This system allows “users” (however a particular security extension defines that term) to be granted permissions on context keys one by one.
+
+### Motivation
+
+Experience has shown that the current system has two opportunities for improvement. First, it is common for applications to insert query context keys automatically. With the current approach, all users must be granted permission on these system-set values. Failure to grant that permission results in all queries being rejected. 
+
+Druid has no way to differentiate a context key set by the user vs. one set by an application. To Druid, they are just keys set in a map presented to the query REST API. While we could separate the keys into two groups, nothing would prevent a user from setting one of the “system” keys.
+
+Second, experience suggests that context key filtering is more of a system configuration choice than a per-user choice. That is, a given deployment may choose to disable a set of context keys: not on a per-user basis but site-wide.
+
+### Challenges
+
+Earlier enhancements tried to address the query context issues, but had limitations. A key limitation is that we can easily imagine use cases where the set of keys allowed depends on the source of the request. For example, the Router sets the query ID. But, we might not want to allow end users to set the ID. So, if a query comes from the Router, we want to allow a query ID to be set, but if it comes from anywhere else (a `curl` request sent directly to the Broker, say), we don't want to allow a query ID.
+
+Similarly, a user may have some application that sets certain keys. But, if someone tries to bypass the application and use `curl`, those same keys are not allowed.
+
+While this requirement is easy to state, it is, at present, impossible to enforce. There is no reliable way for the Broker to know the source of a request. Even if we added a new field, there is nothing stoping a `curl` user from setting that field to say, "yeah, trust me, I'm the Router."
+
+One solution would be to identify the IP addresses of trusted senders. We can identify Routers from Zookeeper. Perhaps the usr could configure the IPs of their own app proxies. Even this, however, fails if the app runs in a browser (think of the Druid console): exactly the same IP address will send app and `curl` requests.
+
+To resolve this, we have to go the route of "extreme equality" all requests are treated equally; we don't care their source. If one request can set the query ID, say, then all can. Yes, this means that a `curl` app can bypass the Router. If this is an issue, then education is a good solution. If that fails, then lock the Brokers behind a firewall and only expose the Router.
+
+Similarly, if a user app can set context key X, then so should the any user running `curl`. Again, if restrictions are needed, only expose the app server and hide the Druid servers so that all requests through the custom app.
+
+This solution is not idea, but it is the only practical solution given the present limitations of Druid's REST API.
+
+### Proposal
+
+To address these issues, and further perfect the context security feature, we propose to add options to the configuration file in the form of a “allow list” and a “restrict list”. For example, using straw-man configuration key names:
+
+```text
+druid.auth.unsecuredContextKeys=["queryID", "priority"]
+```
+
+or
+
+```text
+druid.auth.securedContextKeys=["parallelMergeParallelism", "bySegment"]
+```
+
+The allow list names those context values that may appear in a query context, whether set by the user or the site’s application. Keys not in the accept list are restricted (but see below.) By contrast, keys in the restrict list are forbidden (but again see below), while all others are allowed. If a user provides both an accept and reject list, then the result is treated as a restricted list with the accept list items removed.
+
+When presented with a query context, Druid will match the actual keys against the accept and restricted lists, and will produce a set of restricted keys. These the set of restricted keys includes all those in the context, minus those in the accept list. Or, if a restrict list is present, the restricted keys are those in the context that match the reject list. That is, given a `context` from a query:
+
+```
+checkList = context keys
+
+if restrict config is not empty then
+  checkList = checkList ∩ restrict
+end if
+
+checkList = checkList - allow
+```
+
+The `checkList` is then run though the security system as today.
+
+To maintain backward compatibility, Druid next uses the existing security checks to validate only those keys in the `checkList`. This behavior allows, say, specific users access to restricted keys. This can be useful if a developer is asked to try some internal context key to resolve an issue. Without this feature, the system configuration would have to change for all users.
+
+### Compatibility
+
+If both lists are empty, and context security is disabled, then the new features will behave exactly as before: all users can set all keys. If both lists are empty, and context security is enabled, then the new features also behave as before: all keys are subject to the security checks.
+
+If either list is present, then the list controls the subset of keys subject to security. Restricted keys are authorized as before, but accept list keys bypass the security check. This provides a simple migration path to use site-level configuration instead of security rules for keys which all users can set.
+
+### Specific Changes
+
+The code changes to enable this feature are simple:
+
+* Add the accept and reject lists to the Druid configuration files.
+* Add the filtering operations described above to the two places where Druid checks keys: in the SQL and native query paths.

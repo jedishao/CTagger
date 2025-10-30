@@ -1,0 +1,10 @@
+Abandoning String Dictionary is very slow
+Assume a String dictionary with X millions of keys are abandoned. String dictionary writer, converts in blocks of max 1024 rows at a time. For each of this 1024 rows, it tries to ensure that the size is less than 32 MB.
+
+the logical size calculation, allocates a cache of X million keys, initializes them to -1, populates only 1024 entries. This slows down the abandoning process by 150 times.
+
+![Presto_Profiling_information](https://user-images.githubusercontent.com/6520371/101427535-ea87c580-38b3-11eb-8e7d-e6adf7744881.png)
+
+This is a sample fix, I created, https://github.com/arunthirupathi/presto/commit/ab4167b6b25789ef1002a7ace91b3bc3737da17a and this needs to be replicated all the usages.
+
+I will make an attempted fix for this issue, when I get time, but opening the issue here to get the attention of the other users.

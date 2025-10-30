@@ -1,0 +1,43 @@
+Post aggregators in SQL based ingestion with rollups
+While running query :
+
+```sql
+REPLACE INTO country_shard_test_1 OVERWRITE ALL
+SELECT Country,Capital,    THETA_SKETCH_INTERSECT(
+      DS_THETA(Country),
+      DS_THETA(Capital)
+    ) as sketch FROM TABLE(
+  EXTERN(
+    '{"type":"http","uris":["https://static.imply.io/lookup/country.tsv"]}',
+    '{"type":"tsv","findColumnsFromHeader":true}',
+    '[{"name":"Country","type":"string"},{"name":"Capital","type":"string"},{"name":"ISO3","type":"string"},{"name":"ISO2","type":"string"}]'))
+  group by 1,2
+  PARTITIONED BY ALL
+```
+We get an unknown error :
+
+```
+UnknownError: java.util.NoSuchElementException (Stack trace)
+Failed task ID: query-0bc9b9c3-de75-416c-bfdb-6ab802871826 (on host: localhost:8100)
+Debug: get query detail archive
+Full stack trace
+java.util.NoSuchElementException
+    at java.base/java.util.Collections$EmptyIterator.next(Collections.java:4210)
+    at com.google.common.collect.Iterators.getOnlyElement(Iterators.java:297)
+    at com.google.common.collect.Iterables.getOnlyElement(Iterables.java:285)
+    at org.apache.druid.msq.exec.ControllerImpl.makeDimensionsAndAggregatorsForIngestion(ControllerImpl.java:1646)
+    at org.apache.druid.msq.exec.ControllerImpl.generateDataSchema(ControllerImpl.java:1431)
+    at org.apache.druid.msq.exec.ControllerImpl.makeQueryDefinition(ControllerImpl.java:1398)
+    at org.apache.druid.msq.exec.ControllerImpl.initializeQueryDefAndState(ControllerImpl.java:523)
+    at org.apache.druid.msq.exec.ControllerImpl.runTask(ControllerImpl.java:346)
+    at org.apache.druid.msq.exec.ControllerImpl.run(ControllerImpl.java:296)
+    at org.apache.druid.msq.indexing.MSQControllerTask.run(MSQControllerTask.java:192)
+    at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:477)
+    at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:449)
+    at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+    at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+    at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+    at java.base/java.lang.Thread.run(Thread.java:829)
+```
+
+How should we handle post aggregators in SQL-based ingestion while doing rollup q's. 

@@ -1,0 +1,46 @@
+ProtoReflectionService class should accept Protobuf schema files with the same name
+### What version of gRPC-Java are you using?
+
+1.47.0
+
+### What is your environment?
+
+macOS Big Sur 11.4, OpenJDK 17.0.3
+
+### What did you expect to see?
+
+gRPC services added to a server should be exposed by the `ProtoReflectionService` class, even if the two services are defined in two different `.proto` files with the same name.
+
+### What did you see instead?
+
+The `ProtoReflectionService` class only exposes the first service added to a gRPC server (with `.addService()` method). The issue comes from ([ProtoReflectionService.java](https://github.com/grpc/grpc-java/blob/master/services/src/main/java/io/grpc/protobuf/services/ProtoReflectionService.java)):
+
+```java
+if (!seenFiles.contains(fileDescriptor.getName())) {
+  seenFiles.add(fileDescriptor.getName());
+  fileDescriptorsToProcess.add(fileDescriptor);
+}
+```
+
+The implementation requires `.proto` file names to be different, even if they are in completely different source code repositories, directories, or have different namespaces.
+
+### Steps to reproduce the bug
+
+1. Define a first gRPC service called `InternalService` in a Protobuf schema file `src/proto/internal/services.proto`.
+2. Define a second gRPC service called `ExternalService` in a Protobuf schema file named `src/proto/external/services.proto`.
+3. Create `Server` and add the two services, and an instance of the `ProtoReflectionService`:
+
+```java
+Server server = ServerBuilder
+        .forPort(8980)
+        .addService(new InternalService())
+        .addService(new ExternalService())
+        .addService(ProtoReflectionService.newInstance())
+        .build();
+```
+
+4. Call one of the rpcs in `ExternalService` (i.e. second service added to server) with `grpcurl`.
+5. Get back this error:
+```bash
+Error invoking method "specs.external.ExternalService/someRpc": target server does not expose service "specs.external.ExternalService"
+```

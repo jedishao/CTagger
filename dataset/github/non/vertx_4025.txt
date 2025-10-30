@@ -1,0 +1,14 @@
+Quarkus needs the ability to change the ClassLoader
+#### Describe the feature
+
+Quarkus Development mode works by dropping and re-creating a class loader every time code is changed. As this is triggered by a HTTP request vert.x is not restarted each time, so the HTTP requests work as expected.
+
+This is causing issues such as https://github.com/quarkusio/quarkus/issues/18299 where vert.x is hanging onto the original ClassLoader that was passed in at creation time. With Vert.x 3 we worked around  this by manually scheduling a task on each IO thread that updated the Thread context ClassLoader, however this no longer works in Vert.x 4, as Vert.x is resetting the CL each time.
+
+For now we are likely going to work around it via `vertx.disableTCCL=true` and filtering out the resulting warnings.
+
+In terms of implementation I was thinking maybe instead of Vert.x taking a ClassLoader it could take a Supplier<ClassLoader>, and this could be use to obtain the correct TCCL each time.
+
+#### Contribution
+
+I can implement it if there is consensus on what it should look like.

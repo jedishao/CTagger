@@ -1,0 +1,32 @@
+max_by and min_by queries fail with PageFile in LBM
+In large batch mode with presto native format,  queries with `max_by` or `min_by ` sometimes fail, this is data dependent and not able to reproduce without customer data.
+
+```
+create table t1(nationkey int,  bool_features map<varchar, boolean>);
+insert into t1 values (1, map(ARRAY['1','3'], ARRAY[True, False]));
+select max_by(bool_features, nationkey) from t1 group by nationkey;
+```
+
+Stack trace:
+```
+java.lang.IllegalArgumentException
+	at com.google.common.base.Preconditions.checkArgument(Preconditions.java:127)
+	at com.facebook.presto.operator.aggregation.minmaxby.KeyAndBlockPositionValueStateSerializer.deserialize(KeyAndBlockPositionValueStateSerializer.java:79)
+	at com.facebook.presto.operator.aggregation.minmaxby.KeyAndBlockPositionValueStateSerializer.deserialize(KeyAndBlockPositionValueStateSerializer.java:30)
+	at com.facebook.presto.$gen.Map_varchar_boolean_Map_varchar_boolean_BigintMaxByGroupedAccumulator_20200627_094758_5454.addIntermediate(Unknown Source)
+	at com.facebook.presto.operator.aggregation.builder.InMemoryHashAggregationBuilder$Aggregator.processPage(InMemoryHashAggregationBuilder.java:432)
+	at com.facebook.presto.operator.aggregation.builder.InMemoryHashAggregationBuilder.lambda$processPage$2(InMemoryHashAggregationBuilder.java:170)
+	at com.facebook.presto.operator.TransformWork.process(TransformWork.java:44)
+	at com.facebook.presto.operator.HashAggregationOperator.addInput(HashAggregationOperator.java:408)
+	at com.facebook.presto.operator.Driver.processInternal(Driver.java:387)
+	at com.facebook.presto.operator.Driver.lambda$processFor$8(Driver.java:284)
+	at com.facebook.presto.operator.Driver.tryWithLock(Driver.java:672)
+	at com.facebook.presto.operator.Driver.processFor(Driver.java:277)
+	at com.facebook.presto.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:1077)
+	at com.facebook.presto.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:162)
+	at com.facebook.presto.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:545)
+	at com.facebook.presto.$gen.Presto_0_239_SNAPSHOT_ca60019____20200627_073828_1.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1135)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:844)
+```

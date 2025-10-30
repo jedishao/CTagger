@@ -1,0 +1,28 @@
+BanJNDI errorprone error in JndiResourceResolverFactory with rules_java v5.4.1
+### What version of gRPC-Java are you using?
+
+1.53.0
+
+### What is your environment?
+
+macOS 13.0.1, openjdk 17, bazel 6.0.0, rules_java v5.4.1
+
+### What did you expect to see?
+
+No errors.
+
+### What did you see instead?
+
+```
+ERROR: external/io_grpc_grpc_java/core/BUILD.bazel:24:13: Building external/io_grpc_grpc_java/core/libinternal-class.jar (117 source files) failed: (Exit 1): java failed: error executing command (from target @io_grpc_grpc_java//core:internal) external/remotejdk17_macos/bin/java '--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED' '--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED' ... (remaining 17 arguments skipped)
+external/io_grpc_grpc_java/core/src/main/java/io/grpc/internal/JndiResourceResolverFactory.java:216: error: [BanJNDI] Using JNDI may deserialize user input via the `Serializable` API which is extremely dangerous
+        javax.naming.directory.Attributes attrs = dirContext.getAttributes(name, rrType);
+                                                                          ^
+    (see https://errorprone.info/bugpattern/BanJNDI)
+```
+
+### Steps to reproduce the bug
+
+Setup bazel to use grpc-java 1.53.0 with openjdk 17, bazel 6.0.0, rules_java v5.4.1. You will get the error. A repro exist in https://github.com/satreix/everest/pull/406
+
+This error does not appear with rules_java 5.4.0.

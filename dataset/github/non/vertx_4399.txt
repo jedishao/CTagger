@@ -1,0 +1,44 @@
+Failed to get camel-bridge working in vertx v4.x
+### Version
+
+`vertx v4.x`
+
+### Context
+
+I'm not able to make working `camel-bridge `component in `vertx v4.x`
+
+### Do you have a reproducer?
+
+```
+    public void testCamelBridge() throws Exception {
+        CamelContext camelContext = new DefaultCamelContext();
+        camelContext.addRoutes(new RouteBuilder() {
+            @Override
+            public void configure() {
+                from("direct:start").transform(constant("OK"));
+            }
+        });
+        camelContext.start();
+
+        VertxOptions vertxOptions = new VertxOptions();
+        vertxOptions.setEventLoopPoolSize(4);
+        vertxOptions.setWorkerPoolSize(4);
+        Vertx vertx = Vertx.vertx(vertxOptions);
+        CamelBridge bridge = CamelBridge.create(vertx, new CamelBridgeOptions(camelContext)
+                .addOutboundMapping(OutboundMapping.fromVertx("test").toCamel("direct:start")));
+        bridge.start();
+        vertx.eventBus().request("test", "hello", reply -> LOG.info("reply.result().body():{}"
+                , reply.result() != null ? reply.result().body() : "null"));
+
+    }
+
+```
+
+Executing the method will trace ` INFO  reply.result().body():null` while when running in `vertx v3.x` (replace `vertx.eventBus().request( ... )` with `vertx.eventBus().send( ... )`) it will trace ` INFO  reply.result().body():OK` as expected.
+
+
+### Extra
+
+In `vertx v4.x` I'm having `camel v3.x` and `vertx v3.x` `camel v2.x` if that matters. 
+
+Sorry, I probably should have opened this ticket on repository: https://github.com/vert-x3/vertx-camel-bridge

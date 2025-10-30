@@ -1,0 +1,36 @@
+ByteBuffer memory leak in retry mechanism
+### What version of gRPC-Java are you using?
+Bug detected on latest code from master branch (at the time of this post), and also 1.45 (the version used in production where the leak was noticed).
+
+### What is your environment?
+ Tested on macos (12.4) and centos7 with jdk11. In production where the leak was originally detected, it's debian with jre17
+
+### What did you expect to see?
+These bytebuffer should be getting released.
+
+### What did you see instead?
+Bytebuffers getting allocated and not released when a retry is triggered, it's causing OOMs in production (and in my local code reproduction).
+
+### Steps to reproduce the bug
+I modified the hello-world example to showcase this bug.
+```
+git clone git@github.com:grpc/grpc-java.git
+cd grpc-java/examples
+```
+then in the `src/main/java/io/grpc/examples/helloworld` dir you'll see the client and server. Replace the client with my client: https://gist.github.com/davidnadeau/055f88cec499a6afb502c9e5f231a271 (I just change the stub to be async and use a deadline, then call the greet method in a loop). Then you can run from the examples dir:
+
+```
+./gradlew installDist
+Then in their own tabs:
+./build/install/examples/bin/hello-world-server
+./build/install/examples/bin/hello-world-client
+
+with more verbose leak logging
+HELLO_WORLD_CLIENT_OPTS="-Dio.grpc.netty.shaded.io.netty.leakDetection.level=paranoid " ./build/install/examples/bin/hello-world-client
+```
+
+It's definitely related to the retry mechanism, since adding `.disableRetry()` to the client channel makes the leak go away. I believe the deadline is causing the retry to trigger (you can see in the logs that the deadline is triggering).
+
+Full leak log here: https://gist.github.com/davidnadeau/4da26f072482fb58b19f4bd0379f35c7
+
+There is a noticeable latency increase when disabling retries which prevents it from being a viable solution for my case.

@@ -1,0 +1,45 @@
+Remove default 30s ackTimeout when using deadLetterPolicy
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found [this issue](https://github.com/apache/pulsar/issues/8484) which was closed as stale
+
+
+### Motivation
+
+[Context](https://github.com/apache/pulsar/pull/3014#issuecomment-493759971) and [additional context](https://github.com/apache/pulsar/issues/8484)
+
+The deadLetterPolicy was implemented before negativeAcknowledgement was an option, which meant that the client had to rely on ackTimeout to result in redelivery / DLQ. However, now that negativeAck is available, we should not default to using the 30s ackTimeout, since it can cause cascading redeliveries when an application takes longer than 30s to process a message. Additionally, the behavior is inconsistent by ordering in the ConsumerBuilder:
+
+```
+consumerBuilder
+    .ackTimeout(0, TimeUnit.MILLISECONDS)
+    .deadLetterPolicy(DeadLetterPolicy.builder().build())
+    .subscribe()
+```
+
+vs
+
+```
+consumerBuilder
+    .deadLetterPolicy(DeadLetterPolicy.builder().build())
+    .ackTimeout(0, TimeUnit.MILLISECONDS)
+    .subscribe()
+```
+
+Option 1 results in ackTimeout of 30s, despite disabling it explicitly, while option 2 _does_ disable ackTimeout.
+
+### Solution
+
+I would like to remove the default ackTimeout set [here](https://github.com/apache/pulsar/blob/aaf3a9a9a7464a5553d22ac3d8aff4352734941d/pulsar-client/src/main/java/org/apache/pulsar/client/impl/ConsumerBuilderImpl.java#L444). This was discussed already [here](https://github.com/apache/pulsar/pull/3014#issuecomment-493759971)
+
+### Alternatives
+
+If changing the default is not a viable solution, then we could add a flag in the ConsumerBuilder that denotes when ackTimeout has been set by the user and prevent the default from taking effect in this case, which was discussed already [here](https://github.com/apache/pulsar/issues/8484#issuecomment-726057120)
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

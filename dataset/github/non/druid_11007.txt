@@ -1,0 +1,34 @@
+Improve performance of queries against SYSTEM.SEGMENT tables
+0.21
+
+For a cluster hosting more than million segments, the datasource and segment tabs are particularly slow. Looking at the chrome developer tools, it turns out that most of the time is being consumed by the queries executed against SYSTEM.SEGMENTS table. 
+
+On my test cluster hosting more than two million segments, on clicking the segments tab, the following query takes over 12 seconds. 
+`SELECT "segment_id", "datasource", "start", "end", "size", "version", "partition_num", "num_replicas", "num_rows", "is_published", "is_available", "is_realtime", "is_overshadowed"
+FROM sys.segments
+ORDER BY "start" DESC
+LIMIT 25`
+
+Similarly, clicking on the datasource tab, the following query is fired which also takes upwards of 12 seconds. 
+`SELECT
+  datasource,
+  COUNT(*) FILTER (WHERE (is_published = 1 AND is_overshadowed = 0) OR is_realtime = 1) AS num_segments,
+  COUNT(*) FILTER (WHERE is_available = 1 AND ((is_published = 1 AND is_overshadowed = 0) OR is_realtime = 1)) AS num_available_segments,
+  COUNT(*) FILTER (WHERE is_published = 1 AND is_overshadowed = 0 AND is_available = 0) AS num_segments_to_load,
+  COUNT(*) FILTER (WHERE is_available = 1 AND NOT ((is_published = 1 AND is_overshadowed = 0) OR is_realtime = 1)) AS num_segments_to_drop,
+  SUM("size") FILTER (WHERE is_published = 1 AND is_overshadowed = 0) AS total_data_size,
+  SUM("size" * "num_replicas") FILTER (WHERE is_published = 1 AND is_overshadowed = 0) AS replicated_size,
+  MIN("num_rows") FILTER (WHERE is_published = 1 AND is_overshadowed = 0) AS min_segment_rows,
+  AVG("num_rows") FILTER (WHERE is_published = 1 AND is_overshadowed = 0) AS avg_segment_rows,
+  MAX("num_rows") FILTER (WHERE is_published = 1 AND is_overshadowed = 0) AS max_segment_rows,
+  SUM("num_rows") FILTER (WHERE (is_published = 1 AND is_overshadowed = 0) OR is_realtime = 1) AS total_rows,
+  CASE
+    WHEN SUM("num_rows") FILTER (WHERE is_published = 1 AND is_overshadowed = 0) <> 0
+    THEN (
+      SUM("size") FILTER (WHERE is_published = 1 AND is_overshadowed = 0) /
+      SUM("num_rows") FILTER (WHERE is_published = 1 AND is_overshadowed = 0)
+    )
+    ELSE 0
+  END AS avg_row_size
+FROM sys.segments
+GROUP BY 1`

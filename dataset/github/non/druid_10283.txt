@@ -1,0 +1,28 @@
+Druid SQL: Querying a new data source with no data returns a CalciteContextException. 
+Querying a new data source with no data -- unpublished/no segments, returns a CalciteContextException. 
+
+### Affected Version
+
+0.18.1
+
+### Description
+
+Bring up a supervisor with data source "ds". Issue a SQL query against the new data source once the supervisor is up and running:
+```
+SELECT * FROM ds
+```
+returns the following exception:
+```
+Unknown exception / org.apache.calcite.runtime.CalciteContextException: From line 1, column 15 to line 1, column 17: Object 'ds' not found / org.apache.calcite.tools.ValidationException
+```
+
+Looking at the logs, the broker appears to be doing a SQL validation:
+```
+Caused by: org.apache.calcite.sql.validate.SqlValidatorException: Object 'ds' not found
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method) ~[?:1.8.0_162]
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62) ~[?:1.8.0_162]
+```
+
+As a workaround, we'd have to resort to batch-inline ingest, where we ingest a single canned row corresponding to this data source, so there's at least one segment that is available/published and hence is query-able. I think it'd be nice to return "no data", which would also be consistent with the canonical native JSON query and other SQL-like engines.
+
+/cc: @gianm  @clintropolis  @jihoonson. Thanks!

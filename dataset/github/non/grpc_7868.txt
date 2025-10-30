@@ -1,0 +1,24 @@
+Ability to get callExecutor in ClientInterceptor implementation
+Various interceptor implementations need to invoke listener callbacks such as in scenarios:
+- returning a [FailingClientCall](https://github.com/grpc/grpc-java/blob/v1.35.0/alts/src/main/java/io/grpc/alts/FailingClientCall.java#L34)
+- delaying requests and responses
+- retrying requests
+
+However, those listener callbacks maybe called in a wrong thread that its user or the channel provider does not intend to use. I believe many interceptor implementations have been doing this. The callbacks should be running in application thread (executed by callExecutor).
+
+`CallOptions` provides `getExecutor()`, but this may return `null`, and in that case the callExecutor should fallback to the channel executor.
+
+In some cases this would not be a big problem, but not in the case of delay, retry, or there are other interceptors switching application thread/running async tasks involved. The problem could be even more difficult to resolve if an interceptor implementation is to be used as a library for others.
+
+Possible solutions:
+
+- In `ManagedChannelImpl`, we add
+  ```java
+  if (callOptions.getExecutor() == null) { callOptions.withExecutor(channelExecutor); }
+  ```
+  But if the interceptor uses a different channel, callOptions.getExecutor() may still be null.
+
+- Add a `getExecutor()` method for `Channel` class. Then Interceptor can call `nextChannel.getExecutor()` as a fallback of `callOptions.getExecutor()`.
+
+Problems to some solutions:
+- Executor lifecycle.

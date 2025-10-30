@@ -1,0 +1,57 @@
+Reindex from Druid Datasource gives 0 values for metrics Quantiles and HLL
+This is similar to https://github.com/apache/druid/issues/9914 and others related. The workaround does not work for Quantiles and HLL in 0.21.1.
+
+### Affected Version
+
+0.21.1
+
+### Description
+Using a very simple example in the console. The goal is to take a dimensional column from the source table and create a new datasource that aggregates that column into a Quantile sketch if it's a number or HLL Sketch if it's a string. I can sum the number column as a metric, but the Quantiles or HLL are empty.
+
+The workaround listed is actually populated now from the Load Data in console. The fix was to include the dimensions from the source datasource as metrics in the inputSource. If I have a dimension called `dim_double` - I can sum that dimension, but cannot quantiles from it. With the string dimension called `dim_string` - I cannot get HLL sketch from this.
+
+```
+ "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "druid",
+        "dataSource": "source_datasource",
+        "interval": "2021-08-18/2021-08-19",
+        "metrics": [
+          "count",
+          "dim_double",
+          "dim_string"
+        ]
+      },
+      "appendToExisting": false
+    },
+```
+Then, the metricSpec looks like:
+
+```
+ "metricsSpec": [
+        {
+          "type": "longSum",
+          "name": "count",
+          "fieldName": "count",
+          "expression": null
+        },
+        {
+          "name": "hll_dim_string",
+          "type": "HLLSketchBuild",
+          "fieldName": "dim_string"
+        },
+        {
+          "fieldName": "dim_double", 
+          "type": "doubleSum", 
+          "name": "sum_dim_double"
+        }, 
+        {
+          "name": "quantiles_doubles_dim_double",
+          "type": "quantilesDoublesSketch",
+          "fieldName": "dim_double"
+        }
+      ],
+```
+
+I have not tested on earlier versions. This seems like a common use-case. Note, if I build the spec from the source data it does work. 

@@ -1,0 +1,45 @@
+ScanFilterAndProjectOperator performance skew in code gen filter
+In my product environment with 98 worker (each worker has 40 cores with 80 processor).
+jdk version : openjdk-11.0.10
+
+
+Conside the query1 with filter fos_type='Android' :
+`
+SELECT "fdate", "fos_type", "fapp_version",count(distinct "fuser_id")
+FROM db1.table1
+WHERE "fdate" >= 20220302 AND "fdate" < 20220309 AND "fos_type" ='Android'
+GROUP BY "fdate","fos_type", "fapp_version" ;
+`
+
+and query2 without fos_type filter：
+`
+SELECT "fdate", "fos_type", "fapp_version",count(distinct "fuser_id")
+FROM db1.table1
+WHERE "fdate" >= 20220302 AND "fdate" < 20220309 
+GROUP BY "fdate","fos_type", "fapp_version" ;
+`
+query1 take 40 seconds while query2 only take 2 seconds.
+ I repeat these query much times and the result is the same.
+
+<img width="601" alt="image" src="https://user-images.githubusercontent.com/18375623/157998622-760f1119-faf0-481b-9f7b-be722b62bb27.png">
+
+one of the worker execute much slower than others.
+But while 28 threads running (as picture above shows ). the cpu utilization is low, and thread is block in filter.
+<img width="1045" alt="wecom-temp-fe626f6b324a527812687293631129b4" src="https://user-images.githubusercontent.com/18375623/157998557-90b590d1-1815-4b4c-a9ce-34ff6b4246f0.png">
+<img width="646" alt="wecom-temp-e90c4b55e6ba8f833420746f2fd1272c" src="https://user-images.githubusercontent.com/18375623/157998590-405beb8e-30ad-4904-8501-a01efc2ca736.png">
+
+<img width="808" alt="wecom-temp-486459aedac35da4de1b5b5d33ab8f0f" src="https://user-images.githubusercontent.com/18375623/157998575-cd969f90-7646-4f0e-8f3d-c3ca79cf0b78.png">
+
+Trace method though arthas, it shows that filter sometimes take much time( page size is 1024).
+![image](https://user-images.githubusercontent.com/18375623/157999372-ec789ea4-e103-4507-816f-326d0c0fadce.png)
+
+plan:
+ScanFilterProject[table = TableHandle {connectorId='thive', connectorHandle='HiveTableHandle{schemaName=dbxxx, tableName=tablexxx, partitionNames=Optional.empty}', layout='Optional[dbxxx.tablexxx{domains={fdate=[ [[20220302, 20220309)] ], fos_type=[ [[Android]] ]}}]'}, filterPredicate = (((fdate) >= (BIGINT 20220302)) AND ((fdate) < (
+        Estimates: {rows: ? (?), cpu: ?, memory: 0.00, network: 0.00}/{rows: ? (?), cpu: ?, memory: 0.00, network: 0.00}/{rows: ? (?), cpu: ?, memory: 0.00, network: 0.00}                                                                                                                                                                                                                                               
+        $hashvalue_23 := combine_hash(combine_hash(combine_hash(combine_hash(BIGINT 0, COALESCE($operator$hash_code(fdate), BIGINT 0)), COALESCE($operator$hash_code(fos_type), BIGINT 0)), COALESCE($operator$hash_code(fapp_version), BIGINT 0)), COALESCE($operator$hash_code(fuser_id), BIGINT 0))                                                                                                                     
+        LAYOUT: dbxxx.tablexxx{domains={fdate=[ [[20220302, 20220309)] ], fos_type=[ [[Android]] ]}}                                                                                                                                                                                                                                                                                  
+        fos_type := fos_type:string:3:REGULAR                                                                                                                                                                                                                                                                                                                                                                             
+        fapp_version := fapp_version:string:5:REGULAR                                                                                                                                                                                                                                                                                                                                                                     
+        fuser_id := fuser_id:string:2:REGULAR                                                                                                                                                                                                                                                                                                                                                                               
+        fdate := fdate:bigint:0:REGULAR
+

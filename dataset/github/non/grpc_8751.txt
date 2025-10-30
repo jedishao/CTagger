@@ -1,0 +1,31 @@
+JVM crash with grpc-java 1.42.x and alpine docker image
+An attempt to upgrade from grpc-java 1.41.1 to 1.42.x ends with JVM crash.
+It looks like the problem is specific to Alpine Linux. It reproduces on `openjdk:15-jdk-alpine` and `openjdk:8-alpine` and goes away with a switch on `openjdk:X-slim` [debian] images.
+Maybe also affected by the fact that `openjdk:X-alpine` images are not maintained anymore, hence have no new JDK updates.
+The first version of grpc-java with the problem is 1.42.0, the versions before work fine.
+
+It may be related to https://github.com/grpc/grpc/issues/27995
+
+#
+  | # A fatal error has been detected by the Java Runtime Environment:
+  | #
+  | #  SIGSEGV (0xb) at pc=0x0000000000003efe, pid=372, tid=0x00007fbffbc9bb10
+  | #
+  | # JRE version: OpenJDK Runtime Environment (8.0_212-b04) (build 1.8.0_212-b04)
+  | # Java VM: OpenJDK 64-Bit Server VM (25.212-b04 mixed mode linux-amd64 compressed oops)
+  | # Derivative: IcedTea 3.12.0
+  | # Distribution: Custom build (Sat May  4 17:33:35 UTC 2019)
+  | # Problematic frame:
+  | # C  0x0000000000003efe
+  | #
+  | # Core dump written. Default location: /temporal-java-client/temporal-kotlin/core or core.372
+  | #
+  | # An error report file with more information is saved as:
+  | # /temporal-java-client/temporal-kotlin/hs_err_pid372.log
+  | #
+  | # If you would like to submit a bug report, please include
+  | # instructions on how to reproduce the bug and visit:
+  | #   https://icedtea.classpath.org/bugzilla
+  | #
+
+[hs_err_pid372.log](https://github.com/grpc/grpc-java/files/7688927/hs_err_pid372.log)

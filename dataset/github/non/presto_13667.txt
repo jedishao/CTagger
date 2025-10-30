@@ -1,0 +1,21 @@
+IS DISTINCT FROM returns incorrect result for decimal values with precision > 18
+The `IS DISTINCT FROM` predicate returns an incorrect result when comparing decimal values with precisions > 19.
+
+```
+presto> create table hive.default.test (c1 decimal(20, 2), c2 decimal(20, 2));
+presto> insert into test values (0.64, 0.72);
+presto> insert into test values (1.12, 1.12);
+presto> insert into test values (1.85, 1.34);
+presto> select * from test where c1 is distinct from c2;
+ c1 | c2
+----+----
+(0 rows)
+```
+Should return
+```
+  c1  |  c2
+------+------
+ 0.64 | 0.72
+ 1.85 | 1.34
+(2 rows)
+```

@@ -1,0 +1,49 @@
+RedissonMultiLock seems not work properly with RedissonSpinLock?
+redisson version: 3.16.8
+JDK: 1.8.0.312
+system: macOS 12.3 (21E230)
+cpu: Apple M1 Pro
+
+`RedissonMultiLock` cannot use the `public boolean tryLock(long waitTime, long leaseTime, TimeUnit unit)` with `RedissonSpinLock`
+
+It will throw such exception like this:
+
+stack trace:
+```
+java.lang.ClassCastException: org.redisson.RedissonSpinLock cannot be cast to org.redisson.RedissonLock
+	at org.redisson.RedissonMultiLock.lambda$tryLock$3(RedissonMultiLock.java:424)
+	at java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:193)
+	at java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1384)
+	at java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:482)
+	at java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:472)
+	at java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)
+	at java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)
+	at java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+	at java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:418)
+	at org.redisson.RedissonMultiLock.tryLock(RedissonMultiLock.java:426)
+        ...
+```
+
+In the method `public boolean tryLock(long waitTime, long leaseTime, TimeUnit unit)` of RedissonMultiLock, there is such a block of codes.
+
+```java
+        if (leaseTime != -1) {
+            acquiredLocks.stream()
+                    .map(l -> (RedissonLock) l)  // <---- this line
+                    .map(l -> l.expireAsync(unit.toMillis(leaseTime), TimeUnit.MILLISECONDS))
+                    .forEach(f -> f.toCompletableFuture().join());
+        }
+```
+
+But `RedissonSpinLock` cannot cast to `RedissonLock`. It inherit from `RedissonBaseLock` but not `RedissonLock`.
+
+Could it be like this?
+
+```java
+        if (leaseTime != -1) {
+            acquiredLocks.stream()
+                    .map(l -> (RedissonExpirable) l)
+                    .map(l -> l.expireAsync(unit.toMillis(leaseTime), TimeUnit.MILLISECONDS))
+                    .forEach(f -> f.toCompletableFuture().join());
+        }
+```

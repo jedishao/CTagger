@@ -1,0 +1,12 @@
+Flaky IT: ITAutoCompactionLockContentionTest. testAutoCompactionDutyWithSegmentGranularityAndExistingCompactedSegmentsHaveDifferentSegmentGranularity
+`ITAutoCompactionLockContentionTest. testAutoCompactionDutyWithSegmentGranularityAndExistingCompactedSegmentsHaveDifferentSegmentGranularity ` failed in [this build](https://app.travis-ci.com/github/apache/druid/jobs/578684500):
+
+```text
+[org.apache.druid.tests.coordinator.duty.ITAutoCompactionTest.testAutoCompactionDutyWithSegmentGranularityAndExistingCompactedSegmentsHaveDifferentSegmentGranularity]
+org.apache.druid.java.util.common.ISE: Max number of retries[240] exceeded for Task[Compaction segment count check]. Failing.
+	at org.apache.druid.testing.utils.ITRetryUtil.retryUntil(ITRetryUtil.java:94) ~[druid-integration-tests-0.24.0-SNAPSHOT.jar:0.24.0-SNAPSHOT]
+```
+
+Looks like the test tried to run some native query 240 times and it failed in all of them. It is not clear exactly what went wrong.
+
+This test passed in previous runs of this particular PR. The changes involved in the PR are to how Guice is initialized, which should not affect compaction in any unique way. Preliminary conclusions: the test itself is a bit flaky.

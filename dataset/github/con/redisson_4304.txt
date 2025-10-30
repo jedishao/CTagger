@@ -1,0 +1,24 @@
+RedisResponseTimeoutException on Java 17
+**Expected behavior**
+
+I can fetch data from redis using `rrmapcache.get("key")` on Java 17 just like I can on Java 11
+
+**Actual behavior**
+
+A RedisResponseTimeoutException occurs, even though the redis server immediately (about 300 nanoseconds later) sends a response (according to Wireshark). That exception always occurs, even if I do a single-threaded single-request test. However, checking with containsKey and putting something into redis works.
+
+**Steps to reproduce or test case**
+
+Put something in redis cache and attempt to get it again. The server should be responding fast (this could possibly be a race condition where a wake occurs before a sleep).
+
+**Redis version**
+
+7.0 (also tested on 5.x)
+
+**Redisson version**
+
+3.17.1
+
+**Redisson configuration**
+
+`config.useSingleServer().setAddress("redis://127.0.0.1:6379").setDatabase(1).setRetryAttempts(0);`

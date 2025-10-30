@@ -1,0 +1,89 @@
+[topic][HTTP500 Internal Server Error] unexpected error when trying to delete partitioned-topic with admin-cli
+**Describe the bug**
+A clear and concise description of what the bug is.
+
+**Pulsar version:** apache-pulsar-2.10.0
+**When I trying to delete partitioned-topic with admin-cli like this:**
+==> pulsar-admin topics delete-partitioned-topic {persistent|non-persistent}
+**Got result :**Failed to perform http delete request: javax.ws.rs.InternalServerErrorException: HTTP 500 Internal Server Error
+                  HTTP 500 Internal Server Error
+**And more Error Log:**
+[pulsar-web-33-5] ERROR org.apache.pulsar.broker.admin.impl.PersistentTopicsBase - [null] Failed to delete topic persistent://XXX/XXX/XXX (tenant、namespace、topicname are sensitive msgs, sorry about that...)
+org.apache.bookkeeper.mledger.ManagedLedgerException: java.util.concurrent.CompletionException: org.apache.bookkeeper.client.BKException$BKUnexpectedConditionException: Unexpected condition
+Caused by: java.util.concurrent.CompletionException: org.apache.bookkeeper.client.BKException$BKUnexpectedConditionException: Unexpected condition
+        at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:292) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:308) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.uniRun(CompletableFuture.java:714) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$UniRun.tryFire(CompletableFuture.java:701) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:1990) ~[?:1.8.0_292]
+        at org.apache.bookkeeper.mledger.util.Futures.lambda$waitForAll$0(Futures.java:57) ~[org.apache.pulsar-managed-ledger-2.10.0.jar:2.10.0]
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:1990) ~[?:1.8.0_292]
+        at org.apache.bookkeeper.client.SyncCallbackUtils.finish(SyncCallbackUtils.java:83) ~[org.apache.bookkeeper-bookkeeper-server-4.14.4.jar:4.14.4]
+        at org.apache.bookkeeper.client.SyncCallbackUtils$SyncDeleteCallback.deleteComplete(SyncCallbackUtils.java:180) ~[org.apache.bookkeeper-bookkeeper-server-4.14.4.jar:4.14.4]
+        at org.apache.bookkeeper.client.LedgerDeleteOp.lambda$initiate$0(LedgerDeleteOp.java:87) ~[org.apache.bookkeeper-bookkeeper-server-4.14.4.jar:4.14.4]
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$Completion.run(CompletableFuture.java:456) ~[?:1.8.0_292]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_292]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_292]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [io.netty-netty-common-4.1.74.Final.jar:4.1.74.Final]
+        at java.lang.Thread.run(Thread.java:748) [?:1.8.0_292]
+Caused by: org.apache.bookkeeper.client.BKException$BKUnexpectedConditionException: Unexpected condition
+        at org.apache.bookkeeper.client.SyncCallbackUtils.finish(SyncCallbackUtils.java:83) ~[org.apache.bookkeeper-bookkeeper-server-4.14.4.jar:4.14.4]
+        at org.apache.bookkeeper.client.SyncCallbackUtils$SyncDeleteCallback.deleteComplete(SyncCallbackUtils.java:180) ~[org.apache.bookkeeper-bookkeeper-server-4.14.4.jar:4.14.4]
+        at org.apache.bookkeeper.client.LedgerDeleteOp.lambda$initiate$0(LedgerDeleteOp.java:87) ~[org.apache.bookkeeper-bookkeeper-server-4.14.4.jar:4.14.4]
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$Completion.run(CompletableFuture.java:456) ~[?:1.8.0_292]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) ~[?:1.8.0_292]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) ~[?:1.8.0_292]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.74.Final.jar:4.1.74.Final]
+        at java.lang.Thread.run(Thread.java:748) ~[?:1.8.0_292]
+
+**And these:**
+[AsyncHttpClient-40-1] ERROR org.apache.pulsar.broker.admin.impl.PersistentTopicsBase - [null] Failed to delete partition persistent://XXX/XXX/XXX (tenant、namespace、topicname are sensitive msgs, sorry about that...)
+org.apache.pulsar.client.admin.PulsarAdminException$ServerSideErrorException: HTTP 500 Internal Server Error
+        at org.apache.pulsar.client.admin.internal.BaseResource.getApiException(BaseResource.java:223) ~[org.apache.pulsar-pulsar-client-admin-original-2.10.0.jar:2.10.0]
+        at org.apache.pulsar.client.admin.internal.BaseResource$3.failed(BaseResource.java:188) ~[org.apache.pulsar-pulsar-client-admin-original-2.10.0.jar:2.10.0]
+        at org.glassfish.jersey.client.JerseyInvocation$1.failed(JerseyInvocation.java:882) ~[org.glassfish.jersey.core-jersey-client-2.34.jar:?]
+        at org.glassfish.jersey.client.JerseyInvocation$1.completed(JerseyInvocation.java:863) ~[org.glassfish.jersey.core-jersey-client-2.34.jar:?]
+        at org.glassfish.jersey.client.ClientRuntime.processResponse(ClientRuntime.java:229) ~[org.glassfish.jersey.core-jersey-client-2.34.jar:?]
+        at org.glassfish.jersey.client.ClientRuntime.access$200(ClientRuntime.java:62) ~[org.glassfish.jersey.core-jersey-client-2.34.jar:?]
+        at org.glassfish.jersey.client.ClientRuntime$2.lambda$response$0(ClientRuntime.java:173) ~[org.glassfish.jersey.core-jersey-client-2.34.jar:?]
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:292) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:274) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+        at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:288) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+        at org.glassfish.jersey.client.ClientRuntime$2.response(ClientRuntime.java:173) ~[org.glassfish.jersey.core-jersey-client-2.34.jar:?]
+        at org.apache.pulsar.client.admin.internal.http.AsyncHttpConnector.lambda$apply$1(AsyncHttpConnector.java:228) ~[org.apache.pulsar-pulsar-client-admin-original-2.10.0.jar:2.10.0]
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) ~[?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:1975) ~[?:1.8.0_292]
+        at org.apache.pulsar.client.admin.internal.http.AsyncHttpConnector.lambda$retryOperation$4(AsyncHttpConnector.java:270) ~[org.apache.pulsar-pulsar-client-admin-original-2.10.0.jar:2.10.0]
+        at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:774) [?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:750) [?:1.8.0_292]
+        at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) [?:1.8.0_292]
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Create a partitioned-topic with admin-cli.
+2. Try to delete the partitioned-topic with admin-cli.
+
+**Expected behavior**
+Delete the partitioned-topic with admin-cli succeed.
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+**Desktop (please complete the following information):**
+ - OS: [e.g. iOS]
+
+**Additional context**
+Add any other context about the problem here.

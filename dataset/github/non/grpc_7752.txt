@@ -1,0 +1,48 @@
+xDS channel shutdown problem
+### gRPC-Java Version: v1.34.1
+### Environment: Windows, openjdk-11.0.4
+### Description:
+With the simple demo code below:
+```java
+public static void main(String[] args){
+    ManagedChannel channel0 = NettyChannelBuilder.forTarget("xds:///greeter").usePlaintext().build();
+    HelloRequest request = HelloRequest.newBuilder().setName("world").build();
+    String message = GreeterGrpc.newBlockingStub(channel0).sayHello(request).getMessage();
+    System.out.println(message); // will print "Hello world"
+
+    channel0.shutdown().awaitTermination(10, TimeUnit.SECONDS);
+
+    ManagedChannel channel1 = NettyChannelBuilder.forTarget("xds:///greeter").usePlaintext().build();
+    message = GreeterGrpc.newBlockingStub(channel1).sayHello(request).getMessage(); // will throw
+}
+```
+Output:
+```
+Hello world
+warning: [Channel<17>: (xds:///greeter)] Failed to resolve name. status=Status{code=UNAVAILABLE, description=Channel shutdown invoked, cause=null}
+Exception in thread "main" io.grpc.StatusRuntimeException: UNAVAILABLE: Channel shutdown invoked
+	at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+	at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+	at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+	at GreeterGrpc$GreeterBlockingStub.sayHello(GreeterGrpc.java:157)
+	at XdsClientExample.main(XdsClientTest.java:35)
+```
+
+Then I look into the source code, concentrating in two classes: **[io.grpc.xds.SharedXdsClientPoolProvider](https://github.com/grpc/grpc-java/blob/v1.34.1/xds/src/main/java/io/grpc/xds/SharedXdsClientPoolProvider.java)** and **[io.grpc.xds.AbstractXdsClient](https://github.com/grpc/grpc-java/blob/v1.34.1/xds/src/main/java/io/grpc/xds/AbstractXdsClient.java)**.
+
+Class SharedXdsClientPoolProvider says that, when refCount become 0, xdsClient.shutdown() is invoked:
+https://github.com/grpc/grpc-java/blob/a6b29213a976e217f65d703dda43112639ecfd80/xds/src/main/java/io/grpc/xds/SharedXdsClientPoolProvider.java#L122
+
+And then AbstractXdsClient will shutdown its underlying ManagedChannel, which is used to communicate with xDS server:
+https://github.com/grpc/grpc-java/blob/a6b29213a976e217f65d703dda43112639ecfd80/xds/src/main/java/io/grpc/xds/AbstractXdsClient.java#L178
+
+But acording to SharedXdsClientPoolProvider:69, the ManagedChannel is shared among all XdsClients.
+https://github.com/grpc/grpc-java/blob/a6b29213a976e217f65d703dda43112639ecfd80/xds/src/main/java/io/grpc/xds/SharedXdsClientPoolProvider.java#L69
+One XdsClient's channel shuts down, all XdsClients' channel shuts down.
+
+And look at [**SharedXdsClientPoolProviderTest**](https://github.com/grpc/grpc-java/blob/v1.34.1/xds/src/test/java/io/grpc/xds/SharedXdsClientPoolProviderTest.java), it seems that the case shown above is not covered by the unit test.
+
+So shouldn't I invoke xds-targeted channel's shutdown()? Or it's a bug?
+If I should never invoke shutdown() of xds-targeted channel, how can I manage the channel's cleanup? I need create, cache, shutdown, and re-create channels of many different "xds://xxx" targets in my code. Do increasing un-shutdown channels lead to resource leaks?
+
+Thanks.

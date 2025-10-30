@@ -1,0 +1,43 @@
+SlaveConnectionPool  24 connections initialized for slaves in redisson   version: '3.17.1'
+I am working with redisson  in Sentinel mode which is creating so many connections by default. Though you have mentioned in many comments that this bug is fixed in "Fixed in https://github.com/redisson/redisson/issues/4011" .But i am still getting the same problem even in 13.7.1 version 
+
+**Redisson version**
+3.17.1
+
+**Redis version**
+5.0.14.1
+
+**My Code** :
+ `  config.useSentinelServers()
+					.setMasterName("master")
+					.addSentinelAddress("redis://127.0.0.1:26379")
+					.addSentinelAddress("redis://127.0.0.1:26380")
+					.addSentinelAddress("redis://127.0.0.1:26381")
+					.setTimeout(60000)
+					.setRetryAttempts(250)
+					.setRetryInterval(1500)
+					.setReadMode(ReadMode.SLAVE)
+					.setConnectTimeout(20000)
+					.setSubscriptionMode(SubscriptionMode.MASTER);`
+
+**Expected behavior**
+Its creating so many connections as:
+2022-05-25 06:48:20.036  INFO 14812 --- [isson-netty-2-2] o.r.c.pool.MasterPubSubConnectionPool    : 1 connections initialized for 127.0.0.1/127.0.0.1:6379
+2022-05-25 06:48:20.107  INFO 14812 --- [isson-netty-2-2] o.r.c.pool.MasterConnectionPool          : **4 connections initialized for 127.0.0.1/127.0.0.1:6379**
+2022-05-25 06:48:20.116  INFO 14812 --- [sson-netty-2-15] o.r.c.pool.PubSubConnectionPool          : 1 connections initialized for 127.0.0.1/127.0.0.1:6390
+2022-05-25 06:48:20.120  INFO 14812 --- [isson-netty-2-4] o.r.c.pool.PubSubConnectionPool          : 1 connections initialized for 127.0.0.1/127.0.0.1:6380
+2022-05-25 06:48:20.129  INFO 14812 --- [isson-netty-2-2] o.r.connection.pool.SlaveConnectionPool  : **4 connections initialized for 127.0.0.1/127.0.0.1:6390**
+2022-05-25 06:48:20.130  INFO 14812 --- [sson-netty-2-29] o.r.connection.pool.SlaveConnectionPool  : **4 connections initialized for 127.0.0.1/127.0.0.1:6380**
+
+**Actual behavior**
+Its creating so many connections as:
+2022-05-25 06:48:20.036  INFO 14812 --- [isson-netty-2-2] o.r.c.pool.MasterPubSubConnectionPool    : 1 connections initialized for 127.0.0.1/127.0.0.1:6379
+2022-05-25 06:48:20.107  INFO 14812 --- [isson-netty-2-2] o.r.c.pool.MasterConnectionPool          : **24 connections initialized for 127.0.0.1/127.0.0.1:6379**
+2022-05-25 06:48:20.116  INFO 14812 --- [sson-netty-2-15] o.r.c.pool.PubSubConnectionPool          : 1 connections initialized for 127.0.0.1/127.0.0.1:6390
+2022-05-25 06:48:20.120  INFO 14812 --- [isson-netty-2-4] o.r.c.pool.PubSubConnectionPool          : 1 connections initialized for 127.0.0.1/127.0.0.1:6380
+2022-05-25 06:48:20.129  INFO 14812 --- [isson-netty-2-2] o.r.connection.pool.SlaveConnectionPool  : **24 connections initialized for 127.0.0.1/127.0.0.1:6390**
+2022-05-25 06:48:20.130  INFO 14812 --- [sson-netty-2-29] o.r.connection.pool.SlaveConnectionPool  : **24 connections initialized for 127.0.0.1/127.0.0.1:6380**
+
+Please review this .
+
+

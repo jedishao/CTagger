@@ -1,0 +1,90 @@
+ComputeEngineChannelBuilder fails on App Engine
+### What version of gRPC-Java are you using?
+I'm using version `1.33.1`.
+
+### What is your environment?
+App Engine Standard Environment using Java 11.
+
+### What did you expect to see?
+I am using the [Java Bigtable](https://github.com/googleapis/java-bigtable) client which sets up a gRPC connection to the Bigtable service. In GAE Java 11, the application default credentials are an instance of `ComputeEngineCredentials`, which talk to the project's metadata server to obtain auth tokens. This works fine for many client libraries, however the Bigtable client [uses _DirectPath_ since version 1.17.0 by default](https://github.com/googleapis/java-bigtable/pull/467). This code path includes the usage of gRPC's `ComputeEngineChannelBuilder`. I would expect this to work on App Engine.
+
+### What did you see instead?
+As the file `/sys/class/dmi/id/product_name` is not available on App Engine Standard instances, an internal error will be produced resulting in an exception when making gRPC calls.
+
+### Steps to reproduce the bug
+
+Use the Bigtable Java client with version `>= 1.17.0`. Create a client and read an example row:
+```java
+var client = BigtableDataClient.create(projectId, instanceId);
+client.readRow(tableId, key, null);
+```
+
+This results in the following stack trace:
+```
+com.google.api.gax.rpc.InternalException: io.grpc.StatusRuntimeException: INTERNAL: Compute Engine Credentials can only be used on Google Cloud Platform
+	at com.google.api.gax.rpc.ApiExceptionFactory.createException(ApiExceptionFactory.java:67)
+	at com.google.api.gax.grpc.GrpcApiExceptionFactory.create(GrpcApiExceptionFactory.java:72)
+	at com.google.api.gax.grpc.GrpcApiExceptionFactory.create(GrpcApiExceptionFactory.java:60)
+	at com.google.api.gax.grpc.ExceptionResponseObserver.onErrorImpl(ExceptionResponseObserver.java:82)
+	at com.google.api.gax.rpc.StateCheckingResponseObserver.onError(StateCheckingResponseObserver.java:86)
+	at com.google.api.gax.grpc.GrpcDirectStreamController$ResponseObserverAdapter.onClose(GrpcDirectStreamController.java:149)
+	at io.grpc.alts.FailingClientCall.start(FailingClientCall.java:34)
+	at io.grpc.ForwardingClientCall.start(ForwardingClientCall.java:32)
+	at com.google.api.gax.grpc.GrpcHeaderInterceptor$1.start(GrpcHeaderInterceptor.java:94)
+	at com.google.api.gax.grpc.GrpcDirectStreamController.startCommon(GrpcDirectStreamController.java:115)
+	at com.google.api.gax.grpc.GrpcDirectStreamController.start(GrpcDirectStreamController.java:101)
+	at com.google.api.gax.grpc.GrpcDirectServerStreamingCallable.call(GrpcDirectServerStreamingCallable.java:68)
+	at com.google.api.gax.grpc.GrpcServerStreamingRequestParamCallable.call(GrpcServerStreamingRequestParamCallable.java:61)
+	at com.google.api.gax.grpc.GrpcExceptionServerStreamingCallable.call(GrpcExceptionServerStreamingCallable.java:59)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.RowMergingCallable.call(RowMergingCallable.java:55)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.RowMergingCallable.call(RowMergingCallable.java:36)
+	at com.google.api.gax.rpc.WatchdogServerStreamingCallable.call(WatchdogServerStreamingCallable.java:69)
+	at com.google.api.gax.rpc.ServerStreamingCallable$1.call(ServerStreamingCallable.java:237)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.ReadRowsRetryCompletedCallable.call(ReadRowsRetryCompletedCallable.java:58)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.ReadRowsRetryCompletedCallable.call(ReadRowsRetryCompletedCallable.java:38)
+	at com.google.api.gax.rpc.ServerStreamingAttemptCallable.call(ServerStreamingAttemptCallable.java:234)
+	at com.google.api.gax.rpc.ServerStreamingAttemptCallable.start(ServerStreamingAttemptCallable.java:194)
+	at com.google.api.gax.rpc.RetryingServerStreamingCallable.call(RetryingServerStreamingCallable.java:87)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.FilterMarkerRowsCallable.call(FilterMarkerRowsCallable.java:47)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.FilterMarkerRowsCallable.call(FilterMarkerRowsCallable.java:32)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.ReadRowsUserCallable.call(ReadRowsUserCallable.java:50)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.ReadRowsUserCallable.call(ReadRowsUserCallable.java:33)
+	at com.google.api.gax.rpc.FirstElementCallable.futureCall(FirstElementCallable.java:63)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.ReadRowsFirstCallable.futureCall(ReadRowsFirstCallable.java:36)
+	at com.google.cloud.bigtable.data.v2.stub.readrows.ReadRowsFirstCallable.futureCall(ReadRowsFirstCallable.java:27)
+	at com.google.api.gax.tracing.TracedUnaryCallable.futureCall(TracedUnaryCallable.java:75)
+	at com.google.api.gax.rpc.UnaryCallable$1.futureCall(UnaryCallable.java:126)
+	at com.google.api.gax.rpc.UnaryCallable.futureCall(UnaryCallable.java:87)
+	at com.google.cloud.bigtable.data.v2.BigtableDataClient.readRowAsync(BigtableDataClient.java:574)
+	at com.google.cloud.bigtable.data.v2.BigtableDataClient.readRow(BigtableDataClient.java:428)
+```
+
+Moreover, the following warning will be printed to the log:
+```
+io.grpc.alts.CheckGcpEnvironment: Fail to read platform information: 
+java.nio.file.NoSuchFileException: /sys/class/dmi/id/product_name
+	at java.base/sun.nio.fs.UnixException.translateToIOException(UnixException.java:92)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:116)
+	at java.base/sun.nio.fs.UnixFileSystemProvider.newByteChannel(UnixFileSystemProvider.java:219)
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:370)
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:421)
+	at java.base/java.nio.file.spi.FileSystemProvider.newInputStream(FileSystemProvider.java:420)
+	at java.base/java.nio.file.Files.newInputStream(Files.java:155)
+	at java.base/java.nio.file.Files.newBufferedReader(Files.java:2838)
+	at io.grpc.alts.CheckGcpEnvironment.isRunningOnGcp(CheckGcpEnvironment.java:71)
+	at io.grpc.alts.CheckGcpEnvironment.isOnGcp(CheckGcpEnvironment.java:44)
+	at io.grpc.alts.ComputeEngineChannelBuilder.<init>(ComputeEngineChannelBuilder.java:62)
+	at io.grpc.alts.ComputeEngineChannelBuilder.forTarget(ComputeEngineChannelBuilder.java:72)
+	at io.grpc.alts.ComputeEngineChannelBuilder.forAddress(ComputeEngineChannelBuilder.java:77)
+	at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider.createSingleChannel(InstantiatingGrpcChannelProvider.java:254)
+	at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider.access$1600(InstantiatingGrpcChannelProvider.java:71)
+	at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$1.createSingleChannel(InstantiatingGrpcChannelProvider.java:210)
+	at com.google.api.gax.grpc.ChannelPool.create(ChannelPool.java:72)
+	at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider.createChannel(InstantiatingGrpcChannelProvider.java:217)
+	at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider.getTransportChannel(InstantiatingGrpcChannelProvider.java:200)
+	at com.google.api.gax.rpc.ClientContext.create(ClientContext.java:169)
+	at com.google.cloud.bigtable.data.v2.stub.EnhancedBigtableStub.create(EnhancedBigtableStub.java:128)
+	at com.google.cloud.bigtable.data.v2.BigtableDataClient.create(BigtableDataClient.java:161)
+	at com.google.cloud.bigtable.data.v2.BigtableDataClient.create(BigtableDataClient.java:153)
+```

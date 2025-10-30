@@ -1,0 +1,139 @@
+[configuration between Pulsar and MongoDB Atlas not working] 
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Dear Team,
+For a long time, I have been trying to configure Pulsar MongoDB Source connector to MongoDB Atlas.
+
+Pulsar if in a docker container with the following configuration 
+
+```
+version: '3.9'
+
+services:
+
+  pulsar-server:
+    command: bin/pulsar standalone
+    build:
+      context: ./pulsar/
+    container_name: pulsar-server
+    hostname: pulsar-server
+    volumes:
+      # (!) CA certificate in the '.pem' format.
+      - "./certs/elasticsearch-ca.pem:/pulsar/certs/elasticsearch-ca.pem"
+      - "./certs/ca/truststore.jks:/pulsar/certs/ca/truststore.jks"
+      - "./certs/ca/keystore.jks:/pulsar/certs/ca/keystore.jks"
+      # Copy Debezium - Pulsar Source Connector Files
+      - "./util/mongodb-source-config.yaml:/pulsar/connectors/mongodb-source-config.yaml"
+      - "./target/pulsar-io-mongodb-source-2.10.1.nar:/pulsar/connectors/pulsar-io-mongodb-source-2.10.1.nar"
+      # Copy Pulsar - Elasticsearch Sink Connector files
+      - "./util/elasticsearch-sink.yml:/pulsar/connectors/elasticsearch-sink.yml"
+      - "./target/pulsar-io-elk-sink-2.10.1.nar:/pulsar/connectors/pulsar-io-elk-sink-2.10.1.nar"
+    expose:
+      - 8080
+      - 6650
+      - 6651
+    ports:
+    - 8080:8080
+    - 6650:6650
+    - 6651:6651
+    networks:
+    - custom-sink-connector
+    cap_add:
+    - NET_ADMIN
+    - NET_RAW
+    - SYS_ADMIN
+    privileged: true
+    environment:
+      - tlsEnabled=true
+      - tlsEnableHostnameVerification=true
+      - tlsAllowInsecureConnection=true
+    healthcheck:
+      interval: 10s
+      retries: 20
+      test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://localhost:8080/admin/v2/clusters/standalone
+
+
+volumes:
+  pulsar-io-data:
+    driver: local
+
+networks:
+  custom-sink-connector:
+    driver: bridge
+    attachable: true
+```
+
+
+and MongoDB Source  connector has the following configuration 
+
+```
+tenant: "public"
+namespace: "default"
+name: "debezium-mongodb-source"
+topicName: "debezium-mongodb-topic"
+archive: "connectors/pulsar-io-mongodb-source-2.10.1.nar"
+parallelism: 1
+
+
+configs:
+    # config for pg, docker image: debezium/example-mongodb:latest
+    #mongodb.hosts: "atlas-vdt5wg-shard-0/ramses-shard-00-00.gcd52.mongodb.net:27017,ramses-shard-00-01.gcd52.mongodb.net:27017,ramses-shard-00-02.gcd52.mongodb.net:27017"
+    mongodb.hosts: "atlas-vdt5wg-shard-0/ramses-shard-00-01.gcd52.mongodb.net:27017"
+    mongodb.name: "dbserver3"
+    #mongodb.connection.string: "mongodb+srv://<login>:<password>@test.gcd52.mongodb.net/?serverSelectionTimeoutMS=60000&retryWrites=true&w=majority"
+    # Remember to comment the user and password if the user/password authentication is not enabled for your MongoDB server
+    mongodb.members.auto.discover: true
+    mongodb.ssl.enabled: true
+    mongodb.authsource: "admin"
+    mongodb.user: "***"
+    mongodb.password: "***"
+    mongodb.task.id: "1"
+    database.whitelist: "ramses"
+    # PULSAR_SERVICE_URL_CONFIG
+    pulsar.service.url: "pulsar://127.0.0.1:6650"
+    offset.storage.topic: "offset-topic"
+```
+
+I have tried all , but I keep on getting this error message when attempting to connect to MongoDB Atlas from the pulsar connector. Your help is needed.
+
+```
+
+2022-12-13T01:11:17,039+0000 [debezium-mongodbconnector-dbserver3-change-event-source-coordinator] INFO  io.debezium.connector.mongodb.ConnectionContext - Unable to connect to primary node of 'atlas-vdt3wg-shard-0/ramses-shard-00-01.gcd45.mongodb.net:27017' after attempt #3 (13 remaining)
+2022-12-13T01:11:21,039+0000 [debezium-mongodbconnector-dbserver3-change-event-source-coordinator] INFO  org.mongodb.driver.cluster - Cluster description not yet available. Waiting for 30000 ms before timing out
+2022-12-13T01:11:51,040+0000 [debezium-mongodbconnector-dbserver3-change-event-source-coordinator] ERROR io.debezium.connector.mongodb.ConnectionContext - Error while attempting to connect to primary node of 'atlas-vdt3wg-shard-0/ramses-shard-00-01.gcd45.mongodb.net:27017' after attempt #4 (12 remaining): Timed out after 30000 ms while waiting to connect. Client view of cluster state is {type=UNKNOWN, servers=[{address=ramses-shard-00-01.gcd45.mongodb.net:27017, type=UNKNOWN, state=CONNECTING, exception={com.mongodb.MongoSocketReadException: Prematurely reached end of stream}}]
+com.mongodb.MongoTimeoutException: Timed out after 30000 ms while waiting to connect. Client view of cluster state is {type=UNKNOWN, servers=[{address=ramses-shard-00-01.gcd45.mongodb.net:27017, type=UNKNOWN, state=CONNECTING, exception={com.mongodb.MongoSocketReadException: Prematurely reached end of stream}}]
+        at com.mongodb.internal.connection.BaseCluster.getDescription(BaseCluster.java:177) ~[mongodb-driver-core-4.2.2.jar:?]
+        at com.mongodb.internal.connection.SingleServerCluster.getDescription(SingleServerCluster.java:41) ~[mongodb-driver-core-4.2.2.jar:?]
+        at com.mongodb.client.internal.MongoClientDelegate.getConnectedClusterDescription(MongoClientDelegate.java:127) ~[mongodb-driver-sync-4.2.2.jar:?]
+        at com.mongodb.client.internal.MongoClientDelegate.createClientSession(MongoClientDelegate.java:87) ~[mongodb-driver-sync-4.2.2.jar:?]
+        at com.mongodb.client.internal.MongoClientDelegate$DelegateOperationExecutor.getClientSession(MongoClientDelegate.java:258) ~[mongodb-driver-sync-4.2.2.jar:?]
+        at com.mongodb.client.internal.MongoClientDelegate$DelegateOperationExecutor.execute(MongoClientDelegate.java:162) ~[mongodb-driver-sync-4.2.2.jar:?]
+```
+
+
+### Minimal reproduce step
+
+- create and MongoDb Atlas cluster online
+- create a pulsar container on Docker
+- configure a Pulsar MongoDB source connector  and  try to establish the connection to MongoDB Atlas
+
+### What did you expect to see?
+
+ Pulsar MongoDB source connector to connect to MongoDB Atlas successfully
+
+### What did you see instead?
+
+A failure when Pulsar MongoDB source connector attempt to connect to MongoDB Atlas, with an Exception thrown
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

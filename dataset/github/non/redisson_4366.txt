@@ -1,0 +1,35 @@
+org.redisson.client.RedisTimeoutException: Unable to send command
+业务在使用redisson的时候，某一天突然出现连续出现报错，重启后恢复，具体参数如下：
+
+`redisson版本：3.11.1`
+
+`redisson初始化代码如下：`
+```java
+public void init() {
+        Config config = new Config();
+        config.useSingleServer()
+                .setAddress("redis://" + getHostName() + ":" + getPort()).
+                setPassword(getPassword())
+                .setDatabase(getDatabase())
+                .setRetryAttempts(1)
+                .setConnectionPoolSize(1000);
+        config.setCodec(new JsonJacksonCodec());
+        this.redissonClient = Redisson.create(config);
+        logger.warn("redis init success database is {}", getDatabase());
+    }
+```
+
+
+`报错量：`
+![](https://cdn.jsdelivr.net/gh/ppj19891020/picgo-images/202206141857506.png)
+
+`报错信息：`
+```less
+2022-06-05 08:59:30,120 [DubboServerHandler-10.30.1.249:20880-thread-561] ERROR [couponcenter] [TID: N/A] com.webuy.couponcenter.log.ExceptionAspect : Error_DUBBO_EXCEPTION com.webuy.couponcenter.api.impl.TemplateTocInfoApiImpl - cacheQueryTemplate ARGS:[{"filterReceived":false,"offset":0,"page":true,"pageNo":1,"pageSize":50,"queryDatas":[{"excludeEmpty":true,"type":"usePlace","usePlaceBodys":[143860017],"usePlaceType":20}],"subBizType":301}]
+org.redisson.client.RedisTimeoutException: Unable to send command! Try to increase 'nettyThreads' and/or connection pool size settings Node source: NodeSource [slot=null, addr=null, redisClient=null, redirect=null, entry=MasterSlaveEntry [masterEntry=[freeSubscribeConnectionsAmount=1, freeSubscribeConnectionsCounter=value:50:queue:0, freeConnectionsAmount=33, freeConnectionsCounter=value:996:queue:0, freezed=false, freezeReason=null, client=[addr=redis://couponcenter-redis.webuyops.com:6379], nodeType=MASTER, firstFail=0]]], connection: RedisConnection@271864202 [redisClient=[addr=redis://couponcenter-redis.webuyops.com:6379], channel=[id: 0xd23630d7, L:/10.30.1.249:43650 - R:couponcenter-redis.webuyops.com/10.30.21.48:6379], currentCommand=null], command: (GET), params: [new:usePlace:301:20:143860017] after 1 retry attempts
+	at org.redisson.command.CommandAsyncService$6.run(CommandAsyncService.java:714) ~[redisson-3.11.1.jar!/:3.11.1]
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:682) ~[netty-common-4.1.34.Final.jar!/:4.1.34.Final]
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:757) ~[netty-common-4.1.34.Final.jar!/:4.1.34.Final]
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:485) ~[netty-common-4.1.34.Final.jar!/:4.1.34.Final]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_131]折叠__SOURCE__:10.30.1.249__FILENAME__:/data/logs/common-default.log__PKG_LOGID__:14483560
+```

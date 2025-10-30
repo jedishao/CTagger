@@ -1,0 +1,30 @@
+Optimize aggregation functions
+Aggregation functions is a big part of projection. In hour-long profiles I collected on FB clusters, I often saw high CPU percentage in map_concat or other map aggregation functions. This issue tries to optimize these functions in multiple directions and is part of the larger effort "Optimize Projections" https://github.com/prestodb/presto/issues/15259
+
+### Optimize the usage of TypedSet
+Some map/array aggregation functions (e.g. map_concat, array_union, etc.) needs to identify duplicates so that set operation semantics is supported. Such functions often use TypedSet, which maintains an internal hash table and supports adding or checking a Block position. In the past people tried to optimize this class, e.g. Sreeni tried to simplify redundant hash operations in TypedSet and optimized several array functions (array_distinct, array_filter and array_sort). However this class has deeper issues and can be improved in several ways:
+
+1. Avoid block building inside.
+
+TypedSet has an internal BlockBuilder and appends each Block position being added to it. Block building using BlockBuilder is highly costly and inefficient operation. Here the BlockBuilder is needed to 1) resolve hash table probing collision 2) rehash. However, both are actually not a problem. In most use cases, whole blocks (instead of several positions of a block) are added to the TypedSet, and problem 1) can be resolved by keeping track of the blocks being added.  2) Rehashing is not needed since we can know the max number of entries before creating a TypedSet for most use cases. So we want to provide a method that adds a whole Block and just record the positions in the set using SelectedPositions objects. By providing this `addBlock` interface, internal operations can be streamlined to more efficient loops. It also gives opportunity to get the result Block using more efficient APIs that allows encapsulated memory copying.
+
+2. Avoid computing the hash positions multiple times
+The previous TypedSet usage sometimes require calculating the hash position multiple times if there are multiple TypedSets. For example array_intersect and array_except. Such usages build one TypedSet R, and based on the probe result on R, insert new elements to another TypedSet B. It requires to calculate the hash position multiple times. This can be avoided if the new TypdedSet can encapsulate the operations inside. The hashPosition calculated in hashtable A can be reused by hashtable B if the size and hash functions are the same.
+
+3. Use batch processing or dictionary to get the result Block
+
+The new OptimizedTypedSet provides results from a Block array and their selected positions. Getting the result block can be done several efficient ways: 
+
+- Splice the blocks and then create a single DictionaryBlock; or
+- Create APIs similar to Block.copyPositions()
+
+This, however didn't bring much improvements in the benchmarks since the positions are mostly not adjacent. Whether this can bring gain to other situations, e.g. MergingPageOutput is still to be evaluated.
+
+4. Utilize the hash tables in input MapBlocks
+The hash table operation takes over 50% of CPU in TypedSet operations. Some MapBlocks may already have hash tables built. The map aggregation functions can be a lot faster if we can use existing hash tables in MapBlock. 
+
+### Optimize BlockBuilder usages
+There're some cases it's easier to use BlockBuilders. But many cases can be optimized if a batch interface (A region or an array of positions) is supported.
+
+Also, the memory growth of the BlockBuilders need to be carefully managed. For example, `array_transform` doesn't set the initialEntries correctly and has lots of memory growth that can lead to OOM and CPU waste.
+

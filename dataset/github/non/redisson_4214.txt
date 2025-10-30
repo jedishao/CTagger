@@ -1,0 +1,91 @@
+Missing keyspace notifications from redis-cluster after master failover
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+When connected to a redis-cluster and a master is failed over, the client should receive keyspace notifications from the new master
+
+**Actual behavior**
+Keyspace notifications from the new master are lost
+
+**Steps to reproduce or test case**
+Setup a redis cluster as explained in :
+- https://redis.io/docs/manual/scaling/#creating-and-using-a-redis-cluster
+- https://redis.io/docs/manual/scaling/#initializing-the-cluster
+
+For each node provide the following configuration (port number varies from 7000 to 7005):
+```
+port 700[0-5]
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+appendonly yes
+notify-keyspace-events E$
+protected-mode no
+```
+
+Run the following test:
+```
+Config config = new Config();
+ClusterServersConfig clusterServersConfig = config.useClusterServers();
+clusterServersConfig.setNodeAddresses(Arrays.asList(
+        "redis://127.0.0.1:7000",
+        "redis://127.0.0.1:7001",
+        "redis://127.0.0.1:7002",
+        "redis://127.0.0.1:7003",
+        "redis://127.0.0.1:7004",
+        "redis://127.0.0.1:7005"));
+clusterServersConfig.setSubscriptionsPerConnection(1); // needed because of https://github.com/redisson/redisson/issues/4213
+RedissonClient c = Redisson.create(config);
+
+c.getPatternTopic("__keyevent@*__:*", StringCodec.INSTANCE).addListener(String.class, new PatternMessageListener<String>() {
+    @Override
+    public void onMessage(CharSequence pattern, CharSequence channel, String msg) {
+        System.out.println("Received event pattern " + pattern + " channel " + channel + " msg " + msg);
+    }
+});
+Thread.sleep(600_000);
+```
+
+Shutdown one of the master nodes and wait until redisson logs the new cluster configuration.
+
+Connect to the redis cluster and update keys on all master nodes:
+```
+127.0.0.1:7001> set a 1
+-> Redirected to slot [15495] located at 127.0.0.1:7002
+OK
+127.0.0.1:7002> set b 1
+-> Redirected to slot [3300] located at 127.0.0.1:7000 <- new master
+OK
+127.0.0.1:7000> set c 1
+-> Redirected to slot [7365] located at 127.0.0.1:7001
+OK
+```
+
+The notification from the new master is lost:
+```
+Received event pattern __keyevent@*__:* channel __keyevent@0__:set msg a
+Received event pattern __keyevent@*__:* channel __keyevent@0__:set msg c
+```
+
+**Additional comments**
+As a work around, I'm periodically retrieving the list of master nodes (client.getRedisNodes(RedisNodes.CLUSTER)), and when the list changes I recreate the subscription as follows:
+```
+client.getPatternTopic("__keyevent@*__:*", StringCodec.INSTANCE).removeListener(prevId);
+client.getPatternTopic("__keyevent@*__:*", StringCodec.INSTANCE).addListener(String.class, new PatternMessageListener<String>() {
+    @Override
+    public void onMessage(CharSequence pattern, CharSequence channel, String msg) {
+        System.out.println("Received event pattern " + pattern + " channel " + channel + " msg " + msg);
+    }
+```
+Notice: I need to pass explicitly the previous listener id (prevId) to removeListener() because with removeAllListeners() I still miss the keyspace notifications from the new master and get dupe notifications from old masters.
+
+**Redis version**
+Redis server v=6.2.6 sha=00000000:0 malloc=jemalloc-5.1.0 bits=64 build=40f6d3ded4e576d9
+
+**Redisson version**
+3.17.0
+
+**Redisson configuration**
+See "Steps to reproduce or test case"

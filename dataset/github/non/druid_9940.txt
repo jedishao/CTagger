@@ -1,0 +1,10 @@
+Improve Performance With Multithreaded Kill Unused Segments Task
+### Description
+
+In [KillUnusedSegmentsTask](https://github.com/apache/druid/blob/master/indexing-service/src/main/java/org/apache/druid/indexing/common/task/KillUnusedSegmentsTask.java) unused segments are deleted in serial. The proposal is to use an ExecutorService to kill the segments in parallel. A numThreads parameter will be added to the task spec with a default to 1 so that existing functionality is not changed. This parameter is also exposed in the URL parameters used by the UI, e.g. /coordinator/v1/datasources/wikipedia1?kill=true&interval=1000/3000&numThreads=10
+
+A  fork and test results will be added here soon. 
+
+### Motivation
+
+In deployments with very large numbers of segments, deleting unused segments can be painfully slow. This is particularly noticeable in large HDFS deployments as each request to the cluster could be parallelized in a straightforward way. This was a client request and it would be nice to hear from others with similar issues. 

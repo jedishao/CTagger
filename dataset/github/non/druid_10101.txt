@@ -1,0 +1,32 @@
+druid ingestion failed after reindexing, due to shardSpec inconsistency 
+
+
+### Affected Version
+
+tested v0.17.1 and v0.18.0
+
+### Description
+
+druid ingestion failed and showing error message below:
+```2020-06-30T16:23:35,156 ERROR [task-runner-0-priority-0] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Encountered exception while running task.
+org.apache.druid.java.util.common.ISE: Could not allocate segment for row with timestamp[2020-06-22T04:00:00.000Z]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.runInternal(SeekableStreamIndexTaskRunner.java:707) ~[druid-indexing-service-0.17.1.jar:0.17.1]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.run(SeekableStreamIndexTaskRunner.java:278) [druid-indexing-service-0.17.1.jar:0.17.1]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask.run(SeekableStreamIndexTask.java:164) [druid-indexing-service-0.17.1.jar:0.17.1]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:419) [druid-indexing-service-0.17.1.jar:0.17.1]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:391) [druid-indexing-service-0.17.1.jar:0.17.1]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_201]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_201]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_201]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_201]
+```
+by reading the source code, found out that since a while ago, Druid requires shardSpec to be consistent inside a data source to do ingestion. 
+our ingestion path is from Kafka, therefore the shardSpec is "numbered". 
+and we also do overnight reindexing, which shardSpec can only choose from either "hashed" or "single-dim".
+therefore no matter what the shardSpec will be different. and then ingestion will break like above. 
+
+any idea to workaround this ?
+
+any help is appreciated! 
+
+thank you

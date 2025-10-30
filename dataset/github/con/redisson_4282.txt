@@ -1,0 +1,43 @@
+redisson.create() method goes into infinite wait
+<!--
+Try Redisson PRO https://redisson.pro with with ultra-fast performance and support by SLA.
+-->
+we have seen this occasionally where the thread doing redisson.create() goes into infinite wait. 
+Then when we do thread dump on the JVM we see it is stuck here. 
+
+"main" #1 prio=5 os_prio=0 tid=0x00007fe14c00b000 nid=0xc9 in Object.wait() [0x00007fe153364000]
+   java.lang.Thread.State: WAITING (on object monitor)
+        at java.lang.Object.wait(Native Method)
+        - waiting on <0x00000003d4f73d30> (a io.netty.util.concurrent.DefaultPromise)
+        at java.lang.Object.wait(Object.java:502)
+        at io.netty.util.concurrent.DefaultPromise.await(DefaultPromise.java:239)
+        - locked <0x00000003d4f73d30> (a io.netty.util.concurrent.DefaultPromise)
+        at io.netty.util.concurrent.DefaultPromise.await(DefaultPromise.java:34)
+        at org.redisson.connection.MasterSlaveConnectionManager.stopThreads(MasterSlaveConnectionManager.java:774)
+        at org.redisson.connection.MasterSlaveConnectionManager.init(MasterSlaveConnectionManager.java:222)
+        at org.redisson.connection.MasterSlaveConnectionManager.<init>(MasterSlaveConnectionManager.java:153)
+        at org.redisson.connection.SingleConnectionManager.<init>(SingleConnectionManager.java:43)
+        at org.redisson.Redisson.<init>(Redisson.java:105)
+        at edissonisson.Redisson.create(Redisson.java:161)
+
+following is the code snippet invoking this 
+
+    private static void setHost(String host) {
+        try {
+            Config config = new Config();
+            config.useSingleServer()
+                    .setAddress(host + ":" + DEFAULT_REDIS_PORT)
+                    .setConnectTimeout(5000)
+                    .setReconnectionTimeout(3000)
+                    .setRetryAttempts(10)
+                    .setTimeout(3000);
+
+            redisson = Redisson.create(config);
+            logger.info("RedissonCacheFactory got instance = {}", instance);
+        } catch (RedisConnectionException rex) {
+            logger.error("Failed to create redis client : " + rex.getMessage());
+        }
+    }
+
+using redission 2.2.27
+

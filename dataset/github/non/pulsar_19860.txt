@@ -1,0 +1,81 @@
+[Bug] Pulsar-Worker - failed to load functions
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Pulsar version 2.10.2
+
+### Minimal reproduce step
+
+Set-up a cluster with dedicated Pulsar Workers / 5 Zookeeper nodes & Brokers/Bookies/Proxies as needed - each of these are separate Linux machines.
+
+Try to upload a function to the worker using : 
+**bin/pulsar-admin --admin-url https://localhost:6751/ functions create --jar /home/user/pulsar-functions.jar  --function-config-file /home/user/deduplication-function-config.yml**
+
+
+Received an error :
+
+Feb 23 11:22:41 pulsar-worker-0005 pulsar[8282]: 11:22:41.499 [function-web-25-7] ERROR org.apache.pulsar.functions.worker.rest.api.FunctionsImpl - Failed process Function public/default/TokenGenerationInfoDeduplicationFunction package:
+Feb 23 11:22:41 pulsar-worker-0005 pulsar[8282]: org.apache.distributedlog.exceptions.WriteException: Write rejected because stream public/default/TokenGenerationInfoDeduplicationFunction/5cf0765e-a677-47d1-a7aa-1f76ec8c5b19-pulsar-functions.jar has encountered an error : writer has been closed due to error.
+.....
+
+**further investigation shown that the issue comes from :**
+
+Feb 23 11:22:38 pulsar-worker-0005 pulsar[8282]: java.net.ConnectException: Connection refused
+Feb 23 11:22:38 pulsar-worker-0005 pulsar[8282]: at sun.nio.ch.Net.pollConnect(Native Method) ~[?:?]
+Feb 23 11:22:38 pulsar-worker-0005 pulsar[8282]: at sun.nio.ch.Net.pollConnectNow(Net.java:672) ~[?:?]
+Feb 23 11:22:38 pulsar-worker-0005 pulsar[8282]: at sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:946) ~[?:?]
+Feb 23 11:22:38 pulsar-worker-0005 pulsar[8282]: at org.apache.zookeeper.ClientCnxnSocketNIO.doTransport(ClientCnxnSocketNIO.java:344) ~[org.apache.zookeeper-zookeeper-3.6.3.jar:3.6.3]
+Feb 23 11:22:38 pulsar-worker-0005 pulsar[8282]: at org.apache.zookeeper.ClientCnxn$SendThread.run(ClientCnxn.java:1290) ~[org.apache.zookeeper-zookeeper-3.6.3.jar:3.6.3]
+Feb 23 11:22:39 pulsar-worker-0005 pulsar[8282]: 11:22:39.548 [function-web-25-7-SendThread(localhost:2181)] INFO  **org.apache.zookeeper.ClientCnxn - Opening socket connection to server localhost/127.0.0.1:2181.**
+
+Seems that the worker tries to load  the jar of the functions to the localhost.
+This is because the entry in the remote Zookeper (_/apache-zookeeper-3.7.1-bin/bin/zkCli.sh get /pulsar/functions_) looks like :
+
+_1
+BKDL
+{"1":{"str":"localhost:2181"},"2":{"str":"/ledgers"},"3":{"tf":1},"4":{"tf":0},"5":{"str":"localhost:2181"},"6":{"str":"localhost:2181"},"7":{"str":"localhost:2181"}}_
+
+**Although the settings from the functions_worker.yml & is correctly read by the worker :**
+
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.614 [main] INFO  org.apache.pulsar.functions.worker.PulsarWorkerService - Worker Configs: WorkerConfig(workerId=worker-102.10.14.145, workerHostname=102.10.14.145, workerPort=6750, workerPortTls=6751, authenticateMetricsEndpoint=false, includeStandardPrometheusMetrics=false, jvmGCMetricsLoggerClassName=null, numHttpServerThreads=8, httpRequestsLimitEnabled=false, httpRequestsMaxPerSecond=100.0, configurationStoreServers=localhost:2181, configurationMetadataStoreUrl=zk:102.10.14.149:2181,102.10.14.229:2181,102.10.21.152:2181,102.10.14.148:2181,102.10.14.230:2181, 
+
+**and used :** 
+
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.624 [main] INFO  org.apache.distributedlog.api.namespace.NamespaceBuilder - No feature provider is set. All features are disabled now.
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.632 [main] INFO  org.apache.distributedlog.impl.BKNamespaceDriver - Created shared zooKeeper client builder dlzk:distributedlog://102.10.14.149:2181,102.10.14.229:2181,102.10.21.152:2181,102.10.14.148:2181,102.10.14.230:2181/pulsar/functions:factory_writer_shared: zkServers = 102.10.14.149:2181,102.10.14.229:2181,102.10.21.152:2181,102.10.14.148:2181,102.10.14.230:2181, numRetries = 3, sessionTimeout = 30000, retryBackoff = 5000, maxRetryBackoff = 30000, zkAclId = null.
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.635 [main] INFO  org.apache.zookeeper.ZooKeeper - Initiating client connection, connectString=102.10.14.149:2181,102.10.14.229:2181,102.10.21.152:2181,102.10.14.148:2181,102.10.14.230:2181 sessionTimeout=30000 watcher=org.apache.bookkeeper.zookeeper.ZooKeeperWatcherBase@47fce2c4
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.636 [main] INFO  org.apache.zookeeper.ClientCnxnSocket - jute.maxbuffer value is 10485760 Bytes
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.636 [main] INFO  org.apache.zookeeper.ClientCnxn - zookeeper.request.timeout value is 0. feature enabled=false
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.636 [main-SendThread(102.10.14.229:2181)] INFO  org.apache.zookeeper.ClientCnxn - Opening socket connection to server ip-102-10-14-229.someplace/102.10.14.229:2181.
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.637 [main-SendThread(102.10.14.229:2181)] INFO  org.apache.zookeeper.ClientCnxn - SASL config status: Will not attempt to authenticate using SASL (unknown error)
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.637 [main-SendThread(102.10.14.229:2181)] INFO  org.apache.zookeeper.ClientCnxn - Socket connection established, initiating session, client: /102.10.14.145:59718, server: ip-102-10-14-229.someplace/102.10.14.229:2181
+Feb 23 08:30:42 pulsar-worker-0005 pulsar[8282]: 08:30:42.640 [main-SendThread(102.10.14.229:2181)] INFO  org.apache.zookeeper.ClientCnxn - Session establishment complete on server ip-102-10-14-229.someplace/102.10.14.229:2181, session id = 0x20000049e550004, negotiated timeout = 30000
+
+### What did you expect to see?
+
+Functions to be corrected uploaded and to be able to process messages
+
+### What did you see instead?
+
+Error creating.
+Faulty Zookeper entry :
+
+/apache-zookeeper-3.7.1-bin/bin/zkCli.sh get /pulsar/functions
+
+_1
+BKDL
+{"1":{"str":"localhost:2181"},"2":{"str":"/ledgers"},"3":{"tf":1},"4":{"tf":0},"5":{"str":"localhost:2181"},"6":{"str":"localhost:2181"},"7":{"str":"localhost:2181"}}_
+
+### Anything else?
+
+Workaround : manually updating the Zookeper entry _/pulsar/functions_ to correct IPs everything works OK.
+
+It seems that there is an initialisation issues somehow.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

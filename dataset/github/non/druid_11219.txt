@@ -1,0 +1,99 @@
+doubleMean ignores useDefaultValueForNull=false, treats nulls as zeros
+
+### Affected Version
+
+Seen in 0.20.0
+
+### Description
+
+doubleMean ignores the setting useDefaultValueForNull=false, and treats nulls as zeros.  Taking a mean, it possibly ignores the nulls when summing, but apparently divides by a count that includes the rows with nulls.  It should exclude those from the count when dividing.
+
+The attached ingestion spec and data file load 10 rows, with myMetric including values from 1 to 10, excluding 5 and 10 (which are null), so the data ends up looking like this:
+
+```
+myDim myMetric
+1           1
+2           2
+3           3
+4           4
+5           null
+6           6
+7           7
+8           8
+9           9
+10          null
+```
+
+Here's a very basic doubleMean query:
+
+```
+{
+  "queryType": "timeseries",
+  "dataSource": {
+    "type": "table",
+    "name": "numbersAndNulls"
+  },
+  "intervals": {
+    "type": "intervals",
+    "intervals": [
+      "-146136543-09-08T08:23:32.096Z/146140482-04-24T15:36:27.903Z"
+    ]
+  },
+  "granularity": {
+    "type": "all"
+  },
+  "aggregations": [
+    {
+      "type": "doubleMean",
+      "name": "doubleMean",
+      "fieldName": "myMetric",
+      "expression": null
+    }
+  ]
+}
+```
+
+The mean should be (sum myMetric)/(count myMetric) - 40/8, or 5.  However, 4 is returned - 40/10.  So it's treating the "5" and "10" rows as if they included 0's.
+
+If we filter for not null, we get the right result. 
+
+```
+{
+  "queryType": "timeseries",
+  "dataSource": {
+    "type": "table",
+    "name": "numbersAndNulls"
+  },
+  "intervals": {
+    "type": "intervals",
+    "intervals": [
+      "-146136543-09-08T08:23:32.096Z/146140482-04-24T15:36:27.903Z"
+    ]
+  },
+  "granularity": {
+    "type": "all"
+  },
+    "filter": {
+    "type": "not",
+    "field": {
+      "type": "selector",
+      "dimension": "myMetric",
+      "value": null,
+      "extractionFn": null
+    }
+  },
+  "aggregations": [
+    {
+      "type": "doubleMean",
+      "name": "doubleMean",
+      "fieldName": "myMetric",
+      "expression": null
+    }
+  ]
+}
+```
+
+But we shouldn't have to add this filter.
+
+[data.txt](https://github.com/apache/druid/files/6444381/data.txt)
+[ingest.txt](https://github.com/apache/druid/files/6444382/ingest.txt)

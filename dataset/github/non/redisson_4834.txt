@@ -1,0 +1,73 @@
+Redisson 3.19.2 - fail to (de)serialization Object with Kryo5Codec
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+Hello!
+Since redisson 3.19.2 . the Kryo5Codec changed the InstantiatorStrategy from StdInstantiatorStrategy to SimpleInstantiatorStrategy.  
+But, when I (de)serialization some Object which has no no-arg constructor, redisson will throw KryoException.
+
+Do you know how to fix this error? 
+Thank you for your help.
+
+**Expected behavior**
+
+can (de)serialization Object without no-arg constructor.
+
+**Actual behavior**
+
+throw KryoException like this:
+
+`
+Caused by: com.esotericsoftware.kryo.KryoException: Class cannot be created (missing no-arg constructor): com.xxxxxx.User 
+	at org.redisson.codec.Kryo5Codec$SimpleInstantiatorStrategy.newInstantiatorOf(Kryo5Codec.java:94) 
+	at com.esotericsoftware.kryo.Kryo.newInstantiator(Kryo.java:1190) 
+	at com.esotericsoftware.kryo.Kryo.newInstance(Kryo.java:1199) 
+	at com.esotericsoftware.kryo.serializers.FieldSerializer.create(FieldSerializer.java:163) 
+	at com.esotericsoftware.kryo.serializers.FieldSerializer.read(FieldSerializer.java:122) 
+	at com.esotericsoftware.kryo.Kryo.readClassAndObject(Kryo.java:880) 
+	at org.redisson.codec.Kryo5Codec$4.decode(Kryo5Codec.java:157) 
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:390) 
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:205) 
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144) 
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:120) 
+`
+
+**Steps to reproduce or test case**
+
+The VO struct like this:
+
+kotlin:
+
+```kotlin
+data class User(var name:String, var age:Int)
+```
+
+or  java:
+
+```java
+public class User{
+
+    private String name;
+
+    private Integer age;
+
+    public User(String name,Integer age) {
+        this.name = name;
+        this.age = age;
+    }
+
+    ...
+    getter/setter
+    ...
+
+}
+```
+
+**Redis version**
+redis 7.0.8
+
+**Redisson version**
+ redisson 3.19.2
+
+**Redisson configuration**

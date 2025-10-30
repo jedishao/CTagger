@@ -1,0 +1,19 @@
+Incorrect time value(timezone converted) on filter node in ConnectorPlanOptimizer
+Take Druid connector as example, In DruidFilterExpressionConverter when encounter filterNode,
+it converts the timestamp(long) to string as following:
+            SqlTimestamp value = new SqlTimestamp((long) ((ConstantExpression) argument).getValue(), session.getSqlFunctionProperties().getTimeZoneKey());
+
+SqlTimestamp requires the first parameter in UTC, but the actual value on filter Node is still NOT converted to UTC. 
+The root cause is: the time value on filter node does not converted correctly before go into ConnectorPlanOptimizer.
+
+It's better to optimize this time value on filter node before go in to ConnectorPlanOptimizer.
+
+One actual example:
+
+<img width="1267" alt="Screen Shot 2020-07-27 at 6 05 20 PM" src="https://user-images.githubusercontent.com/30369486/88530311-c5e12e80-d033-11ea-98a3-1d59aee8a5d8.png">
+
+
+Client is in Shanghai timezone, the final result +8, it is not expected.
+
+Currently, I could rewrite code in druid connector to convert back to right timestamp value, but I don't think it is a good idea, because we convert the time back and forth.
+

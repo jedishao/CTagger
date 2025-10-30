@@ -1,0 +1,45 @@
+Column masking fails due to nonCoerceable error for compatible types
+Hi there, 
+I am writing a simple column mask that uses one of my string UDFs that takes a varchar and outputs a varchar but using the UDF in column masking raises an error in StatementAnalyzer.java due to varchar length mismatch. I understand for masking types should match but length match (even if possible) completely kills the point of masking. Here is a simple example to reproduce this:
+```
+public class PhoneNumber {
+  @ScalarFunction("pseudo_phone")
+  @Description("Converts the string to alternating case")
+  @SqlType(StandardTypes.VARCHAR)
+  public static Slice pseudoPhone(@SqlType(StandardTypes.VARCHAR) Slice slice)
+  {    return slice; } //todo do masking here
+}
+
+public class MyPlugin implements Plugin {
+  @Override public Set<Class<?>> getFunctions() {
+    return ImmutableSet.<Class<?>>builder().add(PhoneNumber.class).build();
+  }
+}
+
+
+///now use it: on local.tiny.customer tpch
+  @Test
+  public void testWithUDFMask() {
+    assertions.addPlugin(new MyPlugin());
+    accessControl.reset();
+    accessControl.columnMask(
+        new QualifiedObjectName(LOCAL_CATALOG, "tiny", "customer"),
+        "phone",
+        USER,
+        new ViewExpression(USER, Optional.empty(), Optional.empty(), "pseudo_phone(phone)"));
+    System.out.println(assertions.getQueryRunner().execute("select phone from customer limit 5").toString());
+  }
+```
+
+This will raise:
+```
+io.trino.spi.TrinoException: line 1:27: Expected column mask for 'local.tiny.customer.phone' to be of type varchar(15), but was varchar
+
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.analyzeColumnMask(StatementAnalyzer.java:4675)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.analyzeFiltersAndMasks(StatementAnalyzer.java:2204)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.analyzeFiltersAndMasks(StatementAnalyzer.java:2189)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:2167)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:474)
+	...
+```
+This seems to be the [offending piece of code](https://github.com/trinodb/trino/blob/master/core/trino-main/src/main/java/io/trino/sql/analyzer/StatementAnalyzer.java#L4674-L4676). Thank you for your help!

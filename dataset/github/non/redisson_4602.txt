@@ -1,0 +1,93 @@
+Tomcat connection to AWS Elasticache gives SSL error (only in Cluster mode=on)
+The issue is somehow similar to what was happening here:
+https://github.com/redisson/redisson/issues/1296
+
+I have a tomcat using Elasticache as session storage. When I use an Elasticache with Cluster mode=off everything works as expected, however when I use Cluster mode=on I get this exception 
+```
+javax.net.ssl.SSLHandshakeException: No subject alternative names matching IP address x.x.x.x found
+```
+
+Here is tomcat configuration for session storage:
+
+
+```<Context path="/app" reloadable="false" docBase="/app-war">
+    <Manager className="org.redisson.tomcat.RedissonSessionManager"
+      configPath="${catalina.base}/conf/redisson.conf"
+      broadcastSessionEvents="true"
+      readMode="MEMORY"
+      updateMode="AFTER_REQUEST"
+      keyPrefix="tomcat-xotp" />
+    <Logger className="org.apache.catalina.logger.SystemOutLogger" verbosity="4" timestamp="true"/>
+       <CookieProcessor sameSiteCookies="Lax" />
+</Context>
+```
+
+Here is redisson.conf
+
+```---
+clusterServersConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 1500
+  failedSlaveReconnectionInterval: 3000
+  failedSlaveCheckInterval: 60000
+  password: "xxxxxxxxxx"
+  subscriptionsPerConnection: 5
+  clientName:
+  loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  slaveConnectionMinimumIdleSize: 24
+  slaveConnectionPoolSize: 64
+  masterConnectionMinimumIdleSize: 24
+  masterConnectionPoolSize: 64
+  readMode: "SLAVE"
+  subscriptionMode: "SLAVE"
+  nodeAddresses:
+  - "rediss://xxxxxxx.cache.amazonaws.com:6379"
+  - "rediss://xxxxxxx.cache.amazonaws.com:6379"
+  - "rediss://xxxxxxx.cache.amazonaws.com:6379"
+  scanInterval: 1000
+  pingConnectionInterval: 30000
+  keepAlive: false
+  tcpNoDelay: true
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+threads: 16
+nettyThreads: 32
+codec: !<org.redisson.codec.MarshallingCodec> {}
+transportMode: "NIO"
+minCleanUpDelay: 600
+```
+
+Here are the jar files I am using which are the recent ones
+```
+redisson-all-3.17.7.jar
+redisson-tomcat-9-3.16.8.jar
+```
+
+I see in the following fix a new sslHostname is added 
+https://github.com/redisson/redisson/commit/9a179e14cded9e20f081ce479e47af49a02f45af
+
+I was hoping I could use something like the following in redisson.conf to get around the problem
+```
+sslHostname: "*.cache.amazonaws.com"
+``` 
+however it seems not to be a supported configuration option as I get this when I attempt that:
+```
+Can't parse json config /usr/local/tomcat/conf/redisson.conf
+        
+		
+		com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException: 
+		Unrecognized field "sslHostname" 
+		(class org.redisson.config.ClusterServersConfig), not marked as ignorable (37 
+		
+known properties: "nodeAddresses", "natMapper", "subscriptionsPerConnection", "keepAlive", "sslKeystorePassword", "retryInterval", "retryAttempts", "pingConnectionInterval", "username", "connectTimeout", "readMode", "password", "loadBalancer", "sslProvider", "subscriptionMode", "timeout", "scanInterval", "masterConnectionMinimumIdleSize", "nameMapper", "idleConnectionTimeout", "sslTruststorePassword", "sslEnableEndpointIdentification", "failedSlaveCheckInterval", "sslTruststore", "clientName", "subscriptionConnectionPoolSize", "natMap", "masterConnectionPoolSize", "subscriptionConnectionMinimumIdleSize", "sslKeystore", "checkSlotsCoverage", "tcpNoDelay", "sslProtocols", "failedSlaveReconnectionInterval", "slaveConnectionPoolSize", "dnsMonitoringInterval", "slaveConnectionMinimumIdleSize"])
+ at [Source: (StringReader); line: 11, column: 39] (through reference chain: org.redisson.config.Config["clusterServersConfig"]->org.redisson.config.ClusterServersConfig["sslHostname"])
+```
+
+Can sslHostname be added to redisson.conf as a config option ? and is this going to potentially solve the issue I am facing ?
+
+Thank you

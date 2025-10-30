@@ -1,0 +1,48 @@
+Subscription failure after DNS resolution exception
+We ran into an issue that might be related to https://github.com/redisson/redisson/issues/4610 and/or https://github.com/redisson/redisson/issues/4074
+
+**System description**
+We operate on a publisher consumer model where the publishers will create the local cached maps and populate the maps. The consumer only consumes i.e. never writes to a map. If a map does not exist on redis, the consumer will close out the local cached map to reduce memory consumption and excessive subscriptions. on a new request, we go through the same process again.
+This issue only happens on the consumer and not the producer(s)
+We use Spring boot and the redisson spring boot starter
+
+**Expected behavior**
+- An empty local cached map is created on the consumer
+
+**Actual behavior**
+- Subscription timeout exception is thrown
+- 
+**Steps to reproduce or test case**
+- DNS Resolution failure in cluster connection manager
+- Slots removed after failure to account for the failed shard
+- Slots added back
+- Request a local cached map on a consumer, one that has not been requested before, and doesn't exist on Redis
+
+**Redis version**
+AWS Elasticache, engine version 6.2.6
+
+**Redisson version**
+3.17.4, 3.17.5
+
+**Redisson configuration**
+    redisson: |
+        clusterServersConfig:
+            clientName: <id>
+            password: <redis_password>
+            nodeAddresses:
+              - rediss://<cluster_address>:6379
+            pingConnectionInterval: 0
+            keepAlive: true
+            tcpNoDelay: true
+            timeout: 12000
+            retryAttempts: 30
+            retryInterval: 500
+            slaveConnectionMinimumIdleSize: 48
+            slaveConnectionPoolSize: 128
+            masterConnectionMinimumIdleSize: 48
+            masterConnectionPoolSize: 128
+        nettyThreads: 64
+        codec: !<custom-sub-class-of-org.redisson.codec.Kryo5Codec> {}
+
+Thread dump when requests are getting subscription timeout
+[redisson_subscription_failure.log](https://github.com/redisson/redisson/files/9954425/redisson_subscription_failure.log)

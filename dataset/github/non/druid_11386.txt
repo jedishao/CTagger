@@ -1,0 +1,16 @@
+Be able to force druid to create a column even if all values are null during the ingestion
+### Description
+
+If during ingestion user declares a column "foobar", but not value is present in the column, then the column is not present in the final datasource, and if the user tries to request on it he will get an error. 
+
+A good feature could be to be able to force druid to create a column even if all values are null during the ingestion. Or to be able to request the non-created column and obtaining a null value, not getting an error.
+
+### Motivation
+
+For now, if a user ingests incomplete data to a datasource, some declared columns could have no value, and so not created at all. It means that before to request any column in the datasource one could have to first check if all the columns in its request exists. 
+
+For instance, if I have logs of a process, which at the end of process have a dimension which indicates if process succeeded or failed. So I would have a column "isProcessSuccess", which would be empty until the process ends.
+If I have an user interface that indicates the number of processes in "Failed" status, I would have to request on that "isProcessSuccess" column. But, it may not exists and the request will fail.
+Here the example is simple, It would be possible to catch the error and just return an adapted message to front-office, but when doing more complex statistics or group by requests, in datasource with possibly many columns that were not created, management of those "maybe present but maybe not" columns becomes a nightmare.
+
+If requests on declared-but-non-created columns (or maybe on any non-existing columns) could be parameterized to return null instead of an error, datasources requests would be quite easier to manage. Or be able to force the columns creation at first ingestion maybe. 

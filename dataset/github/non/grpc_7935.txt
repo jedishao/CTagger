@@ -1,0 +1,12 @@
+gRPC-LB without fallback addresses can hang
+There's been hangs when using gRPC-LB with round_robin and I think I tracked the source down.
+
+gRPC-LB has a timer in case communicating with gRPC-LB takes "too long," to avoid hanging. [If it takes too long](https://github.com/grpc/grpc-java/blob/22d1af0c890d8b4eeea87fd37f0e3269467e899f/grpclb/src/main/java/io/grpc/grpclb/GrpclbState.java#L530) it swaps to [fallback addresses](https://github.com/grpc/grpc-java/blob/22d1af0c890d8b4eeea87fd37f0e3269467e899f/grpclb/src/main/java/io/grpc/grpclb/GrpclbState.java#L302). But the code [that handles empty addresses](https://github.com/grpc/grpc-java/blob/22d1af0c890d8b4eeea87fd37f0e3269467e899f/grpclb/src/main/java/io/grpc/grpclb/GrpclbState.java#L793) doesn't cause an error if there are no addresses and `usingFallbackBackends == true`.
+
+It'd make sense for this bug to lurk, as I believe all previously deployed usages of gRPC-LB have fallback addresses.
+
+Note that pick-first could suffer a similar issue, but it is a separate code path and so will need to be checked/fixed independently.
+
+I think the fix for round_robin will be an easy one-line change.
+
+See also b/176914523#comment45

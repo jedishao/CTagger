@@ -1,0 +1,10 @@
+Materialized view automatic rewrite does not correctly handle ORDER BY of aliased columns
+When writing a query that should be rewritten by a materialized view, using an alias on a column and then ordering by that column makes the rewrite fail due to an `IllegalStateException:Sort key %s is not present in materialized view select fields`.
+
+To recreate:
+
+- Create materialized view
+- Create a query which can be rewritten by a materialized view, with an alias over a field
+- Order by the aliased field
+
+Code pointer: https://github.com/prestodb/presto/blob/master/presto-main/src/main/java/com/facebook/presto/sql/analyzer/MaterializedViewQueryOptimizer.java#L647

@@ -1,0 +1,33 @@
+PinotQuery return Format specifier '%s'
+## presto version
+0.216
+
+## behavior
+When i use expression `and path_type in ('活动列表', '购物袋', '商品搜索')` the presto will return an error named `Unexpected Error
+presto error: Format specifier '%s'`. 
+
+Whale query show as below: 
+```
+SELECT biz_date ,uuid, array_agg(path_type  ) as  path_type_list, array_agg(event_time  ) as event_time_list
+FROM 
+(SELECT a.biz_date as biz_date , a.uuid as uuid, a.path_type as path_type ,a.event_time as event_time 
+from
+(select biz_date, uuid, uuid_tmp, current_url, event_name, path_type, biz_date_time, event_time,
+row_number() over (partition by biz_date, uuid order by event_time asc ) rn    
+from log_trace
+where biz_date = '20211111'
+and path_type in ('活动列表', '购物袋', '商品搜索')
+order by uuid, biz_date_time
+)a
+inner join
+(select biz_date,uuid, event_time
+from log_trace
+where biz_date = '20211111'
+and path_type = '商品结算'  
+)b
+on a.uuid = b.uuid and a.biz_date = b.biz_date 
+where (b.event_time - a.event_time) > 0   
+and (b.event_time - a.event_time) < (24*60*60*1000)  
+)c
+group by biz_date ,uuid
+```

@@ -1,0 +1,489 @@
+[Bug] Failed to pull-up docker-compose for broker, bookie, zk and pulsar-sql
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+- Windows 22621
+- Docker v4.17.0
+- Pulsar 2.11.0
+
+### Minimal reproduce step
+
+I've copied the [docker-compose file ](https://pulsar.apache.org/docs/2.11.x/deploy-docker/) from the public website and for version 2.11.0
+
+That works. So far, but when I add the pulsar-sql service it failed to locate java files (I've tested the pulsar-all and pulsar image).
+
+Here is the docker-compose and further down is the Java exception resulting from running `docker-compose up`
+
+
+```
+version: '3'
+name: pulsar-ecosystem-dev
+networks:
+  pulsar:
+    driver: bridge
+services:
+  # Start zookeeper
+  zookeeper:
+    image: apachepulsar/pulsar:2.11.0
+    container_name: zookeeper
+    restart: on-failure
+    networks:
+      - pulsar
+    volumes:
+      - ./data/zookeeper:/pulsar/data/zookeeper
+    environment:
+      - metadataStoreUrl=zk:zookeeper:2181
+    command: >
+      bash -c "bin/apply-config-from-env.py conf/zookeeper.conf && \
+             bin/generate-zookeeper-config.sh conf/zookeeper.conf && \
+             exec bin/pulsar zookeeper"
+    healthcheck:
+      test: [ "CMD", "bin/pulsar-zookeeper-ruok.sh" ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Init cluster metadata
+  pulsar-init:
+    container_name: pulsar-init
+    hostname: pulsar-init
+    image: apachepulsar/pulsar:2.11.0
+    networks:
+      - pulsar
+    command: >
+      bin/pulsar initialize-cluster-metadata \
+               --cluster cluster-a \
+               --zookeeper zookeeper:2181 \
+               --configuration-store zookeeper:2181 \
+               --web-service-url http://broker:8080 \
+               --broker-service-url pulsar://broker:6650
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+
+  # Start bookie
+  bookie:
+    image: apachepulsar/pulsar:2.11.0
+    container_name: bookie
+    restart: on-failure
+    networks:
+      - pulsar
+    environment:
+      - clusterName=cluster-a
+      - zkServers=zookeeper:2181
+      - metadataServiceUri=metadata-store:zk:zookeeper:2181
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      pulsar-init:
+        condition: service_completed_successfully
+    # Map the local directory to the container to avoid bookie startup failure due to insufficient container disks.
+    volumes:
+      - ./data/bookkeeper:/pulsar/data/bookkeeper
+    command: bash -c "bin/apply-config-from-env.py conf/bookkeeper.conf && exec bin/pulsar bookie"
+
+  # Start broker
+  broker:
+    image: apachepulsar/pulsar:2.11.0
+    container_name: broker
+    hostname: broker
+    restart: on-failure
+    networks:
+      - pulsar
+    environment:
+      - metadataStoreUrl=zk:zookeeper:2181
+      - zookeeperServers=zookeeper:2181
+      - clusterName=cluster-a
+      - managedLedgerDefaultEnsembleSize=1
+      - managedLedgerDefaultWriteQuorum=1
+      - managedLedgerDefaultAckQuorum=1
+      - advertisedAddress=broker
+      - advertisedListeners=external:pulsar://127.0.0.1:6650
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      bookie:
+        condition: service_started
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    command: bash -c "bin/apply-config-from-env.py conf/broker.conf && exec bin/pulsar broker"
+
+  pulsar-sql:
+    image: apachepulsar/pulsar:2.11.0
+    container_name: pulsar-sql
+    networks:
+      - pulsar
+    environment:
+      - PULSAR_PREFIX_tlsAllowInsecureConnection=true    
+    volumes:
+      - ./data:/pulsar/data
+      - ./conf:/pulsar/conf
+
+    ports:
+      - "8081:8081"
+    depends_on:
+      - pulsar-init
+      - zookeeper
+      - broker
+      - bookie      
+    # "sql-worker run" will run it once, "sql-woker start" will run it as a daemon
+    command: bash -c "bin/apply-config-from-env.py conf/sql.properties && exec bin/pulsar sql-worker run"
+
+
+```
+
+### What did you expect to see?
+
+I expected the success message on loading all config files (which it is reading in properly) and then keeps the sql-worker running (e.g. as a daemon preferably)
+
+### What did you see instead?
+
+pulsar-sql   | 2023-04-07T14:16:17.312Z INFO    main    org.eclipse.jetty.server.Server jetty-9.4.48.v20220622; built: 2022-06-21T20:42:25.880Z; git: 6b67c5719d1f4371b33655ff2d047d24e171e49a; jvm 17.0.5+8-Ubuntu-2ubuntu120.04
+pulsar-sql   | 2023-04-07T14:16:17.719Z WARN    main    org.glassfish.jersey.server.wadl.WadlFeature    JAXBContext implementation could not be found. WADL feature is disabled.
+pulsar-sql   | 2023-04-07T14:16:17.834Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.QueryStateInfoResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.QueryStateInfoResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.834Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.ServerInfoResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.ServerInfoResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.835Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.ui.UiQueryResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.ui.UiQueryResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.835Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.memory.MemoryResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.memory.MemoryResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.835Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.protocol.ExecutingStatementResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.protocol.ExecutingStatementResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.835Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.StatusResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.StatusResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.835Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.airlift.jmx.MBeanResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.airlift.jmx.MBeanResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.836Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.ui.WorkerResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.ui.WorkerResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.836Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.TaskResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.TaskResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.837Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.NodeResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.NodeResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.837Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.dispatcher.QueuedStatementResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.dispatcher.QueuedStatementResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.838Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.airlift.discovery.server.DynamicAnnouncementResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.airlift.discovery.server.DynamicAnnouncementResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.838Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.TaskExecutorResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.TaskExecutorResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.838Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.QueryResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.QueryResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.839Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.ui.ClusterStatsResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.ui.ClusterStatsResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.839Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.ThreadResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.ThreadResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.839Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.airlift.discovery.server.ServiceResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.airlift.discovery.server.ServiceResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.839Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.ResourceGroupStateInfoResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.ResourceGroupStateInfoResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.839Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.prestosql.server.ui.ClusterResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.prestosql.server.ui.ClusterResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:17.839Z WARN    main    org.glassfish.jersey.internal.inject.Providers  A provider io.airlift.discovery.store.StoreResource registered in SERVER runtime does not implement any provider interfaces applicable in the SERVER runtime. Due to constraint configuration problems the provider io.airlift.discovery.store.StoreResource will be ignored.
+pulsar-sql   | 2023-04-07T14:16:18.066Z WARN    query-management-2      io.prestosql.memory.RemoteNodeMemory    Memory info update request to http://172.23.0.5:8081/v1/memory has not returned in 190676.28s
+pulsar-sql   | 2023-04-07T14:16:18.343Z WARN    main    org.glassfish.jersey.internal.Errors    The following warnings have been detected: WARNING: Parameter 2 of type io.prestosql.execution.resourcegroups.ResourceGroupManager<?> from public io.prestosql.server.QueryStateInfoResource(io.prestosql.dispatcher.DispatchManager,io.prestosql.execution.resourcegroups.ResourceGroupManager<?>,io.prestosql.security.AccessControl,io.prestosql.spi.security.GroupProvider) is not resolvable to a concrete type.
+pulsar-sql   | WARNING: Parameter 2 of type io.prestosql.execution.resourcegroups.ResourceGroupManager<?> from public io.prestosql.server.QueryStateInfoResource(io.prestosql.dispatcher.DispatchManager,io.prestosql.execution.resourcegroups.ResourceGroupManager<?>,io.prestosql.security.AccessControl,io.prestosql.spi.security.GroupProvider) is not resolvable to a concrete type.
+pulsar-sql   | WARNING: Parameter 1 of type io.prestosql.execution.resourcegroups.ResourceGroupManager<?> from public io.prestosql.server.ResourceGroupStateInfoResource(io.prestosql.execution.resourcegroups.ResourceGroupManager<?>) is not resolvable to a concrete type.
+pulsar-sql   |
+pulsar-sql   | 2023-04-07T14:16:18.347Z INFO    main    org.eclipse.jetty.server.handler.ContextHandler Started o.e.j.s.ServletContextHandler@17a77a7e{/,null,AVAILABLE,@http}
+pulsar-sql   | 2023-04-07T14:16:18.362Z INFO    main    org.eclipse.jetty.server.AbstractConnector      Started http@424a152f{HTTP/1.1, (http/1.1, h2c)}{0.0.0.0:8081}
+pulsar-sql   | 2023-04-07T14:16:18.362Z INFO    main    org.eclipse.jetty.server.Server Started @16204ms
+pulsar-sql   | 2023-04-07T14:16:19.480Z INFO    main    io.airlift.bootstrap.LifeCycleManager   Life cycle starting...
+pulsar-sql   | 2023-04-07T14:16:19.481Z INFO    main    io.airlift.bootstrap.LifeCycleManager   Life cycle startup complete
+pulsar-sql   | 2023-04-07T14:16:19.482Z INFO    main    io.prestosql.server.Server      Working directory: /pulsar/lib/presto
+pulsar-sql   | 2023-04-07T14:16:19.485Z INFO    main    io.prestosql.server.Server      Etc directory: /pulsar/conf/presto
+pulsar-sql   | 2023-04-07T14:16:19.487Z INFO    main    io.prestosql.server.PluginManager       -- Loading plugin /pulsar/lib/presto/plugin/pulsar-presto-connector --
+pulsar-sql   | 2023-04-07T14:16:19.487Z DEBUG   main    io.prestosql.server.PluginManager       Classpath for pulsar-presto-connector:
+pulsar-sql   | 2023-04-07T14:16:19.492Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/aircompressor-0.20.jar
+pulsar-sql   | 2023-04-07T14:16:19.492Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/amqp-client-5.5.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.493Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/animal-sniffer-annotations-1.19.jar
+pulsar-sql   | 2023-04-07T14:16:19.493Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/annotations-4.1.1.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.493Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/aopalliance-1.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.495Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/aopalliance-repackaged-2.6.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.498Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/async-http-client-2.12.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.499Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/async-http-client-netty-utils-2.12.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.500Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/audience-annotations-0.12.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.501Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/auto-service-annotations-1.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.501Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/avro-1.10.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.501Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/avro-protobuf-1.10.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.502Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bcpkix-jdk15on-1.69.jar
+pulsar-sql   | 2023-04-07T14:16:19.502Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bcprov-ext-jdk15on-1.69.jar
+pulsar-sql   | 2023-04-07T14:16:19.502Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bcprov-jdk15on-1.69.jar
+pulsar-sql   | 2023-04-07T14:16:19.502Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bcutil-jdk15on-1.69.jar
+pulsar-sql   | 2023-04-07T14:16:19.502Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bookkeeper-common-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.503Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bookkeeper-common-allocator-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.503Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bookkeeper-proto-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.503Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bookkeeper-server-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.503Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bookkeeper-stats-api-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.504Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bookkeeper-tools-framework-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.504Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bootstrap-0.199.jar
+pulsar-sql   | 2023-04-07T14:16:19.504Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bouncy-castle-bc-2.11.0-pkg.jar
+pulsar-sql   | 2023-04-07T14:16:19.506Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/bval-jsr-2.0.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.507Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/caffeine-2.9.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.507Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/cglib-nodep-3.3.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.507Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/checker-qual-3.12.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.507Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/circe-checksum-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.507Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/codahale-metrics-provider-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.508Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-cli-1.5.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.508Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-codec-1.15.jar
+pulsar-sql   | 2023-04-07T14:16:19.509Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-collections4-4.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.509Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-compress-1.21.jar
+pulsar-sql   | 2023-04-07T14:16:19.509Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-configuration-1.10.jar
+pulsar-sql   | 2023-04-07T14:16:19.510Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-io-2.8.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.511Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-lang-2.6.jar
+pulsar-sql   | 2023-04-07T14:16:19.511Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-lang3-3.11.jar
+pulsar-sql   | 2023-04-07T14:16:19.512Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/commons-logging-1.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.512Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/configuration-0.199.jar
+pulsar-sql   | 2023-04-07T14:16:19.513Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/cpu-affinity-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.513Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/dsl-json-1.8.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.514Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/error_prone_annotations-2.5.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.515Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/failsafe-2.4.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.515Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/failureaccess-1.0.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.516Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-api-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.516Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-context-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.517Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-core-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.517Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-grpclb-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.517Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-netty-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.517Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-protobuf-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.518Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-protobuf-lite-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.518Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/grpc-stub-1.45.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.519Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/gson-2.8.9.jar
+pulsar-sql   | 2023-04-07T14:16:19.521Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/guava-31.0.1-jre.jar
+pulsar-sql   | 2023-04-07T14:16:19.524Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/guice-5.1.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.525Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/hk2-api-2.6.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.525Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/hk2-locator-2.6.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.525Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/hk2-utils-2.6.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.526Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/http-server-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.527Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/httpclient-4.5.13.jar
+pulsar-sql   | 2023-04-07T14:16:19.527Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/httpcore-4.4.15.jar
+pulsar-sql   | 2023-04-07T14:16:19.528Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/j2objc-annotations-1.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.528Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-annotations-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.528Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-core-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.528Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-databind-2.13.4.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.528Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-dataformat-yaml-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.529Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-datatype-guava-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.529Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-datatype-jdk8-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.529Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-datatype-joda-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.530Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-datatype-jsr310-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.530Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-jaxrs-base-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.530Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-jaxrs-json-provider-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.531Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-module-jaxb-annotations-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.531Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-module-jsonSchema-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.531Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jackson-module-parameter-names-2.13.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.531Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jakarta.activation-api-1.2.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.531Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jakarta.annotation-api-1.3.5.jar
+pulsar-sql   | 2023-04-07T14:16:19.532Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jakarta.inject-2.6.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.532Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jakarta.xml.bind-api-2.3.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.532Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/javassist-3.25.0-GA.jar
+pulsar-sql   | 2023-04-07T14:16:19.533Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/javax.activation-1.2.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.533Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/javax.inject-1.jar
+pulsar-sql   | 2023-04-07T14:16:19.533Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/javax.servlet-api-3.1.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.533Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/javax.ws.rs-api-2.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.533Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jaxb-api-2.3.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.534Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jcip-annotations-1.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.534Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jcl-over-slf4j-1.7.32.jar
+pulsar-sql   | 2023-04-07T14:16:19.534Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jcommander-1.82.jar
+pulsar-sql   | 2023-04-07T14:16:19.535Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jctools-core-2.1.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.537Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jersey-client-2.34.jar
+pulsar-sql   | 2023-04-07T14:16:19.537Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jersey-common-2.34.jar
+pulsar-sql   | 2023-04-07T14:16:19.537Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jersey-entity-filtering-2.34.jar
+pulsar-sql   | 2023-04-07T14:16:19.538Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jersey-hk2-2.34.jar
+pulsar-sql   | 2023-04-07T14:16:19.538Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jersey-media-json-jackson-2.34.jar
+pulsar-sql   | 2023-04-07T14:16:19.541Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jersey-media-multipart-2.34.jar
+pulsar-sql   | 2023-04-07T14:16:19.542Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetcd-common-0.5.11.jar
+pulsar-sql   | 2023-04-07T14:16:19.543Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetcd-core-0.5.11.jar
+pulsar-sql   | 2023-04-07T14:16:19.545Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetty-http-9.4.48.v20220622.jar
+pulsar-sql   | 2023-04-07T14:16:19.546Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetty-io-9.4.48.v20220622.jar
+pulsar-sql   | 2023-04-07T14:16:19.546Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetty-security-9.4.48.v20220622.jar
+pulsar-sql   | 2023-04-07T14:16:19.547Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetty-server-9.4.48.v20220622.jar
+pulsar-sql   | 2023-04-07T14:16:19.551Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetty-servlet-9.4.48.v20220622.jar
+pulsar-sql   | 2023-04-07T14:16:19.551Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetty-util-9.4.48.v20220622.jar
+pulsar-sql   | 2023-04-07T14:16:19.552Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jetty-util-ajax-9.4.48.v20220622.jar
+pulsar-sql   | 2023-04-07T14:16:19.552Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jmxutils-1.21.jar
+pulsar-sql   | 2023-04-07T14:16:19.552Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jna-4.2.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.552Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/joda-time-2.10.5.jar
+pulsar-sql   | 2023-04-07T14:16:19.553Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jol-core-0.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.553Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/json-0.199.jar
+pulsar-sql   | 2023-04-07T14:16:19.553Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/jsr305-3.0.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.554Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar
+pulsar-sql   | 2023-04-07T14:16:19.554Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/log-0.199.jar
+pulsar-sql   | 2023-04-07T14:16:19.555Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/log-manager-0.199.jar
+pulsar-sql   | 2023-04-07T14:16:19.555Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/log4j-api-2.18.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.556Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/log4j-core-2.18.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.557Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/log4j-over-slf4j-1.7.32.jar
+pulsar-sql   | 2023-04-07T14:16:19.557Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/log4j-slf4j-impl-2.18.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.557Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/logback-core-1.2.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.558Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/managed-ledger-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.558Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/memory-0.8.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.558Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/metrics-core-4.1.12.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.558Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/metrics-graphite-4.1.12.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.558Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/metrics-jmx-4.1.12.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.558Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/metrics-jvm-4.1.12.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.559Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/mimepull-1.9.13.jar
+pulsar-sql   | 2023-04-07T14:16:19.560Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-buffer-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.560Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-codec-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.562Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-codec-dns-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.564Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-codec-haproxy-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.565Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-codec-http-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.568Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-codec-http2-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.569Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-codec-socks-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.569Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-common-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.570Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-handler-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.570Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-handler-proxy-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.570Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-reactive-streams-2.0.6.jar
+pulsar-sql   | 2023-04-07T14:16:19.570Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-resolver-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.570Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-resolver-dns-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.570Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-tcnative-boringssl-static-2.0.54.Final-linux-aarch_64.jar
+pulsar-sql   | 2023-04-07T14:16:19.571Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-tcnative-boringssl-static-2.0.54.Final-linux-x86_64.jar
+pulsar-sql   | 2023-04-07T14:16:19.571Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-tcnative-boringssl-static-2.0.54.Final-osx-aarch_64.jar
+pulsar-sql   | 2023-04-07T14:16:19.571Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-tcnative-boringssl-static-2.0.54.Final-osx-x86_64.jar
+pulsar-sql   | 2023-04-07T14:16:19.572Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-tcnative-boringssl-static-2.0.54.Final-windows-x86_64.jar
+pulsar-sql   | 2023-04-07T14:16:19.572Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-tcnative-boringssl-static-2.0.54.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.572Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-tcnative-classes-2.0.54.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.572Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-transport-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.572Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-transport-classes-epoll-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.573Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-transport-native-epoll-4.1.86.Final-linux-x86_64.jar
+pulsar-sql   | 2023-04-07T14:16:19.573Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-transport-native-unix-common-4.1.86.Final-linux-x86_64.jar
+pulsar-sql   | 2023-04-07T14:16:19.573Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/netty-transport-native-unix-common-4.1.86.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.573Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/opencsv-2.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.573Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/osgi-resource-locator-1.0.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.573Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/parameternames-1.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.573Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/perfmark-api-0.19.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.574Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/presto-plugin-toolkit-334.jar
+pulsar-sql   | 2023-04-07T14:16:19.574Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/presto-record-decoder-334.jar
+pulsar-sql   | 2023-04-07T14:16:19.574Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/presto-spi-334.jar
+pulsar-sql   | 2023-04-07T14:16:19.574Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/prometheus-metrics-provider-4.15.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.574Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/proto-google-common-protos-2.0.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.574Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/protobuf-java-3.19.6.jar
+pulsar-sql   | 2023-04-07T14:16:19.575Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/protobuf-java-util-3.19.6.jar
+pulsar-sql   | 2023-04-07T14:16:19.575Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-client-admin-api-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.576Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-client-admin-original-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.577Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-client-api-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.578Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-client-original-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.578Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-common-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.578Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-metadata-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.578Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-package-core-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.578Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/pulsar-presto-connector-original-2.11.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.578Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/reactive-streams-1.0.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.579Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/rocksdbjni-6.29.4.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.582Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/rxjava-3.0.1.jar
+pulsar-sql   | 2023-04-07T14:16:19.582Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.582Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient_common-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.582Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient_hotspot-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.583Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient_servlet-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.584Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient_servlet_common-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.584Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient_tracer_common-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.585Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient_tracer_otel-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.585Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/simpleclient_tracer_otel_agent-0.16.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.585Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/sketches-core-0.8.3.jar
+pulsar-sql   | 2023-04-07T14:16:19.586Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/slf4j-api-1.7.32.jar
+pulsar-sql   | 2023-04-07T14:16:19.587Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/slf4j-jdk14-1.7.32.jar
+pulsar-sql   | 2023-04-07T14:16:19.587Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/slice-0.38.jar
+pulsar-sql   | 2023-04-07T14:16:19.588Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/snakeyaml-1.31.jar
+pulsar-sql   | 2023-04-07T14:16:19.588Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/snappy-java-1.1.8.4.jar
+pulsar-sql   | 2023-04-07T14:16:19.588Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/swagger-annotations-1.6.2.jar
+pulsar-sql   | 2023-04-07T14:16:19.588Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/units-1.6.jar
+pulsar-sql   | 2023-04-07T14:16:19.589Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/validation-api-2.0.1.Final.jar
+pulsar-sql   | 2023-04-07T14:16:19.589Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/zookeeper-3.8.0.jar
+pulsar-sql   | 2023-04-07T14:16:19.589Z DEBUG   main    io.prestosql.server.PluginManager           /pulsar/lib/presto/plugin/pulsar-presto-connector/zookeeper-jute-3.8.0.jar
+pulsar-sql   | 2023-04-07T14:16:20.124Z INFO    main    io.prestosql.server.PluginManager       Installing org.apache.pulsar.sql.presto.PulsarPlugin
+pulsar-sql   | 2023-04-07T14:16:20.153Z INFO    main    io.prestosql.server.PluginManager       Registering connector pulsar
+pulsar-sql   | 2023-04-07T14:16:20.160Z INFO    main    io.prestosql.server.PluginManager       -- Finished loading plugin /pulsar/lib/presto/plugin/pulsar-presto-connector --
+pulsar-sql   | 2023-04-07T14:16:20.186Z INFO    main    io.prestosql.metadata.StaticCatalogStore        -- Loading catalog etc/catalog/pulsar.properties --
+pulsar-sql   | 2023-04-07T14:16:20.709Z INFO    main    stderr  SLF4J: Class path contains multiple SLF4J bindings.
+pulsar-sql   |
+pulsar-sql   | 2023-04-07T14:16:20.709Z INFO    main    stderr  SLF4J: Found binding in [jar:file:/pulsar/lib/presto/plugin/pulsar-presto-connector/log4j-slf4j-impl-2.18.0.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+pulsar-sql   |
+pulsar-sql   | 2023-04-07T14:16:20.709Z INFO    main    stderr  SLF4J: Found binding in [jar:file:/pulsar/lib/presto/plugin/pulsar-presto-connector/slf4j-jdk14-1.7.32.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+pulsar-sql   |
+pulsar-sql   | 2023-04-07T14:16:20.709Z INFO    main    stderr  SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+pulsar-sql   |
+pulsar-sql   | 2023-04-07T14:16:20.770Z INFO    main    stderr  SLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]
+pulsar-sql   |
+pulsar-sql   | 2023-04-07T14:16:21.615Z ERROR   main    io.prestosql.server.Server      java.lang.IllegalArgumentException: java.lang.reflect.InvocationTargetException
+pulsar-sql   | javax.validation.ValidationException: java.lang.IllegalArgumentException: java.lang.reflect.InvocationTargetException
+pulsar-sql   |  at org.apache.bval.jsr.descriptor.PropertyD.read(PropertyD.java:107)
+pulsar-sql   |  at org.apache.bval.jsr.job.ValidationJob$BeanFrame.lambda$propertyFrames$8(ValidationJob.java:299)
+pulsar-sql   |  at java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:273)
+pulsar-sql   |  at java.base/java.util.stream.ReferencePipeline$2$1.accept(ReferencePipeline.java:179)
+pulsar-sql   |  at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)
+pulsar-sql   |  at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:183)
+pulsar-sql   |  at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)
+pulsar-sql   |  at java.base/java.util.stream.Streams$StreamBuilderImpl.forEachRemaining(Streams.java:411)
+pulsar-sql   |  at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)
+pulsar-sql   |  at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)
+pulsar-sql   |  at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:150)
+pulsar-sql   |  at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:173)
+pulsar-sql   |  at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+pulsar-sql   |  at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)
+pulsar-sql   |  at java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)
+pulsar-sql   |  at java.base/java.util.Iterator.forEachRemaining(Iterator.java:133)
+pulsar-sql   |  at java.base/java.util.Spliterators$IteratorSpliterator.forEachRemaining(Spliterators.java:1845)
+pulsar-sql   |  at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)
+pulsar-sql   |  at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)
+pulsar-sql   |  at java.base/java.util.stream.ReduceOps$ReduceOp.evaluateSequential(ReduceOps.java:921)
+pulsar-sql   |  at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+pulsar-sql   |  at java.base/java.util.stream.ReferencePipeline.collect(ReferencePipeline.java:682)
+pulsar-sql   |  at org.apache.bval.jsr.job.ValidationJob$BeanFrame.propertyFrames(ValidationJob.java:300)
+pulsar-sql   |  at org.apache.bval.util.Lazy.get(Lazy.java:53)
+pulsar-sql   |  at org.apache.bval.jsr.job.ValidationJob$BeanFrame.lambda$process$1(ValidationJob.java:260)
+pulsar-sql   |  at org.apache.bval.jsr.job.ValidationJob.lambda$noViolations$2(ValidationJob.java:605)
+pulsar-sql   |  at org.apache.bval.jsr.groups.Group.applyTo(Group.java:181)
+pulsar-sql   |  at org.apache.bval.jsr.job.ValidationJob$BeanFrame.process(ValidationJob.java:258)
+pulsar-sql   |  at org.apache.bval.jsr.job.ValidationJob.getResults(ValidationJob.java:563)
+pulsar-sql   |  at org.apache.bval.jsr.ValidatorImpl.validate(ValidatorImpl.java:53)
+pulsar-sql   |  at io.airlift.configuration.ConfigurationFactory.validate(ConfigurationFactory.java:419)
+pulsar-sql   |  at io.airlift.configuration.ConfigurationFactory.build(ConfigurationFactory.java:392)
+pulsar-sql   |  at io.airlift.configuration.ConfigurationFactory.build(ConfigurationFactory.java:317)
+pulsar-sql   |  at io.airlift.configuration.ConfigurationProvider.get(ConfigurationProvider.java:67)
+pulsar-sql   |  at io.airlift.configuration.ConfigurationFactory.validateRegisteredConfigurationProvider(ConfigurationFactory.java:230)
+pulsar-sql   |  at io.airlift.bootstrap.Bootstrap.initialize(Bootstrap.java:225)
+pulsar-sql   |  at org.apache.pulsar.sql.presto.PulsarConnectorFactory.create(PulsarConnectorFactory.java:67)
+pulsar-sql   |  at io.prestosql.connector.ConnectorManager.createConnector(ConnectorManager.java:349)
+pulsar-sql   |  at io.prestosql.connector.ConnectorManager.createCatalog(ConnectorManager.java:208)
+pulsar-sql   |  at io.prestosql.connector.ConnectorManager.createCatalog(ConnectorManager.java:200)
+pulsar-sql   |  at io.prestosql.connector.ConnectorManager.createCatalog(ConnectorManager.java:186)
+pulsar-sql   |  at io.prestosql.metadata.StaticCatalogStore.loadCatalog(StaticCatalogStore.java:88)
+pulsar-sql   |  at io.prestosql.metadata.StaticCatalogStore.loadCatalogs(StaticCatalogStore.java:68)
+pulsar-sql   |  at io.prestosql.server.Server.doStart(Server.java:114)
+pulsar-sql   |  at io.prestosql.server.Server.lambda$start$0(Server.java:69)
+pulsar-sql   |  at io.prestosql.$gen.Presto_334____20230407_141604_1.run(Unknown Source)
+pulsar-sql   |  at io.prestosql.server.Server.start(Server.java:69)
+pulsar-sql   |  at io.prestosql.server.PrestoServer.main(PrestoServer.java:39)
+pulsar-sql   | Caused by: java.lang.IllegalArgumentException: java.lang.reflect.InvocationTargetException
+pulsar-sql   |  at org.apache.bval.jsr.descriptor.PropertyD$ForMethod.getValue(PropertyD.java:83)
+pulsar-sql   |  at org.apache.bval.jsr.descriptor.PropertyD.read(PropertyD.java:102)
+pulsar-sql   |  ... 47 more
+pulsar-sql   | Caused by: java.lang.reflect.InvocationTargetException
+pulsar-sql   |  at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+pulsar-sql   |  at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+pulsar-sql   |  at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+pulsar-sql   |  at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+pulsar-sql   |  at org.apache.bval.jsr.descriptor.PropertyD$ForMethod.getValue(PropertyD.java:81)
+pulsar-sql   |  ... 48 more
+pulsar-sql   | Caused by: org.apache.pulsar.client.api.PulsarClientException$UnsupportedAuthenticationException: org.apache.pulsar.client.api.PulsarClientException$UnsupportedAuthenticationException: java.lang.ClassNotFoundException: null    
+pulsar-sql   |  at org.apache.pulsar.client.api.AuthenticationFactory.create(AuthenticationFactory.java:92)
+pulsar-sql   |  at org.apache.pulsar.client.admin.internal.PulsarAdminBuilderImpl.authentication(PulsarAdminBuilderImpl.java:94)
+pulsar-sql   |  at org.apache.pulsar.sql.presto.PulsarConnectorConfig.getPulsarAdmin(PulsarConnectorConfig.java:479)
+pulsar-sql   |  ... 53 more
+pulsar-sql   | Caused by: org.apache.pulsar.client.api.PulsarClientException$UnsupportedAuthenticationException: java.lang.ClassNotFoundException: null
+pulsar-sql   |  at org.apache.pulsar.client.impl.AuthenticationUtil.create(AuthenticationUtil.java:84)
+pulsar-sql   |  at org.apache.pulsar.client.impl.PulsarClientImplementationBindingImpl.createAuthentication(PulsarClientImplementationBindingImpl.java:127)
+pulsar-sql   |  at org.apache.pulsar.client.api.AuthenticationFactory.create(AuthenticationFactory.java:90)
+pulsar-sql   |  ... 55 more
+pulsar-sql   | Caused by: java.lang.ClassNotFoundException: null
+pulsar-sql   |  at java.base/java.net.URLClassLoader.findClass(URLClassLoader.java:445)
+pulsar-sql   |  at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:587)
+pulsar-sql   |  at io.prestosql.server.PluginClassLoader.loadClass(PluginClassLoader.java:89)
+pulsar-sql   |  at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:520)
+pulsar-sql   |  at java.base/java.lang.Class.forName0(Native Method)
+pulsar-sql   |  at java.base/java.lang.Class.forName(Class.java:375)
+pulsar-sql   |  at org.apache.pulsar.client.impl.AuthenticationUtil.create(AuthenticationUtil.java:70)
+pulsar-sql   |  ... 57 more
+pulsar-sql   |
+pulsar-sql   |
+pulsar-sql exited with code 1
+
+### Anything else?
+My main goal is to use port 8081 for REST SQL requests (pull-queries/historical-queries). The [standalone ](https://pulsar.apache.org/docs/2.11.x/sql-getting-started/) version would be fine - IF - it would provide the REST interface, too.  Hence, I can run and use the sql-worker in standalone. Thus I tried to create my own docker-compose version with pulsar-sql.
+
+Another observation:
+The python statements were not executed within the pulsar.properties file, thus I have statically replaced them with numbers. I assume if they could NOT be executed, that the NAR file could neither be executed. I haven't had a deep dive into the code, but maybe that could be a source of failure. Here the example from the pulsar.properties file.
+```
+
+# number of threads to be used for managed ledger scheduled tasks
+pulsar.managed-ledger-num-scheduler-threads=1
+#Runtime.getRuntime().availableProcessors()
+
+# directory used to store extraction NAR file
+pulsar.nar-extraction-directory=System.getProperty("java.io.tmpdir")
+
+```
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

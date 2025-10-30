@@ -1,0 +1,58 @@
+PrestoSQL 341 update trino 405 hive bug
+source sql
+
+```sql
+select count() from (
+select ymd,uid,split_part(split_part(cast(record_time as varchar),' ',2),':',1) hour
+from dlabroaddv.view_dlabroad_app_presto 
+where ymd='20230105' 
+and regexp_replace(split_part(cast(record_time as varchar),' ',1),'-','')='20230105' 
+and eid='dlabroad_app_heartbeat' 
+group by ymd,uid,split_part(split_part(cast(record_time as varchar),' ',2),':',1)
+);
+```
+
+prestosql 341 result
+
+```
+ _col0
+-------
+ 14662
+(1 row)
+
+Query 20230105_145408_00464_jw7hq, FINISHED, 2 nodes
+Splits: 520 total, 520 done (100.00%)
+0:04 [390K rows, 113MB] [103K rows/s, 29.6MB/s]
+```
+
+trino 405 result
+
+```
+ _col0
+-------
+  9634
+(1 row)
+
+Query 20230105_145321_00001_r2kn3, FINISHED, 1 node
+Splits: 391 total, 391 done (100.00%)
+11.47 [388K rows, 112MB] [33.8K rows/s, 9.76MB/s]
+```
+
+catalog configure
+
+```
+connector.name=hive-hadoop2
+hive.config.resources=/etc/ecm/hadoop-conf/core-site.xml, /etc/ecm/hadoop-conf/hdfs-site.xml
+hive.metastore.uri=thrift://xxx
+hive.allow-drop-table=false
+hive.allow-rename-table=false
+hive.ignore-absent-partitions=true
+hive.recursive-directories=true
+hive.metastore-timeout=3m
+hive.max-partitions-per-scan=1000000
+parquet.ignore-statistics=true
+```
+
+hive version 3.1.x
+
+table format TEXTFILE

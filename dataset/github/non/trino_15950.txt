@@ -1,0 +1,23 @@
+Cannot use ResultSetMetaData.getPrecision() to determine columns size.
+During work on string predicate pushdown fro case sensitive columns (https://github.com/trinodb/trino/pull/15714).
+
+I tried to switch from 
+ `public Optional<JdbcTableHandle> getTableHandle(ConnectorSession session, SchemaTableName schemaTableName)`
+to 
+`public JdbcTableHandle getTableHandle(ConnectorSession session, PreparedQuery preparedQuery)`
+
+So I tried to get table handle/ column handles not from DatabaseMetada, but from ResultSetMetada (for select * query).
+
+But then I hit such issue, that when we determine column size in first case we use : 
+`getInteger(resultSet, "COLUMN_SIZE"),`
+
+But in second case we are using : 
+`metadata.getPrecision(column)`
+
+But according to documentation of getPrecision:
+` For character data, this is the length in characters. `
+
+So instead of size in bytes we can get size in characters.
+
+ And basically I hit this issue in one of the tests:
+where we are creating varchar(max) column, with size - 2147483647 (the same showed in DBeaver) but getPrecision() returns 1073741823, like twice less (so it's assumed 2 bytes encoding per character as far as I undestand) 

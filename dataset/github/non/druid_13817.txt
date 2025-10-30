@@ -1,0 +1,57 @@
+Query Results Inconsistent on re-running same query
+### Affected Version
+24.0.0
+
+### Setup
+Kubernetes (EKS) based deployment using `incubator/druid` helm chart. Components:
+
+- Historical
+- Middle Manager
+- Broker
+- Coordinator
+- Router
+- Overlord
+- Zookeeper
+
+Using Postgres as well
+
+### Description
+Running the same query repeatedly gives varying results.
+
+```
+SELECT 
+TIME_FORMAT(__time, 'YYYY-MM-dd') AS "Date",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 00 THEN 1 ELSE 0 END) AS "0",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 01 THEN 1 ELSE 0 END) AS "1",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 02 THEN 1 ELSE 0 END) AS "2",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 03 THEN 1 ELSE 0 END) AS "3",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 04 THEN 1 ELSE 0 END) AS "4",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 05 THEN 1 ELSE 0 END) AS "5",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 06 THEN 1 ELSE 0 END) AS "6",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 07 THEN 1 ELSE 0 END) AS "7",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 08 THEN 1 ELSE 0 END) AS "8",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 09 THEN 1 ELSE 0 END) AS "9",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 10 THEN 1 ELSE 0 END) AS "10",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 11 THEN 1 ELSE 0 END) AS "11",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 12 THEN 1 ELSE 0 END) AS "12",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 13 THEN 1 ELSE 0 END) AS "13",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 14 THEN 1 ELSE 0 END) AS "14",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 15 THEN 1 ELSE 0 END) AS "15",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 16 THEN 1 ELSE 0 END) AS "16",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 17 THEN 1 ELSE 0 END) AS "17",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 18 THEN 1 ELSE 0 END) AS "18",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 19 THEN 1 ELSE 0 END) AS "19",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 20 THEN 1 ELSE 0 END) AS "20",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 21 THEN 1 ELSE 0 END) AS "21",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 22 THEN 1 ELSE 0 END) AS "22",
+SUM(CASE WHEN TIME_FORMAT(__time, 'HH') = 23 THEN 1 ELSE 0 END) AS "23",
+count(__time) AS "Total"
+FROM "table_name"
+WHERE __time >= '2023-01-01'
+GROUP BY 1
+ORDER BY 1 DESC
+```
+
+Initially the result for this query shall contain few days worth of data, from the start date (in the where clause). On re-running the query, the response shall have few more days added, in continuation of the previous result. This behaviour continues till the response contains data till present date and then it resets to the initial response contains just a few days of data.
+
+Also, while S3 based deep storage has been setup, no objects are getting uploaded into S3. The Druid historical logs do show the S3 credentials being set and do not have any error logs for S3 upload failures. 

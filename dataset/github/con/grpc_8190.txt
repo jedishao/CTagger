@@ -1,0 +1,56 @@
+grpc hang due to the ELG thread placement of NameResolver refresh method
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+**What version of gRPC are you using?**
+grpc v1.32.1
+
+**What operating system (Linux, Windows, …) and version?**
+Both Linux and Windows
+
+**What did you do?**
+Implement a customized NameResolver which extends [NameResolver](https://github.com/grpc/grpc-java/blob/d4fa0ecc07495097453b0a2848765f076b9e714c/api/src/main/java/io/grpc/NameResolver.java), let's call it "_**CustomizedNameResolver**_".  In the override refresh() method, it makes a grpc call to service discovery agent to retrieve a list of service instances and then resolve them.
+
+**What did you expect to see?**
+Expect the customized namer resolver works whenever being called and not hang in the existing grpc call.
+
+**What did you see instead?**
+grpc calls hang in the customized name resolver, particularly on the grpc calling inside overridden refresh() method. 
+
+We did a thread dump analysis, the problem is the grpc call inside overridden refresh() method is placed in gRPC ELG thread instead of worker thread, which in turns blocks all gRPC traffic causing grpc call hang indefinitely. 
+According to comment on [refresh() method](https://github.com/grpc/grpc-java/blob/d4fa0ecc07495097453b0a2848765f076b9e714c/api/src/main/java/io/grpc/NameResolver.java#L118), the document does not clearly states that you must delegate a grpc call to a worker/background thread to not block other grpc calls. 
+
+First, is the placement of grpc call inside overridden refresh() method on the grpc ELG thread an expected behavior? Why cannot we delegate it to worker thread by default? 
+
+Second, some guides and explanations could be added to the document on NameResolver to further clarify. 
+
+Attach a thread dump on ELG for your reference. Thank you.
+
+```
+"grpc-default-worker-ELG-1-6" - Thread t@428
+   java.lang.Thread.State: WAITING
+	at java.base@11.0.9.1/jdk.internal.misc.Unsafe.park(Native Method)
+	- parking to wait for <41c8f5eb> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.base@11.0.9.1/java.util.concurrent.locks.LockSupport.park(Unknown Source)
+	at java.base@11.0.9.1/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(Unknown Source)
+	at java.base@11.0.9.1/java.util.concurrent.LinkedBlockingQueue.take(Unknown Source)
+	at io.grpc.stub.ClientCalls$ThreadlessExecutor.waitAndDrain(ClientCalls.java:642)
+	at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:130)
+    ...
+	at com.xxx.xxx.CustomizedNameResolver.refresh(com.xxx.xxx.CustomizedNameResolver.refresh:59)
+	at io.grpc.internal.ManagedChannelImpl.refreshNameResolution(ManagedChannelImpl.java:447)
+	at io.grpc.internal.ManagedChannelImpl.refreshAndResetNameResolution(ManagedChannelImpl.java:441)
+	at io.grpc.internal.ManagedChannelImpl.access$3900(ManagedChannelImpl.java:99)
+	at io.grpc.internal.ManagedChannelImpl$LbHelperImpl.handleInternalSubchannelState(ManagedChannelImpl.java:1046)
+	at io.grpc.internal.ManagedChannelImpl$LbHelperImpl.access$4500(ManagedChannelImpl.java:1040)
+	at io.grpc.internal.ManagedChannelImpl$LbHelperImpl$1ManagedInternalSubchannelCallback.onStateChange(ManagedChannelImpl.java:1084)
+	at io.grpc.internal.InternalSubchannel$2.run(InternalSubchannel.java:362)
+	at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:88)
+	at io.grpc.internal.InternalSubchannel$TransportListener.transportShutdown(InternalSubchannel.java:621)
+	at io.grpc.netty.shaded.io.grpc.netty.ClientTransportLifecycleManager.notifyShutdown(ClientTransportLifecycleManager.java:53)
+	at io.grpc.netty.shaded.io.grpc.netty.NettyClientHandler.goingAway(NettyClientHandler.java:703)
+```

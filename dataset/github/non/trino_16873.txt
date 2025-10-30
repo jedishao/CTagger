@@ -1,0 +1,41 @@
+`SHOW CREATE TABLE` does not correctly display the partition projection column properties
+In `hive.properties` add `hive.partition-projection-enabled=true`
+
+
+```
+trino:default> create table hive.default.test1( 
+            ->    name varchar(10), 
+            ->    comment varchar(10), 
+            ->    nationkey bigint, 
+            ->    regionkey bigint, 
+            ->    short_name varchar(100) 
+            ->      with (partition_projection_type = 'enum', partition_projection_values = array['PL1', 'CZ1'])
+            -> )
+            -> with (
+            ->     partitioned_by = array['short_name'], 
+            ->     partition_projection_enabled = true);
+CREATE TABLE
+trino:default> show create table test1;
+              Create Table               
+-----------------------------------------
+ CREATE TABLE hive.default.test1 (       
+    name varchar(10),                    
+    comment varchar(10),                 
+    nationkey bigint,                    
+    regionkey bigint,                    
+    short_name varchar(100)              
+ )                                       
+ WITH (                                  
+    format = 'ORC',                      
+    partition_projection_enabled = true, 
+    partitioned_by = ARRAY['short_name'] 
+ )                                       
+(1 row)
+```
+
+
+In the example above it would be expected that the column `short_name` has displayed also 
+
+```
+WITH (partition_projection_type = 'enum', partition_projection_values = ARRAY['PL1', 'CZ1'])
+```

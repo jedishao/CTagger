@@ -1,0 +1,43 @@
+MemoryDB CurrConnection Keep Increasing (Potential Connection Leak?)
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+In our config:
+```
+            config.setNettyThreads(128)
+                  .useClusterServers()
+                  .addNodeAddress(String.format("rediss://%s:%s", CONTACT_POOL_EC_ADDRESS, CONTACT_POOL_EC_PORT))
+                  .setTimeout(8000)
+                  .setRetryInterval(50)
+                  .setMasterConnectionPoolSize(256)
+                  .setMasterConnectionMinimumIdleSize(16)
+                  .setSlaveConnectionPoolSize(256)
+                  .setSlaveConnectionMinimumIdleSize(16)
+                  .setKeepAlive(true)
+                  .setPingConnectionInterval(10000)
+                  .setUsername( "default");
+```
+
+We expected Redis curConnection should be stable and not keep increasing
+
+**Actual behavior**
+We are using RExecutorService to schedule distributed tasks. It started to report following errors:
+```
+org.redisson.client.RedisTimeoutException: Unable to acquire connection! RedissonPromise [promise=ImmediateEventExecutor$ImmediatePromise@322da158(failure: java.util.concurrent.CancellationException)]Increase connection pool size. Node source: NodeSource [slot=5852, addr=null, redisClient=null, redirect=null, entry=null], command: (BLPOP), params: [{QualificationDistributor:org.redisson.executor.RemoteExecutorService}, 0] after 0 retry attempts at org.redisson.command.RedisExecutor$2.run(RedisExecutor.java:187) at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:669) at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:744) at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:469) at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) at java.base/java.lang.Thread.run(Thread.java:829)
+```
+Based on initial research, it looks like somehow all connections has been used so Redisson can't create new connection to server. From our AWS MemoryDB cluster curConnectionMetric, it has been increased continuously:
+![Screen Shot 2022-06-19 at 5 30 01 PM](https://user-images.githubusercontent.com/101605590/174506429-36786adb-cedc-4e65-bbbf-0da2da54745d.png)
+
+
+
+**Steps to reproduce or test case**
+We are not able to reproduce this, but this has happened couple times so far.
+**Redis version**
+6.2
+
+**Redisson version**
+3.15.6
+**Redisson configuration**
+attached above

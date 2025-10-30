@@ -1,0 +1,58 @@
+Broker throws RuntimeException on GroupBy metric with filter applied on NaN values
+
+
+### Affected Version
+0.19
+
+The Druid version where the problem was encountered.
+0.19
+
+### Description
+
+Simple groupby query like 
+
+```
+SELECT sum(someMetric), someDimension from someDatasource
+WHERE someMetric <> 'NaN'
+GROUP BY someDimension
+```
+
+
+fails with on the Query tab:
+Error: Unknown exception
+
+While invoking method 'public org.apache.calcite.sql2rel.RelFieldTrimmer$TrimResult org.apache.calcite.sql2rel.RelFieldTrimmer.trimFields(org.apache.calcite.rel.core.Sort,org.apache.calcite.util.ImmutableBitSet,java.util.Set)'
+
+java.lang.RuntimeException
+
+
+
+
+stacktrace:
+
+```
+java.lang.RuntimeException: While invoking method 'public org.apache.calcite.sql2rel.RelFieldTrimmer$TrimResult org.apache.calcite.sql2rel.RelFieldTrimmer.trimFields(org.apache.calcite.rel.core.Sort,org.apache.calcite.util.ImmutableBitSet,java.util.Set)'
+        at org.apache.calcite.util.ReflectUtil$2.invoke(ReflectUtil.java:527) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.sql2rel.RelFieldTrimmer.dispatchTrimFields(RelFieldTrimmer.java:272) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.sql2rel.RelFieldTrimmer.trim(RelFieldTrimmer.java:161) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.druid.sql.calcite.planner.Rules$DecorrelateAndTrimFieldsProgram.run(Rules.java:301) ~[druid-sql-0.20.0.jar:0.20.0]
+        at org.apache.calcite.tools.Programs$SequenceProgram.run(Programs.java:346) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.tools.Programs$SequenceProgram.run(Programs.java:346) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.prepare.PlannerImpl.transform(PlannerImpl.java:357) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.druid.sql.calcite.planner.DruidPlanner.planWithDruidConvention(DruidPlanner.java:203) ~[druid-sql-0.20.0.jar:0.20.0]
+        at org.apache.druid.sql.calcite.planner.DruidPlanner.plan(DruidPlanner.java:137) ~[druid-sql-0.20.0.jar:0.20.0]
+        at org.apache.druid.sql.SqlLifecycle.plan(SqlLifecycle.java:168) ~[druid-sql-0.20.0.jar:0.20.0]
+        at org.apache.druid.sql.SqlLifecycle.plan(SqlLifecycle.java:179) ~[druid-sql-0.20.0.jar:0.20.0]
+....
+....
+Caused by: java.lang.NumberFormatException
+        at java.math.BigDecimal.<init>(BigDecimal.java:497) ~[?:1.8.0_302]
+        at java.math.BigDecimal.<init>(BigDecimal.java:383) ~[?:1.8.0_302]
+        at java.math.BigDecimal.<init>(BigDecimal.java:809) ~[?:1.8.0_302]
+        at java.math.BigDecimal.valueOf(BigDecimal.java:1277) ~[?:1.8.0_302]
+        at org.apache.druid.sql.calcite.planner.DruidRexExecutor.reduce(DruidRexExecutor.java:129) ~[druid-sql-0.20.0.jar:0.20.0]
+
+```
+
+
+

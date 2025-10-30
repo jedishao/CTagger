@@ -1,0 +1,85 @@
+java.lang.IllegalStateException · May only be called before start while using enable Retry
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+io.grpc:grpc-android:1.37.0'
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+Android devices. Java 8 
+
+### What did you expect to see?
+I expect the the stream call to be retried if the call to start the stream fails.
+
+### What did you see instead?
+A small percentage of our users are cashing with the following stack trace:
+```
+java.lang.IllegalStateException · May only be called before start
+Preconditions.java:511 com.google.common.base.Preconditions.checkState	
+DelayedStream.java:377 io.grpc.internal.DelayedStream.setCompressor	
+RetriableStream.java:562 io.grpc.internal.RetriableStream$1CompressorEntry.runWith	
+RetriableStream.java:287 io.grpc.internal.RetriableStream.drain	
+RetriableStream.java:52 io.grpc.internal.RetriableStream.access$900	
+RetriableStream.java:820 io.grpc.internal.RetriableStream$Sublistener$1.run	
+ThreadPoolExecutor.java:1167 java.util.concurrent.ThreadPoolExecutor.runWorker	
+ThreadPoolExecutor.java:641 java.util.concurrent.ThreadPoolExecutor$Worker.run	
+Thread.java:919 java.lang.Thread.run
+```
+
+
+
+### Steps to reproduce the bug
+
+We implemented our channel builder with these configuration:
+
+```
+val config = getRetryingServiceConfig(context)
+return AndroidChannelBuilder.forAddress("server url", 443)
+                .context(context)
+                .keepAliveWithoutCalls(true)
+                .defaultServiceConfig(config)
+                .enableRetry()
+                .keepAliveTime(5, TimeUnit.SECONDS)
+                .keepAliveTimeout(5, TimeUnit.SECONDS)
+                .useTransportSecurity()
+                .intercept(MetadataInterceptor())
+                .build()
+```
+
+Our retry configuration is as follow:
+
+```
+{
+  "methodConfig": [
+    {
+      "name": [
+        {
+          "service": "GeolocationService"
+        },
+        {
+          "service": "ChartsService"
+        }
+      ],
+      "retryPolicy": {
+        "maxAttempts": 5,
+        "initialBackoff": "0.5s",
+        "maxBackoff": "30s",
+        "backoffMultiplier": 2,
+        "retryableStatusCodes": [
+          "UNAVAILABLE"
+        ]
+      }
+    }
+  ]
+}
+```
+
+Our service calls are stream calls that are built like this:
+```
+private val service: EventStreamServiceStub = EventStreamServiceGrpc.newStub(channel)
+ val request: GetWalletLiveChartRequest =
+            GetWalletLiveChartRequest.newBuilder().build()
+
+        clientWalletCall =
+            channel.newCall(ChartsServiceGrpc.getGetWalletLiveChartMethod(), service.callOptions)
+```

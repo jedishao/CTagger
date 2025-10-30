@@ -1,0 +1,51 @@
+[Bug] Subscription with schema fails if there is an AUTO-CONSUME consumer attached to a topic
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.10.1, master
+
+### Minimal reproduce step
+
+* create an auto-consumer : bin/pulsar-client consume topic-a -s sub0 -n 0 -t Shared -st auto_consume
+* create a consumer on same topic, same sub this time with a schema
+
+```java
+    @Test
+    private void test() throws Exception {
+        try (PulsarClient client = PulsarClient.builder()
+            .serviceUrl("pulsar://localhost:6650")
+            .build()) {
+            try (Consumer<CustomObject> ignored = client.newConsumer(Schema.AVRO(CustomObject.class))
+                .topic("topic-a")
+                .subscriptionType(SubscriptionType.Shared)
+                .subscriptionName("sub0")
+                .subscribe()) {
+            }
+        }
+    }
+```
+
+* ==> failure with `IncompatibleSchemaException("Topic does not have schema to check")`
+* stop the first consumer and start the test again ==> success
+
+### What did you expect to see?
+
+Not failing
+
+### What did you see instead?
+
+Failing
+
+### Anything else?
+
+This happens because in `PersistentTopic::addSchemaIfIdleOrCheckCompatible`, we call `checkSchemaCompatibleForConsumer` if there are active consumers but no topic schema.
+And `checkSchemaCompatibleForConsumer` fails if there's no schema.
+Also `addSchemaIfIdleOrCheckCompatible` will not try to add the new consumer schema.
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

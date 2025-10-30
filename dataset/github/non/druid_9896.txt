@@ -1,0 +1,8 @@
+Remove Bindable query path
+Remove the Bindable query path, meaning all SQL queries can be executed as native queries (or a sequence of concatenated native queries, in the case of UNION ALL). Currently, this path is used for the `sys` and `INFORMATION_SCHEMA` schemas. It is also used when the planner swaps in static `Values` for a table scan, which happens when it realizes that a `WHERE` filter can never possibly match anything.
+
+This would allow supporting special Druid functions, like `TIME_PARSE`, on these tables. IMO this is the main benefit. There are also side benefits: like simplifying the SQL planning process, and joining between system tables and regular tables.
+
+The approach that comes to mind first is to have the SQL layer generate lazy inline datasources for these special tables using `InlineDataSource.fromIterable`. We need to make sure we don't blow through memory or other resources limits while doing this. (The current Bindable stuff has no resource-limiting facility, so this would be an improvement.)
+
+I believe the main prerequisite here is supporting `ORDER BY` on non-aggregating queries, meaning adding sort-by-non-time to the Scan query. It's possible that we could start this off by only supporting it for cases where there is just a single segment involved in the query. I believe this would cover the `sys` and `INFORMATION_SCHEMA` cases.

@@ -1,0 +1,81 @@
+Failure when querying nested field
+```sql
+CREATE TABLE t (
+    nested ROW(k varchar)
+)
+
+SELECT nested.k
+FROM t
+WHERE nested.k = 'x'
+ORDER BY nested.k
+LIMIT 1
+```
+
+fails with: 
+
+```
+Query 20230328_181723_00073_7ifwd failed: Expected Limit input to be sorted by: [expr_4], but was []
+com.google.common.base.VerifyException: Expected Limit input to be sorted by: [expr_4], but was []
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitLimit(ValidateLimitWithPresortedInput.java:113)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitLimit(ValidateLimitWithPresortedInput.java:58)
+	at io.trino.sql.planner.plan.LimitNode.accept(LimitNode.java:124)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.lambda$visitPlan$0(ValidateLimitWithPresortedInput.java:80)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:80)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:58)
+	at io.trino.sql.planner.plan.PlanVisitor.visitExchange(PlanVisitor.java:214)
+	at io.trino.sql.planner.plan.ExchangeNode.accept(ExchangeNode.java:246)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.lambda$visitPlan$0(ValidateLimitWithPresortedInput.java:80)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:80)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:58)
+	at io.trino.sql.planner.plan.PlanVisitor.visitExchange(PlanVisitor.java:214)
+	at io.trino.sql.planner.plan.ExchangeNode.accept(ExchangeNode.java:246)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.lambda$visitPlan$0(ValidateLimitWithPresortedInput.java:80)
+	at com.google.common.collect.ImmutableList.forEach(ImmutableList.java:422)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:80)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:58)
+	at io.trino.sql.planner.plan.PlanVisitor.visitTopN(PlanVisitor.java:44)
+	at io.trino.sql.planner.plan.TopNNode.accept(TopNNode.java:107)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.lambda$visitPlan$0(ValidateLimitWithPresortedInput.java:80)
+	at com.google.common.collect.ImmutableList.forEach(ImmutableList.java:422)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:80)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput$Visitor.visitPlan(ValidateLimitWithPresortedInput.java:58)
+	at io.trino.sql.planner.plan.PlanVisitor.visitOutput(PlanVisitor.java:49)
+	at io.trino.sql.planner.plan.OutputNode.accept(OutputNode.java:83)
+	at io.trino.sql.planner.sanity.ValidateLimitWithPresortedInput.validate(ValidateLimitWithPresortedInput.java:55)
+	at io.trino.sql.planner.sanity.PlanSanityChecker.lambda$validateFinalPlan$0(PlanSanityChecker.java:80)
+	at com.google.common.collect.ImmutableList.forEach(ImmutableList.java:422)
+	at io.trino.sql.planner.sanity.PlanSanityChecker.validateFinalPlan(PlanSanityChecker.java:80)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:269)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:223)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:218)
+	at io.trino.execution.SqlQueryExecution.doPlanQuery(SqlQueryExecution.java:466)
+	at io.trino.execution.SqlQueryExecution.planQuery(SqlQueryExecution.java:447)
+	at io.trino.execution.SqlQueryExecution.start(SqlQueryExecution.java:388)
+	at io.trino.execution.SqlQueryManager.createQuery(SqlQueryManager.java:251)
+	at io.trino.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:143)
+	at io.trino.$gen.Trino_testversion____20230328_163819_75.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+	Suppressed: java.lang.Exception: Current plan:
+                Output[columnNames = [k]]
+                │   Layout: [expr_4:varchar]
+                │   k := expr_4
+                └─ TopN[count = 1, orderBy = [expr_4 ASC NULLS LAST]]
+                   │   Layout: [expr_4:varchar]
+                   └─ LocalExchange[partitioning = SINGLE]
+                      │   Layout: [expr_4:varchar]
+                      └─ RemoteExchange[partitionCount = 4, type = GATHER]
+                         │   Layout: [expr_4:varchar]
+                         └─ LimitPartial[count = 1, inputPreSortedBy = [expr_4]]
+                            │   Layout: [expr_4:varchar]
+                            └─ ScanFilterProject[table = memory:11, filterPredicate = ("nested"[1] = VARCHAR 'x')]
+                                   Layout: [expr_4:varchar]
+                                   expr_4 := "nested"[1]
+                                   nested := 0
+
+		at io.trino.sql.planner.sanity.PlanSanityChecker.validateFinalPlan(PlanSanityChecker.java:94)
+		... 12 more
+```

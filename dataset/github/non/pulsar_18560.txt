@@ -1,0 +1,113 @@
+PIP-223: Add metrics for all Rest Endpoints 
+### Motivation
+
+Currently, we have [WebExecutor metrics](https://pulsar.apache.org/docs/next/reference-metrics/#web-service-executor-metrics) and [Jetty metrics](https://pulsar.apache.org/docs/2.10.x/reference-metrics#jetty-metrics) in the pulsar broker.
+
+The granularity of these metrics is relatively large, we can only know the metrics of the Server dimension, but we cannot know the metrics of each specific endpoint. 
+
+This can not provide more help when finding and troubleshooting problems.
+
+For the purpose of solve the above questions, it's is better to introduce per-endpoint metrics.
+
+### Goal
+
+Provide per-endpoint metrics.
+
+### API Changes
+
+_No response_
+
+### Implementation
+
+#### 1. Configuration
+
+Add the following configuration to [ServiceConfiguration.java](https://github.com/apache/pulsar/blob/master/pulsar-broker-common/src/main/java/org/apache/pulsar/broker/ServiceConfiguration.java), used to control whether to open all Rest-Endpoints monitoring, which default value is false.
+
+```
+private boolean exposePerRestEndpointMetricsInPrometheus = false;
+```
+
+#### 2. Implementation
+
+Pulsar using [Jersey](https://github.com/eclipse-ee4j/jersey) framework to provide RestAPI service, and Jersey provided [ContainerRequestFilter](https://github.com/javaee/jax-rs-api/blob/master/jaxrs-api/src/main/java/javax/ws/rs/container/ContainerRequestFilter.java), [ContainerResponseFilter](https://github.com/javaee/jax-rs-api/blob/master/jaxrs-api/src/main/java/javax/ws/rs/container/ContainerResponseFilter.java).
+
+We can use these two filters to monitoring each endpoint's metrics:
+```
+public class RestEndpointMetricsFilter implements ContainerResponseFilter, ContainerRequestFilter {
+
+    private static final String REQUEST_START_TIME = "requestStartTime";
+
+    @Override
+    public void filter(ContainerRequestContext req, ContainerResponseContext resp) throws IOException {
+        String path = req.getUriInfo().getPath();
+        String method = req.getMethod();
+        long requestStartTime = req.getProperty(REQUEST_START_TIME);
+        // ignore....
+    }
+
+    @Override
+    public void filter(ContainerRequestContext req) throws IOException {
+        // Set the request start time into properties.
+        req.setProperty(REQUEST_START_TIME, System.currentTimeMillis());
+    }
+```
+
+But there is a problem, for an Rest endpoint
+```
+@Path("/user")
+public class Users {
+
+     @Path("/{id}/query")
+     public User queryById(@PathParam("id") long userId) {
+          return xxx;
+    }
+}
+```
+the request paths can be `/user/1111/query`,`/user/2222/query`,`/user/3333/query` and etc. It will lead to tooooo many time series and may even lead to downtime of Prometheus.
+
+So we have to group these paths to `/user/:id/query`, and this will be a very good optimization.
+
+Fortunately, we can get the method of providing services through `req.getUriInfo()`, and get the content of `@Path` through reflection, and we will cache the Path to prevent cost too much from reflection:
+```
+    @Override
+    public void filter(ContainerRequestContext req, ContainerResponseContext resp) throws IOException {
+        UriRoutingContext info = (UriRoutingContext) req.getUriInfo();
+        ResourceMethod rm = info.getMatchedResourceMethod();
+        Invocable inv = method.getInvocable();
+        // The endpoint handler class
+        Class<?> handlingClass = inv.getHandler().getHandlerClass();
+        // The endpoint handler method
+        Method handlingMethod = inv.getHandlingMethod();
+        Path parent = handlingClass.getDeclaredAnnotation(Path.class);
+        Path child = handlingMethod.getDeclaredAnnotation(Path.class);
+
+        // The base path
+        String parent0 = parent == null ? "" : parent.value();
+        // The method path
+        String child0 = child == null ? "" : child.value();
+        
+        String path = parent0.endsWith("/") || child0.startsWith("/")
+                ? parent0 + child0 : parent0 + "/" + child0;
+    }
+```
+After all, we can monitor each endpoint's metrics.
+
+#### 3. Metrics
+| Name                                                             | Type           | Description                                                                      |
+| ----------------------------------------- | ----------- | ---------------------------------------------------- |
+| pulsar_broker_rest_endpoint_latency_ms | Histogram | The latency of the request execution.                           |
+| pulsar_broker_rest_endpoint_failed           | Counter     | The number of times this Endpoint failed(The http response code >= 400.) to execute. |
+
+##### a. Labels
+The 2 metrics has the following labels:
+i. path: The HTTP request path
+ii. method: The HTTP request method
+iii. code: The HTTP response code
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_

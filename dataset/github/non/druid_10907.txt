@@ -1,0 +1,142 @@
+The selection of 100 million rows was interruptted and query node throws an error - "Unexpected end-of-input: expected close marker for Array"
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+I have tried apache-druid-0.18.0 and apache-druid-0.20.0, both has the problem
+
+### Description
+
+Please include as much detailed information about the problem as possible.
+- Cluster size
+   single-server-medium and cluster have same problem.  cluster size: 
+![image](https://user-images.githubusercontent.com/5909403/108505320-239bd780-72f2-11eb-87d4-af3095281a1b.png)
+- Configurations in use
+no special config, the conf dir is :
+[conf.tar.gz](https://github.com/apache/druid/files/6010057/conf.tar.gz)
+
+- Steps to reproduce the problem
+- -  1. start a single-server druid
+- -  2. import a hundred million rows to a table. each row only has one  column, named "udwid", it is a string type。the timestamp in table are  "2010-01-01T00:00:00Z".
+each rows like this:
+ `
+cuid000453DF8336F1F06F6E051200A4B1A|0
+cuid000466CDE4745289F55B5EA786ED9B6
+cuid0004CFBD4AEBFBE630EE0EE0C58218E|0
+cuid0004EDE06B5466B515A20D85320A984|0
+cuid00050006B23BD6C13CFF38DAAB93B8A|V546NKBHB
+cuid00051FCFD4FC04CA342DB63ADB6380C|5130090400818
+`
+
+- -  3. query the "udwid" from table.  the cmd is :
+` curl -XPOST -H 'Content-Type: application/json' http://127.0.0.1:8888/druid/v2/sql/ -d@download.json`
+the download.json content is:
+`
+{
+    "resultFormat":"csv",
+    "query":" select udwid from udwid_1yi limit 100000000"
+}
+`
+-- 4. the you will find that the query only select twenty million to sixty million rows.  you can not download a hundred million rows. the query node has error message.
+- The error message or stack traces encountered. Providing more context, such as nearby log messages or even entire logs, can be helpful.
+`
+2021-01-06T05:17:47,413 WARN [qtp1629292387-207] org.apache.druid.server.QueryLifecycle - Exception while processing queryId [0a33b8dc-004b-4640-8351-0c249231829e] (java.lang.RuntimeException: com.fasterxml.jackson.core.io.JsonEOFException: Unexpected end-of-input: expected close marker for Array (start marker at [Source: (SequenceInputStream); line: -1, column: -1])
+at [Source: (SequenceInputStream); line: -1, column: 20006868])
+2021-01-06T05:17:47,414 ERROR [qtp1629292387-207] org.apache.druid.sql.http.SqlResource - Unable to send SQL response [62f93b09-f00f-4828-bf3c-89de7fdefb1c]
+java.lang.RuntimeException: com.fasterxml.jackson.core.io.JsonEOFException: Unexpected end-of-input: expected close marker for Array (start marker at [Source: (SequenceInputStream); line: -1, column: -1])
+at [Source: (SequenceInputStream); line: -1, column: 20006868]
+at org.apache.druid.client.JsonParserIterator.next(JsonParserIterator.java:119) ~[druid-server-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.BaseSequence.makeYielder(BaseSequence.java:90) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.BaseSequence.access$000(BaseSequence.java:27) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.BaseSequence$1.next(BaseSequence.java:114) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.MergeSequence.makeYielder(MergeSequence.java:105) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.MergeSequence.access$000(MergeSequence.java:32) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.MergeSequence$2.next(MergeSequence.java:135) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder$1.get(WrappingYielder.java:53) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder$1.get(WrappingYielder.java:49) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.SequenceWrapper.wrap(SequenceWrapper.java:55) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder.next(WrappingYielder.java:48) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.query.scan.ScanQueryLimitRowIterator.next(ScanQueryLimitRowIterator.java:107) ~[druid-processing-0.18.0.jar:0.18.0]
+at org.apache.druid.query.scan.ScanQueryLimitRowIterator.next(ScanQueryLimitRowIterator.java:52) ~[druid-processing-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.BaseSequence.makeYielder(BaseSequence.java:90) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.BaseSequence.access$000(BaseSequence.java:27) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.BaseSequence$1.next(BaseSequence.java:114) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder$1.get(WrappingYielder.java:53) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder$1.get(WrappingYielder.java:49) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.query.CPUTimeMetricQueryRunner$1.wrap(CPUTimeMetricQueryRunner.java:74) ~[druid-processing-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder.next(WrappingYielder.java:48) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder$1.get(WrappingYielder.java:53) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder$1.get(WrappingYielder.java:49) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.SequenceWrapper.wrap(SequenceWrapper.java:55) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.WrappingYielder.next(WrappingYielder.java:48) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.ConcatSequence.wrapYielder(ConcatSequence.java:118) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.ConcatSequence.access$000(ConcatSequence.java:27) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.java.util.common.guava.ConcatSequence$2.next(ConcatSequence.java:132) ~[druid-core-0.18.0.jar:0.18.0]
+at org.apache.druid.sql.http.SqlResource.lambda$doPost$0(SqlResource.java:150) ~[druid-sql-0.18.0.jar:0.18.0]
+at com.sun.jersey.core.impl.provider.entity.StreamingOutputProvider.writeTo(StreamingOutputProvider.java:71) [jersey-core-1.19.3.jar:1.19.3]
+at com.sun.jersey.core.impl.provider.entity.StreamingOutputProvider.writeTo(StreamingOutputProvider.java:57) [jersey-core-1.19.3.jar:1.19.3]
+at com.sun.jersey.spi.container.ContainerResponse.write(ContainerResponse.java:302) [jersey-server-1.19.3.jar:1.19.3]
+at com.sun.jersey.server.impl.application.WebApplicationImpl._handleRequest(WebApplicationImpl.java:1510) [jersey-server-1.19.3.jar:1.19.3]
+at com.sun.jersey.server.impl.application.WebApplicationImpl.handleRequest(WebApplicationImpl.java:1419) [jersey-server-1.19.3.jar:1.19.3]
+at com.sun.jersey.server.impl.application.WebApplicationImpl.handleRequest(WebApplicationImpl.java:1409) [jersey-server-1.19.3.jar:1.19.3]
+at com.sun.jersey.spi.container.servlet.WebComponent.service(WebComponent.java:409) [jersey-servlet-1.19.3.jar:1.19.3]
+at com.sun.jersey.spi.container.servlet.ServletContainer.service(ServletContainer.java:558) [jersey-servlet-1.19.3.jar:1.19.3]
+at com.sun.jersey.spi.container.servlet.ServletContainer.service(ServletContainer.java:733) [jersey-servlet-1.19.3.jar:1.19.3]
+at javax.servlet.http.HttpServlet.service(HttpServlet.java:790) [javax.servlet-api-3.1.0.jar:3.1.0]
+at com.google.inject.servlet.ServletDefinition.doServiceImpl(ServletDefinition.java:286) [guice-servlet-4.1.0.jar:?]
+at com.google.inject.servlet.ServletDefinition.doService(ServletDefinition.java:276) [guice-servlet-4.1.0.jar:?]
+at com.google.inject.servlet.ServletDefinition.service(ServletDefinition.java:181) [guice-servlet-4.1.0.jar:?]
+at com.google.inject.servlet.ManagedServletPipeline.service(ManagedServletPipeline.java:91) [guice-servlet-4.1.0.jar:?]
+at com.google.inject.servlet.FilterChainInvocation.doFilter(FilterChainInvocation.java:85) [guice-servlet-4.1.0.jar:?]
+at com.google.inject.servlet.ManagedFilterPipeline.dispatch(ManagedFilterPipeline.java:120) [guice-servlet-4.1.0.jar:?]
+at com.google.inject.servlet.GuiceFilter.doFilter(GuiceFilter.java:135) [guice-servlet-4.1.0.jar:?]
+at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1642) [jetty-servlet-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.apache.druid.server.security.PreResponseAuthorizationCheckFilter.doFilter(PreResponseAuthorizationCheckFilter.java:82) [druid-server-0.18.0.jar:0.18.0]
+at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1642) [jetty-servlet-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.apache.druid.server.security.AllowOptionsResourceFilter.doFilter(AllowOptionsResourceFilter.java:75) [druid-server-0.18.0.jar:0.18.0]
+at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1642) [jetty-servlet-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.apache.druid.server.security.AllowAllAuthenticator$1.doFilter(AllowAllAuthenticator.java:84) [druid-server-0.18.0.jar:0.18.0]
+at org.apache.druid.server.security.AuthenticationWrappingFilter.doFilter(AuthenticationWrappingFilter.java:59) [druid-server-0.18.0.jar:0.18.0]
+at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1642) [jetty-servlet-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.apache.druid.server.security.SecuritySanityCheckFilter.doFilter(SecuritySanityCheckFilter.java:86) [druid-server-0.18.0.jar:0.18.0]
+at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1642) [jetty-servlet-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:533) [jetty-servlet-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:255) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1595) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:255) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1340) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:203) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:473) [jetty-servlet-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1564) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:201) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1242) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:144) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:740) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.HandlerList.handle(HandlerList.java:61) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.StatisticsHandler.handle(StatisticsHandler.java:174) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:132) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.Server.handle(Server.java:503) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:364) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:260) [jetty-server-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:305) [jetty-io-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:103) [jetty-io-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.io.ChannelEndPoint$2.run(ChannelEndPoint.java:118) [jetty-io-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:765) [jetty-util-9.4.12.v20180830.jar:9.4.12.v20180830]
+at org.eclipse.jetty.util.thread.QueuedThreadPool$2.run(QueuedThreadPool.java:683) [jetty-util-9.4.12.v20180830.jar:9.4.12.v20180830]
+at java.lang.Thread.run(Thread.java:748) [?:1.8.0_161]
+Caused by: com.fasterxml.jackson.core.io.JsonEOFException: Unexpected end-of-input: expected close marker for Array (start marker at [Source: (SequenceInputStream); line: -1, column: -1])
+at [Source: (SequenceInputStream); line: -1, column: 20006868]
+at com.fasterxml.jackson.core.base.ParserMinimalBase._reportInvalidEOF(ParserMinimalBase.java:664) ~[jackson-core-2.10.2.jar:2.10.2]
+at com.fasterxml.jackson.dataformat.smile.SmileParserBase._handleEOF(SmileParserBase.java:746) ~[jackson-dataformat-smile-2.10.2.jar:2.10.2]
+at com.fasterxml.jackson.dataformat.smile.SmileParser._eofAsNextToken(SmileParser.java:2691) ~[jackson-dataformat-smile-2.10.2.jar:2.10.2]
+at com.fasterxml.jackson.dataformat.smile.SmileParser.nextToken(SmileParser.java:378) ~[jackson-dataformat-smile-2.10.2.jar:2.10.2]
+at org.apache.druid.client.JsonParserIterator.next(JsonParserIterator.java:115) ~[druid-server-0.18.0.jar:0.18.0]
+... 78 more
+2021-01-06T05:17:47,424 WARN [qtp1629292387-207] org.apache.druid.server.QueryLifecycle - Tried to emit logs and metrics twice for query[0a33b8dc-004b-4640-8351-0c249231829e]!
+2021-01-06T05:17:47,426 WARN [qtp1629292387-207] org.eclipse.jetty.server.HttpChannel - /druid/v2/sql/ com.fasterxml.jackson.core.io.JsonEOFException: Unexpected end-of-input: expected close marker for Array (start marker at [Source: (SequenceInputStream); line: -1, column: -1])
+at [Source: (SequenceInputStream); line: -1, column: 20006868]
+`
+- Any debugging that you have already done
+I have debugged in IDEA, but I can not find any valuable information and reasons so far.
+
+Please help me. thank you !

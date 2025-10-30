@@ -1,0 +1,25 @@
+Reading Struct field fails if there is a schema mismatch with pushdown filter enabled
+If there is schema evolution with struct field the scan fails with pushdown enabled as we are not populating the required field.
+
+For example a struct schema is modified to add a new field c to be -> row ( a, b, c)
+the streamreaders for this schema are only 2 for a, b but when we return the field blocks it fails as we did not create a reader for "c" field.
+
+
+```
+Query 20200218_235403_00000_2iybp failed: position is not valid: 10
+java.lang.IllegalArgumentException: position is not valid: 10
+	at com.facebook.presto.spi.block.AbstractSingleRowBlock.checkFieldIndex(AbstractSingleRowBlock.java:36)
+	at com.facebook.presto.spi.block.AbstractSingleRowBlock.isNull(AbstractSingleRowBlock.java:43)
+	at com.facebook.presto.$gen.PageProjectionWork_20200218_235406_6.evaluate(Unknown Source)
+	at com.facebook.presto.$gen.PageProjectionWork_20200218_235406_6.process(Unknown Source)
+	at com.facebook.presto.operator.project.DictionaryAwarePageProjection$DictionaryAwarePageProjectionWork.process(DictionaryAwarePageProjection.java:175)
+	at com.facebook.presto.operator.project.PageProcessor$ProjectSelectedPositions.processBatch(PageProcessor.java:295)
+	at com.facebook.presto.operator.project.PageProcessor$ProjectSelectedPositions.process(PageProcessor.java:183)
+	at com.facebook.presto.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:315)
+	at com.facebook.presto.operator.WorkProcessorUtils$YieldingIterator.computeNext(WorkProcessorUtils.java:79)
+	at com.facebook.presto.operator.WorkProcessorUtils$YieldingIterator.computeNext(WorkProcessorUtils.java:65)
+	at com.google.common.collect.AbstractIterator.tryToComputeNext(AbstractIterator.java:141)
+	at com.google.common.collect.AbstractIterator.hasNext(AbstractIterator.java:136)
+	at com.facebook.presto.operator.project.MergingPageOutput.getOutput(MergingPageOutput.java:111)
+	at com.facebook.presto.operator.ScanFilterAndProjectOperator.processPageSource(ScanFilterAndProjectOperator.java:290)
+```

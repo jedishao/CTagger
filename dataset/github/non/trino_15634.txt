@@ -1,0 +1,18 @@
+[Proposal] Read char and varchar as dictionary encoded blocks in the Parquet Reader
+## What
+
+The goal of this proposal is to read dictionary encoded Char and Varchar pages as DictionaryBlocks.
+
+My understanding is that parquet pages aren't aligned between columns and that the encoding of a page can change within a row group. To account for this i'm proposing a BlockBuilder that will build either a DictionaryBlock if all content is Dictionary Encoded or fallback to a VariableWidth block if the page encoding changes within a batch.
+
+I've only explored how to do this in the primitive parquet reader, I haven't looked into how this will work with the new flat parquet reader.
+
+## How
+
+- Create a new BlockBuilder for Varchar and Char types
+- The builder stores position and offset data but will either build a DictionaryBlock or, as a fallback, a VariableWidthBlock.
+- Because the dictionary encoding can differ between pages of a row group,  if the encoding changes, we will construct a VariableWidthBlock.
+- The Parquet dictionary page is shared by all pages in a row group. So we can read this dictionary once and share it with all dictionary encoded blocks for the same rowgroup.
+- The disadvantage is that some dictionary blocks will not use all of the positions from the dictionary page.
+- If this isn't ideal, we can create dictionary blocks that only contain the positions they reference.
+

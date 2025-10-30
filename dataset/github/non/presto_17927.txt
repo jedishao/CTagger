@@ -1,0 +1,371 @@
+[Design] Transformations of Existential Subqueries using Early-out Joins
+This issue describes the design for optimizing a certain class of subqueries by enabling the CBO to participate in the planning. The original design document is available [here](https://docs.google.com/document/d/1sZ6Ru9WzKn5oDTpa-ONozj6Nr-PSNmD5/edit?usp=sharing&ouid=111440303637393672625&rtpof=true&sd=true) for collaboration. Also copied below for ease of reference.
+
+
+---------------
+
+**Transformations of Existential Subqueries using Early-out Joins**
+---------------
+
+
+**1.0 Problem Statement** 
+
+Existential subqueries are constructs that are commonly used to filter rows from a table. They typically take the form 
+
+```
+SELECT <cols/expressions>
+FROM   T
+WHERE  <expression> IN (SOME subquery SQ)
+```
+
+This query includes an expression that involves columns from table T (called the Source) and SQ is any query that returns a result set of rows that can be matched/compared to <expression>. SQ is called the “Filtering Source”. The semantics of this SQL-construct is that the query above produces <cols/expressions> for each row in the Source table where the corresponding <expression> for that row exists in the result set produced by the filtering source. Presto processes these queries by simply converting this operation into a semi-join. A semi-join in Presto is realized during query execution as a special operator and has certain advantages in performance over regular joins. In this document we propose a technique to improve the performance and scalability of existential subqueries by rewriting them to other logically identical formats.
+
+
+**1.1 A Note on Semi-Joins**
+
+Semi-joins are a special kind of join algorithm. A semi-join’s purpose is to filter a rowset based on its inclusion in another rowset. A semi-join of the form “A semi-join B” where A is the source and B is the filtering source, must satisfy the following conditions. 
+The join operator must include each row from A that has a match with B on the join condition prescribed in the query
+Each row from A can appear at most once in the output of the join
+At execution time, semi-joins are typically processed ignoring duplicate values in B. I.e most database engines search for each value in A, a corresponding match in B, but halt the search of the Filtering Source’s input stream when it encounters a match. In Presto execution this is realized by a special operator called the [HashSemiJoinOperator](https://github.com/prestodb/presto/blob/master/presto-main/src/main/java/com/facebook/presto/operator/HashSemiJoinOperator.java) which constructs a hash table out of the filtering source input set, ignoring the hash collisions (it drops duplicates from the build side). Presto then probes this hash set with the input from the Source (A). Rows from the Source that match are produced as output. Typically, in a hash join operation we would prefer that the hash table is constructed out of the join input that is smaller. This is beneficial for two reasons - a) it imposes less pressure on memory, since the hash table has to be maintained in memory, and b) it improves performance since the construction of the hash table can be time-consuming when the input is large. In the version of the semi-join algorithm that is implemented in Presto, it is not possible to choose which join input to build the hash set on since the duplicates may only be ignored on the Filtering Source’s values, and therefore the Filtering Source, regardless of size, will always be the build input to the semi-join.
+
+A semi-join is one instance of what we will call an “Early-Out Join” where the search for a matching tuple may be halted as soon as one match is found. A semi-join is therefore a left early-out join where the probe from the left input to the join may exit early if successful.
+ 
+
+**1.2 Join Reordering in Presto**
+
+The most commonly used join, Inner-Join “A join B on (condition)”, is an operation that is required to produce all rows from A and B that match each other on (condition). While this is also processed as a hash join in Presto, the choice of which join input to construct a hash table from, and which input to probe with, is deliberately made in an informed manner by the Cost-Based Optimizer (CBO). Reordering of inputs is possible since this operation is symmetric. The CBO therefore makes a statistics-based decision and judiciously chooses the smaller input of the join as the build side (i.e. to construct the hash table from). 
+
+**1.3 Proposed Solution**
+
+Join reordering is available only for inner joins in Presto. Therefore we want to devise a framework that allows conversion of existential queries to Inner-joins in order to avail of the flexibility to reorder join inputs where beneficial. In some cases, it is entirely possible that the original plan, realized as the semi-join, is the most optimal (i.e. the result set from the filtering source is small), and we want to be able to retain that option. In this document we will lay out a set of query rewrites that we believe will allow us the best of both worlds.
+
+---------------
+ 
+**2.0 Externals** 
+
+This feature utilizes two other features that are already controlled by flags in Presto - Cost-Based join reordering, and the constraint-based optimization framework. Therefore in order for this feature to be effective, the end-user would have to enable three distinct flags
+join_reordering_strategy='AUTOMATIC’ [optimizer.join-reordering-strategy]
+ exploit_constraints=true [optimizer.exploit-constraints]
+in_predicates_as_inner_joins_enabled=true (NEW) [optimizer.in-predicates-as-inner-joins-enabled]
+
+We will also introduce another parameter to govern whether aggregations should be pushed below the join. More details on this in section 3
+push_aggregation_below_join_byte_reduction_threshold = 1 (default) (NEW) [optimizer.push-aggregation-below-join-byte-reduction-threshold]
+
+---------------
+
+**3.0 High Level Design** 
+
+As previously mentioned Presto directly converts an [existential query into a semi-join](https://github.com/prestodb/presto/blob/master/presto-main/src/main/java/com/facebook/presto/sql/planner/iterative/rule/TransformUncorrelatedInPredicateSubqueryToSemiJoin.java), and no other optimizer rule apply for this case to further transform/optimize this query pattern. The obvious drawback to implicitly treating an existential query as a semi-join is the poor performance that stems from the filtering source being large. Consider the following simple query on tpch data and its corresponding query plan.
+
+```
+SELECT *
+FROM   customer
+WHERE  custkey IN (SELECT custkey
+                   FROM   orders)
+       AND NAME = 'Customer#000156251'
+
+```
+
+
+
+The semijoin attempts to always use “orders” on the build side and this query can run poorly or even fail due to resource constraints. For e.g. this query would fail on Presto if you limit the memory to the process to 2G on a 10G tpch-schema
+
+-- STRAIGHT UP SEMI JOIN FAILS
+```
+presto:tpch10g> select * from customer where custkey in (select custkey from orders) and name = 'Customer#000156251';
+
+Query 20220624_184452_00002_h3qwz, FAILED, 4 nodes
+Splits: 64 total, 31 done (48.44%)
+0:04 [9.62M rows, 62.7MB] [2.54M rows/s, 16.6MB/s]
+
+Query 20220624_184452_00002_h3qwz failed: Java heap space
+
+
+```
+The corresponding query plan is
+```
+presto:tpch10g> explain select * from customer where custkey in (select custkey from orders) and name = 'Customer#000156251';
+                                                                                                                                                                                                                                                                            Query Plan
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ - Output[custkey, name, address, nationkey, phone, acctbal, mktsegment, comment] => [custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117)]
+         Estimates: {rows: 1 (195B), cpu: 1519452955.84, memory: 270000000.00, network: 270000400.89}
+     - RemoteStreamingExchange[GATHER] => [custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117)]
+             Estimates: {rows: 1 (195B), cpu: 1519452955.84, memory: 270000000.00, network: 270000400.89}
+         - FilterProject[filterPredicate = expr_10, projectLocality = LOCAL] => [custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117)]
+                 Estimates: {rows: 1 (195B), cpu: 1519452760.00, memory: 270000000.00, network: 270000205.05}/{rows: 1 (195B), cpu: 1519452955.84, memory: 270000000.00, network: 270000205.05}
+             - Project[projectLocality = LOCAL] => [custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), expr_10:boolean]
+                     Estimates: {rows: 1 (197B), cpu: 1519452562.11, memory: 270000000.00, network: 270000205.05}
+                 - SemiJoin[custkey = custkey_1][$hashvalue, $hashvalue_44] => [custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue:bigint, expr_10:boolean]
+                         Estimates: {rows: 1 (207B), cpu: 1519452364.23, memory: 270000000.00, network: 270000205.05}
+                         Distribution: PARTITIONED
+                     - RemoteStreamingExchange[REPARTITION][$hashvalue] => [custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue:bigint]
+                             Estimates: {rows: 1 (205B), cpu: 574451952.09, memory: 0.00, network: 205.05}
+                         - ScanFilterProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch10g, tableName=customer, analyzePartitionValues=Optional.empty}', layout='Optional[tpch10g.customer{domains={name=[ [["Customer#000156251"]] ]}}]'}, filterPredicate = (name) = (VARCHAR'Customer#000156251'), projectLocality = LOCAL] => [custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue_43:bigint]
+                                 Estimates: {rows: 1500000 (286.79MB), cpu: 287225771.00, memory: 0.00, network: 0.00}/{rows: 1 (205B), cpu: 574451542.00, memory: 0.00, network: 0.00}/{rows: 1 (205B), cpu: 574451747.05, memory: 0.00, network: 0.00}
+                                 $hashvalue_43 := combine_hash(BIGINT'0', COALESCE($operator$hash_code(custkey), BIGINT'0')) (1:23)
+                                 LAYOUT: tpch10g.customer{domains={name=[ [["Customer#000156251"]] ]}}
+                                 comment := comment:varchar(117):7:REGULAR (1:23)
+                                 acctbal := acctbal:double:5:REGULAR (1:23)
+                                 nationkey := nationkey:bigint:3:REGULAR (1:23)
+                                 name := name:varchar(25):1:REGULAR (1:23)
+                                 custkey := custkey:bigint:0:REGULAR (1:23)
+                                 phone := phone:varchar(15):4:REGULAR (1:23)
+                                 mktsegment := mktsegment:varchar(10):6:REGULAR (1:23)
+                                 address := address:varchar(40):2:REGULAR (1:23)
+                     - LocalExchange[SINGLE] () => [custkey_1:bigint, $hashvalue_44:bigint]
+                             Estimates: {rows: 15000000 (257.49MB), cpu: 675000000.00, memory: 0.00, network: 270000000.00}
+                         - RemoteStreamingExchange[REPARTITION - REPLICATE NULLS AND ANY][$hashvalue_45] => [custkey_1:bigint, $hashvalue_45:bigint]
+                                 Estimates: {rows: 15000000 (257.49MB), cpu: 675000000.00, memory: 0.00, network: 270000000.00}
+                             - ScanProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch10g, tableName=orders, analyzePartitionValues=Optional.empty}', layout='Optional[tpch10g.orders{}]'}, projectLocality = LOCAL] => [custkey_1:bigint, $hashvalue_46:bigint]
+                                     Estimates: {rows: 15000000 (257.49MB), cpu: 135000000.00, memory: 0.00, network: 0.00}/{rows: 15000000 (257.49MB), cpu: 405000000.00, memory: 0.00, network: 0.00}
+                                     $hashvalue_46 := combine_hash(BIGINT'0', COALESCE($operator$hash_code(custkey_1), BIGINT'0')) (1:70)
+                                     LAYOUT: tpch10g.orders{}
+                                     custkey_1 := custkey:bigint:1:REGULAR (1:70)
+
+(1 row)
+
+```
+
+In comparison we can see that a logically equivalent query on the same setup succeeds.
+
+```
+SELECT DISTINCT c.*
+FROM   (SELECT uuid(),
+               *
+        FROM   customer
+        WHERE  NAME = 'Customer#000156251') c,
+       orders o
+WHERE  c.custkey = o.custkey;
+
+
+
+presto:tpch10g> explain SELECT DISTINCT c.*
+             -> FROM   (SELECT Random(),
+             ->                *
+             ->         FROM   customer
+             ->         WHERE  NAME = 'Customer#000156251') c,
+             ->        orders o
+             -> WHERE  c.custkey = o.custkey;
+                                                                                                                                                                                                                                                                                                                                Query Plan
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ - Output[_col0, custkey, name, address, nationkey, phone, acctbal, mktsegment, comment] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117)]
+         _col0 := random (1:9)
+     - RemoteStreamingExchange[GATHER] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117)]
+         - Project[projectLocality = LOCAL] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117)]
+             - Aggregate(FINAL)[random, custkey, name, address, nationkey, phone, acctbal, mktsegment, comment][$hashvalue] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue:bigint]
+                 - LocalExchange[HASH][$hashvalue] (random, custkey, name, address, nationkey, phone, acctbal, mktsegment, comment) => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue:bigint]
+                     - Aggregate(PARTIAL)[random, custkey, name, address, nationkey, phone, acctbal, mktsegment, comment][$hashvalue_80] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue_80:bigint]
+                         - Project[projectLocality = LOCAL] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue_80:bigint]
+                                 Estimates: {rows: 15 (3.09kB), cpu: 1519458600.45, memory: 214.25, network: 270000214.25}
+                                 $hashvalue_80 := combine_hash(combine_hash(combine_hash(combine_hash(combine_hash(combine_hash(combine_hash(combine_hash(combine_hash(BIGINT'0', COALESCE($operator$hash_code(random), BIGINT'0')), COALESCE($operator$hash_code(custkey), BIGINT'0')), COALESCE($operator$hash_code(name), BIGINT'0')), COALESCE($operator$hash_code(address), BIGINT'0')), COALESCE($operator$hash_code(nationkey), BIGINT'0')), COALESCE($operator$hash_code(phone), BIGINT'0')), COALESCE($operator$hash_code(acctbal), BIGINT'0')), COALESCE($operator$hash_code(mktsegment), BIGINT'0')), COALESCE($operator$hash_code(comment), BIGINT'0')) (2:16)
+                             - InnerJoin[("custkey_34" = "custkey")][$hashvalue_75, $hashvalue_77] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117)]
+                                     Estimates: {rows: 15 (2.96kB), cpu: 1519455431.65, memory: 214.25, network: 270000214.25}
+                                     Distribution: PARTITIONED
+                                 - RemoteStreamingExchange[REPARTITION][$hashvalue_75] => [custkey_34:bigint, $hashvalue_75:bigint]
+                                         Estimates: {rows: 15000000 (257.49MB), cpu: 675000000.00, memory: 0.00, network: 270000000.00}
+                                     - ScanProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch10g, tableName=orders, analyzePartitionValues=Optional.empty}', layout='Optional[tpch10g.orders{}]'}, projectLocality = LOCAL] => [custkey_34:bigint, $hashvalue_76:bigint]
+                                             Estimates: {rows: 15000000 (257.49MB), cpu: 135000000.00, memory: 0.00, network: 0.00}/{rows: 15000000 (257.49MB), cpu: 405000000.00, memory: 0.00, network: 0.00}
+                                             $hashvalue_76 := combine_hash(BIGINT'0', COALESCE($operator$hash_code(custkey_34), BIGINT'0')) (6:8)
+                                             LAYOUT: tpch10g.orders{}
+                                             custkey_34 := custkey:bigint:1:REGULAR (6:8)
+                                 - LocalExchange[HASH][$hashvalue_77] (custkey) => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue_77:bigint]
+                                         Estimates: {rows: 1 (214B), cpu: 574452184.75, memory: 0.00, network: 214.25}
+                                     - RemoteStreamingExchange[REPARTITION][$hashvalue_78] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue_78:bigint]
+                                             Estimates: {rows: 1 (214B), cpu: 574451970.50, memory: 0.00, network: 214.25}
+                                         - ScanFilterProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch10g, tableName=customer, analyzePartitionValues=Optional.empty}', layout='Optional[tpch10g.customer{domains={name=[ [["Customer#000156251"]] ]}}]'}, filterPredicate = (name) = (VARCHAR'Customer#000156251'), projectLocality = LOCAL] => [random:double, custkey:bigint, name:varchar(25), address:varchar(40), nationkey:bigint, phone:varchar(15), acctbal:double, mktsegment:varchar(10), comment:varchar(117), $hashvalue_79:bigint]
+                                                 Estimates: {rows: 1500000 (299.67MB), cpu: 287225771.00, memory: 0.00, network: 0.00}/{rows: 1 (214B), cpu: 574451542.00, memory: 0.00, network: 0.00}/{rows: 1 (214B), cpu: 574451756.25, memory: 0.00, network: 0.00}
+                                                 random := random()
+                                                 $hashvalue_79 := combine_hash(BIGINT'0', COALESCE($operator$hash_code(custkey), BIGINT'0')) (4:17)
+                                                 LAYOUT: tpch10g.customer{domains={name=[ [["Customer#000156251"]] ]}}
+                                                 comment := comment:varchar(117):7:REGULAR (4:16)
+                                                 acctbal := acctbal:double:5:REGULAR (4:16)
+                                                 nationkey := nationkey:bigint:3:REGULAR (4:16)
+                                                 name := name:varchar(25):1:REGULAR (4:16)
+                                                 custkey := custkey:bigint:0:REGULAR (4:16)
+                                                 phone := phone:varchar(15):4:REGULAR (4:16)
+                                                 mktsegment := mktsegment:varchar(10):6:REGULAR (4:16)
+                                                 address := address:varchar(40):2:REGULAR (4:16)
+
+(1 row)
+
+
+
+
+
+presto:tpch10g> SELECT DISTINCT n.* FROM (SELECT random(), * FROM nation) n, orders o WHERE n.comment = o.comment;
+ _col0 | nationkey | name | regionkey | comment
+-------+-----------+------+-----------+---------
+(0 rows)
+
+Query 20220418_223721_00049_j2qkn, FINISHED, 4 nodes
+Splits: 85 total, 85 done (100.00%)
+0:02 [15M rows, 173MB] [9.96M rows/s, 115MB/s]
+
+presto:tpch10g> explain SELECT DISTINCT n.* FROM (SELECT random(), * FROM nation) n, orders o WHERE n.comment = o.comment;
+                                                                                                                                                                                               Query Plan
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ - Output[_col0, nationkey, name, regionkey, comment] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152)]
+         _col0 := random (1:9)
+     - RemoteStreamingExchange[GATHER] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152)]
+         - Project[projectLocality = LOCAL] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152)]
+             - Aggregate(FINAL)[random, nationkey, name, regionkey, comment][$hashvalue] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152), $hashvalue:bigint]
+                 - LocalExchange[HASH][$hashvalue] (random, nationkey, name, regionkey, comment) => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152), $hashvalue:bigint]
+                     - Aggregate(PARTIAL)[random, nationkey, name, regionkey, comment][$hashvalue_47] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152), $hashvalue_47:bigint]
+                         - Project[projectLocality = LOCAL] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152), $hashvalue_47:bigint]
+                                 Estimates: {rows: 27 (3.37kB), cpu: 5467404466.96, memory: 960000000.00, network: 960003184.00}
+                                 $hashvalue_47 := combine_hash(combine_hash(combine_hash(combine_hash(combine_hash(BIGINT'0', COALESCE($operator$hash_code(random), BIGINT'0')), COALESCE($operator$hash_code(nationkey), BIGINT'0')), COALESCE($operator$hash_code(name), BIGINT'0')), COALESCE($operator$hash_code(regionkey), BIGINT'0')), COALESCE($operator$hash_code(comment), BIGINT'0')) (1:42)
+                             - InnerJoin[("comment" = "cast")][$hashvalue_42, $hashvalue_44] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152)]
+                                     Estimates: {rows: 27 (3.13kB), cpu: 5467401016.05, memory: 960000000.00, network: 960003184.00}
+                                     Distribution: PARTITIONED
+                                 - RemoteStreamingExchange[REPARTITION][$hashvalue_42] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152), $hashvalue_42:bigint]
+                                         Estimates: {rows: 25 (3.11kB), cpu: 9102.00, memory: 0.00, network: 3184.00}
+                                     - ScanProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch10g, tableName=nation, analyzePartitionValues=Optional.empty}', layout='Optional[tpch10g.nation{}]'}, projectLocality = LOCAL] => [random:double, nationkey:bigint, name:varchar(25), regionkey:bigint, comment:varchar(152), $hashvalue_43:bigint]
+                                             Estimates: {rows: 25 (3.11kB), cpu: 2734.00, memory: 0.00, network: 0.00}/{rows: 25 (3.11kB), cpu: 5918.00, memory: 0.00, network: 0.00}
+                                             random := random()
+                                             $hashvalue_43 := combine_hash(BIGINT'0', COALESCE($operator$hash_code(comment), BIGINT'0')) (1:60)
+                                             LAYOUT: tpch10g.nation{}
+                                             regionkey := regionkey:bigint:2:REGULAR (1:59)
+                                             name := name:varchar(25):1:REGULAR (1:59)
+                                             nationkey := nationkey:bigint:0:REGULAR (1:59)
+                                             comment := comment:varchar(152):3:REGULAR (1:59)
+                                 - LocalExchange[HASH][$hashvalue_44] (cast) => [cast:varchar(152), $hashvalue_44:bigint]
+                                         Estimates: {rows: 15000000 (915.53MB), cpu: 4507385523.00, memory: 0.00, network: 960000000.00}
+                                     - RemoteStreamingExchange[REPARTITION][$hashvalue_45] => [cast:varchar(152), $hashvalue_45:bigint]
+                                             Estimates: {rows: 15000000 (915.53MB), cpu: 3547385523.00, memory: 0.00, network: 960000000.00}
+                                         - Project[projectLocality = LOCAL] => [cast:varchar(152), $hashvalue_46:bigint]
+                                                 Estimates: {rows: 15000000 (915.53MB), cpu: 2587385523.00, memory: 0.00, network: 0.00}
+                                                 $hashvalue_46 := combine_hash(BIGINT'0', COALESCE($operator$hash_code(cast), BIGINT'0')) (1:71)
+                                             - ScanProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch10g, tableName=orders, analyzePartitionValues=Optional.empty}', layout='Optional[tpch10g.orders{}]'}, projectLocality = LOCAL] => [cast:varchar(152)]
+                                                     Estimates: {rows: 15000000 (786.78MB), cpu: 802385523.00, memory: 0.00, network: 0.00}/{rows: 15000000 (786.78MB), cpu: 1627385523.00, memory: 0.00, network: 0.00}
+                                                     cast := CAST(comment_18 AS varchar(152)) (1:71)
+                                                     LAYOUT: tpch10g.orders{}
+                                                     comment_18 := comment:varchar(79):8:REGULAR (1:70)
+
+(1 row)
+
+```
+
+Actual execution: 
+
+```
+presto:tpch10g> select distinct c.* from (select random(), * from customer where name = 'Customer#000156251') c, orders o where c.custkey = o.custkey;
+       _col0       | custkey |        name        |         address         | nationkey |      phone      | acctbal | mktsegment |                            comment
+-------------------+---------+--------------------+-------------------------+-----------+-----------------+---------+------------+----------------------------------------------------------------
+ 0.285896288805213 |  156251 | Customer#000156251 | urz1DOJ,ZKWJni8FlxmgRBX |         7 | 17-321-701-8875 | -185.91 | HOUSEHOLD  | , ironic packages are never about the ironic pinto beans. pint
+(1 row)
+
+Query 20220624_184514_00006_h3qwz, FINISHED, 4 nodes
+Splits: 92 total, 92 done (100.00%)
+0:01 [16.5M rows, 62.7MB] [12.5M rows/s, 47.5MB/s]
+
+```
+
+This is due to the fact that the CBO reorders the inputs to the inner join, and chooses the smaller table to be the build input to the join. Furthermore this is a cardinality-reducing join that produces a small result set (a very common case), which makes the aggregation lightweight. This query rewrite enables the CBO to participate in planning the query and determining the appropriate join order. In the rest of this section we will focus on proving the logical equivalence of this transformation and some further tweaks to ensure that we always pick the best plan based on the available information.
+
+---------------
+
+**3.1 Logical Equivalence (A)**
+
+Let us consider the following query to be the canonical version of the existential query
+
+```
+SELECT <cols/expressions>
+FROM   a
+WHERE  <expression1> IN
+       (
+              SELECT <expression2>
+              FROM   b)
+```
+  
+
+It is obvious that this is equivalent to performing a semi-join with A as the data source to the join and B as the filtering source where the matching condition is <expression1> = <expression2>. This is what Presto does today.
+
+We posit that this is equivalent to the following rewrite to an inner join
+
+```
+SELECT DISTINCT id,
+                sq1.<cols/expressions>
+FROM            (
+                       SELECT uuid() AS id,
+                              <cols/expressions>,
+                              <expression1>
+                       FROM   a) sq1,
+                (
+                       SELECT <expression2>
+                       FROM   b) sq2
+WHERE           sq1.<expression1> = sq2.<expression2; 
+```
+
+We previously discussed that the semi-join ignores duplicates from the filtering source (B) and just performs a check for existence for each element in A in the result set of B. In the above rewrite the join is transformed to an inner join where all matching rows in A and B are produced from the join (1:N join). However, notice the following conditions
+A unique id is appended to each row of A
+The output contains only elements from A (uncorrelated subquery)
+We perform a final distinct aggregation on the result of the join
+
+From these conditions, the following conclusions may be inferred
+Rows in A that do not match any row in B on the expressions will not appear in the output - from the definition of inner join. 
+For every row of A that has more than one match in B, the output will have the same value for the “id” column. 
+Since the output columns are a strict subset of the columns in A, the distinct aggregation is guaranteed to remove all rows in A that have the same value for id, but also retains rows from A that are duplicates otherwise. 
+An additional nuance here is that nulls are never considered equivalent (i.e. NULL != NULL) and nulls never match any other value. Therefore rows for which <expression1> in A or <expression2> in B evaluate to NULL will never appear in the join output for either join.
+
+
+Conclusions (a-d) show that the rewritten query satisfies the semantics of the existential query and is therefore logically equivalent.
+
+**3.2 Logical Equivalence (B)**
+
+There is another rewrite that is also equivalent to the canonical version of the existential query
+
+```
+SELECT sq1.<cols/expressions>
+FROM            (
+SELECT <cols/expressions>,
+               <expression1>
+                       FROM   a) sq1,
+                (
+                       SELECT DISTINCT <expression2>
+                       FROM   b) sq2
+WHERE           sq1.<expression1> = sq2.<expression2;
+
+```
+
+This rewrite filters out duplicate values of b.<expression2> before the join. Therefore the inner join can only match each row in A with one value from B. This is trivially equivalent to the definition of the existential subquery.
+
+
+
+**3.3 Logical Equivalence (C)**
+
+For completeness we will also include the third equivalent rewrite of the existential subquery - as a semi-join. This is what Presto does today. (Not quite sql syntax)
+
+```
+SELECT sq1.<cols/expressions>
+FROM     		a SEMIJOIN b
+WHERE           a.<expression1> = b.<expression2;
+```
+
+
+
+**3.4 The Whole Picture**
+
+The previous tpch-example illustrated one instance in which a rewrite of the form 3.1 may be beneficial to query performance. In this section we will describe various cases where each of the logically equivalent rewrites may be beneficial. We will also contrast our proposal with an alternate approach from Trino that attempts to mitigate the same problem and show how our proposal is better.
+
+Queries involving semi-joins may exhibit variable performance metrics depending on the size of the join inputs and/or the data distribution of the join inputs. Let us enumerate the possible cases that could impact performance here. These mostly have to do with the size of the filtering source join input B, and whether the join significantly reduces cardinality of the output result set. 
+
+
+Case 1: B is smaller than A (Left Early Out Join)
+
+If the input from the filtering source is smaller, we would like to pick that as the build side of the join. In this case it is always better to use a semi-join (rewrite 3.3). Choosing a semi-join here avoids the overhead of additional aggregations and there is no need to reorder the join inputs.
+
+
+Case 2: B is larger than A (Right Early Out Join)
+
+In this case it is desirable to use A as the build input to the join. Therefore we would like to rewrite this query as an inner join (either 3.1 or 3.2). The difference between these rewrites is that in 3.1 we eliminate duplicate matches on the filtering source (B) after the inner join by performing a distinct aggregation, while in 3.2 we prevent duplicate matches by eliminating duplicates in the filtering source (B) before the join.
+	
+
+Case 2.1: The join is cardinality reducing
+
+If the join reduces cardinality, then the size of the intermediate result set from the inner join is small and the overhead of performing the final aggregation in 3.1 is low. It may be expensive to perform a final distinct on B before the join, especially since the join will also have to build a hash set similar to the aggregation below it. In this case rewrite 3.1 is preferred.
+
+Case 2.2: The join does not reduce cardinality
+
+If the join does not reduce cardinality, then the size of the intermediate result set from the inner join could be large. This could lead to a bigger memory footprint and may incur significant overhead from the final aggregation in 3.1. Therefore a better option may be to use rewrite 3.2 to eliminate duplicates from the filtering source. This may cause a reduction in the intermediate result set (since duplicates in B are removed) but leads to a trade off between performing a distinct aggregation on B vs a distinct aggregation on the inner join output. In this case rewrite 3.2 may be preferred.
+
+The threshold that determines whether a join is cardinality reduction is governed by a configurable parameter called optimizer.push-aggregation-below-join-byte-reduction-threshold, whose default is set to 100%. TBD: depending on benchmarks we may decide to tweak the default to something smaller

@@ -1,0 +1,47 @@
+Return consistent HTTP 504 error responses for query timeouts
+### Affected Version
+`0.17.0`
+
+### Description
+
+#### Expected Behavior
+When a Druid query hits the `timeout` set in the query context, a consistent error response should be returned, ideally with an `HTTP 504` error code.
+
+#### Actual Behavior
+In practice, we see several different responses returned for this scenario, all with an `HTTP 500` error code.  This makes it difficult to detect and handle the error in client code.
+
+```json
+{
+  "error": "Unknown exception",
+  "errorMessage": "Sequence iterator timed out waiting for data",
+  "errorClass": "org.apache.druid.java.util.common.RE",
+  "host": null
+}
+```
+
+```json
+{
+  "error": "Unknown exception",
+  "errorMessage": "Query[3e115fa5-abf6-4496-8632-2b0196300e7c] url[http://druid-prod-middle-manager-38.druid-prod-middle-manager.druid-prod.svc.cluster.local:8100/druid/v2/] timed out.",
+  "errorClass": "org.apache.druid.java.util.common.RE",
+  "host": null
+}
+```
+
+```json
+{
+  "error": "Unknown exception",
+  "errorMessage": "Query[8245c738-799b-4901-8d00-6a64e1e55b81] url[http://druid-prod-historical-23.druid-prod-historical.druid-prod.svc.cluster.local:8083/druid/v2/] timed out.",
+  "errorClass": "org.apache.druid.java.util.common.RE",
+  "host": null
+}
+```
+
+```json
+{
+  "error": "Query timeout",
+  "errorMessage": "Timeout waiting for task.",
+  "errorClass": "java.util.concurrent.TimeoutException",
+  "host": "druid-prod-historical-0.druid-prod-historical.druid-prod.svc.cluster.local:8083"
+}
+```

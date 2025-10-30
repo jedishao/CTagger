@@ -1,0 +1,91 @@
+Imperfect rollup in native ingestion when using integer dimensions and replacing nulls with default value
+### Affected Version
+0.18.0
+
+### Description
+During native ingestion `RollupFactsHolder` structure is used for maintaining a sorted list of intermediate rows. It treats missing integer values as nulls and puts them before any other value. Although later when an incremental persist is created, by default null values get replaced with 0. This breaks the sorted ordering of rows which prevents merging of identical rows as the next stage algorithm in `RowCombiningTimeAndDimsIterator` relies on incremental persists being sorted when performing the merge.
+
+### Steps To Reproduce
+Import two files below with the given ingestion spec (replacing `<path to data>`).
+The expected result is 3 rows total, although 4 rows are produced.
+
+Input file 1:
+```
+{"time": 1589512112, "dim": -101, "value": 1}
+{"time": 1589512112, "dim": -100, "value": 2}
+```
+Input file 2:
+```
+{"time": 1589512112, "dim": null, "value": 10}
+{"time": 1589512112, "dim": -100, "value": 20}
+```
+Ingestion spec:
+```
+{
+  "type": "index_parallel",
+  "spec": {
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "local",
+        "filter": "*",
+        "baseDir": "<path to data>"
+      },
+      "inputFormat": {
+        "type": "json"
+      }
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "partitionsSpec": {
+        "type": "hashed",
+        "numShards": 1,
+        "partitionDimensions": [
+          "dim"
+        ]
+      },
+      "forceGuaranteedRollup": true,
+      "maxNumConcurrentSubTasks": 2,
+      "splitHintSpec" : {
+        "type" : "maxSize",
+        "maxSplitSize" : 1
+      }
+    },
+    "dataSchema": {
+      "dataSource": "int_rollup_issue",
+      "granularitySpec": {
+        "type": "uniform",
+        "queryGranularity": "HOUR",
+        "rollup": true,
+        "intervals": [
+          "2020-05-15/2020-05-16"
+        ],
+        "segmentGranularity": "DAY"
+      },
+      "timestampSpec": {
+        "column": "time",
+        "format": "posix"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          {
+            "type": "long",
+            "name": "dim"
+          }
+        ]
+      },
+      "metricsSpec": [
+        {
+          "name": "count",
+          "type": "count"
+        },
+        {
+          "name": "sum_value",
+          "type": "longSum",
+          "fieldName": "value"
+        }
+      ]
+    }
+  }
+}
+```

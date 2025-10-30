@@ -1,0 +1,12 @@
+Druid can not see/read GOOGLE_APPLICATION_CREDENTIALS defined on env path
+Hi team,
+
+I installed apache-druid-0.22.1 as a cluster (master, data and query nodes) and enabled "druid-google-extensions" by adding it to the array druid.extensions.loadList in common.runtime.properties.  
+
+Finally I defined GOOGLE_APPLICATION_CREDENTIALS ( which has the value of service account json as defined in https://cloud.google.com/docs/authentication/production )as an environment variable of user that run the druid services.
+
+However, I got the following error when I try to ingest data from GCR buckets:
+
+`Error: Cannot construct instance of `org.apache.druid.data.input.google.GoogleCloudStorageInputSource`, problem: Unable to provision, see the following errors: 1) Error in custom provider, java.io.IOException: The Application Default Credentials are not available. They are available if running on Google App Engine, Google Compute Engine, or Google Cloud Shell. Otherwise, the environment variable GOOGLE_APPLICATION_CREDENTIALS must be defined pointing to a file defining the credentials. See https://developers.google.com/accounts/docs/application-default-credentials for more information. at org.apache.druid.common.gcp.GcpModule.getHttpRequestInitializer(GcpModule.java:60) (via modules: com.google.inject.util.Modules$OverrideModule -> org.apache.druid.common.gcp.GcpModule) at org.apache.druid.common.gcp.GcpModule.getHttpRequestInitializer(GcpModule.java:60) (via modules: com.google.inject.util.Modules$OverrideModule -> org.apache.druid.common.gcp.GcpModule) while locating com.google.api.client.http.HttpRequestInitializer for the 3rd parameter of org.apache.druid.storage.google.GoogleStorageDruidModule.getGoogleStorage(GoogleStorageDruidModule.java:114) at org.apache.druid.storage.google.GoogleStorageDruidModule.getGoogleStorage(GoogleStorageDruidModule.java:114) (via modules: com.google.inject.util.Modules$OverrideModule -> org.apache.druid.storage.google.GoogleStorageDruidModule) while locating org.apache.druid.storage.google.GoogleStorage 1 error at [Source: (org.eclipse.jetty.server.HttpInputOverHTTP); line: 1, column: 180] (through reference chain: org.apache.druid.indexing.overlord.sampler.IndexTaskSamplerSpec["spec"]->org.apache.druid.indexing.common.task.IndexTask$IndexIngestionSpec["ioConfig"]->org.apache.druid.indexing.common.task.IndexTask$IndexIOConfig["inputSource"])`
+
+A case reported on this matter caught my attention. But I can not see any verified solution to that case. 

@@ -1,0 +1,13 @@
+[Hint]Resolve redundant off-heap memory used
+### BackGround:
+
+Recently, a case occurred to me that off-heap memory increase gradually till 10G with the operation of the cluster, no matter running on 64G nor 256G machine. This problem is more serious when it comes to 64G machine.
+<img width="491" alt="企业微信截图_2e7b9587-f10a-4cb3-a225-0f02b941ebb4" src="https://user-images.githubusercontent.com/86234715/184468836-be7653cb-976f-450d-a899-810401ca209c.png">
+
+### Process:
+I use NMT to fetch the redundant memory, but it can't be fetched by NMT, which means that the redundant memory may be a native memory.
+Instead, I try to use jemalloc to fetch it.  Surprisingly, the problem I mentioned before didn't occur when I used jemalloc.  The problem may due to the inefficient memory-return function of LIBC. The memory won't be returned to OS until consecutive memory blocks exceed a specific length. So I think the problem can be resolved by jemalloc's fast-memory-return feature.
+<img width="484" alt="企业微信截图_3bda34fe-80d6-45c8-88ae-948e3a0ac601" src="https://user-images.githubusercontent.com/86234715/184468865-d7711d94-d115-4b0d-9772-df443f36734b.png">
+
+### Solution: 
+Replace **libc** with **jemalloc**.  

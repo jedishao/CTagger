@@ -1,0 +1,40 @@
+Received DATA frame for an unknown stream in bi stream
+I have a grpc bistream in my application. In the happy path, the server will call onCompleted() of the response stream and then the client will call onCompleted() of the request stream.
+
+Most of the times things work fine, but every once in a while I am getting a big scary stack trace like
+
+```
+io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2Exception$StreamException: Received DATA frame for an unknown stream 3
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2Exception.streamError(Http2Exception.java:147) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$FrameReadListener.shouldIgnoreHeadersOrDataFrame(DefaultHttp2ConnectionDecoder.java:596) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder$FrameReadListener.onDataRead(DefaultHttp2ConnectionDecoder.java:239) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2InboundFrameLogger$1.onDataRead(Http2InboundFrameLogger.java:48) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2FrameReader.readDataFrame(DefaultHttp2FrameReader.java:422) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2FrameReader.processPayloadState(DefaultHttp2FrameReader.java:251) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2FrameReader.readFrame(DefaultHttp2FrameReader.java:160) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2InboundFrameLogger.readFrame(Http2InboundFrameLogger.java:41) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.DefaultHttp2ConnectionDecoder.decodeFrame(DefaultHttp2ConnectionDecoder.java:174) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2ConnectionHandler$FrameDecoder.decode(Http2ConnectionHandler.java:378) ~[grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.http2.Http2ConnectionHandler.decode(Http2ConnectionHandler.java:438) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:440) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:792) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:475) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at io.grpc.netty.shaded.io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [grpc-netty-shaded-1.33.0.jar!/:1.33.0]
+	at java.lang.Thread.run(Thread.java:748) [na:1.8.0_292]
+```
+
+What does this mean, is it not appropriate for me to call onCompleted() of the request stream after onCompleted() of the response stream? When I remove the onCompleted() call in the request stream the error does not occur.
+
+In my testing, it seems as though it is acceptable to have the requestStream closed but the responseStream open, i.e. the client call onComplete but the server continue to call onNext, in that these messages are received by the client. But the reverse is not acceptable, i.e. the server calling onComplete and then the client calling onNext in that these messages are not received by the server. So that in grpc the stream can only be half closed in one way? Is this correct and where is this documented?

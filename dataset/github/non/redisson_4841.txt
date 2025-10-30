@@ -1,0 +1,80 @@
+RedisTimeoutException: Unable to acquire connection! java.util.concurrent.CompletableFuture
+# Error message
+```
+org.redisson.client.RedisTimeoutException: Unable to acquire connection! java.util.concurrent.CompletableFuture@274f4fc8[Completed exceptionally: java.util.concurrent.CancellationException]Increase connection pool size. Node source: NodeSource [slot=6574, addr=redis://10.30.16.84:11100, redisClient=null, redirect=MOVED, entry=null], command: (GET), params: [bfs:exp:152220230202150633545] after 3 retry attempts
+	at org.redisson.command.RedisExecutor$1.run(RedisExecutor.java:241)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.run(HashedWheelTimer.java:715)
+	at io.netty.util.concurrent.ImmediateExecutor.execute(ImmediateExecutor.java:34)
+	at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:703)
+	at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:790)
+	at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:503)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:844)
+```
+
+# Actual behavior
+
+- When we try to expand the redis cluster (change from 3 masters and 3 slaves to 4 masters and 4 slaves), the above error query exceptions will appear several times during the expansion process of the get command
+
+# Expected behavior
+
+- Query succeeded during capacity expansion
+
+# Pro config
+
+- Config
+```
+clusterServersConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 1500
+  failedSlaveReconnectionInterval: 3000
+  failedSlaveCheckInterval: 60000
+  password: drG3rhu5==12x
+  subscriptionsPerConnection: 5
+  clientName: test
+  loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> { }
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  slaveConnectionMinimumIdleSize: 24
+  slaveConnectionPoolSize: 64
+  masterConnectionMinimumIdleSize: 24
+  masterConnectionPoolSize: 64
+  readMode: "MASTER"
+  subscriptionMode: "SLAVE"
+  nodeAddresses:
+    - "redis://redis-node1-svc-11100.insure.ts.lan:11100"
+    - "redis://redis-node2-svc-11100.insure.ts.lan:11100"
+    - "redis://redis-node3-svc-11100.insure.ts.lan:11100"
+    - "redis://redis-node4-svc-11100.insure.ts.lan:11100"
+    - "redis://redis-node5-svc-11100.insure.ts.lan:11100"
+    - "redis://redis-node6-svc-11100.insure.ts.lan:11100"
+  scanInterval: 10000
+  pingConnectionInterval: 0
+  keepAlive: false
+  tcpNoDelay: false
+``` 
+
+- Version
+```
+       <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+            <version>3.17.7</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.redisson</groupId>
+                    <artifactId>redisson-spring-data-27</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-data-18</artifactId>
+            <version>3.17.7</version>
+        </dependency>
+```
+
+Can you give me some advice, thank you very much

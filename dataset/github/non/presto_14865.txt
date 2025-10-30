@@ -1,0 +1,78 @@
+Getting java.net.UnknownHostException while connecting to Hive from presto-server-0.238
+I have tried all the ways and checked out all the possible solutions.  Still I m getting same error while trying with updated version also.
+
+Error Stack:
+
+presto:default> select count(*) from csmb.tel_num;
+
+Query 20200721_101342_00003_9ki2u, FAILED, 1 node
+http://XXXXX/ui/query.html?20200721_101342_00003_9ki2u
+Splits: 17 total, 0 done (0.00%)
+CPU Time: 0.0s total,     0 rows/s,     0B/s, 10% active
+Per Node: 0.0 parallelism,     0 rows/s,     0B/s
+Parallelism: 0.0
+Peak User Memory: 0B
+Peak Total Memory: 0B
+Peak Task Total Memory: 0B
+0:01 [0 rows, 0B] [0 rows/s, 0B/s]
+
+Query 20200721_101342_00003_9ki2u failed: java.net.UnknownHostException: ltrkarkha
+com.facebook.presto.spi.PrestoException: java.net.UnknownHostException: ltrkarkha
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader$HiveSplitLoaderTask.process(BackgroundHiveSplitLoader.java:206)
+        at com.facebook.presto.hive.util.ResumableTasks.safeProcessTask(ResumableTasks.java:47)
+        at com.facebook.presto.hive.util.ResumableTasks.access$000(ResumableTasks.java:20)
+        at com.facebook.presto.hive.util.ResumableTasks$1.run(ResumableTasks.java:35)
+        at com.facebook.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:78)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at java.lang.Thread.run(Thread.java:748)
+Caused by: java.lang.IllegalArgumentException: java.net.UnknownHostException: ltrkarkha
+        at org.apache.hadoop.security.SecurityUtil.buildTokenService(SecurityUtil.java:378)
+        at org.apache.hadoop.hdfs.NameNodeProxies.createNonHAProxy(NameNodeProxies.java:320)
+        at org.apache.hadoop.hdfs.NameNodeProxies.createProxy(NameNodeProxies.java:176)
+        at org.apache.hadoop.hdfs.DFSClient.<init>(DFSClient.java:678)
+        at org.apache.hadoop.hdfs.DFSClient.<init>(DFSClient.java:619)
+        at org.apache.hadoop.hdfs.DistributedFileSystem.initialize(DistributedFileSystem.java:149)
+        at org.apache.hadoop.fs.PrestoFileSystemCache.createFileSystem(PrestoFileSystemCache.java:116)
+        at org.apache.hadoop.fs.PrestoFileSystemCache.getInternal(PrestoFileSystemCache.java:86)
+        at org.apache.hadoop.fs.PrestoFileSystemCache.get(PrestoFileSystemCache.java:59)
+        at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:373)
+        at org.apache.hadoop.fs.Path.getFileSystem(Path.java:295)
+        at com.facebook.presto.hive.cache.HiveCachingHdfsConfiguration.lambda$getConfiguration$0(HiveCachingHdfsConfiguration.java:68)
+        at com.facebook.presto.hive.cache.HiveCachingHdfsConfiguration$CachingJobConf.createFileSystem(HiveCachingHdfsConfiguration.java:104)
+        at org.apache.hadoop.fs.PrestoFileSystemCache.get(PrestoFileSystemCache.java:56)
+        at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:373)
+        at org.apache.hadoop.fs.Path.getFileSystem(Path.java:295)
+        at com.facebook.presto.hive.HdfsEnvironment.lambda$getFileSystem$0(HdfsEnvironment.java:71)
+        at com.facebook.presto.hive.authentication.UserGroupInformationUtils.lambda$executeActionInDoAs$0(UserGroupInformationUtils.java:29)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at javax.security.auth.Subject.doAs(Subject.java:360)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1726)
+        at com.facebook.presto.hive.authentication.UserGroupInformationUtils.executeActionInDoAs(UserGroupInformationUtils.java:27)
+        at com.facebook.presto.hive.authentication.DirectHdfsAuthentication.doAs(DirectHdfsAuthentication.java:38)
+        at com.facebook.presto.hive.HdfsEnvironment.getFileSystem(HdfsEnvironment.java:70)
+        at com.facebook.presto.hive.HdfsEnvironment.getFileSystem(HdfsEnvironment.java:64)
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader.loadPartition(BackgroundHiveSplitLoader.java:298)
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader.loadSplits(BackgroundHiveSplitLoader.java:270)
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader.access$300(BackgroundHiveSplitLoader.java:100)
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader$HiveSplitLoaderTask.process(BackgroundHiveSplitLoader.java:199)
+        ... 7 more
+Caused by: java.net.UnknownHostException: ltrkarkha
+        ... 36 more
+
+Hive.properties attached
+`connector.name=hive-hadoop2
+hive.metastore.uri=thrift://XXXX:9083
+hive.config.resources=/etc/hadoop/conf/core-site.xml,/etc/hadoop/conf/hdfs-site.xml
+hive.metastore.username=BigData-OPS
+hive.metastore.authentication.type=KERBEROS
+hive.metastore.service.principal=hive/XXXX@XXXX
+hive.metastore.client.principal=XXXXX
+hive.metastore.client.keytab=/tmp/BigData-OPS.keytab
+hive.hdfs.authentication.type=KERBEROS
+hive.hdfs.impersonation.enabled=false
+hive.hdfs.presto.principal=hive/XXXXX
+hive.hdfs.presto.keytab=/tmp/hive.service.keytab
+hive.non-managed-table-writes-enabled=true
+hive.non-managed-table-creates-enabled=true
+`

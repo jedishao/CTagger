@@ -1,0 +1,30 @@
+druid connector '__time' equal express bugs
+
+![image](https://user-images.githubusercontent.com/14072245/78502224-92cc1400-7792-11ea-828b-4d61f29a47f0.png)
+
+
+The exception like this : 
+`2020-04-05T23:04:43.173+0800	ERROR	remote-task-callback-1	com.facebook.presto.execution.StageExecutionStateMachine	Stage execution 20200405_150427_00003_ygcmk.1.0 failed
+java.lang.IllegalArgumentException: broker Druid query should return Json Array
+	at com.google.common.base.Preconditions.checkArgument(Preconditions.java:141)
+	at com.facebook.presto.druid.DruidBrokerPageSource.getNextPage(DruidBrokerPageSource.java:120)
+	at com.facebook.presto.operator.TableScanOperator.getOutput(TableScanOperator.java:251)
+	at com.facebook.presto.operator.Driver.processInternal(Driver.java:381)
+	at com.facebook.presto.operator.Driver.lambda$processFor$8(Driver.java:283)
+	at com.facebook.presto.operator.Driver.tryWithLock(Driver.java:677)
+	at com.facebook.presto.operator.Driver.processFor(Driver.java:276)
+	at com.facebook.presto.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:1077)
+	at com.facebook.presto.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:162)
+	at com.facebook.presto.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:545)
+	at com.facebook.presto.$gen.Presto_null__testversion____20200405_150252_1.run(Unknown Source)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)`
+
+
+when i change to range filter, it working
+![image](https://user-images.githubusercontent.com/14072245/78502211-7a5bf980-7792-11ea-8c81-436752202776.png)
+
+my presto version is master, and druid version is 0.16.0.
+When i debug the code, i found the reason. 
+The column '__time' should add TIMESTAMP in dql, like: __time = TIMESTAMP ‘2020-04-04 00:00:00.000’

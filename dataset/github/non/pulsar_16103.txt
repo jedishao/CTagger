@@ -1,0 +1,108 @@
+Issue of pulsar client under multi-topic consumption : org.apache.pulsar.client.api.PulsarClientException$LookupException
+**Describe the bug**
+In the scenario where a consumer subscribes to two topics under different namespaces, the produce and consume client code occasionally report errors in  `HTTP 500 Failed to get data from xxxx `
+
+**To Reproduce**
+client side log:
+> Exception in thread "main" org.apache.pulsar.client.api.PulsarClientException$LookupException: {"errorMsg":"HTTP 500 org.apache.pulsar.broker.web.RestException: HTTP 500 Failed to get data from /admin/clusters/union-pulsar-3","reqId":83524045974563578, "remote":"10.3.0.10/10.3.0.10:6650", "local":"/10.3.0.10:53990"}
+	at org.apache.pulsar.client.api.PulsarClientException.unwrap(PulsarClientException.java:1018)
+	at org.apache.pulsar.client.impl.ProducerBuilderImpl.create(ProducerBuilderImpl.java:91)
+	at com.sn.pulsar.PulsarProduceDemo.main(PulsarProduceDemo.java:28)
+
+> Exception in thread "main" org.apache.pulsar.client.api.PulsarClientException$ConnectException: Disconnected from server at 10.3.0.10/10.3.0.10:6652
+	at org.apache.pulsar.client.api.PulsarClientException.unwrap(PulsarClientException.java:1020)
+	at org.apache.pulsar.client.impl.ConsumerBuilderImpl.subscribe(ConsumerBuilderImpl.java:99)
+	at com.sn.pulsar.PulsarConsumeDemo.main(PulsarConsumeDemo.java:28)
+^C[root@chinaunion-2 chinaunion]# java -jar JunPulsarDemo.jar persistent://public/namespace-union-1/fujun_test   persistent://public/namespace-union-23-share/fujun_test_B   pulsar://10.3.0.10:6652
+
+broker side log:
+> 2022-06-16T14:26:58,852+0000 [main-EventThread] WARN  org.apache.pulsar.broker.service.ServerCnx - Failed to get Partitioned Metadata [/10.3.0.9:39342] persistent://public/namespace-union-1/fujun_test_A: HTTP 500 org.apache.pulsar.broker.web.RestException: HTTP 500 Failed to get data from /admin/clusters/union-pulsar-3
+org.apache.pulsar.broker.web.RestException: HTTP 500 org.apache.pulsar.broker.web.RestException: HTTP 500 Failed to get data from /admin/clusters/union-pulsar-3
+	at org.apache.pulsar.broker.web.PulsarWebResource.lambda$checkLocalOrGetPeerReplicationCluster$16(PulsarWebResource.java:812) ~[io.streamnative-pulsar-broker-2.10.0.5.jar:2.10.0.5]
+	at java.util.concurrent.CompletableFuture.uniExceptionally(CompletableFuture.java:884) ~[?:1.8.0_322]
+	at java.util.concurrent.CompletableFuture$UniExceptionally.tryFire(CompletableFuture.java:866) ~[?:1.8.0_322]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) ~[?:1.8.0_322]
+	at java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:1975) ~[?:1.8.0_322]
+	at org.apache.pulsar.metadata.impl.ZKMetadataStore.handleGetResult(ZKMetadataStore.java:239) ~[io.streamnative-pulsar-metadata-2.10.0.5.jar:2.10.0.5]
+	at org.apache.pulsar.metadata.impl.ZKMetadataStore.lambda$batchOperation$6(ZKMetadataStore.java:183) ~[io.streamnative-pulsar-metadata-2.10.0.5.jar:2.10.0.5]
+	at org.apache.pulsar.metadata.impl.PulsarZooKeeperClient$3$1.processResult(PulsarZooKeeperClient.java:490) [io.streamnative-pulsar-metadata-2.10.0.5.jar:2.10.0.5]
+	at org.apache.zookeeper.ClientCnxn$EventThread.processEvent(ClientCnxn.java:722) [io.streamnative-zookeeper-3.6.3.1.jar:3.6.3.1]
+	at org.apache.zookeeper.ClientCnxn$EventThread.run(ClientCnxn.java:563) [io.streamnative-zookeeper-3.6.3.1.jar:3.6.3.1]
+
+```
+Produce code:
+
+public class PulsarProduceDemo {
+    public static void main(String[] args) throws PulsarClientException, InterruptedException {
+        String topicName = args[0];
+        String brokerUrl = args[1];
+
+        PulsarClient client = PulsarClient.builder()
+                .serviceUrl(brokerUrl)
+                .build();
+
+        Producer<byte[]> producer = client.newProducer()
+                .topic(topicName)
+                .batchingMaxPublishDelay(10, TimeUnit.MILLISECONDS)
+                .sendTimeout( 0, TimeUnit.SECONDS)
+                .batchingMaxMessages(1000)
+                .maxPendingMessages(1000)
+                .blockIfQueueFull(true)
+                .roundRobinRouterBatchingPartitionSwitchFrequency(10)
+                .batcherBuilder(BatcherBuilder.DEFAULT)
+                .create();
+
+        for (int i = 0; i < 20; i++) {
+            System.out.println(producer.send(("jun test : from " + topicName + i).getBytes()));
+            Thread.sleep(1000);
+        }
+
+        producer.close();
+        client.close();
+
+    }
+
+
+Consume code:
+
+public static void main(String[] args) throws PulsarClientException {
+        String topicName1 = args[0];
+        String topicName2 = args[1];
+        String brokerUrl = args[2];
+
+        PulsarClient client = PulsarClient.builder()
+                .serviceUrl(brokerUrl)
+                .build();
+        List<String> topics = Arrays.asList(
+                topicName1,
+                topicName2
+        );
+        Consumer<byte[]> consumer = client.newConsumer()
+                .topics(topics)
+                .subscriptionName("jun-sub")
+                .subscribe();
+
+        while (true) {
+            Message<byte[]> message = consumer.receive();
+            try {
+                System.out.printf("Message received: %s%n", new String(message.getData()));
+                consumer.acknowledge(message);
+            } catch (Exception e) {
+                e.printStackTrace();
+                consumer.negativeAcknowledge(message);
+            }
+
+        }
+}
+```
+
+**Desktop (please complete the following information):**
+ - OS: CentOS Linux release 7.9.2009
+ - pulsar: 2.10.0.5
+ - pulsar-client : 2.9.2
+
+**Additional context**
+pulsar cluster architecture: Three peer-to-peer pulsar clusters and global zk , each pulsar cluster has a bookie node and broker
+refer: https://github.com/apache/pulsar/wiki/PIP-8:-Pulsar-beyond-1M-topics
+
+

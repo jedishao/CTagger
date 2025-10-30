@@ -1,0 +1,49 @@
+mapreduce job can't found library from hdfs
+Hi! I try execute ingestion by hadoop mapreduce. My tutning config:
+`
+"tuningConfig": {
+			"type": "hadoop",
+			"jobProperties": {
+				"mapreduce.job.classloader": "true",
+			        "mapreduce.job.classloader.system.classes": "-javax.validation.,java.,javax.,org.apache.commons.logging.,org.apache.log4j.,org.apache.hadoop.,com.google.,org.apache.druid.",
+				"mapreduce.job.counters.max": "4"
+			}
+		}
+`
+But I got problem:
+`
+Error: java.lang.RuntimeException: java.lang.ClassNotFoundException: Class org.apache.druid.indexer.DetermineHashedPartitionsJob$DetermineCardinalityMapper not found
+	at org.apache.hadoop.conf.Configuration.getClass(Configuration.java:2638)
+	at org.apache.hadoop.mapreduce.task.JobContextImpl.getMapperClass(JobContextImpl.java:187)
+	at org.apache.hadoop.mapred.MapTask.runNewMapper(MapTask.java:759)
+	at org.apache.hadoop.mapred.MapTask.run(MapTask.java:347)
+	at org.apache.hadoop.mapred.YarnChild$2.run(YarnChild.java:174)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1730)
+	at org.apache.hadoop.mapred.YarnChild.main(YarnChild.java:168)
+Caused by: java.lang.ClassNotFoundException: Class org.apache.druid.indexer.DetermineHashedPartitionsJob$DetermineCardinalityMapper not found
+	at org.apache.hadoop.conf.Configuration.getClassByName(Configuration.java:2542)
+	at org.apache.hadoop.conf.Configuration.getClass(Configuration.java:2636)
+	... 8 more
+`
+
+I tried change "mapreduce.job.classloader": "true" to "mapreduce.job.user.classpath.first": "true", but then I got other problem:
+`
+2020-12-21T14:02:03,347 INFO [task-runner-0-priority-0] org.apache.hadoop.mapreduce.Job - Job job_1608555203540_0005 failed with state FAILED due to: Application application_1608555203540_0005 failed 2 times due to AM Container for appattempt_1608555203540_0005_000002 exited with  exitCode: 1
+Failing this attempt.Diagnostics: [2020-12-21 17:02:02.529]Exception from container-launch.
+Container id: container_1608555203540_0005_02_000001
+Exit code: 1
+
+[2020-12-21 17:02:02.536]Container exited with a non-zero exit code 1. Error file: prelaunch.err.
+Last 4096 bytes of prelaunch.err :
+Last 4096 bytes of stderr :
+SLF4J: Class path contains multiple SLF4J bindings.
+SLF4J: Found binding in [jar:file:/tmp/hadoop-hadoop/nm-local-dir/filecache/179/log4j-slf4j-impl-2.8.2.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: Found binding in [jar:file:/abc/app/hadoop-3.2.1/share/hadoop/common/lib/slf4j-log4j12-1.7.25.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]
+ERROR StatusLogger No log4j2 configuration file found. Using default configuration: logging only errors to the console. Set system property 'org.apache.logging.log4j.simplelog.StatusLogger.level' to TRACE to show Log4j2 internal initialization logging.
+`
+
+Please help me solve this problem someone.

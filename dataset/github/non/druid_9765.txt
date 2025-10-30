@@ -1,0 +1,62 @@
+Permission denied and ingestion task failure when using docker-compose deployment
+### Affected Version
+
+0.17.0/0.18.0
+
+### Description
+
+I'm using docker-compose from  https://github.com/apache/druid/blob/master/distribution/docker/docker-compose.yml to create a sample environment.  When I follow https://druid.apache.org/docs/latest/tutorials/tutorial-batch.html to load a local file, the task always failed. 
+
+I found that there is no permission to create folder in /opt/data. Is it possible that this is an incorrect
+configuration in Dockerfile. Please help check. 
+
+### Task log
+2020-04-24T10:46:28,015 INFO [task-runner-0-priority-0] org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver - Pushing segments in background: [wikiticker-2015-09-12-sampled_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2020-04-24T10:46:25.841Z]
+2020-04-24T10:46:31,477 INFO [[index_parallel_wikiticker-2015-09-12-sampled_akimjmgi_2020-04-24T10:46:18.479Z]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data for segment[wikiticker-2015-09-12-sampled_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2020-04-24T10:46:25.841Z] spill[0] to disk in [3,459] ms (38,754 rows).
+2020-04-24T10:46:31,562 INFO [[index_parallel_wikiticker-2015-09-12-sampled_akimjmgi_2020-04-24T10:46:18.479Z]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data with commit metadata [null] for segments: wikiticker-2015-09-12-sampled_2015-09-12T00:00:00.000Z_2015-09-13T00:00:00.000Z_2020-04-24T10:46:25.841Z
+2020-04-24T10:46:34,624 WARN [[index_parallel_wikiticker-2015-09-12-sampled_akimjmgi_2020-04-24T10:46:18.479Z]-appenderator-merge] org.apache.druid.java.util.common.RetryUtils - Retrying (1 of 4) in 1,226ms.
+java.io.IOException: Unable to create directory /opt/data/segments/intermediate_pushes/bb13a4b9-3065-44a1-8b17-d65cb68ff72f
+	at org.apache.commons.io.FileUtils.forceMkdir(FileUtils.java:2491) ~[commons-io-2.6.jar:2.6]
+	at org.apache.druid.segment.loading.LocalDataSegmentPusher.push(LocalDataSegmentPusher.java:86) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.lambda$mergeAndPush$4(AppenderatorImpl.java:791) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:87) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:115) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:105) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.mergeAndPush(AppenderatorImpl.java:787) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.lambda$push$1(AppenderatorImpl.java:657) ~[druid-server-0.17.0.jar:0.17.0]
+	at com.google.common.util.concurrent.Futures$1.apply(Futures.java:713) [guava-16.0.1.jar:?]
+	at com.google.common.util.concurrent.Futures$ChainingListenableFuture.run(Futures.java:861) [guava-16.0.1.jar:?]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_232]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_232]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_232]
+2020-04-24T10:46:35,857 WARN [[index_parallel_wikiticker-2015-09-12-sampled_akimjmgi_2020-04-24T10:46:18.479Z]-appenderator-merge] org.apache.druid.java.util.common.RetryUtils - Retrying (2 of 4) in 2,120ms.
+java.io.IOException: Unable to create directory /opt/data/segments/intermediate_pushes/ce48ac60-3dff-4981-91ff-c1ffa78988df
+	at org.apache.commons.io.FileUtils.forceMkdir(FileUtils.java:2491) ~[commons-io-2.6.jar:2.6]
+	at org.apache.druid.segment.loading.LocalDataSegmentPusher.push(LocalDataSegmentPusher.java:86) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.lambda$mergeAndPush$4(AppenderatorImpl.java:791) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:87) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:115) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:105) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.mergeAndPush(AppenderatorImpl.java:787) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.lambda$push$1(AppenderatorImpl.java:657) ~[druid-server-0.17.0.jar:0.17.0]
+	at com.google.common.util.concurrent.Futures$1.apply(Futures.java:713) [guava-16.0.1.jar:?]
+	at com.google.common.util.concurrent.Futures$ChainingListenableFuture.run(Futures.java:861) [guava-16.0.1.jar:?]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_232]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_232]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_232]
+2020-04-24T10:46:37,978 WARN [[index_parallel_wikiticker-2015-09-12-sampled_akimjmgi_2020-04-24T10:46:18.479Z]-appenderator-merge] org.apache.druid.java.util.common.RetryUtils - Retrying (3 of 4) in 3,595ms.
+java.io.IOException: Unable to create directory /opt/data/segments/intermediate_pushes/efdd9b47-ef94-43aa-93a1-f48dc09577f1
+	at org.apache.commons.io.FileUtils.forceMkdir(FileUtils.java:2491) ~[commons-io-2.6.jar:2.6]
+	at org.apache.druid.segment.loading.LocalDataSegmentPusher.push(LocalDataSegmentPusher.java:86) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.lambda$mergeAndPush$4(AppenderatorImpl.java:791) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:87) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:115) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.java.util.common.RetryUtils.retry(RetryUtils.java:105) ~[druid-core-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.mergeAndPush(AppenderatorImpl.java:787) ~[druid-server-0.17.0.jar:0.17.0]
+	at org.apache.druid.segment.realtime.appenderator.AppenderatorImpl.lambda$push$1(AppenderatorImpl.java:657) ~[druid-server-0.17.0.jar:0.17.0]
+	at com.google.common.util.concurrent.Futures$1.apply(Futures.java:713) [guava-16.0.1.jar:?]
+	at com.google.common.util.concurrent.Futures$ChainingListenableFuture.run(Futures.java:861) [guava-16.0.1.jar:?]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_232]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_232]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_232]
+

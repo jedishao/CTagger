@@ -1,0 +1,45 @@
+on-disk segment after compaction is extremely small in size
+I have a 40 string dimensions / 40 longSum metrics datasource, which I find the segment size is extremely small without any incorrect querying result (I've written scripts to verify), I wonder how druid manages to do so.
+
+```sql
+SELECT count(*), sum(size), avg(num_replicas), sum(num_rows)
+FROM sys.segments
+WHERE datasource = 'ourtestdata' AND "start" >= '2022-03-13T12:00:00.000Z' AND "start" < '2022-03-13T13:00:00.000Z'
+
+$ output: 1 / 537972652 / 2 / 40443151
+```
+
+For example, 40443151 rows of data, just takes up 513MB disk space. I've also check the deep storage(hdfs), this segment in deep storage is even smaller because of compression (gzip maybe?).
+
+I have a few questions:
+
+1. Is there any difference between in-memory and on-disk segment format? Are bitmaps(roaring or concise) also serialized and persisted in the on-disk segment? The reason why I want to know it is because the cardinality of dimensions is not low in my case, for example, the greatest cardinality of the dimensions is 28737, and the cardinality of all 40 dimensions is 68411, so there should be 68411 bitmaps. I've written a piece of code to scan my testdata and construct 68411 roaring bitmaps, run optimize (roaring bitmap run length encoding), persist to disk, which takes more than 1GB, which is twice of the size of the whole druid segment, not even including dimension values and metrics. Or the bitmaps are actually not serialized into on-disk segment, but only scan dimension values and dictionary to construct these bitmaps when druid load the segment into memory for querying?
+2. How are the `long` type encoded / compressed in on-disk segment? According to the official doc [here](https://druid.apache.org/docs/latest/design/segments.html#compression) and [hear](https://druid.apache.org/docs/latest/ingestion/ingestion-spec.html#indexspec), and based on my compaction configuration, the dimension values are basically arrays of 8 byte integers, and then compressed by lz4. Is there any other undocumented encoding methods applied to them, like rle / delta / delta of delta / simple8b? Or composition of those encoding methods are applied? The reason why I want to know it is because I think it will take `40443151 * 8 byte = 300MB` to encode one dimension value, after each lz4 compressed, it may still take more than 10MB in average (the size is really depending on cardinality) . For example, the dimension with cardinality of 28737, may take more than 50MB. The total size of 40 string dimensions can easily go up to more than 500MB.
+```json
+    "indexSpec": {
+      "bitmap": {
+        "type": "roaring",
+        "compressRunOnSerialization": true
+      },
+      "dimensionCompression": "lz4",
+      "metricCompression": "lz4",
+      "longEncoding": "longs",
+      "segmentLoader": null
+    },
+    "indexSpecForIntermediatePersists": {
+      "bitmap": {
+        "type": "roaring",
+        "compressRunOnSerialization": true
+      },
+      "dimensionCompression": "lz4",
+      "metricCompression": "lz4",
+      "longEncoding": "longs",
+      "segmentLoader": null
+    },
+```
+
+I've read some docs / papers / articles / source code, but still cannot figure out why, maybe I should dive deeper in source code, hope someone with the knowledge can help.
+
+https://druid.apache.org/docs/latest/design/segments.html
+https://imply.io/blog/compressing-longs/
+http://static.druid.io/docs/druid.pdf

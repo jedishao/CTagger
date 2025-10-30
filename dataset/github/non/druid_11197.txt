@@ -1,0 +1,36 @@
+incorrect druid SQL results using GROUP BY and COUNT
+Some druid SQL queries including GROUP BY and COUNT return incorrect results.  I'm including an example with the wikipedia dataset.
+
+### Affected Version
+
+Seen in 0.20.0 and 0.21.0.  
+
+### Description
+
+Particular GROUP BY queries are returning 0 counts when they should return non-zero numbers.  Providing two examples, one with wikipedia, and one with a custom data set (attached).
+
+With wikipedia, we can see the following, to zero in on the issue:
+
+This query returns various non-zero numbers for the counts:
+
+```
+select comment, count(*) FROM wikipedia
+WHERE channel = '#ar.wikipedia'
+GROUP BY comment
+```
+
+This query will return 1's, which makes sense:
+
+```
+select comment, count(distinct(channel)) FROM wikipedia
+WHERE channel = '#ar.wikipedia'
+GROUP BY comment
+```
+
+So, we have data for the channel field (which makes sense, since we filter for a channel), but the following query returns 0's for all the counts, which is not only incorrect, but logically impossible given the query:
+
+```
+select comment, count(channel) FROM wikipedia
+WHERE channel = '#ar.wikipedia'
+GROUP BY comment
+```

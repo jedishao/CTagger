@@ -1,0 +1,53 @@
+Client Interceptor close not be triggered if call is successful
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+I create a client interceptor try to do some clean up task in `onClose(Status status, Metadata trailers)` method once the bi-directional call complete.
+What I observed is, `onClose(Status status, Metadata trailers)` will be trigged when call failed (server return an error), but it will not be triggered if call is successful. It looks like `ClientStreamListener.close` not be invoked.
+Is there any way I could have opportunity to know bi-directional call complete regardless successful or failed.
+
+Here is my Interceptor:
+`public class TestClientInterceptor implements ClientInterceptor {
+
+    @Override
+    public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(final MethodDescriptor<ReqT, RespT> method,
+                                                               final CallOptions callOptions,
+                                                               final Channel next) {
+        return new EndpointConsumeClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
+
+            @Override
+            public void start(Listener<RespT> responseListener, Metadata headers) {
+                super.start(
+                    new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
+                        @Override
+                        public void onHeaders(Metadata headers) {
+                            super.onHeaders(headers);
+                        }
+
+                        @Override
+                        public void onClose(Status status, Metadata trailers) {
+                            System.err.println("TestClientInterceptor.close");
+                            super.onClose(status, trailers);
+                        }
+
+                        @Override
+                        public void onMessage(RespT message) {
+                            super.onMessage(message);
+                        }
+                    },
+                    headers);
+            }
+
+            @Override
+            public void cancel(@Nullable String message, @Nullable Throwable cause) {
+                super.cancel(message, cause);
+            }
+        };
+
+    }`
+
+

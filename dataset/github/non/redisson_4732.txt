@@ -1,0 +1,32 @@
+P95 for Redisson Rbucket set is taking >10s 
+**Problem Statement**
+
+Set and Delete operation done in RBucket is taking more than 10s
+
+**Components**
+
+- AWS Elastic Cache
+- Redisson 3.17.4
+
+**Redisson Config**
+
+All default properties and used Replicated Servers
+
+**What we did**
+
+- There is one RBucket `set` of around 60MB data at first at 4AM
+- 4Lakhs+ entries are inserted sequentially calling `set` method of RBucket
+
+**What we faced**
+
+Post above mentioned operations for couple of hours set operations becomes very latent and gets fixed automatically post 3-4 hours every day or if we restart the machine and latency gets dropped to ms
+
+This doesn't happen for all the operations, some operations are still executing quicker
+
+We have verified at EC end but there aren't any slow operations logged and we have two identical machines connected to the same EC via redisson but the Set operation in other machine is still in ms. This only affected the machines which performed above mentioned operations
+
+We can also see timeout of 3s in the config but the same doesn't seem to getting applied
+
+We took thread dump but all the threads seem to be in `RUNNABLE` state
+
+Please share your thoughts and help us on this to identify what could be the root cause for above faced issue in redisson end

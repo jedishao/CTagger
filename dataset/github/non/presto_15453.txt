@@ -1,0 +1,34 @@
+[Design] Disaggregated Presto Coordinators
+# Presto Disaggregated Coordinator
+## Motivation
+In Facebook, we find that coordinators have become bottlenecks to cluster scalability in a number of ways.
+
+1) Once we scale to some number of nodes in the hundreds, we find that coordinators frequently have a high potential of being slowed down by an excessively high number of tasks.
+2) In certain high QPS use cases, we have found that workers can become starved of splits, by excessive CPU being spent on task updates.  This bottleneck in the coordinator is alleviated by reducing the concurrency, but this leaves the cluster under-utilized.
+
+Furthermore, because of the de-facto constraint that there must be one coordinator per cluster, this limits the size of the worker pool to whatever number can handle the QPS from conditions 1 and 2.  This means it’s very difficult to deploy large high-QPS clusters than can take on queries of moderate complexity (such as high stage count queries).
+
+In short, tasks are observed to be the chief bottleneck in scaling the coordinator.  As tasks are themselves split up by query, a natural approach to scale the coordinator is to send queries to multiple coordinators.
+
+## Architecture
+
+![9mLQaON8rYHZUDmOaBh8xegn4Rq5E6VmwyIOkDBn3S9lnGXLYdYce4iDpcT5gD9ZRCN-4ZsGk03nBGDOGstg-TF_1uPgOWhysk6PsHZfw-w7c7EZiGwkSh5-mGWBF5pmQHsrY3yD](https://user-images.githubusercontent.com/7980573/99574958-df183d00-298c-11eb-83f7-34162447a67a.png)
+
+### Query Execution
+
+#### Notes
+1. A load balancer will be provided which can properly load balance between several coordinators which correspond to a single cluster.
+2. A new process, the Resource Manager, will be added to Presto.  It is responsible for aggregating information across the cluster, namely query information and node information.  There can be multiple resource managers in order to facilitate faults in the resource manager, however each resource manager will have the entire view of the cluster resources.
+
+#### Flow of execution
+1. Presto client submits a POST for query execution.  This goes to the load balancer, which then redirects to a coordinator.  There may be heuristics which can be used to pick a coordinator.
+2. The coordinator parses, analyzes, and submits to the resource group the query as before.  The resource group is periodically refreshed with cluster-level information from the resource manager.
+3. Before and after dequeueing from the resource group, heartbeats are sent to the resource manager with basic information, including CPU utilization, resource group selector, and memory pool utilization, of the query.
+4. The coordinator has view of the entire worker fleet.  However, more detailed information is fetched from the resource manager which aids the coordinator in selecting the least utilized nodes for execution.
+5. As queries are executing, node-level information is sent back to the resource manager in regular intervals.
+
+### UI
+
+1. Each coordinator may take the responsibility of servicing UI requests.
+2. Information which is cluster-level, such as the query list and cluster stats, are redirected to the resource manager, which has sufficient information to reconstruct the data in these endpoints.
+3. Information which is query-level, such as functionality to kill queries or to examine the query details, are serviced locally if the local coordinator has that query, otherwise they are redirected to the resource manager, which then proxies the request to the appropriate coordinator.

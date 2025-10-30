@@ -1,0 +1,48 @@
+RPermitExpirableSemaphore::trySetPermitsAsync should not check if value == 0
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+In commit https://github.com/redisson/redisson/commit/011be4160aeb5e23510e6715c16531ccaea07db9 there was a fix made to the RSemaphore implementation of `trySetPermitsAsync` which was not fixed in the [RPermitExpirableSemaphore implementation](https://github.com/redisson/redisson/blob/master/redisson/src/main/java/org/redisson/RedissonPermitExpirableSemaphore.java#L657). 
+
+When trying to set the number of permits allowed on a RPermitExpirableSemaphore, it should not be acceptable to overwrite the number of permits when `value == 0`.
+
+**Expected behavior**
+Create a semaphore, use `trySetPermits` to set the number of available permits to N, and acquire N permits. At this point there are 0 available permits and calls to `trySetPermits` should fail.
+
+**Actual behavior**
+Create a semaphore, use `trySetPermits` to set the number of available permits to N, and acquire N permits. At this point there are 0 available permits and a call to `trySetPermits` succeeds. 
+
+**Steps to reproduce or test case**
+
+```java
+RPermitExpirableSemaphore semaphore = redisson.getPermitExpirableSemaphore("mySemaphore");
+
+boolean didSetPermitsFirst = semaphore.trySetPermits(10); // didSetPermitsFirst is TRUE
+boolean didSetPermitsSecond = semaphore.trySetPermits(10); // didSetPermitsSecond is FALSE
+
+// acquire 10 permits
+for (int i = 0; i < 10; ++i) {
+    semaphore.acquire();   
+}
+
+// this should return false since the permits are already set
+boolean didSetPermitsThird = semaphore.trySetPermits(10); // didSetPermitsThird is TRUE
+
+
+```
+
+**Redis version**
+6.0
+
+**Redisson version**
+3.18.0
+
+**Redisson configuration**
+Just the quick start defaults 
+```java
+Config config = new Config();
+config.useClusterServers()
+       // use "rediss://" for SSL connection
+      .addNodeAddress("redis://127.0.0.1:7181");
+```

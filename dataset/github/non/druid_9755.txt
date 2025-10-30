@@ -1,0 +1,18 @@
+why doesn't Druid delete small segments after compact task complete?
+compact is very useful to merge small segments into larger one. as small segments have been merged, they are still kept in deep storage and metadata storage.
+
+i don't understand why those small segments are kept after compact task has finished. To keep those  small segments in deep storage usually is not a problem, but too many metadata records of those small segments might be performance penalty.
+
+in our product environment, there're more than 30W segments records in metadata storage, most of them are marked as `unused` by compact task. Some queries as below on `druid-segments` table takes more than 5 seconds, which are considered as slow query from our DBA's view. 
+
+````
+SELECT payload FROM druid-segments WHERE used=true
+````
+
+Druid DOES provide 'kill' functionality to allow us the delete the `unused` segments. to use it to delete `unused` segments may cause problems:
+
+1.  there're lots of datasources, it's painful to delete the unused segments one by one, especially when auto compaction is enabled. Or we can use HTTP API to simplify it, but it's still complex.
+
+2. segments dropped by DROP RULES are also marked as `unused`. it's very hard to tell which segments are dropped, which unused segments are for compact. we don't want to delete those segments temporarily dropped by DROP RULES because the retention rules might be changed.
+
+so why doesn't druid delete those small segments as soon as new larger segments are generated and loaded? 

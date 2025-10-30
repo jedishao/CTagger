@@ -1,0 +1,92 @@
+Avoid unnecessary data shuffle to add support for partition properties propogation
+Presto optimizer does not propagate partition properties for joins using equi-join criteria. That is, optimizer chooses to repartition data on grouping key disregard if the grouping set matches with the join key which means the final aggregate of the groupby is already partitioned by the subsequent join.
+```
+SELECT count(*) 
+FROM nation x, customer y 
+WHERE x.regionkey = y.nationkey 
+GROUP BY x.regionkey
+;
+```
+The execution plan for the above example is following: 
+```
+ Fragment 1 [HASH]
+     CPU: 8.08ms, Scheduled: 53.89ms, Input: 12 rows (324B); per task: avg.: 3.00 std.dev.: 2.24, Output: 5 rows (45B)
+     Output layout: [count]
+     Output partitioning: SINGLE []
+     Stage Execution Strategy: UNGROUPED_EXECUTION
+     - Project[projectLocality = LOCAL] => [count:bigint]
+             CPU: 0.00ns (0.00%), Scheduled: 0.00ns (0.00%), Output: 5 rows (45B)
+             Input avg.: 0.31 rows, Input std.dev.: 186.55%
+         - Aggregate(FINAL)[nationkey_1] => [nationkey_1:bigint, count:bigint]
+                 CPU: 0.00ns (0.00%), Scheduled: 7.00ms (0.40%), Output: 5 rows (90B)
+                 Input avg.: 0.75 rows, Input std.dev.: 179.51%
+                 count := "presto.default.count"((count_10))
+             - LocalExchange[HASH][$hashvalue] (nationkey_1) => [nationkey_1:bigint, count_10:bigint, $hashvalue:bigint]
+                     CPU: 0.00ns (0.00%), Scheduled: 8.00ms (0.46%), Output: 12 rows (324B)
+                     Input avg.: 0.75 rows, Input std.dev.: 223.61%
+                 - RemoteSource[2] => [nationkey_1:bigint, count_10:bigint, $hashvalue_11:bigint]
+                         CPU: 0.00ns (0.00%), Scheduled: 0.00ns (0.00%), Output: 12 rows (324B)
+                         Input avg.: 0.75 rows, Input std.dev.: 223.61%
+
+ Fragment 2 [HASH]
+     CPU: 25.06ms, Scheduled: 78.88ms, Input: 1525 rows (26.81kB); per task: avg.: 381.25 std.dev.: 76.46, Output: 12 rows (324B)
+     Output layout: [nationkey_1, count_10, $hashvalue_17]
+     Output partitioning: HASH [nationkey_1][$hashvalue_17]
+     Stage Execution Strategy: UNGROUPED_EXECUTION
+     - Project[projectLocality = LOCAL] => [nationkey_1:bigint, count_10:bigint, $hashvalue_17:bigint]
+             CPU: 0.00ns (0.00%), Scheduled: 7.00ms (0.40%), Output: 12 rows (324B)
+             Input avg.: 0.75 rows, Input std.dev.: 120.19%
+             $hashvalue_17 := combine_hash(BIGINT 0, COALESCE($operator$hash_code(nationkey_1), BIGINT 0))
+         - Aggregate(PARTIAL)[nationkey_1] => [nationkey_1:bigint, count_10:bigint]
+                 CPU: 6.00ms (1.53%), Scheduled: 20.00ms (1.15%), Output: 12 rows (216B)
+                 Input avg.: 100.94 rows, Input std.dev.: 133.15%
+                 count_10 := "presto.default.count"(*)
+             - InnerJoin[("nationkey_1" = "regionkey")][$hashvalue_12, $hashvalue_14] => [nationkey_1:bigint]
+                     Estimates: {rows: 1500 (13.18kB), cpu: 123525.00, memory: 450.00, network: 27450.00}
+                     CPU: 10.00ms (2.55%), Scheduled: 25.00ms (1.44%), Output: 1615 rows (9.15kB)
+                     Left (probe) Input avg.: 93.75 rows, Input std.dev.: 112.32%
+                     Right (build) Input avg.: 1.56 rows, Input std.dev.: 186.55%
+                     Distribution: PARTITIONED
+                     dynamicFilterAssignments = {regionkey -> 455}
+                 - RemoteSource[3] => [nationkey_1:bigint, $hashvalue_12:bigint]
+                         CPU: 0.00ns (0.00%), Scheduled: 0.00ns (0.00%), Output: 1500 rows (26.37kB)
+                         Input avg.: 93.75 rows, Input std.dev.: 112.32%
+                 - LocalExchange[HASH][$hashvalue_14] (regionkey) => [regionkey:bigint, $hashvalue_14:bigint]
+                         Estimates: {rows: 25 (450B), cpu: 1575.00, memory: 0.00, network: 450.00}
+                         CPU: 0.00ns (0.00%), Scheduled: 0.00ns (0.00%), Output: 25 rows (450B)
+                         Input avg.: 1.56 rows, Input std.dev.: 218.17%
+                     - RemoteSource[4] => [regionkey:bigint, $hashvalue_15:bigint]
+                             CPU: 0.00ns (0.00%), Scheduled: 0.00ns (0.00%), Output: 25 rows (450B)
+                             Input avg.: 1.56 rows, Input std.dev.: 218.17%
+
+ Fragment 3 [hive:buckets=11, bucketFunctionType=HIVE_COMPATIBLE, types=[bigint]]
+     CPU: 270.86ms, Scheduled: 1.43s, Input: 1500 rows (99.92kB); per task: avg.: 375.00 std.dev.: 58.89, Output: 1500 rows (26.37kB)
+     Output layout: [nationkey_1, $hashvalue_13]
+     Output partitioning: HASH [nationkey_1][$hashvalue_13]
+     Stage Execution Strategy: UNGROUPED_EXECUTION
+     - ScanFilterProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch_bucketed, tableName=customer, analyze
+             Estimates: {rows: 1500 (26.37kB), cpu: 13500.00, memory: 0.00, network: 0.00}/{rows: 1500 (26.37kB), cpu: 27000.00, memory: 0.00, network:
+             CPU: 268.00ms (68.37%), Scheduled: 1.43s (82.35%), Output: 1500 rows (26.37kB)
+             Input avg.: 136.36 rows, Input std.dev.: 0.35%
+             $hashvalue_13 := combine_hash(BIGINT 0, COALESCE($operator$hash_code(nationkey_1), BIGINT 0))
+             LAYOUT: tpch_bucketed.customer{buckets=11}
+             nationkey_1 := nationkey:bigint:3:REGULAR
+             Input: 1500 rows (99.92kB), Filtered: 0.00%
+
+ Fragment 4 [SOURCE]
+     CPU: 107.88ms, Scheduled: 239.84ms, Input: 25 rows (1.47kB); per task: avg.: 25.00 std.dev.: 0.00, Output: 25 rows (450B)
+     Output layout: [regionkey, $hashvalue_16]
+     Output partitioning: HASH [regionkey][$hashvalue_16]
+     Stage Execution Strategy: UNGROUPED_EXECUTION
+     - ScanProject[table = TableHandle {connectorId='hive', connectorHandle='HiveTableHandle{schemaName=tpch_bucketed, tableName=nation, analyzePartitio
+             Estimates: {rows: 25 (450B), cpu: 225.00, memory: 0.00, network: 0.00}/{rows: 25 (450B), cpu: 675.00, memory: 0.00, network: 0.00}
+             CPU: 108.00ms (27.55%), Scheduled: 240.00ms (13.80%), Output: 25 rows (450B)
+             Input avg.: 25.00 rows, Input std.dev.: 0.00%
+             $hashvalue_16 := combine_hash(BIGINT 0, COALESCE($operator$hash_code(regionkey), BIGINT 0))
+             LAYOUT: tpch_bucketed.nation{}
+             regionkey := regionkey:bigint:2:REGULAR
+             Input: 25 rows (1.47kB), Filtered: 0.00%
+
+
+(1 row)
+```

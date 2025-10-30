@@ -1,0 +1,28 @@
+binder: BinderChannelBuilder should not force clients to hard code an android.app.Service class name
+### Is your feature request related to a problem?
+`BinderChannelBuilder` requires an `AndroidComponentAddress` and an `AndroidComponentAddress` requires a `ComponentName` (the package name and class name of the target `android.app.Service`). This forces clients to hard code the server's class name.
+
+Because client and server APKs can't be upgraded atomically, servers with external clients must keep the same service name forever, to accommodate old clients. If two gRPC services are hosted in the same `android.app.Service`, they must be hosted in the same `android:process` forever.
+
+### Describe the solution you'd like
+Android naturally supports a layer of indirection using https://developer.android.com/guide/components/intents-filters. Since SDK 21, bindService() Intents must be explicit but this doesn't require specifying the full ComponentName. [An Intent that specifies a setPackage() filter is also considered explicit](https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/java/android/app/ContextImpl.java;l=1823-1834;drc=4b30a3ee919fa1ba77a967ba375b95dac3e61efe). Clients of a gRPC service/interface named `com.foo.ISomething` might do something like:
+
+```
+BinderChannelBuilder.forTarget("intent://#Intent;action=com.foo.ISomething;pkg=com.foo;end", ...)
+  ...
+  .build();
+```
+
+Servers could keep their Service class names private and use <intent-filters> to map to Services in the AndroidManifest.xml instead:
+```
+<service name="com.server.app.Service1" process=":p1">
+  <intent-filter>
+    <action name="com.foo.ISomething"/>
+  </intent-filter>
+</service>
+```
+
+Several Google apps, including photos, already uses this technique for their AIDL services.
+
+### Describe alternatives you've considered
+Could use a NameResolverProvider that calls PackageManager#resolveService(), but that costs one extra IPC round trip to the system server before calling bindService(). Any cached addresses could also get out of sync with reality when the target's package is upgraded.

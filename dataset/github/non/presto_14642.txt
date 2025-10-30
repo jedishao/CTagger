@@ -1,0 +1,21 @@
+PrestoExtendedFileSystemCache have not take LocalFileSystem into consideration
+We know that in Presto, Hadoop's FileSystem#cache is replaced by `PrestoExtendedFileSystemCache`, and in `PrestoExtendedFileSystemCache`, all the FileSytems are wrapped by `HadoopExtendedFileSystem`:
+
+```java
+    // PrestoExtendedFileSystemCache.java
+    @Override
+    protected FileSystem createPrestoFileSystemWrapper(FileSystem original)
+    {
+        return new HadoopExtendedFileSystem(original);
+    }
+```
+
+The code has not take LocalFileSystem into consideration, many FileSystem implementation utilize LocalFileSystem to implement multipart upload(write) data into the FileSystem. When we get a LocalFileSystem, the type cast will fail:
+
+```java
+// FileSystem.java
+  public static LocalFileSystem getLocal(Configuration conf)
+    throws IOException {
+    return (LocalFileSystem)get(LocalFileSystem.NAME, conf);
+  }
+```

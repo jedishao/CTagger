@@ -1,0 +1,29 @@
+Flaky ci `check-commit` when compiling individual commits due to network errors
+https://github.com/trinodb/trino/pull/15710 attempted to address the flakiness, but seems it was insufficient
+
+
+see eg  https://github.com/trinodb/trino/actions/runs/3960144105/jobs/6785253382
+
+```
+2023-01-19T17:52:01.1740939Z + ./mvnw dependency:go-offline
+...
+2023-01-19T17:52:38.7824614Z [INFO] ------------------------------------------------------------------------
+2023-01-19T17:52:38.7824715Z [INFO] BUILD SUCCESS
+2023-01-19T17:52:38.7824973Z [INFO] ------------------------------------------------------------------------
+2023-01-19T17:52:38.7825074Z [INFO] Total time:  35.249 s
+2023-01-19T17:52:38.7825265Z [INFO] Finished at: 2023-01-19T17:52:38Z
+2023-01-19T17:52:38.7825524Z [INFO] ------------------------------------------------------------------------
+2023-01-19T17:52:38.7937200Z + ./mvnw package -B --strict-checksums --quiet -T C1 -DskipTests -Dmaven.source.skip=true -Dair.check.skip-all=true -Dmaven.javadoc.skip=true --no-snapshot-updates --no-transfer-progress -pl '!:trino-server-rpm' -Dair.check.skip-all=false -Dair.check.skip-basic=true -Dair.check.skip-extended=true -Dair.check.skip-checkstyle=false -P gib -Dgib.referenceBranch=refs/remotes/origin/master
+2023-01-19T17:58:11.1779624Z [ERROR] Failed to execute goal org.apache.maven.plugins:maven-assembly-plugin:3.3.0:single (package) on project trino-thrift-testing-server: Execution package of goal org.apache.maven.plugins:maven-assembly-plugin:3.3.0:single failed: Plugin org.apache.maven.plugins:maven-assembly-plugin:3.3.0 or one of its dependencies could not be resolved: Failed to collect dependencies at org.apache.maven.plugins:maven-assembly-plugin:jar:3.3.0 -> io.airlift:packaging:jar:222: Failed to read artifact descriptor for io.airlift:packaging:jar:222: Could not transfer artifact io.airlift:packaging:pom:222 from/to central (https://repo.maven.apache.org/maven2): transfer failed for https://repo.maven.apache.org/maven2/io/airlift/packaging/222/packaging-222.pom: Read timed out -> [Help 1]
+2023-01-19T17:58:11.1801290Z [ERROR] 
+2023-01-19T17:58:11.1810581Z [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+2023-01-19T17:58:11.1821956Z [ERROR] Re-run Maven using the -X switch to enable full debug logging.
+2023-01-19T17:58:11.1824514Z [ERROR] 
+2023-01-19T17:58:11.1831662Z [ERROR] For more information about the errors and possible solutions, please read the following articles:
+2023-01-19T17:58:11.1837754Z [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/PluginResolutionException
+2023-01-19T17:58:11.1847944Z [ERROR] 
+2023-01-19T17:58:11.1854660Z [ERROR] After correcting the problems, you can resume the build with the command
+2023-01-19T17:58:11.1862863Z [ERROR]   mvn <args> -rf :trino-thrift-testing-server
+```
+
+cc @nineinchnick @MiguelWeezardo 

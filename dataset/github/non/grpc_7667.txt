@@ -1,0 +1,27 @@
+Support custom KeyManager with TlsChannelCredentials
+I am working on adding mtls feature to Google gax-java library [PR](https://github.com/googleapis/gax-java/pull/1249/files?file-filters%5B%5D=.java&file-filters%5B%5D=.json&file-filters%5B%5D=.pem#diff-ff528917b4039c08d877a461cfc20d759775c4f2ba86bcceb0446a67950b8c77). We need to add ssl context to ManagedChannelBuilder. The code in my PR looks like this:
+
+```
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+
+private ManagedChannel createSingleChannel() throws IOException {
+    ...
+    ManagedChannelBuilder builder;
+    SslContext sslContext = createSslContext();
+    if (sslContext != null) {
+      builder = ((NettyChannelBuilder) builder).sslContext(sslContext);
+    }
+    ...
+    ManagedChannel managedChannel = builder.build();
+    return managedChannel;
+}
+
+```
+In the code I cast the builder type from `ManagedChannelBuilder` to `NettyChannelBuilder`, and add the ssl context. This code is for grpc so the cast works.
+
+Our concern is that `NettyChannelBuilder` is from `io.grpc.netty.shaded.io.grpc.netty`. It is supposed to be private to grpc-java I guess. 
+
+My question is: is this OK? If not, how can I pass the ssl context to the `ManagedChannelBuilder`. We must use `ManagedChannelBuilder` to build the channel (because we provide the user a callback to configure `ManagedChannelBuilder`), otherwise this will be a major breaking change for all googleapis client libraries.

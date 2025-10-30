@@ -1,0 +1,60 @@
+//grpclb:grpclb Bazel target missing META-INF resources
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.46.0
+
+### What is your environment?
+Linux (Debian Bookworm / gLinux), JDK 11, Bazel 4.2.1
+
+### What did you expect to see?
+Generated JAR from `//grpclb:grpclb` target includes resources under `META-INF/services` like how the Maven JAR does.
+
+### What did you see instead?
+JAR does not include these files.
+
+### Steps to reproduce the bug
+1. Depend on grpc-java as a Bazel repo using [/repositories.bzl](https://github.com/grpc/grpc-java/blob/master/repositories.bzl)
+2. Depend on google-cloud-spanner Maven artifact.
+3. Attempt to connect to Google Cloud Spanner.
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->
+
+```
+com.google.cloud.spanner.SpannerException: UNKNOWN: Default config is invalid: Status{code=UNKNOWN, description=None of [grpclb] specified by Service Config are available., cause=null}
+        at com.google.cloud.spanner.SpannerExceptionFactory.newSpannerExceptionPreformatted(SpannerExceptionFactory.java:284)
+        at com.google.cloud.spanner.SpannerExceptionFactory.newSpannerException(SpannerExceptionFactory.java:61)
+        at com.google.cloud.spanner.SpannerExceptionFactory.newSpannerException(SpannerExceptionFactory.java:181)
+        at com.google.cloud.spanner.SpannerExceptionFactory.newSpannerException(SpannerExceptionFactory.java:110)
+        at com.google.cloud.spanner.spi.v1.GapicSpannerRpc.<init>(GapicSpannerRpc.java:517)
+        at com.google.cloud.spanner.spi.v1.GapicSpannerRpc.<init>(GapicSpannerRpc.java:302)
+        at com.google.cloud.spanner.SpannerOptions$DefaultSpannerRpcFactory.create(SpannerOptions.java:469)
+        at com.google.cloud.spanner.SpannerOptions$DefaultSpannerRpcFactory.create(SpannerOptions.java:464)
+        at com.google.cloud.ServiceOptions.getRpc(ServiceOptions.java:560)
+        at com.google.cloud.spanner.SpannerOptions.getSpannerRpcV1(SpannerOptions.java:1320)
+        at com.google.cloud.spanner.SpannerImpl.<init>(SpannerImpl.java:132)
+        at com.google.cloud.spanner.SpannerOptions$DefaultSpannerFactory.create(SpannerOptions.java:459)
+        at com.google.cloud.spanner.SpannerOptions$DefaultSpannerFactory.create(SpannerOptions.java:454)
+        at com.google.cloud.ServiceOptions.getService(ServiceOptions.java:540)
+
+...
+
+Caused by: java.lang.IllegalStateException: Default config is invalid: Status{code=UNKNOWN, description=None of [grpclb] specified by Service Config are available., cause=null}
+        at com.google.common.base.Preconditions.checkState(Preconditions.java:590)
+        at io.grpc.internal.ManagedChannelImpl.<init>(ManagedChannelImpl.java:676)
+        at io.grpc.internal.ManagedChannelImplBuilder.build(ManagedChannelImplBuilder.java:630)
+        at io.grpc.internal.AbstractManagedChannelImplBuilder.build(AbstractManagedChannelImplBuilder.java:297)
+        at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider.createSingleChannel(InstantiatingGrpcChannelProvider.java:388)
+        at com.google.api.gax.grpc.ChannelPool.<init>(ChannelPool.java:105)
+        at com.google.api.gax.grpc.ChannelPool.create(ChannelPool.java:83)
+        at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider.createChannel(InstantiatingGrpcChannelProvider.java:236)
+        at com.google.api.gax.grpc.InstantiatingGrpcChannelProvider.getTransportChannel(InstantiatingGrpcChannelProvider.java:230)
+        at com.google.api.gax.rpc.ClientContext.create(ClientContext.java:201)
+        at com.google.cloud.spanner.v1.stub.GrpcSpannerStub.create(GrpcSpannerStub.java:231)
+        at com.google.cloud.spanner.spi.v1.GapicSpannerRpc.<init>(GapicSpannerRpc.java:411)
+        ... 32 more
+```
+
+### Notes
+
+Due to missing the above files, the default `LoadBalancerRegistry` is unable to find a load balancer for `grpclb`.

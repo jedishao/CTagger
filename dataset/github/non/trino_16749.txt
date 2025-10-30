@@ -1,0 +1,32 @@
+issue with Iceberg metadata while writing
+
+when running a query with dbt on my table I get the following error : 
+
+
+`16:42:45    TrinoUserError(type=USER_ERROR, name=ALREADY_EXISTS, message="Table already exists: 'example.optin_visites'", query_id=20230324_163451_00131_tbib2)
+16:42:45    compiled Code at target/run/poc_dbt/models/example/mart/optin_visites.sql
+`
+The table does not exist, I double checked on my s3 storage and in my hive metastore, the issue is not that simple :( 
+
+I tried to reduce the number of partition created during insertion and it worked, so If I'm doing 
+`
+visit AS (
+    SELECT *
+    FROM {{ source('example_data', 'example_participations_devices_v1' ) }}
+    WHERE DATE(attendingdate) > CURRENT_DATE - INTERVAL '50' DAY
+)
+`
+
+my transformation is succeeding, my table is stored on s3, I can query it fine, everything is doing what's is supposed to, but If I'm doing 
+`
+visit AS (
+    SELECT *
+    FROM {{ source('example_data', 'example_participations_devices_v1' ) }}
+    WHERE DATE(attendingdate) > CURRENT_DATE - INTERVAL '60' DAY
+),
+` 
+(notice the 60 days loaded)
+I get an error.
+
+This table with 50 day loaded contains 360 461 471 rows and we would like to load/write 3x more. 
+ I tried to reduce the number of thread in my dbt profiles, change the `write.target-file-size-bytes` of my table configuration. 

@@ -1,0 +1,29 @@
+Redis: "Connection is closed" exception not handled by exceptionHandler
+### Version
+
+Vertx 4.3.0 (Quarkus 2.9.1.Final)
+
+### Context
+
+I have a [RedisVerticle](https://github.com/eclipse-vertx/vert.x/files/9096225/RedisVerticle.TXT) implementation that is pretty much based on [this link](https://vertx.io/docs/vertx-redis-client/java/#_implementing_reconnect_on_error). But when i have connection problems (not too often, so it is hard to repro), i get:
+
+redis.setex ->
+
+2022-07-12 13:26:50,820 [vert.x-eventloop-thread-7] ERROR - io.quarkus.vertx.core.runtime.VertxCoreRecorder - Uncaught exception received by Vert.x: java.lang.IllegalStateException: Connection is closed
+        at io.vertx.redis.client.impl.RedisStandaloneConnection.send(RedisStandaloneConnection.java:179)
+        at io.vertx.redis.client.impl.PooledRedisConnection.send(PooledRedisConnection.java:73)
+        at io.vertx.redis.client.impl.RedisSentinelConnection.send(RedisSentinelConnection.java:60)
+        at io.vertx.redis.client.impl.RedisAPIImpl.send(RedisAPIImpl.java:59)
+        at io.vertx.redis.client.RedisAPI.setex(RedisAPI.java:2691)
+        at com.somepackage.cache.RedisVerticle.set(RedisVerticle.java:140)
+
+### Expected behavior
+
+If i understood correctly, the handler should be called (i don't see any log related to reconnection attempts, nor i see the connection restored, so i am positive about it not being called).
+        
+### Extra
+
+* The application has a couple of endpoints to store, delete and get information from redis, and is deployed in two separate machines. Both apps are behind a load balancer.
+* Sentinel mode is used.
+
+* I would see this kind of errors once a month, sometimes once in 45 days. When checking the redis cluster, it seems to be just fine. Restarting the application/s fixes the issue, since a new connection is created.

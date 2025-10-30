@@ -1,0 +1,39 @@
+PIP-239: MAX RECONSUME TIMES per Message
+### Motivation
+
+We are working on a project which requires msg to be have its own max reconsume times for consumers. like few msg can be max reconsumed 5 time and other can be reconsumed 10 times before sending to DLQ.
+
+This change will add an additional functionality to the Pulsar which can be a good point to consider it over other queuing plateforms like SQS, RabbitMQ when it comes with per message max reconsume time before sending to DLQ feature.
+
+We are working on an IoT based application where few msg coming from the devices needs to reconsumed 10s of times where other require 3 reconsumed per event on failure. As per current design using pulsar we can have this reconsum mechnism at consumer level which will process all msg to the same number of re-deliveries even they don't have to.
+
+If a msg requires temporarily changing in max reconsume time can be achieved by overriding properties while calling reconsumeLater by passing custom properties.
+
+### Goal
+
+In this PIP scope we will be adding per msg max reconsume time mechnims. so that each msg can have it's own max reconsume times property defaults to consumer level retry max.
+
+I have done few research on it and found that consumer client librarires are the one which responsible to send the msg to Retry or DLQ topic based on the redelivery define in the consumer using `reconsumeLater`. we can implement retry per msg code there so that we don't have to add any additional things at pulsar broker. 
+
+
+
+
+### API Changes
+
+_No response_
+
+### Implementation
+
+As a message should go to RETRY or DLQ topic is decided by the consumer based on consumer redelivery parameter. So we can make changes in `reconsumeLater` function and check if a msg contains a propoerty called `MAX_RECONSUME_TIMES` then use that over consumer redelivery to decide it should retry or send to dlq.
+
+I have Created a PR for proposed changes in go client lib: https://github.com/apache/pulsar-client-go/pull/939 
+
+### Alternatives
+
+There is no alternative as of now in the pulsar ifself. but ouside we are doing the same like having higher consumer redeliver times and setting property `MAX_RECONSUME_TIMES` in a msg and while consuming we are chekcing agaist `RECONSUMETIMES`.
+
+Based on condition where `RECONSUMETIMES > MAX_RECONSUME_TIMES` we are acking the msg.
+
+### Anything else?
+
+_No response_

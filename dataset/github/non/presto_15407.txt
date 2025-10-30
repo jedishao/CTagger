@@ -1,0 +1,53 @@
+Excessive Slice object created when building hashtables in MapBlockBuilder
+From our KDS pipeline, creating Slice while building map hashtables is among the top ones on both CPu and Alloc profiles. This is not necessary to create Slice objects while just reading the underlying byte[]
+
+      bytes  percent  samples  top
+  ----------  -------  -------  ---
+ 20100515320   17.28%     8734  io.airlift.compress.zstd.BitInputStream$Loader
+ 19517178392   16.78%    15079  int[]
+ 18379614392   15.80%    41511  byte[] (out)
+ 16120598328   13.86%     9228  byte[]
+ **13915658752   11.96%     7160  io.airlift.slice.Slice**
+ 12687383224   10.91%     5921  long[]
+  3800914200    3.27%     1749  boolean[]
+  1078840696    0.93%      548  com.facebook.presto.common.block.SingleMapBlock
+   934614296    0.80%     1883  short[]
+   819538672    0.70%    47355  char[]
+
+--- 237778528 bytes (0.20%), 137 samples
+  [ 0] io.airlift.slice.Slice
+  [ 1] io.airlift.slice.Slice.slice
+  [ 2] com.facebook.presto.common.block.AbstractVariableWidthBlock.getSlice
+  [ 3] com.facebook.presto.common.type.AbstractVarcharType.getSlice
+  [ 4] java.lang.invoke.LambdaForm$DMH.1110157751.invokeInterface_LLI_L
+  [ 5] java.lang.invoke.LambdaForm$BMH.1553863484.reinvoke
+  [ 6] java.lang.invoke.LambdaForm$BMH.1516325158.reinvoke
+  [ 7] java.lang.invoke.LambdaForm$MH.1826552875.invokeExact_MT
+  [ 8] com.facebook.presto.common.block.**MapBlockBuilder.getHashPosition**
+  [ 9] com.facebook.presto.common.block.MapBlockBuilder.buildHashTable
+  [10] com.facebook.presto.common.block.MapBlockBuilder.closeEntry
+  [11] com.facebook.presto.operator.scalar.MapConcatFunction.mapConcat
+  [12] java.lang.invoke.LambdaForm$DMH.1816757085.invokeStatic_L3_L
+  [13] java.lang.invoke.LambdaForm$BMH.1821930841.reinvoke
+  [14] java.lang.invoke.LambdaForm$MH.2024918163.invokeExact_MT
+  [15] com.facebook.presto.$gen.VarArgsToListAdapter_20201106_014833_13.varArgsToArray
+  [16] java.lang.invoke.LambdaForm$DMH.1816757085.invokeStatic_L3_L
+  [17] java.lang.invoke.LambdaForm$MH.1288235781.linkToTargetMethod
+  [18] com.facebook.presto.$gen.PageProjectionWork_20201106_015450_247.evaluate
+  [19] com.facebook.presto.$gen.PageProjectionWork_20201106_015450_247.process
+  [20] com.facebook.presto.operator.project.DictionaryAwarePageProjection$DictionaryAwarePageProjectionWork.process
+  [21] com.facebook.presto.operator.project.PageProcessor$ProjectSelectedPositions.processBatch
+  [22] com.facebook.presto.operator.project.PageProcessor$ProjectSelectedPositions.process
+  [23] com.facebook.presto.operator.WorkProcessorUtils$ProcessWorkProcessor.process
+  [24] com.facebook.presto.operator.WorkProcessorUtils$YieldingIterator.computeNext
+  [25] com.facebook.presto.operator.WorkProcessorUtils$YieldingIterator.computeNext
+  [26] com.google.common.collect.AbstractIterator.tryToComputeNext
+  [27] com.google.common.collect.AbstractIterator.hasNext
+  [28] com.facebook.presto.operator.project.MergingPageOutput.getOutput
+  [29] com.facebook.presto.operator.ScanFilterAndProjectOperator.processPageSource
+  [30] com.facebook.presto.operator.ScanFilterAndProjectOperator.getOutput
+  [31] com.facebook.presto.operator.Driver.processInternal
+  [32] com.facebook.presto.operator.Driver.lambda$processFor$8
+  [33] com.facebook.presto.operator.Driver$$Lambda$2093.1909444033.get
+  [34] com.facebook.presto.operator.Driver.tryWithLock
+  [35] com.facebook.presto.operator.Driver.processFor

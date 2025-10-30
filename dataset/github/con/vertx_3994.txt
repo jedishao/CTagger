@@ -1,0 +1,31 @@
+Two distinct HttpServer creations with port 0 yield the same random port (usually)
+### Summary
+
+Two individual calls to `vertx.createHttpServer(...)` with port 0 yield the same random port (usually, see note on race condition futher down).
+In context of Quarkus, this is irritating for users because Quarkus will print something like:
+```
+Listening on: http://localhost:40695 and https://localhost:40695
+```
+Furthermore, something seems to break after a very special sequence of QuarkusTests (that I'm not allowed to share due to closed source) in Quarkus 2.0.0 which uses vert.x 4.1, but that doesn't happen with Quarkus 1.13.7 which uses vert.x 3.something.
+See https://github.com/quarkusio/quarkus/issues/18154 for details.
+This problem vanishes if I use a fixed port for https (my tests are using http anyway, not https).
+
+While debugging/adding logging, I think I have also found a concurrency issue in [TCPServerBase](https://github.com/eclipse-vertx/vert.x/blob/11ab144725e551be591118831377101015e1392c/src/main/java/io/vertx/core/net/impl/TCPServerBase.java#L130-L157) that I have described here: https://quarkusio.zulipchat.com/#narrow/stream/187030-users/topic/.5B2.2E0.2E0.2ECR3.2B.5D.20.22The.20target.20server.20failed.20to.20respond.22/near/244163648
+
+### Version
+
+4.1.0 (in Quarkus 2.0.0)
+
+### Context
+
+See:
+- https://github.com/quarkusio/quarkus/issues/18154
+- https://quarkusio.zulipchat.com/#narrow/stream/187030-users/topic/.5B2.2E0.2E0.2ECR3.2B.5D.20.22The.20target.20server.20failed.20to.20respond.22
+
+### Do you have a reproducer?
+
+See Quarkus based reproducer in https://github.com/quarkusio/quarkus/issues/18154
+
+### Extra
+
+-

@@ -1,0 +1,36 @@
+FairLock在并发量大的场景下总是报CancellationException
+<!--
+Try Redisson PRO https://redisson.pro with with ultra-fast performance and support by SLA.
+-->
+`
+public void fairLockTest(){
+        String fairLockKey = "fair_lock_key";
+        // fairLock
+        RLock fairLock = redissonClient.getFairLock(fairLockKey);
+        try  {
+            if(fairLock.tryLock()){
+                // do something
+                System.out.println("do-fairLock-process:"+fairLockKey);
+            }else {
+                System.out.println("fairLock-fail:"+fairLockKey);
+            }
+        }catch (Exception ex){
+            ex.printStackTrace();
+        }finally {
+            boolean needUnLock = fairLock.isLocked() && fairLock.isHeldByCurrentThread();
+            if (needUnLock) {
+                fairLock.unlock();
+            }
+        }
+    }
+`
+
+sometime throw CancellationException
+
+<img width="1193" alt="image" src="https://user-images.githubusercontent.com/9252250/172197896-04754515-0483-4a2f-868e-acc30446faba.png">
+
+
+
+
+
+

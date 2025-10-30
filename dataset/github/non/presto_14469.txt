@@ -1,0 +1,13 @@
+Integer overflow exception when creating a BigIntValue Filter
+For an "IN" expression like `IN(Long.MIN_VALUE, 1, 10)`, since the max - min falls in out of range of int we will not be able to use BigintValuesUsingBitmask as the number of bits is max - min + 1.
+The check for an valid integer was incomplete where we are not checking if its less than the Integer.MIN_VALUE which can happen because of long wrap around
+
+```
+Caused by: java.lang.ArithmeticException: integer overflow
+	at java.base/java.lang.Math.toIntExact(Math.java:1071)
+	at com.facebook.presto.orc.TupleDomainFilter$BigintValuesUsingBitmask.<init>(TupleDomainFilter.java:636)
+	at com.facebook.presto.orc.TupleDomainFilter$BigintValuesUsingBitmask.of(TupleDomainFilter.java:645)
+	at com.facebook.presto.orc.TupleDomainFilterUtils.toBigintValues(TupleDomainFilterUtils.java:354)
+	at com.facebook.presto.orc.TupleDomainFilterUtils.toFilter(TupleDomainFilterUtils.java:112)
+	at com.facebook.presto.hive.orc.TupleDomainFilterCache.lambda$new$0(TupleDomainFilterCache.java:35)
+```

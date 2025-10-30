@@ -1,0 +1,108 @@
+[Python Schema] Incomplete schema with collections of Enums
+**Describe the bug**
+Enum symbols are not present in the python schema when the Enum is packed in an Array or a Map. Then, the schema verification done at server side is less precise.
+
+**To Reproduce**
+You can run the next tests with and without the proposition of fix.
+```
+From bdcb30d7156614af12717d0e91ef2a6e0a5e0c35 Mon Sep 17 00:00:00 2001
+From: Thibaut Perrot <phptib@gmail.com>
+Date: Thu, 30 Jun 2022 21:16:07 +0200
+Subject: [PATCH] [Python Schema] Detail schema of collections of Enums
+
+---
+ .../python/pulsar/schema/definition.py        |  4 +-
+ pulsar-client-cpp/python/schema_test.py       | 40 +++++++++++++++++++
+ 2 files changed, 42 insertions(+), 2 deletions(-)
+
+diff --git a/pulsar-client-cpp/python/pulsar/schema/definition.py b/pulsar-client-cpp/python/pulsar/schema/definition.py
+index a7a235b25a6..003c56ebe82 100644
+--- a/pulsar-client-cpp/python/pulsar/schema/definition.py
++++ b/pulsar-client-cpp/python/pulsar/schema/definition.py
+@@ -455,7 +455,7 @@ class Array(Field):
+     def schema_info(self, defined_names):
+         return {
+             'type': self.type(),
+-            'items': self.array_type.schema_info(defined_names) if isinstance(self.array_type, (Array, Map, Record))
++            'items': self.array_type.schema_info(defined_names) if isinstance(self.array_type, (Array, CustomEnum, Map, Record))
+                 else self.array_type.type()
+         }
+ 
+@@ -499,7 +499,7 @@ class Map(Field):
+     def schema_info(self, defined_names):
+         return {
+             'type': self.type(),
+-            'values': self.value_type.schema_info(defined_names) if isinstance(self.value_type, (Array, Map, Record))
++            'values': self.value_type.schema_info(defined_names) if isinstance(self.value_type, (Array, CustomEnum, Map, Record))
+                 else self.value_type.type()
+         }
+ 
+diff --git a/pulsar-client-cpp/python/schema_test.py b/pulsar-client-cpp/python/schema_test.py
+index bf83bdf9879..6b9c45270e6 100755
+--- a/pulsar-client-cpp/python/schema_test.py
++++ b/pulsar-client-cpp/python/schema_test.py
+@@ -1279,5 +1279,45 @@ class SchemaTest(TestCase):
+         self.assertTrue(b'_default' not in b)
+         self.assertTrue(b'_required' not in b)
+         self.assertTrue(b'_required_default' not in b)
++
++    def test_schema_array_enum(self):
++        class Color(Enum):
++            red = 1
++            green = 2
++            blue = 3
++
++        self.assertEqual(Array(CustomEnum(Color)).schema(), {
++             "type": "array",
++             "items": {
++                 "type": "enum",
++                 "name": "Color",
++                 "symbols": [
++                     "red",
++                     "green",
++                     "blue"
++                 ]
++             }
++         })
++
++    def test_schema_map_enum(self):
++        class Color(Enum):
++            red = 1
++            green = 2
++            blue = 3
++
++        self.assertEqual(Map(CustomEnum(Color)).schema(), {
++            "type": "map",
++            "values": {
++                "type": "enum",
++                "name": "Color",
++                "symbols": [
++                    "red",
++                    "green",
++                    "blue"
++                ]
++            }
++        })
++
++
+ if __name__ == '__main__':
+     main()
+-- 
+2.17.1
+
+```
+Sorry for not taking the time to follow the contributing process.
+
+**Expected behavior**
+In addition to the expected schema mentioned in the proposed patch, the behavior should be the same between all clients to communicate between different languages.
+
+I didn't checked whether it's functional with other languages. I suppose it's ok in Java, cf. _Additional context_.
+
+**Desktop**
+ - OS: Ubuntu 18.04.6 LTS
+ - python 3.10
+ - pulsar-client 2.10.0
+
+
+**Additional context**
+A colleague had to rework all the schema management of the Python client at version 2.4.2 because there was a lot of issues (*NB*: he didn't contributed back then). I suppose the problem is not present in the Java client because no fix was necessary for old versions of the Java client. In old versions, the Java client was setting up a schema as asked in this issue.

@@ -1,0 +1,54 @@
+Upgrade Android plugins to 4.x
+Apparently the new versions _require_ using a `gradle.properties` with specifically set values, for all practical purposes. This will cause trouble because gradle.properties is generally reserved (at least by us) for local options specific to that developer. But now it needs to contain:
+
+```
+android.useAndroidX=true
+android.enableJetifier=true
+```
+
+I don't know what to do about that; add gradle.properties to the repository and accept it will probably be accidentally changed or require devs to create it themselves. The CI can probably just pass `-P` on the command line to gradle if need be.
+
+And then there are these further changes:
+```patch
+diff --git a/android-interop-testing/build.gradle b/android-interop-testing/build.gradle
+index f1c1d4912..85dc23672 100644
+--- a/android-interop-testing/build.gradle
++++ b/android-interop-testing/build.gradle
+@@ -29,12 +29,12 @@ android {
+         sourceCompatibility JavaVersion.VERSION_1_8
+         targetCompatibility JavaVersion.VERSION_1_8
+     }
+-    compileSdkVersion 26
++    compileSdkVersion 28
+ 
+     defaultConfig {
+         applicationId "io.grpc.android.integrationtest"
+         minSdkVersion 16
+-        targetSdkVersion 26
++        targetSdkVersion 28
+         versionCode 1
+         versionName "1.0"
+         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+diff --git a/settings.gradle b/settings.gradle
+index 114d9af3c..a09ee35ad 100644
+--- a/settings.gradle
++++ b/settings.gradle
+@@ -1,7 +1,7 @@
+ pluginManagement {
+     plugins {
+-        id "com.android.application" version "3.5.0"
+-        id "com.android.library" version "3.5.0"
++        id "com.android.application" version "4.2.0"
++        id "com.android.library" version "4.2.0"
+         id "com.github.johnrengelman.shadow" version "6.1.0"
+         id "com.github.kt3k.coveralls" version "2.10.2"
+         id "com.google.osdetector" version "1.6.2"
+```
+
+This warning, other than being completely incomprehensible, appears to be benign. It seems likely to be an upstream issue, and looks similar to https://github.com/android/android-test/issues/573
+```
+[androidx.vectordrawable:vectordrawable-animated:1.0.0] /home/ejona/.gradle/caches/transforms-2/files-2.1/be19f96a7cc95bbc7089edbe5c0d4d0e/vectordrawable-animated-1.0.0/AndroidManifest.xml Warning:
+        Package name 'androidx.vectordrawable' used in: androidx.vectordrawable:vectordrawable-animated:1.0.0, androidx.vectordrawable:vectordrawable:1.0.0.
+```
+
+But after that there are compilation failures due to missing classes so we'll need to migrate our code or figure out new dependencies. And when doing that we need to make sure it is compatible with androidx migration internally.

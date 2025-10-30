@@ -1,0 +1,39 @@
+Make MERGE(HyperLogLog) an aggregate function
+We currently don't have any aggregate function on `HyperLogLog`. All supported functions are currently plain UDFs https://prestodb.io/docs/current/functions/hyperloglog.html
+
+Ideally, it would be great to have an aggregate function which supports combining `HyperLogLog`s . One of the use-case of this is to have rolling count_distinct.
+
+For example, consider a table which is an event log containing user ID and the date when user logged in. for the range of days, I am interested to get the number of distinct users who logged into the website in the window of 30 days. The Presto query would be
+
+```
+SELECT
+    ds,
+    CARDINALITY(combined_hll)
+FROM (
+    SELECT
+        ds,
+        MERGE(daily_hll) OVER (
+            ORDER BY
+                ds ASC rows BETWEEN 30 PRECEDING AND CURRENT ROW
+        ) AS combined_hll
+    FROM (
+        SELECT
+            ds,
+            APPROX_SET(user_id) daily_hll
+        FROM (
+            SELECT
+                user_id,
+                log_in_date AS ds
+            FROM web_event_log
+        )
+        GROUP BY
+            1
+    )
+    GROUP BY
+        1
+)
+```
+As of today, this query does not work since `MERGE` function (in line 7) is not an aggregate function.
+Please correct me if I missed something obvious.
+
+CC. @rschlussel / @rongrong / @kaikalur 

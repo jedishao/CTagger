@@ -1,0 +1,148 @@
+ServerCall#close(Status, Metadata) never called for client-cancelled calls
+### What version of gRPC-Java are you using?
+
+- 1.33.0
+- also affects previous versions
+
+### What is your environment?
+
+- Windows 10 x64
+- Java 11 x64
+
+### What do you wish to achieve
+
+I wish to report the request count/duration including the result status (including `CANCELLED` ones).
+https://github.com/yidongnan/grpc-spring-boot-starter/blob/master/grpc-server-spring-boot-autoconfigure/src/main/java/net/devh/boot/grpc/server/metric/MetricCollectingServerCall.java#L63
+
+See also:
+https://github.com/yidongnan/grpc-spring-boot-starter/issues/438
+
+### What did you expect to see?
+
+No error in the attached test / `ServerCall#close(Status, Metadata)` should have been called with status `Status.Code.CANCELLED`.
+
+### What did you see instead?
+
+````txt
+org.opentest4j.AssertionFailedError: Call closed ==> expected: <true> but was: <false>
+````
+
+Which might lead to a memory leak if a resource is attached to the `ServerCall` instead of the `ServerCall.Listener`.
+
+### Steps to reproduce the bug
+
+````java
+class CloseTest extends SimpleGrpc.SimpleImplBase implements ServerInterceptor {
+
+    private boolean callClosed = false;
+    private boolean listenerClosed = false;
+
+    @Test
+    void testCallClosed() throws IOException, InterruptedException, ExecutionException {
+        final Server server = InProcessServerBuilder.forName("self")
+                .addService(ServerInterceptors.intercept(this, this))
+                .build();
+        server.start();
+
+        final ManagedChannel channel = InProcessChannelBuilder.forName("self")
+                .usePlaintext()
+                .build();
+
+        final SimpleStub stub = SimpleGrpc.newStub(channel);
+
+        final CountDownLatch counter = new CountDownLatch(1);
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+
+        final ClientCallStreamObserver<Message> observer = (ClientCallStreamObserver<Message>) stub
+                .echo(new StreamObserver<Message>() {
+
+                    @Override
+                    public void onNext(final Message value) {
+                        // Do nothing
+                    }
+
+                    @Override
+                    public void onError(final Throwable t) {
+                        error.set(t);
+                        counter.countDown();
+                    }
+
+                    @Override
+                    public void onCompleted() {
+                        counter.countDown();
+                    }
+
+                });
+
+        observer.cancel("Cancelled", null);
+        counter.await();
+        assertNotNull(error.get());
+        assertEquals(Code.CANCELLED, ((StatusRuntimeException) error.get()).getStatus().getCode());
+
+        assertTrue(this.listenerClosed, "Listener closed");
+        assertTrue(this.callClosed, "Call closed"); // <-- BOOM
+
+        channel.shutdown();
+        server.shutdown();
+    }
+
+    @Override
+    public StreamObserver<Message> echo(final StreamObserver<Message> responseObserver) {
+        return responseObserver;
+    }
+
+    @Override
+    public <ReqT, RespT> Listener<ReqT> interceptCall(final ServerCall<ReqT, RespT> call, final Metadata headers,
+            final ServerCallHandler<ReqT, RespT> next) {
+        final ServerCall<ReqT, RespT> metricsCall = new SimpleForwardingServerCall<>(call) {
+
+            @Override
+            public void close(final Status status, final Metadata trailers) {
+                CloseTest.this.callClosed = true;
+                super.close(status, trailers);
+            }
+
+        };
+        return new SimpleForwardingServerCallListener<>(next.startCall(metricsCall, headers)) {
+
+            public void onCancel() {
+                CloseTest.this.listenerClosed = true;
+                super.onCancel();
+            }
+
+        };
+    }
+
+}
+````
+
+````proto
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "test";
+option java_outer_classname = "SimpleProto";
+
+service Simple {
+
+    rpc echo(stream Message) returns (stream Message) {}
+
+}
+
+message Message {
+    string text = 1;
+}
+````
+
+### Possible workarounds
+
+1. Add a custom cancel method to the `ServerCall` and call it from the `Listener#onCancelled`
+2. Use the GrpcContext#addCancellationListener to mark the call as cancelled (not tested)
+
+### Expected changes
+
+- `ServerCall#close` is also called for (client-side) cancellations.
+
+or
+
+- `ServerCall#close`'s documentation is amended stating that it won't be called for (client-side) cancellations and other client errors such as connection loss/timeout(?).

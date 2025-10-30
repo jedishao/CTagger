@@ -1,0 +1,77 @@
+Redisson 3.19.1 - JCache CacheEntryListener can not deserialize Kotlin LinkedHashMap (3.18.1 success)
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+
+deserialize is success for kotlinx.collections.Map<K, V> type
+
+**Actual behavior**
+
+In Redisson 3.19.1, CacheEntryListener for JCache is unable to deserialize kotlin.collections.LinkedHashMap<K, V>.
+When use Java `java.util.HashMap<K, V>` is success.
+
+**Steps to reproduce or test case**
+
+I created NearCache which use Redis as back cache. 
+When CacheEntryListener has exception with kotlin.collections.LinkedHashMap<K, V> 
+
+```
+javax.cache.CacheException: Failed to deserialize
+	at com.github.benmanes.caffeine.jcache.copy.JavaSerializationCopier.deserialize(JavaSerializationCopier.java:72)
+	at com.github.benmanes.caffeine.jcache.copy.JavaSerializationCopier.deserialize(JavaSerializationCopier.java:43)
+	at com.github.benmanes.caffeine.jcache.copy.AbstractCopier.roundtrip(AbstractCopier.java:151)
+	at com.github.benmanes.caffeine.jcache.copy.AbstractCopier.copy(AbstractCopier.java:92)
+	at com.github.benmanes.caffeine.jcache.CacheProxy.copyOf(CacheProxy.java:1112)
+	at com.github.benmanes.caffeine.jcache.CacheProxy.lambda$putNoCopyOrAwait$8(CacheProxy.java:365)
+	at com.github.benmanes.caffeine.cache.BoundedLocalCache.lambda$remap$16(BoundedLocalCache.java:2828)
+	at java.base/java.util.concurrent.ConcurrentHashMap.compute(ConcurrentHashMap.java:1932)
+	at com.github.benmanes.caffeine.cache.BoundedLocalCache.remap(BoundedLocalCache.java:2790)
+	at com.github.benmanes.caffeine.cache.BoundedLocalCache.compute(BoundedLocalCache.java:2740)
+	at com.github.benmanes.caffeine.cache.LocalCache.compute(LocalCache.java:93)
+	at com.github.benmanes.caffeine.jcache.CacheProxy.putNoCopyOrAwait(CacheProxy.java:364)
+	at com.github.benmanes.caffeine.jcache.CacheProxy.putAll(CacheProxy.java:407)
+	at com.hpcnt.kommons.cache.jcache.nearcache.BackCacheEntryEventListener.onCreated(BackCacheEntryEventListener.kt:31)
+	at org.redisson.jcache.JCache$7.onMessage(JCache.java:3216)
+	at org.redisson.jcache.JCache$7.onMessage(JCache.java:3209)
+	at org.redisson.PubSubMessageListener.onMessage(PubSubMessageListener.java:79)
+	at org.redisson.client.RedisPubSubConnection.onMessage(RedisPubSubConnection.java:68)
+	at org.redisson.client.handler.CommandPubSubDecoder$1.run(CommandPubSubDecoder.java:164)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.io.InvalidObjectException: Illegal load factor: 0.0
+	at java.base/java.util.HashMap.readObject(HashMap.java:1430)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at java.base/java.io.ObjectStreamClass.invokeReadObject(ObjectStreamClass.java:1046)
+	at java.base/java.io.ObjectInputStream.readSerialData(ObjectInputStream.java:2357)
+	at java.base/java.io.ObjectInputStream.readOrdinaryObject(ObjectInputStream.java:2228)
+	at java.base/java.io.ObjectInputStream.readObject0(ObjectInputStream.java:1687)
+	at java.base/java.io.ObjectInputStream.defaultReadFields(ObjectInputStream.java:2496)
+	at java.base/java.io.ObjectInputStream.readSerialData(ObjectInputStream.java:2390)
+	at java.base/java.io.ObjectInputStream.readOrdinaryObject(ObjectInputStream.java:2228)
+	at java.base/java.io.ObjectInputStream.readObject0(ObjectInputStream.java:1687)
+	at java.base/java.io.ObjectInputStream.readObject(ObjectInputStream.java:489)
+	at java.base/java.io.ObjectInputStream.readObject(ObjectInputStream.java:447)
+	at com.github.benmanes.caffeine.jcache.copy.JavaSerializationCopier.deserialize(JavaSerializationCopier.java:70)
+	... 22 common frames omitted
+```
+
+
+**Redis version**
+
+Redis 6.2
+
+**Redisson version**
+
+3.19.1 : Failed 
+3.18.1 : Success
+
+**Redisson configuration**
+
+Default 

@@ -1,0 +1,66 @@
+[Improve] Calculate the sticky key hash by using keyBytes instead of Base64 encoded key
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+The method `peekStickyKey` in `Commands.java` is used for acquiring sticky key bytes. But I think the implementation of this method could be wrong.
+
+```java
+public static byte[] peekStickyKey(ByteBuf metadataAndPayload, String topic, String subscription) {
+    try {
+        int readerIdx = metadataAndPayload.readerIndex();
+        MessageMetadata metadata = Commands.parseMessageMetadata(metadataAndPayload);
+        metadataAndPayload.readerIndex(readerIdx);
+        if (metadata.hasOrderingKey()) {
+            return metadata.getOrderingKey();
+        } else if (metadata.hasPartitionKey()) {
+            return metadata.getPartitionKey().getBytes(StandardCharsets.UTF_8);
+        }
+    } catch (Throwable t) {
+        log.error("[{}] [{}] Failed to peek sticky key from the message metadata", topic, subscription, t);
+    }
+    return Commands.NONE_KEY;
+}
+```
+
+The Partition Key in metadata could be defined by using `TypedMessageBuilder#setKeyBytes` or `TypedMessageBuilder#setKey`. The key bytes will be encoded into a Base64 string. So I think we can just decode the key bytes instead of `String#getBytes(StandardCharsets.UTF_8)`.
+
+### Solution
+
+```java
+public static byte[] peekStickyKey(ByteBuf metadataAndPayload, String topic, String subscription) {
+    try {
+        int readerIdx = metadataAndPayload.readerIndex();
+        MessageMetadata metadata = Commands.parseMessageMetadata(metadataAndPayload);
+        metadataAndPayload.readerIndex(readerIdx);
+        if (metadata.hasOrderingKey()) {
+            return metadata.getOrderingKey();
+        } else if (metadata.hasPartitionKey()) {
+            String partitionKey = metadata.getPartitionKey();
+            if (metadata.isPartitionKeyB64Encoded()) {
+                return Base64.getDecoder().decode(partitionKey);
+            } else {
+                return partitionKey.getBytes(StandardCharsets.UTF_8);
+            }
+        }
+    } catch (Throwable t) {
+        log.error("[{}] [{}] Failed to peek sticky key from the message metadata", topic, subscription, t);
+    }
+    return Commands.NONE_KEY;
+}
+```
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

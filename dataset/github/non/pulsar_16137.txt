@@ -1,0 +1,41 @@
+The order of items in a configuration field of the type Set is not preserved
+**Describe the bug**
+The order of items is not preserved for configuration fields of the type `Set`, just like [`authenticationProviders`](https://github.com/apache/pulsar/blob/8730c22688f90edffa61c201789838cc63e6864d/pulsar-broker-common/src/main/java/org/apache/pulsar/broker/ServiceConfiguration.java#L1372). Preserving the order of items in the config would make the program behavior to be more predictable, and may potentially make it possible for more operation flexibilities.
+
+**To Reproduce**
+
+A unit test like this will fail:
+
+```java
+    @Test
+    public void testAuthenticationProviders() throws IOException {
+        String confFile = "authenticationProviders=authn1,authn2,authn3";
+
+        @Cleanup
+        InputStream inputStream = new ByteArrayInputStream(confFile.getBytes());
+        ServiceConfiguration conf = PulsarConfigurationLoader.create(inputStream, ServiceConfiguration.class);
+        assertEquals(conf.getAuthenticationProviders().size(), 3);
+
+        ArrayList<String> authList = new ArrayList<>(conf.getAuthenticationProviders());
+        assertEquals(authList.get(0), "authn1"); // got java.lang.AssertionError
+        assertEquals(authList.get(1), "authn2");
+        assertEquals(authList.get(2), "authn3");
+    }
+```
+
+The error message would be like:
+> java.lang.AssertionError: 
+> Expected :authn1
+> Actual   :authn3
+
+**Expected behavior**
+The order of items in the Set should be preserved, and the unit test listed above should pass.
+
+**Screenshots**
+N/A
+
+**Desktop (please complete the following information):**
+ - OS: macOS 12.4
+
+**Additional context**
+N/A

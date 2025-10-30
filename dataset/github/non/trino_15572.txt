@@ -1,0 +1,23 @@
+timestamp query no longer working in 405, gives option to use int64 instead of just using option
+Starting in Trino version 405, I have gotten the following error with my query
+
+query done via python with library `v0.320.0` : 
+
+```python
+QUERY_TO_EXECUTE = """SELECT a.sec_type, a.contract_id, a.query_start_time, a.symbol, a.currency, a.primary_exchange, a.exchange
+FROM ibtickers a
+LEFT OUTER JOIN ibtickers b ON a.contract_id = b.contract_id AND a.query_start_time < b.query_start_time
+WHERE b.contract_id IS NULL ORDER BY a.query_start_time desc"""
+```
+
+This query worked against version 403
+
+Error against version 405:
+
+> `trino.exceptions.TrinoUserError: TrinoUserError(type=USER_ERROR, name=NOT_SUPPORTED, message="Unsupported Trino column type (timestamp(3)) for Parquet column ([query_start_time] optional int64 query_start_time)", query_id=20221231_063812_00001_4bwdf)`
+
+My guess is, in past versions like 403, the default behavior was to simply run the query.. but now it is giving me this prompt.. I guess my question is how do I tell trino to go ahead and return long ?
+
+https://github.com/trinodb/trino/pull/15204 related perhaps ? 
+
+Thank you

@@ -1,0 +1,90 @@
+Delay queue message lost
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+
+Listen to the message and consume
+
+**Actual behavior**
+
+No message was heard
+
+**Steps to reproduce or test case**
+
+1、Start consumers first
+     
+    @Test
+    public void listener() throws IOException {
+        String qName = "test";
+        RedissonClient redissonClient = TestRedissonClient.redisson();
+        RBlockingQueue<Object> blockingFairQueue = redissonClient.getBlockingQueue(qName);
+        new Thread(()->{
+            while (true) {
+                try {
+                    log.info("Start delay queue processing thread");
+                    Object message = blockingFairQueue.take();
+                    log.info("Message received: {}",message);
+                } catch (Exception e) {
+                    log.error("Delay queue service processing exception!",e);
+                }
+            }
+        }).start();
+        log.info("Consumer startup completed");
+        System.in.read();
+    }
+
+2、Restart producer
+
+    @Test
+    public void t1() {
+        String qName = "test";
+        RedissonClient redisson = TestRedissonClient.redisson();
+        RBlockingQueue<String> blockingFairQueue = redisson.getBlockingQueue(qName);
+        RDelayedQueue<String> delayedQueue = redisson.getDelayedQueue(blockingFairQueue);
+        delayedQueue.offer("hello-1", 1, TimeUnit.SECONDS);
+    }
+
+**Redis version**
+
+redis_version:5.0.5
+
+**Redisson version**
+3.17.5 and 3.17.0
+**Redisson configuration**
+
+        Config config = new Config();
+        SingleServerConfig useSingleServer = config.useSingleServer();
+        useSingleServer.setAddress(redissonUrl);
+        useSingleServer.setPassword(StringUtils.isNotBlank(password)?password:null);
+        useSingleServer.setConnectionPoolSize(500);
+        useSingleServer.setIdleConnectionTimeout(10000);
+        useSingleServer.setConnectTimeout(30000);
+        useSingleServer.setTimeout(3000);
+
+
+
+note:  We noticed that this problem can be solved by adding an empty message after the consumer starts. The code is as follows:
+
+    @Test
+    public void listener() throws IOException {
+        String qName = "test";
+        RedissonClient redissonClient = TestRedissonClient.redisson();
+        RBlockingQueue<Object> blockingFairQueue = redissonClient.getBlockingQueue(qName);
+        new Thread(()->{
+            while (true) {
+                try {
+                    log.info("Start delay queue processing thread");
+                    Object message = blockingFairQueue.take();
+                    log.info("Message received: {}",message);
+                } catch (Exception e) {
+                    log.error("Delay queue service processing exception!",e);
+                }
+            }
+        }).start();
+        RDelayedQueue<Object> delayedQueue = redissonClient.getDelayedQueue(blockingFairQueue);
+        delayedQueue.offer(null, 0, TimeUnit.SECONDS);
+        log.info("Consumer startup completed");
+        System.in.read();
+    }

@@ -1,0 +1,32 @@
+Metadata management seems broken to this noob
+### Affected Version
+
+24.0.2
+
+### Description
+
+Don't get me wrong here, I love so much about Druid!  I love love love it!
+
+But, I'm a noob at operating Druid cluster in a production environment.  I'm using druid-operator and it works really well.  I can stand up clusters and they work great!  Fantastic.
+
+Where I'm running into issues is when I delete streaming datasources and attempt to reconstitute them.  Here's the repro steps:
+
+1. Stand up a fresh Druid cluster using s3 for deep storage.
+2. Set up a Kafka ingest supervisor to pull records from a topic.
+3. Let that supervisor work long enough to persist segments.  An hour, days, it's dealer's choice!
+4. Terminate the supervisor.
+5. Wait for the Kafka ingest task to finish.
+6. Mark all datasource segments as unused.
+7. Run a kill task for said datasource.
+8. Wait for kill task to complete.
+9. Observe that there's no datasource in the datasource list.
+10. Observe that there's no segments listed in the segments list.
+11. Set up a Kafka ingest supervisor to pull records from a topic with the same settings as step 2.
+12. Watch as hilarious bugs occur.  It could be that old segment metadata interferes or perhaps a topic name change causes weird exceptions.  In any case, this never works cleanly.
+13. Get frustrated as you realize that there's a tight coupling between topic and datasource name.  You really can't reuse either one.  Hate your life as all downstream queries need to be refactored due to this bug.
+
+My workaround is to reinstall Druid from scratch and set up the ingest again.  This works fine in development.  But I'll need to stand up a permanent storage for all records so I can reconstitute the topic from scratch in the case of catastrophic failure in production.  Oof.
+
+I'd like to suggest that when a datasource is deleted then all references to the datasource are actually removed from the metadata store.  Am I missing some reason why this should't be the case already?  If so, that'd solve so many unhandled edge cases.
+
+I'm happy to contribute a fix here but any guidance from an experienced Druid dev would be appreciated.

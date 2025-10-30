@@ -1,0 +1,13 @@
+How does RRateLimiter set the expiration time of permits and values?
+Looking at the source, try converting RRateLimiter to RedissonRateLimiter and then use its expireAsync method:
+```java
+    public RFuture<Boolean> expireAsync(long timeToLive, TimeUnit timeUnit, String param, String... keys) {
+        return super.expireAsync(timeToLive, timeUnit, param, new String[]{this.getRawName(), this.getValueName(), this.getClientValueName(), this.getPermitsName(), this.getClientPermitsName()});
+    }
+```
+```java
+   protected RFuture<Boolean> expireAsync(long timeToLive, TimeUnit timeUnit, String param, String... keys) {
+        return this.commandExecutor.evalWriteAsync(this.getRawName(), LongCodec.INSTANCE, RedisCommands.EVAL_BOOLEAN, "local result = 0;for j = 1, #KEYS, 1 do local expireSet; if ARGV[2] ~= '' then expireSet = redis.call('pexpire', KEYS[j], ARGV[1], ARGV[2]); else expireSet = redis.call('pexpire', KEYS[j], ARGV[1]); end; if expireSet == 1 then result = expireSet;end; end; return result; ", Arrays.asList(keys), new Object[]{timeUnit.toMillis(timeToLive), param});
+    }
+```
+This method seems to set the expiration time of permits and value, but it is found to be invalid after experiments, and only the expiration time of the current limiter can be set. Is there a way to deal with it?

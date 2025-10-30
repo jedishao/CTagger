@@ -1,0 +1,148 @@
+[Proposal] Design for a Configurable Index Type
+### Motivation
+
+Alternative approaches to indexing events in-memory might have benefits in some workloads, or be irrelevant in other workloads.
+But the current Druid design allows only one (hard-coded) approach for that end; i.e., incremental-index, specifically `OnheapIncrementalIndex`.
+Other implementations such as the `OffheapIncrementalIndex` might also be beneficial in some [workloads](https://github.com/liran-funaro/druid/wiki/Evaluation) (albeit deprecated).
+Furthermore, future approaches such as suggested in PR #10001 (ISSUE #9967), can achieve much better resource utilization than the existing approaches ([source](https://github.com/liran-funaro/druid/wiki/Evaluation)).
+
+But for current and future approaches to be implemented, tested, and embedded into Druid, Druid must allow users to select different indexing approaches (as core or as extensions).
+The purpose of this issue is to present and discuss a design for a configurable index type.
+Afterwhich, we plan to implement the decided (and approved) approach and submit it as a PR.
+
+### Proposed changes
+We propose the following modifications to Druid design:
+1. Add `AppendableIndexBuilder` and `AppendableIndexSpec` interfaces
+1. Add an ingestion knob for tuningConfig
+1. Instantiate an `AppendableIndexBuilder` using the given spec
+
+These incur many minor changes as depicted in #10335 (WIP).
+Below we describe the notable changes. 
+
+#### Add `AppendableIndexBuilder` and `AppendableIndexSpec` interfaces
+`AppendableIndexBuilder` will be an abstract class. It will be identical to the existing `IncrementalIndex.Builder` class, except for the `build()` method that will be abstract.
+
+Each implementation of `IncrementalIndex` will have its own Builder.
+
+`AppendableIndexSpec` will be an extension point (`@UnstableApi` for now). It will have two methods:
+```java
+@UnstableApi
+public interface AppendableIndexSpec
+{
+  // Returns a builder of the appendable index.
+  AppendableIndexBuilder builder();
+
+  // Returns the default max bytes in memory for this index.
+  long getDefaultMaxBytesInMemory();
+}
+```
+
+Each appendable index will have its own implementation of `AppendableIndexSpec`, which will be registered as `JsonSubType` via a dedicated `AppendableIndexModule`.
+The `getDefaultMaxBytesInMemory()` is required because different implementations might have different restrictions (e.g., on-heap is limited by the heap size limit and the off-heap is limited by the direct size limit).
+
+#### Add an ingestion knob for tuningConfig
+First, we add a method to the `AppenderatorConfig` interface: `AppendableIndexSpec getAppendableIndexSpec()`.
+Then, we add to each of its implementations a constructor parameter:
+```java
+@JsonProperty("appendableIndexSpec") @Nullable AppendableIndexSpec appendableIndexSpec
+```
+which will be returned by the `getAppendableIndexSpec()` method.
+
+This will affect all the implementations of `AppenderatorConfig`: `RealtimeTuningConfig`, `RealtimeAppenderatorTuningConfig`, `IndexTask.IndexTuningConfig`, `ParallelIndexTuningConfig`, `HadoopTuningConfig`, `SeekableStreamIndexTaskTuningConfig`, `KafkaIndexTaskTuningConfig`, `KafkaSupervisorTuningConfig`, `KinesisIndexTaskTuningConfig`, `KinesisSupervisorTuningConfig`.
+
+The above will introduce a new configuration knob.
+For example, the on-heap (default) will be configured as such:
+```json
+"tuningConfig": {
+  "appendableIndexSpec": {
+    "type": "onheap"
+  }
+}
+```
+and the off-heap as such (the buffer size is set to 8MB and the cache-size is 1GB):
+```json
+"tuningConfig": {
+  "appendableIndexSpec": {
+    "type": "offheap",
+    "bufferSize": 8388608,
+    "cacheSize": 1073741824
+  }
+}
+```
+
+#### Instantiate an `AppendableIndexBuilder` using the given spec
+All places that instantiate `IncrementalIndex.Builder`, will be modified to instantiate it from
+```java
+config.getSchema().getTuningConfig().getAppendableIndexSpec().builder()
+```
+That is: `Sink`, `IndexGeneratorJob` (hadoop).
+
+### Rationale
+
+We considered a few alternative choices for this design.
+1. Adding a new `AppendableIndex` interface
+1. Avoiding using builder factory: “appendableIndexSpec” parameter will be a `String` rather than a builder factory
+
+#### Adding a new `AppendableIndex` interface
+`AppendableIndex` will include all the externally visible API of the current `IncrementalIndex`.
+For example:
+```java
+public interface AppendableIndex
+{
+  FactsHolder getFacts();
+  boolean canAppendRow();
+  String getOutOfRowsReason();
+  AppendableIndexAddResult add(InputRow row, boolean skipMaxRowsInMemoryCheck) throws IndexSizeExceededException;
+  // etc...
+}
+```
+The `AppendableIndexBuilder.build()` will return an `AppendableIndex` instead of an `IncrementalIndex`, and all places that refer to the `IncrementalIndex` will refer to this interface instead.
+This will allow developers to choose a completely different implementation but will introduce many small changes in the code.
+This can be beneficial, for example, for #10001 which does not need incremental-index to function but it inherits from it to reduce the total diff size.
+To minimize diff size, we prefer to avoid this new interface for now, but it should be considered for future work.
+
+#### Avoiding using builder factory: “appendableIndexSpec” parameter will be a `String` rather than a builder factory
+An alternative design could be adding another member/method to the existing `IncrementalIndex.Builder`, and adding a “generic” `build()` method:
+```java
+// ...
+
+public Builder setIncrementalIndexType(final String incrementalIndexType)
+{
+  this.incrementalIndexType = incrementalIndexType;
+  return this;
+}
+
+// ...
+
+public IncrementalIndex build()
+{
+  switch (incrementalIndexType) {
+    case "onheap":
+      return buildOnheap();
+    case "offheap":
+      return buildOffheap();
+    case "novel-index":
+      return buildNovel();
+    default:
+      throw new IllegalArgumentException("Unsupported incremental index: " + incrementalIndexType);
+  }
+}
+```
+
+Then, add the ingestion configuration as a string, rather than a factory class.
+
+This alternative is simpler and is the one that is currently implemented in #10001.
+But it does not allow extensions to implement their own appendable-index.
+This is especially important with the current effort to support Java-11.
+Currently, #10001 only supports Java-8, but it will support Java-11 it in the future.
+Since extensions allowed lagging behind this effort (e.g., data sketches), we prefer the design that supports index extensions.
+
+### Operational impact
+
+This change will not affect any existing clusters. It will work seamlessly when the `appendableIndexSpec` parameter is omitted.
+
+### Future work
+
+* Integration of #10001 with the new design
+* Add `AppendableIndex` interface
+* Similar configuration can be added to queries; e.g., to allow alternative indexing methods in group-by queries (such as in `GroupByQueryHelper`)

@@ -1,0 +1,30 @@
+Adding metrics to auto compaction to support converting datasource from no rollup into rollup datasource
+### Description
+
+Now that auto compaction supports enabling rolling up of data (converting datasource from no rollup into rollup datasource), it would make sense to also add metrics along with enabling rolling up. 
+
+This feature change will allows user to easily convert datasource from no rollup into rollup datasource using auto compaction. Currently, auto compaction already supports changing (i.e. removing) dimensions and enabling rollups. The only thing missing to fully support converting datasource into rollup aggregated datasource is the ability to add metrics in auto compaction. The functionality for adding metrics is a little bit more involved and is detailed below:
+
+During compaction / reindex of existing segments, one of the following scenario will happen for each given metric in the metricSpec depending on the existing state of the segment. 
+- The segment does not have the metric name defined in metricSpec as any of it’s metric → the metric aggregator in metricSpec is applied if the source column exist other the metric value is null
+- The segment has the metric name defined in metricSpec as one of it’s metric → the metric aggregator in metricSpec is skipped and the existing metric is unchanged
+
+Once all segments are ingested according to the above cases, merging the segment is done by using the CombiningFactory of the metric defined in the metricSpec.
+
+Example (for adding metric aggregator):
+- Segment 1 has dim A and one row, segment 2 has dim A and one row → count aggregator applied on segment 1 (count = 1), count aggregator applied on segment 2  (count = 1) → output segment has  count = 2 and dim A.
+- Segment 1 has dim A and one row, segment 2 has count = 2, dim A and one row → count aggregator applied on segment 1 (count = 1), segment 2 count metric unchanged→ output segment has count=3 and dim A.
+- Segment 1 has count = 3, dim A and one row, segment 2 has count = 2, dim A and one row → segment 1 count metric unchanged, segment 2 count metric unchanged→ output segment has count=5 and dim A.
+
+Current limitation (only applies to when using metricsSpec in auto compaction and manual compaction tasks) :
+- Metrics must only be written to a new column (a.k.a not the source dimension)
+- Metrics cannot be constructed from other metrics
+- Metrics cannot be changed once written
+
+### Motivation
+
+Currently, converting a datasource without rollup into a rollup aggregated datasource is an involved process. It would requires reindexing from the raw data again (which requires having access to raw data and possible much longer index time) or reindexing from current non rollup Druid datasource (which requires manually writing, submitting and tracking reindex tasks). 
+By adding metricsSpec to auto compaction, auto compaction will support all the schema change possible with reindex tasks. This will allows auto compaction to replace manual compaction and manual reindex tasks, providing user with an handoff / autonomous schema change (i.e. converting datasource from no rollup into rollup datasource) functionality. 
+
+https://github.com/apache/druid/pull/12125
+https://github.com/apache/druid/pull/12185

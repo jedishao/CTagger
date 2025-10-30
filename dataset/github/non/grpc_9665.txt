@@ -1,0 +1,16 @@
+Do not log userinfo of NameResolver target
+I have custom NameResolver which takes ip addresses from service discovery server. It handles URI's like `mycustom://secret-token@192.168.0.1:1234/service-name`.
+
+It works perfectly. The problem is that grpc exposes secret token in logs when request to discovery server fails:
+
+```
+2022-10-31 17:18:27.502  WARN 1 --- [grpc-default-worker-ELG-1-19] io.grpc.internal.ManagedChannelImpl      : [Channel<1>: (mycustom://secret-token@192.168.0.1:1234/service-name)] Failed to resolve name. status=Status{code=
+UNKNOWN, description=discovery service call failed, cause=java.util.concurrent.CompletionException: java.util.concurrent.CancellationException: Request cancelled
+```
+
+Please hide userinfo part of URI (if present) in logs. Like this:
+
+```
+2022-10-31 17:18:27.502  WARN 1 --- [grpc-default-worker-ELG-1-19] io.grpc.internal.ManagedChannelImpl      : [Channel<1>: (mycustom://<redacted>@192.168.0.1:1234/service-name)] Failed to resolve name. status=Status{code=
+UNKNOWN, description=discovery service call failed, cause=java.util.concurrent.CompletionException: java.util.concurrent.CancellationException: Request cancelled
+```

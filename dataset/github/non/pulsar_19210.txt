@@ -1,0 +1,219 @@
+[Bug] BacklogQuota not being enforced when it should be
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+**OS Version/Computer:** M1 Macbook, Monterrey 12.6.1
+**Pulsar Version:** Pulsar Standalone Docker 2.10.1 and 2.11.0, run locally on Mac
+
+
+
+### Minimal reproduce step
+
+1. Spin up a brand new docker standalone for specific version, locally on Mac
+1. Using our python code, create a topic with the following (note, python code under the hood is using the HTTP API to accomplish this)
+    - 1 partition
+    - persistent 
+    - Retention Policy time of -1
+    - Backlog Quota time of 60 seconds, with an action `producer_exception` 
+    - 1 consumer group
+```
+  "backlog_quota_map" : {
+    "message_age" : {
+      "limit" : -1,
+      "limitSize" : -1,
+      "limitTime" : 60,
+      "policy" : "producer_exception"
+    },
+    "destination_storage" : {
+      "limit" : 2147483648,
+      "limitSize" : 2147483648,
+      "limitTime" : -1,
+      "policy" : "producer_exception"
+    }
+  },
+```
+1. Migrate topic to Pulsar instance
+1. Create a publisher and send a message (successfully) to pulsar 
+1. Made sure the message just sent was not consumed   
+1. Wait 5 minutes, and send another message
+
+This was done with version 2.10.1 and 2.11.0, on my local Macbook, and a colleagues Macbook with similar specs and version.
+We also did the exact same procedure, except when setting the Backlog quota, we manually set this through `pulsar-admin set-backlog-quota`
+
+The `partitioned-stats` date we got was the following (**big concern is the fact that there's a backlog count but no size/oldest-message-age**)
+
+```
+{
+  "msgRateIn": 0.0,
+  "msgThroughputIn": 0.0,
+  "msgRateOut": 0.0,
+  "msgThroughputOut": 0.0,
+  "bytesInCounter": 6500,
+  "msgInCounter": 11,
+  "bytesOutCounter": 8818,
+  "msgOutCounter": 15,
+  "averageMsgSize": 0.0,
+  "msgChunkPublished": false,
+  "storageSize": 6500,
+  "backlogSize": 5320,
+  "publishRateLimitedTimes": 0,
+  "earliestMsgPublishTimeInBacklogs": 0,
+  "offloadedStorageSize": 0,
+  "lastOffloadLedgerId": 0,
+  "lastOffloadSuccessTimeStamp": 0,
+  "lastOffloadFailureTimeStamp": 0,
+  "publishers": [],
+  "waitingPublishers": 0,
+  "subscriptions": {
+    "chariot_subscription-heartbeat-heartbeat": {
+      "msgRateOut": 0.0,
+      "msgThroughputOut": 0.0,
+      "bytesOutCounter": 8818,
+      "msgOutCounter": 15,
+      "msgRateRedeliver": 0.0,
+      "messageAckRate": 0.0,
+      "chunkedMessageRate": 0,
+      "msgBacklog": 9,
+      "backlogSize": 0,
+      "earliestMsgPublishTimeInBacklog": 0,
+      "msgBacklogNoDelayed": 9,
+      "blockedSubscriptionOnUnackedMsgs": false,
+      "msgDelayed": 0,
+      "unackedMessages": 0,
+      "msgRateExpired": 0.0,
+      "totalMsgExpired": 0,
+      "lastExpireTimestamp": 0,
+      "lastConsumedFlowTimestamp": 0,
+      "lastConsumedTimestamp": 0,
+      "lastAckedTimestamp": 0,
+      "lastMarkDeleteAdvancedTimestamp": 0,
+      "consumers": [],
+      "isDurable": true,
+      "isReplicated": false,
+      "allowOutOfOrderDelivery": false,
+      "consumersAfterMarkDeletePosition": {},
+      "nonContiguousDeletedMessagesRanges": 0,
+      "nonContiguousDeletedMessagesRangesSerializedSize": 0,
+      "delayedTrackerMemoryUsage": 0,
+      "subscriptionProperties": {},
+      "filterProcessedMsgCount": 0,
+      "filterAcceptedMsgCount": 0,
+      "filterRejectedMsgCount": 0,
+      "filterRescheduledMsgCount": 0,
+      "durable": true,
+      "replicated": false
+    }
+  },
+  "replication": {},
+  "nonContiguousDeletedMessagesRanges": 0,
+  "nonContiguousDeletedMessagesRangesSerializedSize": 0,
+  "delayedMessageIndexSizeInBytes": 0,
+  "compaction": {
+    "lastCompactionRemovedEventCount": 0,
+    "lastCompactionSucceedTimestamp": 0,
+    "lastCompactionFailedTimestamp": 0,
+    "lastCompactionDurationTimeInMills": 0
+  },
+  "metadata": {
+    "partitions": 1
+  },
+  "partitions": {
+    "persistent://chariot1/chariot_ns_sre--heartbeat/chariot_topic_heartbeat-partition-0": {
+      "msgRateIn": 0.0,
+      "msgThroughputIn": 0.0,
+      "msgRateOut": 0.0,
+      "msgThroughputOut": 0.0,
+      "bytesInCounter": 6500,
+      "msgInCounter": 11,
+      "bytesOutCounter": 8818,
+      "msgOutCounter": 15,
+      "averageMsgSize": 0.0,
+      "msgChunkPublished": false,
+      "storageSize": 6500,
+      "backlogSize": 5320,
+      "publishRateLimitedTimes": 0,
+      "earliestMsgPublishTimeInBacklogs": 0,
+      "offloadedStorageSize": 0,
+      "lastOffloadLedgerId": 0,
+      "lastOffloadSuccessTimeStamp": 0,
+      "lastOffloadFailureTimeStamp": 0,
+      "publishers": [],
+      "waitingPublishers": 0,
+      "subscriptions": {
+        "chariot_subscription-heartbeat-heartbeat": {
+          "msgRateOut": 0.0,
+          "msgThroughputOut": 0.0,
+          "bytesOutCounter": 8818,
+          "msgOutCounter": 15,
+          "msgRateRedeliver": 0.0,
+          "messageAckRate": 0.0,
+          "chunkedMessageRate": 0,
+          "msgBacklog": 9,
+          "backlogSize": 0,
+          "earliestMsgPublishTimeInBacklog": 0,
+          "msgBacklogNoDelayed": 9,
+          "blockedSubscriptionOnUnackedMsgs": false,
+          "msgDelayed": 0,
+          "unackedMessages": 0,
+          "type": "Shared",
+          "msgRateExpired": 0.0,
+          "totalMsgExpired": 0,
+          "lastExpireTimestamp": 0,
+          "lastConsumedFlowTimestamp": 1673470555907,
+          "lastConsumedTimestamp": 0,
+          "lastAckedTimestamp": 0,
+          "lastMarkDeleteAdvancedTimestamp": 1673470553097,
+          "consumers": [],
+          "isDurable": true,
+          "isReplicated": false,
+          "allowOutOfOrderDelivery": false,
+          "consumersAfterMarkDeletePosition": {},
+          "nonContiguousDeletedMessagesRanges": 0,
+          "nonContiguousDeletedMessagesRangesSerializedSize": 0,
+          "delayedTrackerMemoryUsage": 0,
+          "subscriptionProperties": {},
+          "filterProcessedMsgCount": 0,
+          "filterAcceptedMsgCount": 0,
+          "filterRejectedMsgCount": 0,
+          "filterRescheduledMsgCount": 0,
+          "durable": true,
+          "replicated": false
+        }
+      },
+      "replication": {},
+      "deduplicationStatus": "Disabled",
+      "nonContiguousDeletedMessagesRanges": 0,
+      "nonContiguousDeletedMessagesRangesSerializedSize": 0,
+      "delayedMessageIndexSizeInBytes": 0,
+      "compaction": {
+        "lastCompactionRemovedEventCount": 0,
+        "lastCompactionSucceedTimestamp": 0,
+        "lastCompactionFailedTimestamp": 0,
+        "lastCompactionDurationTimeInMills": 0
+      }
+    }
+  }
+}
+
+```
+### What did you expect to see?
+
+I expected to see that after setting the Backlog Quota to 1 minute, and submitting messages contained in the backlog, that past the 1 minute mark, I should be getting a `ProducerBlockedQuotaExceededException`
+
+This doesn't appear to happen, and I've run it multiple times by wiping my Pulsar clean and re-doing on fresh instances. 
+
+### What did you see instead?
+
+I saw my next messages go through (published) even though I had messages in my backlog as old as 10 minutes.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

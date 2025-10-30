@@ -1,0 +1,29 @@
+Web console datasources screen is broken when there are datasources with no loaded segments (ArithmeticException)
+### Affected Version
+
+0.20.0
+
+### Description
+
+When there is a datasource with no loaded segments, the Datasources screen on the Web Console fails to load.
+This can be reproduced if all the historical nodes are shutdown.
+
+The error is being caused by a division by zero:
+```
+Error: Unknown exception
+
+/ by zero
+
+java.lang.ArithmeticException
+```
+
+![image](https://user-images.githubusercontent.com/506509/95791583-990af200-0cd9-11eb-815a-3904e6642bb6.png)
+
+![image](https://user-images.githubusercontent.com/506509/95791598-a1632d00-0cd9-11eb-9286-03c81b5d183e.png)
+
+The issue seems to be related with the recently added `avg_row_size` column:
+https://github.com/apache/druid/blob/567e38170500d3649cbfaa28cf7aa6f5275d02e7/web-console/src/views/datasource-view/datasource-view.tsx#L241-L244
+
+Commenting the code for this column allows the query to run:
+
+![image](https://user-images.githubusercontent.com/506509/95791603-a3c58700-0cd9-11eb-83df-989c7cdba0a6.png)

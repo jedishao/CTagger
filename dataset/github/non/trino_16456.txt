@@ -1,0 +1,28 @@
+Huge slow perf if LIKE in the JOIN condition with pattern %xxx%, v407
+The following query is huge slow(5 minutes+) though data size is quite small, in version 407, while it quite fast (1 second) in version 377.
+
+
+with a as (
+	select cast(name as varchar) col_a
+	from (select sequence(1,200,1) as seq)
+	cross join unnest(seq) as t(name)
+),
+b as (
+	select '%' || cast(name as varchar) || '%' col_b
+	from (select sequence(1,1000,1) as seq)
+	cross join unnest(seq) as t(name)
+)
+
+select a.col_a, c.col_b, d.col_b, e.col_b, f.col_b, g.col_b
+from a
+left join b c
+
+  on   a.col_a like  c.col_b
+    left join b d
+  on   a.col_a like  c.col_b
+    left join b e
+  on   a.col_a like  c.col_b
+    left join b f
+  on   a.col_a like  c.col_b
+    left join b g
+  on   a.col_a like  c.col_b

@@ -1,0 +1,54 @@
+Error while querying HUDI MOR Realtime and SymlinkTextInputFormat(Delta) Tables
+PFB the exception when querying a HUDI MOR RT table
+
+```
+Query 20230110_152951_00007_jv5z5 failed: Error fetching partition paths from metadata table
+com.facebook.presto.spi.PrestoException: Error fetching partition paths from metadata table
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader$HiveSplitLoaderTask.process(BackgroundHiveSplitLoader.java:128)
+        at com.facebook.presto.hive.util.ResumableTasks.safeProcessTask(ResumableTasks.java:47)
+        at com.facebook.presto.hive.util.ResumableTasks.access$000(ResumableTasks.java:20)
+        at com.facebook.presto.hive.util.ResumableTasks$1.run(ResumableTasks.java:35)
+        at com.facebook.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:78)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at java.lang.Thread.run(Thread.java:748)
+Caused by: org.apache.hudi.exception.HoodieException: Error fetching partition paths from metadata table
+        at org.apache.hudi.common.fs.FSUtils.getAllPartitionPaths(FSUtils.java:315)
+        at org.apache.hudi.BaseHoodieTableFileIndex.getAllQueryPartitionPaths(BaseHoodieTableFileIndex.java:176)
+        at org.apache.hudi.BaseHoodieTableFileIndex.loadPartitionPathFiles(BaseHoodieTableFileIndex.java:219)
+        at org.apache.hudi.BaseHoodieTableFileIndex.doRefresh(BaseHoodieTableFileIndex.java:264)
+        at org.apache.hudi.BaseHoodieTableFileIndex.<init>(BaseHoodieTableFileIndex.java:139)
+        at org.apache.hudi.hadoop.HiveHoodieTableFileIndex.<init>(HiveHoodieTableFileIndex.java:49)
+        at org.apache.hudi.hadoop.HoodieCopyOnWriteTableInputFormat.listStatusForSnapshotMode(HoodieCopyOnWriteTableInputFormat.java:233)
+        at org.apache.hudi.hadoop.HoodieCopyOnWriteTableInputFormat.listStatus(HoodieCopyOnWriteTableInputFormat.java:140)
+        at org.apache.hadoop.mapred.FileInputFormat.getSplits(FileInputFormat.java:315)
+        at org.apache.hudi.hadoop.realtime.HoodieMergeOnReadTableInputFormat.getSplits(HoodieMergeOnReadTableInputFormat.java:79)
+        at org.apache.hudi.hadoop.HoodieParquetInputFormatBase.getSplits(HoodieParquetInputFormatBase.java:68)
+        at com.facebook.presto.hive.StoragePartitionLoader.loadPartition(StoragePartitionLoader.java:261)
+        at com.facebook.presto.hive.DelegatingPartitionLoader.loadPartition(DelegatingPartitionLoader.java:78)
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader.loadSplits(BackgroundHiveSplitLoader.java:192)
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader.access$300(BackgroundHiveSplitLoader.java:40)
+        at com.facebook.presto.hive.BackgroundHiveSplitLoader$HiveSplitLoaderTask.process(BackgroundHiveSplitLoader.java:121)
+        ... 7 more
+Caused by: org.apache.hudi.exception.HoodieIOException: Failed to get instance of org.apache.hadoop.fs.FileSystem
+        at org.apache.hudi.common.fs.FSUtils.getFs(FSUtils.java:109)
+        at org.apache.hudi.common.table.HoodieTableMetaClient.getFs(HoodieTableMetaClient.java:283)
+        at org.apache.hudi.common.table.HoodieTableMetaClient.<init>(HoodieTableMetaClient.java:123)
+        at org.apache.hudi.common.table.HoodieTableMetaClient.<init>(HoodieTableMetaClient.java:78)
+        at org.apache.hudi.common.table.HoodieTableMetaClient$Builder.build(HoodieTableMetaClient.java:668)
+        at org.apache.hudi.metadata.BaseTableMetadata.<init>(BaseTableMetadata.java:87)
+        at org.apache.hudi.metadata.HoodieBackedTableMetadata.<init>(HoodieBackedTableMetadata.java:107)
+        at org.apache.hudi.metadata.HoodieTableMetadata.create(HoodieTableMetadata.java:110)
+        at org.apache.hudi.metadata.HoodieTableMetadata.create(HoodieTableMetadata.java:104)
+        at org.apache.hudi.common.fs.FSUtils.getAllPartitionPaths(FSUtils.java:311)
+        ... 22 more
+Caused by: java.io.IOException: No FileSystem for scheme: s3
+        at org.apache.hadoop.fs.FileSystem.getFileSystemClass(FileSystem.java:2660)
+        at org.apache.hadoop.fs.PrestoFileSystemCache.createFileSystem(PrestoFileSystemCache.java:145)
+        at org.apache.hadoop.fs.PrestoFileSystemCache.getInternal(PrestoFileSystemCache.java:104)
+        at org.apache.hadoop.fs.PrestoFileSystemCache.get(PrestoFileSystemCache.java:63)
+        at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:373)
+        at org.apache.hadoop.fs.Path.getFileSystem(Path.java:295)
+        at org.apache.hudi.common.fs.FSUtils.getFs(FSUtils.java:107)
+        ... 31 more
+```

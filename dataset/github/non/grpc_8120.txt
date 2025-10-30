@@ -1,0 +1,23 @@
+Inconsistent server-side error in ServerStreamTracer vs ServerInterceptor
+### What version of gRPC-Java are you using?
+1.37.0
+
+### What is your environment?
+Linux, OpenJDK 1.8
+openjdk version "1.8.0_282"
+OpenJDK Runtime Environment (build 1.8.0_282-8u282-b08-0ubuntu1~20.04-b08)
+OpenJDK 64-Bit Server VM (build 25.282-b08, mixed mode)
+
+### What did you expect to see?
+In a bidirectional streaming service, I'm observing different a status passed to `ServerCall.close(Status, Metadata)` versus the status passed to `ServerStreamTracer.streamClosed(Status)` when a misbehaving client is abruptly terminating the connection (without sending any sort of cancel or reset).
+
+### What did you see instead?
+The server has a logging interceptor which intercepts the `ServerCall.close(Status, Metadata)` method and logs the status. The status seen here is `Status{code=CANCELLED, description=Cancelling request because of error from client., cause=null}`. We also have a ServerStreamTracer installed on the server, but the Status passed to `ServerStreamTracer.streamClosed(Status)` is `Status{code=UNAVAILABLE, description=connection terminated for unknown reason, cause=null}`.
+
+### Steps to reproduce the bug
+I have a minimal reproducer with some instructions [here](https://github.com/JackOfMostTrades/grpc-java-issue-8120).
+
+### Comments
+If the client is terminating the connection then I suppose there really is no true status (either from the server or from the client). So I could be convinced that either of these Status codes would be valid. What really threw off our metrics and sent a couple of engineers down a debugging rabbit hole is that we couldn't correlate any request logs on the server (being logged from the ServerInterceptor) with the status metrics being emitted from the ServerStreamTracer. So I think regardless of what Status is ultimately reported for a abruptly closed connection, it should at least be consistent between these two sources.
+
+This may also be related to #7558 .

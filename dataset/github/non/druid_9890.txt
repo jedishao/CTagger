@@ -1,0 +1,33 @@
+Introduce Load rules validation
+### Description
+
+When a Load rules is submitted, Druid will perform validation and reject the new rules if it fails the validation. The validation will check if a drop interval for a particular rule is cover in subsequent load rule interval. If this is found, then the validation fails and the new rule is rejected (or maybe a warning requiring another acknowledgment to confirm in the UI). 
+
+### Motivation
+
+Human operator can make mistake when setting load/drpo rules. This features aims to make mistake less costly if they do happen by catching and alerting the user. For example, a rule set like:
+```[
+  {
+    "period": "P6M",
+    "includeFuture": true,
+    "tieredReplicants": {
+      "_default_tier": 2
+    },
+    "type": "loadByPeriod"
+  },
+  {
+    "type": "dropForever"
+  },
+  {
+    "period": "P1Y",
+    "includeFuture": true,
+    "tieredReplicants": {
+      "_default_tier": 1
+    },
+    "type": "loadByPeriod"
+  }
+]
+```
+does not make sense as the third rule (loadByPeriod rule for P1Y) will never be reached (since the second rule is a dropForever). This feature aims to detect mistake such as this. 
+
+Want to see if anyone has any experience / recommendation and if something like this would be beneficial to others.

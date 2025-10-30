@@ -1,0 +1,27 @@
+inner join condition on numeric column matching null behaves differently than string key matching null
+### Affected Version
+
+0.19
+
+### Description
+
+See the following query
+
+```
+select f.m1, w.floatDim, w.key, w.longDim, stringDimExt, sum(doubleDim) as dd from druid.foo f inner join index.windex w on f.m1 is null
+group by 1,2, 3, 4, 5
+having (w.key = '6' or f.m1 > 1) and dd > 0
+```
+
+Druid plans this query and it returns no results. Changing the condition to `is not null` returns what appears to be all results.
+Looking at the explain plan for the query, it appears that Calcite optimizes this join condition to false / true respectively.
+
+This behavior is different than using a string column in the join condition.
+
+```
+select f.m1, w.floatDim, w.key, w.longDim, stringDimExt, sum(doubleDim) as dd from druid.foo f inner join index.windex w on f.dim1 is null
+group by 1,2, 3, 4, 5
+having (w.key = '6' or f.m1 > 1) and dd > 0
+```
+
+dim1 is a key column and this query throws an ISE

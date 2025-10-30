@@ -1,0 +1,45 @@
+Improvement in Hive Connector 
+Hello, We (Cloudera) have seen customer issues with Trinio Hive Connector and want to make a recommendation to improve the  connector as summarized below. Can you please take a look and possibly comment on the document linked at the end so that we can improve the experience of Trinio customers using the Hive connector.
+
+**Connector -** 
+https://trino.io/docs/current/connector/hive.html
+
+**Current Implementation**
+Trino has a connector for Apache Hive. This connector works fine with older versions of Apache Hive until CDH 5 and 6. However in CDP 7.x with [HIVE-21663](https://issues.apache.org/jira/browse/HIVE-21663), CDP Hive has a “translation layer” that will enforce certain permissions based on capabilities of the client and also directory locations for managed and external tables, bucketing versions etc. One area of incompatibility is the ability to create ACID tables. HMS requires its clients to declare its capabilities (a list of pre-set permissions it can work with) for the client to be able to execute that action. For example 
+```
+HIVEMANAGEDINSERTREAD → client is capable of reading insert-only ACID tables.
+HIVEMANAGEDINSERTWRITE → client is capable of writing to insert-only ACID tables.
+```
+So to be able to create an ACID table, the HMS client needs to declare that it is ACID-capable.
+
+**Hive Metastore Client**
+Hive’s implementation of IMetastoreClient interface (HiveMetastoreClient) will look at “hive.metastore.client.capabilities'' config value from hive-site.xml and will automatically initialize the client using these capabilities. This will then be passed to the server side along with each HMS request.
+
+**Why is Trinio connector broken**
+Trinio connector for Hive has its own implementation of Hive’s IMetastoreClient. This client uses older APIs that are still supported, but could be limited for DDL operations. The newer APIs pass in additional context along with each request. This client has its own set of parameters it accepts but does not consume the hive-site.xml. Even if it did, some changes are needed to this client to pass them to the server.
+
+**How to fix**
+Support a new configuration parameter that would allow users to set Trinio’s capabilities.
+Then convert the usage of certain older APIs to use their replacement APIs.
+For example: 
+```
+public void createTable(Table table)
+throws TException
+{
+client.create_table(table);
+}
+
+change to something like this
+public void createTable(Table table)
+throws TException
+{
+CreateTableRequest request - new CreateTableRequest(table);
+request.setProcessorCapabilities(<list of capabilities>);
+request.setProcessorIdentifier(<identification of client>);
+client.create_table(request);
+}
+
+```
+
+For discussion and comments on the suggestion, please use this doc - https://docs.google.com/document/d/1NOzD33yw6R0CsdoLYtvp0IbqV1u_KMg8CFhgtoapkIc/edit?usp=sharing
+

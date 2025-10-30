@@ -1,0 +1,20 @@
+Small suggestion: Two kinds of druid.segmentCache.numLoadingThreads
+### Description
+
+I think Historical could benefit from two different type of druid.segmentCache.numLoadingThreads.
+
+One is for when historical is cold booted, it needs as much threads as possible to download all the segment files.
+
+And then, when all segments are available, there’s another setting that can throttle it down so that it does not take too much IOPS.
+
+### Motivation
+
+When deploying in AWS, EBS IOPS is precious, if we can reduce the IOPS used for loading segments, we can use them for serving queries.
+
+### Example Use Case
+
+On cold boot, when segmentCache is empty, use `druid.segmentCache.numInitLoadingThreads = 100`
+
+Then, once all segments are 100%, use `druid.segmentCache.numLoadingThreads = 10`
+
+This will save the number of write IOPS by a staggering 10x during business hours when both querying and ingestions are happening. And during cluster rebuild, historical can still fill in the empty disk very quickly.

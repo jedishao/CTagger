@@ -1,0 +1,32 @@
+Unable to Acquire Fair Lock
+In my code, I am trying to acquire a fair lock with a fixed waitTime and leaseTime as so
+```kotlin
+fairLock.tryLockAsync(waitTime, leaseTime, timeUnit, ID)
+```
+Sometimes, all the requests will get queued up for apparently no reason, while no request has acquired the lock.  
+I can see a wait queue being formed for the lock, but the actual lock is not held by anyone.  
+Eventually, all of these waiting requests will time out and fail, and new requests will work fine.  
+This seems to happen randomly when there are a lot of simultaneous requests.  
+
+I am not able to reproduce this locally.
+
+**Redis version**
+
+6.x
+
+**Redisson version**
+
+3.16.8
+
+**Redisson configuration**
+
+```kotlin
+config.useSingleServer().apply {
+    path.toIntOrNull()?.also {
+        database = it
+    } ?: run {
+        logger.warn { "Unable to parse database number: $path from redis configuration" }
+    }
+}
+config.nettyThreads = 64
+```

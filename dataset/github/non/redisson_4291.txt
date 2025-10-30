@@ -1,0 +1,19 @@
+Tomcat SessionManager packaging
+**Is your feature request related to a problem? Please describe.**
+
+The present installation instructions for the Tomcat SessionManager require you to add two JARs to the Tomcat common classloader: redisson-all and a redisson-tomcat-x for your version of Tomcat. The problem here is that redisson-all is a huge JAR with a number of libraries that are shaded into it (like in regards to SnakeYAML #1594). This ends up creating a classloader problem where you can get LinkageError exceptions or missing method/class exceptions. 
+
+Ultimately, either you need to force all of the applications deployed to that Tomcat to use the library versions bundled in redisson-all, don't use any of the libraries in redisson-all, or don't use Redisson as your session manager.
+
+**Describe the solution you'd like**
+
+Install a single JAR that has shaded and relocated all of the libraries it needs to function within Tomcat. This would keep the libraries required by Redisson's Tomcat SessionManager hidden from the applications running on Tomcat.
+
+Shading and relocating the dependencies doesn't have to be the only solution, but it's generally the simplest solution to hide classes on the classpath. If there were an alternative solution that hid all of the dependencies required by Redisson's Tomcat session manager that would be acceptable too.
+
+**Describe alternatives you've considered**
+
+I have been talking with the Tomcat folks about this and there are really two options at the moment:
+
+1. Don't use any of the libraries that are bundled in redisson-all in your apps. This can be difficult. If you have a Spring Boot app, you're pretty much going to overlap.
+2. Set `<Loader delegate="true" />` in `conf/context.xml`. This reverses the classloader lookup order so that it prefers classes that are in the common classloader over classes in the webapp. This has downsides, most notably, that it forces all of the applications deployed to Tomcat to use the version of the libraries bundled with redisson-all. That is a non-starter for a number of situations.

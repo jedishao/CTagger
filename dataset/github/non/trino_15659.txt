@@ -1,0 +1,89 @@
+Security issue with access control: column masking gets lost when querying only nested field
+We found a security issue with access control. Here's the repro
+
+Create a table with a struct column and load some data:
+```
+use memory.default;
+create table nestedtable (buyer row(customerId varchar), purchaseId varchar);
+INSERT into nestedtable SELECT ROW('a') as buyer, 'p1';
+INSERT into nestedtable SELECT ROW('b') as buyer, 'p2';
+INSERT into nestedtable SELECT ROW('c') as buyer, 'p3';
+```
+Apply a file-based access control policy as such:
+```
+{
+    "tables": [
+        {
+            "catalog": "memory",
+            "schema": "default",
+            "table": "nestedtable",
+            "privileges": ["SELECT"],
+            "columns" : [
+                {
+                    "name": "purchaseId",
+                    "allow": true
+                },
+                {
+                    "name": "buyer",
+                    "mask": "if (purchaseId <> 'p3', buyer)"
+                }
+            ]
+        }
+    ]
+}
+```
+Now run some queries
+```
+-- Correct
+trino:default> select * from nestedtable;
+     buyer      | purchaseid
+----------------+------------
+ {customerid=b} | p2
+ NULL           | p3
+ {customerid=a} | p1
+
+-- Correct
+trino:default> select buyer from nestedtable;
+     buyer
+----------------
+ {customerid=a}
+ {customerid=b}
+ NULL
+(3 rows)
+
+-- Correct
+trino:default> select buyer.customerid, buyer from nestedtable;
+ customerid |     buyer
+------------+----------------
+ NULL       | NULL
+ a          | {customerid=a}
+ b          | {customerid=b}
+
+-- Wrong
+trino:default> select buyer.customerid from nestedtable;
+ customerid
+------------
+ c <<< No content from column "buyer" should be exposed for this row
+ b
+ a
+```
+Based on the plan below, we can tell that when only nested subfield is queried, certain "unneeded" projected column gets pruned, in this case "buyer" (and its masking).
+```
+trino:default> explain select buyer.customerid from nestedtable;
+                                                          Query Plan
+-------------------------------------------------------------------------------------------------------------------------------
+ Trino version: dev
+ Fragment 0 [SOURCE]
+     Output layout: [expr_0]
+     Output partitioning: SINGLE []
+     Output[columnNames = [customerid]]
+     │   Layout: [expr_0:varchar]
+     │   Estimates: {rows: 3 (165B), cpu: 0, memory: 0B, network: 0B}
+     │   customerid := expr_0
+     └─ ScanProject[table = memory:0]
+            Layout: [expr_0:varchar]
+            Estimates: {rows: 3 (165B), cpu: 165, memory: 0B, network: 0B}/{rows: 3 (165B), cpu: 165, memory: 0B, network: 0B}
+            expr_0 := "buyer"[1]
+            buyer := 0
+```
+The pruning is done at `PruneProjectColumns`. We believe this is wrong. Some mechanism should be added to tell whether a ProjectNode is for masking, and we should always retain that ProjectNode to be on the safe side.

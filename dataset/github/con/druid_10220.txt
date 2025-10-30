@@ -1,0 +1,20 @@
+Tasks can fail to allocate segments with segment lock if segment granularity has changed
+### Affected Version
+
+All versions since 0.16.
+
+### Description
+
+This error can happen in this scenario.
+
+1. A task is started with `forceTimeChunkLock = false` and `segmentGranularity = MONTH`. Assuming this task is not overwriting existing data, the task will use the segment lock and the Overlord-based segment allocation which creates entries in the `pendingSegments` table of the metadata store. This task will successfully publishes created segments. The published segments will have partitionIds starting from 32767 since segment lock is used.
+2. After `1.`, a compaction task is started also with `forceTimeChunkLock = false` but `segmentGranularity = YEAR`. Since the segment granularity is different from existing segments, the compaction task will use time chunk lock. This task will successfully publishes compacted segments. The published segments will have partitionIds starting from 0 since time chunk lock is used.
+3. After `2.`, another compaction task is started also with `forceTimeChunkLock = false` and `segmentGranularity = YEAR`. This task will fail because of a conflict with segments created in `1.` with the below error.
+
+```
+2020-07-28T19:15:28,451 WARN [qtp1280512370-105] org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator - Cannot allocate new segment for dataSource[ds], interval[2000-01-01T00:00:00.000Z/2001-01-01T00:00:00.000Z], maxVersion[2020-07-28T19:15:28.440Z]: conflicting segment[ds_2000-03-01T00:00:00.000Z_2000-04-01T00:00:00.000Z_2020-07-28T16:47:40.943Z_32787].
+```
+
+In the overlord-based segment allocation, the overlord searches for the current maximum segment ID to find the available partitionId for new segments. When it searches, it takes only the segments sharing the same partition space into consideration. Note that segments created with segment lock and segments created with time chunk lock don't share partition space. Instead, the former ones use the space of [32767, 65536) while the later ones use the space of [0, 32767). As a result, in `3.`, the max ID will be searched among the segments created in `1.` which have a different segment granularity which in turn causing the above error.
+
+We might be possible to clean up the part of the `pendingSegments` table when an overwrite task publishes segments with time chunk lock where the rows have matching intervals to published segments. Because the max segment ID in a time chunk will always be found among the segments created by an overwrite task once it publishes segments, we can safely delete the pending segments in the same time chunk. This also introduce an eager cleanup for the `pendingSegments` table which will reduce the load of the metadata store.

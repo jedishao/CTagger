@@ -1,0 +1,63 @@
+Pulsar 2.9.2: messages are in backlog, but not dispatched to consumers
+**Describe the bug**
+I have Pulsar 2.9.2 installed on virtual servers, 9 brokers, 9 bookeepers.
+
+We have plenty of topics in this cluster, all of them are consumed by the same application (our internal queue system).
+
+For several topics we can see that there are some time some messages are not dispatched to consumers.
+Here what we can see in internal-stats:
+
+```
+"subscriptions": {
+    "<topic>": {
+      "blockedSubscriptionOnUnackedMsgs": false,
+      "isReplicated": false,
+      "msgRateOut": 7.916492400494186,
+      "msgThroughputOut": 1755.328026537821,
+      "msgRateRedeliver": 0,
+      "msgRateExpired": 0,
+      "msgBacklog": 3,
+      "msgDelayed": 2,
+      "unackedMessages": 0,
+      "type": "Shared",
+      "activeConsumerName": "",
+...
+```
+[stat.txt](https://github.com/apache/pulsar/files/9079227/stat.txt)
+
+internal-stats:
+```
+...
+"cursors": {
+    "<topic>": {
+      "markDeletePosition": "23451824:5393",
+      "readPosition": "23497178:23031",
+      "waitingReadOp": true,
+      "pendingReadOps": 0,
+      "messagesConsumedCounter": 502849,
+      "cursorLedger": 23495692,
+      "cursorLedgerLastEntry": 3950,
+      "individuallyDeletedMessages": "[(23451824:5394..23451824:49999],(23458318:-1..23458318:29820],(23466518:-1..23466518:49999],(23474137:-1..23474137:49999],(23478437:-1..23478437:49999],(23481746:-1..23481746:49999],(23485116:-1..23485116:49999],(23489019:-1..23489019:49999],(23493059:-1..23493059:49999],(23497178:-1..23497178:23028]]",
+      "lastLedgerWitchTimestamp": "",
+      "state": "Open",
+      "numberOfEntriesSinceFirstNotAckedMessage": 447459,
+      "totalNonContiguousDeletedMessagesRange": 10,
+      "properties": {}
+    }
+...
+```
+[internal-stat.txt](https://github.com/apache/pulsar/files/9079229/internal-stat.txt)
+
+As you can see - there are several messages that are not acked. But in our logs we see that they were not even delivered to consumers! If we perform topic unload - then they will be redelivered and consumed successfully.
+
+**To Reproduce**
+Do not know exactly the way of reproduction
+
+Software versions:
+
+- pulsar 2.9.2
+- client: golang
+
+**Expected behavior**
+Messages should be delivered normally
+

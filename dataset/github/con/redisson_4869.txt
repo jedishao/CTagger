@@ -1,0 +1,28 @@
+Exception when I try to unlock an expired lock
+Hello,
+
+I'm using redisson 3.19.2 and I have this situation:
+
+```
+RLock lock = redissonClient.getLock("key");
+        try{
+            lock.lock(10, TimeUnit.MINUTES);
+            //some execution that in some cases takes more than 10 minutes. The lock  can be released during this execution
+        }finally {
+            lock.unlock();
+        }
+```
+When the execution reaches the line lock.unlock(); it throws a java.lang.IllegalMonitorStateException because the lock is not locked anymore.
+
+So, I put a conditional before the unlock call to avoid this Exception:
+
+```
+if(lock.isLocked()){ //or lock.isHeldByCurrentThread()
+  lock.unlock();
+}
+```
+But now I'm facing problems with a rule in code analysis because the quality framework requires a call to lock.unlock(); without any conditionals.
+
+Is there any other way to try to unlock a lock expired by time without throws a IllegalMonitorStateException?
+
+Or should I increase the lock lease time in this situation?

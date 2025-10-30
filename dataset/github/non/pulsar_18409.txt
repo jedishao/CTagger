@@ -1,0 +1,77 @@
+[Bug] GetLastMessageId for a multi topics consumer is meaningless
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+- Pulsar standalone: 2.10.1
+- Pulsar client: master (b6f0f91e)
+
+### Minimal reproduce step
+
+```java
+        final String serviceUrl = "pulsar://localhost:6650";
+        final String topicPrefix = "test-topic-";
+        @Cleanup PulsarClient client = PulsarClient.builder()
+                .serviceUrl(serviceUrl)
+                .build();
+        final List<Producer<String>> producers = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            producers.add(client.newProducer(Schema.STRING)
+                    .topic(topicPrefix + i)
+                    .create());
+            MessageId id = producers.get(i).send("msg-" + i + "-0");
+            System.out.println("XYZ sent to " + id);
+        }
+        final List<String> topics = producers.stream().map(Producer::getTopic).collect(Collectors.toList());
+        @Cleanup final Consumer<String> consumer = client.newConsumer(Schema.STRING)
+                .topics(topics)
+                .subscriptionName("sub")
+                .subscribe();
+        final MessageId lastMessageId = consumer.getLastMessageId();
+        System.out.println("XYZ last message id: " + lastMessageId);
+        try {
+            consumer.seek(lastMessageId);
+        } catch (PulsarClientException e) {
+            System.err.println("Failed to seek: " + e.getMessage());
+        }
+        @Cleanup final Reader<String> reader = client.newReader(Schema.STRING)
+                .topics(topics)
+                .startMessageId(lastMessageId)
+                .create();
+        reader.seek(lastMessageId);
+```
+
+### What did you expect to see?
+
+All topics are seeked to the last message id.
+
+### What did you see instead?
+
+The consumer failed to seek because the mssage id can only be earliest or latest for a consumer.
+
+```
+Failed to seek: java.util.concurrent.ExecutionException: org.apache.pulsar.client.api.PulsarClientException: Illegal messageId, messageId can only be earliest/latest
+```
+
+Regarding the reader, it failed with NPE.
+
+```
+java.lang.NullPointerException: Cannot read field "ledgerId" because "other" is null
+
+	at org.apache.pulsar.client.impl.BatchMessageIdImpl.<init>(BatchMessageIdImpl.java:53)
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl.<init>(MultiTopicsConsumerImpl.java:142)
+	at org.apache.pulsar.client.impl.MultiTopicsConsumerImpl.<init>(MultiTopicsConsumerImpl.java:115)
+	at org.apache.pulsar.client.impl.MultiTopicsReaderImpl.<init>(MultiTopicsReaderImpl.java:126)
+	at org.apache.pulsar.client.impl.PulsarClientImpl.createMultiTopicReaderAsync(PulsarClientImpl.java:636)
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

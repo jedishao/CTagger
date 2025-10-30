@@ -1,0 +1,51 @@
+Presto fails to write to Iceberg tables
+Presto 0.254.1
+Hive 2.3.8
+
+```
+presto:iceberg_test> create table person (name varchar, age int, id int) with (location = 'file:///home/dbw/testdb/person5/', format = 'parquet');
+CREATE TABLE
+presto:iceberg_test> insert into person values ('alice', 18, 1000);
+
+Query 20210610_120138_00057_g5t6w, FAILED, 1 node
+Splits: 19 total, 17 done (89.47%)
+0:02 [0 rows, 0B] [0 rows/s, 0B/s]
+
+Query 20210610_120138_00057_g5t6w failed: org.apache.parquet.schema.Types$PrimitiveBuilder.as(Lorg/apache/parquet/schema/LogicalTypeAnnotation;)Lorg/apache/parquet/schema/Types$Builder;
+```
+
+Error stack
+
+```
+2021-06-10T20:01:40.447+0800    ERROR   remote-task-callback-43 com.facebook.presto.execution.StageExecutionStateMachine        Stage execution 20210610_120138_00057_g5t6w.1.0 failed
+java.lang.NoSuchMethodError: org.apache.parquet.schema.Types$PrimitiveBuilder.as(Lorg/apache/parquet/schema/LogicalTypeAnnotation;)Lorg/apache/parquet/schema/Types$Builder;
+        at org.apache.iceberg.parquet.TypeToMessageType.primitive(TypeToMessageType.java:145)
+        at org.apache.iceberg.parquet.TypeToMessageType.field(TypeToMessageType.java:88)
+        at org.apache.iceberg.parquet.TypeToMessageType.convert(TypeToMessageType.java:65)
+        at org.apache.iceberg.parquet.ParquetSchemaUtil.convert(ParquetSchemaUtil.java:41)
+        at com.facebook.presto.iceberg.IcebergFileWriterFactory.createParquetWriter(IcebergFileWriterFactory.java:114)
+        at com.facebook.presto.iceberg.IcebergFileWriterFactory.createFileWriter(IcebergFileWriterFactory.java:77)
+        at com.facebook.presto.iceberg.IcebergPageSink.createWriter(IcebergPageSink.java:303)
+        at com.facebook.presto.iceberg.IcebergPageSink.getWriterIndexes(IcebergPageSink.java:284)
+        at com.facebook.presto.iceberg.IcebergPageSink.writePage(IcebergPageSink.java:212)
+        at com.facebook.presto.iceberg.IcebergPageSink.doAppend(IcebergPageSink.java:207)
+        at com.facebook.presto.iceberg.IcebergPageSink.lambda$appendPage$0(IcebergPageSink.java:146)
+        at com.facebook.presto.hive.authentication.HdfsAuthentication.lambda$doAs$0(HdfsAuthentication.java:24)
+        at com.facebook.presto.hive.authentication.NoHdfsAuthentication.doAs(NoHdfsAuthentication.java:23)
+        at com.facebook.presto.hive.authentication.HdfsAuthentication.doAs(HdfsAuthentication.java:23)
+        at com.facebook.presto.hive.HdfsEnvironment.doAs(HdfsEnvironment.java:86)
+        at com.facebook.presto.iceberg.IcebergPageSink.appendPage(IcebergPageSink.java:146)
+        at com.facebook.presto.spi.connector.classloader.ClassLoaderSafeConnectorPageSink.appendPage(ClassLoaderSafeConnectorPageSink.java:66)
+        at com.facebook.presto.operator.TableWriterOperator.addInput(TableWriterOperator.java:324)
+        at com.facebook.presto.operator.Driver.processInternal(Driver.java:428)
+        at com.facebook.presto.operator.Driver.lambda$processFor$9(Driver.java:301)
+        at com.facebook.presto.operator.Driver.tryWithLock(Driver.java:722)
+        at com.facebook.presto.operator.Driver.processFor(Driver.java:294)
+        at com.facebook.presto.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:1077)
+        at com.facebook.presto.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:162)
+        at com.facebook.presto.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:545)
+        at com.facebook.presto.$gen.Presto_0_254_1_a67de6c____20210610_114751_1.run(Unknown Source)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at java.lang.Thread.run(Thread.java:748)
+```

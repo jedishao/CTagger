@@ -1,0 +1,39 @@
+Override ContentType header not possible
+Hello grpc-java team! 
+
+
+I have found that it's not possible to override content type header using both implementations (client/server)
+I need this to get work the Charles proxy which is saying in it's documentation that support of grpc [exists](https://www.charlesproxy.com/documentation/using-charles/protocol-buffers/) but only when messages has 
+```Charles identifies that an HTTP request or response contains a Protocol Buffers message when the Content-Type header has a MIME type ofapplication/x-protobuf or application/x-google-protobuf. ``` 
+
+ATM server always returns the 
+`'content-type': 'application/grpc'`
+
+On server Im trying to override this header using interseptor
+```
+@VisibleForTesting
+  static final Metadata.Key<String> CUSTOM_HEADER_KEY =
+      Metadata.Key.of("content-type", Metadata.ASCII_STRING_MARSHALLER);
+
+  @Override
+  public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+      ServerCall<ReqT, RespT> call,
+      final Metadata requestHeaders,
+      ServerCallHandler<ReqT, RespT> next) {
+    logger.info("header received from client:" + requestHeaders);
+    return next.startCall(new SimpleForwardingServerCall<ReqT, RespT>(call) {
+      @Override
+      public void sendHeaders(Metadata responseHeaders) {
+        responseHeaders.put(CUSTOM_HEADER_KEY, "application/x-google-protobuf");
+        super.sendHeaders(responseHeaders);
+      }
+    }, requestHeaders);
+  }
+```
+
+But client keeps receiving `'content-type': 'application/grpc'` and not overriding it
+```
+HEADERS: '[':status': '200', 'content-type': 'application/grpc', 'my_custom': 'custom_value', 'grpc-encoding': 'identity', 'grpc-accept-encoding': 'gzip']']
+```
+
+Is it possible to override this header? 

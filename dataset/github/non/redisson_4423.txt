@@ -1,0 +1,52 @@
+Why doesn't Redisson use my serializers in jackson codec
+Hi, I'm trying to implement a serializer/deserializer for a custom object but Redisson does not use it. Here is my code:
+
+JUserSerializer:
+```java
+public class JUserSerializer extends StdSerializer<JUser> {
+    public JUserSerializer() {
+        super(JUser.class);
+    }
+
+    @Override
+    public void serialize(JUser value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+        System.out.println("serialize");
+        gen.writeStartObject();
+        gen.writeNumberField("id", value.getId());
+        gen.writeStringField("lang", value.getLocale().getLanguage());
+        gen.writeEndObject();
+    }
+}
+```
+JUserDeserializer:
+```java
+public class JUserDeserializer extends StdDeserializer<JUser> {
+    public JUserDeserializer() {
+        super(JUser.class);
+    }
+
+    @Override
+    public JUser deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+        System.out.println("deserialize");
+        JUser user = new JUser();
+        user.setId(p.getValueAsLong());
+        user.setLocale(new Locale(p.getValueAsString()));
+        return user;
+    }
+}
+```
+
+RedisStorageConfig:
+```java
+        SimpleModule module = new SimpleModule("JolssyModule", new Version(1, 0, 0, "alpha", "fr.customentity.jolssy", "jolssy"));
+        module.addSerializer(JUser.class, new JUserSerializer());
+        module.addDeserializer(JUser.class, new JUserDeserializer());
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(module);
+        this.jsonJacksonCodec = new JsonJacksonCodec(mapper);
+```
+
+When trying to use the codec:
+```java
+RBucket<JUser> bucket = redisStorageConfig.getClient().getBucket("user:" + id, this.redisStorageConfig.getJsonJacksonCodec());
+```

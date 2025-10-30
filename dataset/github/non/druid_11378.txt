@@ -1,0 +1,70 @@
+Kafka ingestion issue - druid 0.21
+Hi all, 
+I an new to Druid and trying to do some testing with it. 
+I've come across this recurrent issue in my test Druid setup. Basically, I have a 64Gb/4 cores box where I have druid 0.21 and kafka 2.13-2.8.
+I run druid with the default configuration SMALL coming in the package. I also run kafka in the same box with the default configuration.
+Druid is consuming off a single topic set with 1 partition and 10 minutes of retention period and storing data into a single datasource (no transformations, no rollup)
+I started the Druid system from scratch and put a producer to continuously send JSON messages. Druid was consuming those messages with no problem until the datasource grew up to around 400M records. 
+From that moment on, the kafka job started to fail and stopped consuming. I use the hard reset function in the UI, druid resumes ingestion and after a while, stops working again. No matter how many times I hard reset the job, it will fail shortly afterwords.  I don't have anything special in the kafka side other than a short retention period that I believe is dropping messages before Druid can consume them. So I wonder if that is perhaps the problem?
+
+Any idea?
+Thanks!
+
+In the logs I can see problems like this:
+
+2021-06-22T09:05:11,918 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - OffsetOutOfRangeException with message [Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0]
+2021-06-22T09:05:11,919 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - Retrying in 30000ms
+2021-06-22T09:05:41,920 INFO [task-runner-0-priority-0] org.apache.kafka.clients.consumer.internals.Fetcher - [Consumer clientId=consumer-kafka-supervisor-modgolmm-1, groupId=kafka-supervisor-modgolmm] Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0, raising error to the application since no reset policy is configured
+2021-06-22T09:05:41,920 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - OffsetOutOfRangeException with message [Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0]
+2021-06-22T09:05:41,920 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - Retrying in 30000ms
+2021-06-22T09:06:11,922 INFO [task-runner-0-priority-0] org.apache.kafka.clients.consumer.internals.Fetcher - [Consumer clientId=consumer-kafka-supervisor-modgolmm-1, groupId=kafka-supervisor-modgolmm] Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0, raising error to the application since no reset policy is configured
+2021-06-22T09:06:11,922 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - OffsetOutOfRangeException with message [Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0]
+2021-06-22T09:06:11,922 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - Retrying in 30000ms
+2021-06-22T09:06:41,924 INFO [task-runner-0-priority-0] org.apache.kafka.clients.consumer.internals.Fetcher - [Consumer clientId=consumer-kafka-supervisor-modgolmm-1, groupId=kafka-supervisor-modgolmm] Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0, raising error to the application since no reset policy is configured
+2021-06-22T09:06:41,924 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - OffsetOutOfRangeException with message [Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0]
+2021-06-22T09:06:41,924 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - Retrying in 30000ms
+2021-06-22T09:07:11,926 INFO [task-runner-0-priority-0] org.apache.kafka.clients.consumer.internals.Fetcher - [Consumer clientId=consumer-kafka-supervisor-modgolmm-1, groupId=kafka-supervisor-modgolmm] Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0, raising error to the application since no reset policy is configured
+2021-06-22T09:07:11,926 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - OffsetOutOfRangeException with message [Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0]
+2021-06-22T09:07:11,926 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - Retrying in 30000ms
+2021-06-22T09:07:41,928 INFO [task-runner-0-priority-0] org.apache.kafka.clients.consumer.internals.Fetcher - [Consumer clientId=consumer-kafka-supervisor-modgolmm-1, groupId=kafka-supervisor-modgolmm] Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0, raising error to the application since no reset policy is configured
+2021-06-22T09:07:41,928 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - OffsetOutOfRangeException with message [Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0]
+2021-06-22T09:07:41,928 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - Retrying in 30000ms
+2021-06-22T09:08:11,929 INFO [task-runner-0-priority-0] org.apache.kafka.clients.consumer.internals.Fetcher - [Consumer clientId=consumer-kafka-supervisor-modgolmm-1, groupId=kafka-supervisor-modgolmm] Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0, raising error to the application since no reset policy is configured
+2021-06-22T09:08:11,930 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - OffsetOutOfRangeException with message [Fetch position FetchPosition{offset=816851234, offsetEpoch=Optional[0], currentLeader=LeaderAndEpoch{leader=Optional[3cSAN-COS-DB2:9092 (id: 0 rack: null)], epoch=0}} is out of range for partition INPUT_ORDERS-0]
+2021-06-22T09:08:11,930 WARN [task-runner-0-priority-0] org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner - Retrying in 30000ms
+2021-06-22T09:08:15,978 INFO [parent-monitor-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Triggering JVM shutdown.
+2021-06-22T09:08:15,981 INFO [Thread-63] org.apache.druid.cli.CliPeon - Running shutdown hook
+2021-06-22T09:08:15,981 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [ANNOUNCEMENTS]
+2021-06-22T09:08:15,983 INFO [Thread-63] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/announcements/localhost:8100]
+2021-06-22T09:08:15,999 INFO [Thread-63] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-06-22T08:29:11.688Z_ac577aacb9a94d2f944e49f5c740930a0]
+2021-06-22T09:08:16,003 INFO [Thread-63] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/internal-discovery/PEON/localhost:8100]
+2021-06-22T09:08:16,005 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [SERVER]
+2021-06-22T09:08:16,014 INFO [Thread-63] org.eclipse.jetty.server.AbstractConnector - Stopped ServerConnector@208e5b23{HTTP/1.1, (http/1.1)}{0.0.0.0:8100}
+2021-06-22T09:08:16,014 INFO [Thread-63] org.eclipse.jetty.server.session - node0 Stopped scavenging
+2021-06-22T09:08:16,016 INFO [Thread-63] org.eclipse.jetty.server.handler.ContextHandler - Stopped o.e.j.s.ServletContextHandler@1328f482{/,null,STOPPED}
+2021-06-22T09:08:16,027 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [NORMAL]
+2021-06-22T09:08:16,027 INFO [Thread-63] org.apache.druid.server.coordination.ZkCoordinator - Stopping ZkCoordinator for [DruidServerMetadata{name='localhost:8100', hostAndPort='localhost:8100', hostAndTlsPort='null', maxSize=0, tier='_default_tier', type=indexer-executor, priority=0}]
+2021-06-22T09:08:16,027 INFO [Thread-63] org.apache.druid.server.coordination.SegmentLoadDropHandler - Stopping...
+2021-06-22T09:08:16,028 INFO [Thread-63] org.apache.druid.server.coordination.SegmentLoadDropHandler - Stopped.
+2021-06-22T09:08:16,029 INFO [Thread-63] org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner - Starting graceful shutdown of task[index_kafka_Orders_cc49389b905436a_codmcehf].
+2021-06-22T09:08:16,029 INFO [Thread-63] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Stopping forcefully (status: [READING])
+2021-06-22T09:08:16,032 ERROR [task-runner-0-priority-0] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Encountered exception in run() before persisting.
+java.lang.InterruptedException: null
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.reportInterruptAfterWait(AbstractQueuedSynchronizer.java:2014) ~[?:1.8.0_222]
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:2088) ~[?:1.8.0_222]
+	at org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner.possiblyResetOffsetsOrWait(IncrementalPublishingKafkaIndexTaskRunner.java:170) ~[?:?]
+	at org.apache.druid.indexing.kafka.IncrementalPublishingKafkaIndexTaskRunner.getRecords(IncrementalPublishingKafkaIndexTaskRunner.java:103) ~[?:?]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.runInternal(SeekableStreamIndexTaskRunner.java:604) [druid-indexing-service-0.21.0.jar:0.21.0]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner.run(SeekableStreamIndexTaskRunner.java:268) [druid-indexing-service-0.21.0.jar:0.21.0]
+	at org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask.run(SeekableStreamIndexTask.java:146) [druid-indexing-service-0.21.0.jar:0.21.0]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:451) [druid-indexing-service-0.21.0.jar:0.21.0]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:423) [druid-indexing-service-0.21.0.jar:0.21.0]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_222]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_222]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_222]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_222]
+2021-06-22T09:08:16,111 INFO [LookupExtractorFactoryContainerProvider-MainThread] org.apache.druid.query.lookup.LookupReferencesManager - Lookup Management loop exited. Lookup notices are not handled anymore.
+2021-06-22T09:08:16,121 INFO [Curator-Framework-0] org.apache.curator.framework.imps.CuratorFrameworkImpl - backgroundOperationsLoop exiting
+2021-06-22T09:08:16,130 INFO [Thread-63] org.apache.zookeeper.ZooKeeper - Session: 0x105920111020020 closed
+2021-06-22T09:08:16,131 INFO [main-EventThread] org.apache.zookeeper.ClientCnxn - EventThread shut down for session: 0x105920111020020
+2021-06-22T09:08:16,170 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [INIT]

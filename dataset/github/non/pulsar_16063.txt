@@ -1,0 +1,227 @@
+NullPointerException if GET /admin/v2/namespaces/public/default/maxTopicsPerNamespace
+**To Reproduce**
+
+Start `apachepulsar/pulsar:2.10.0`
+
+You can start Pulsar in docker with: `docker run -it -p 8080:8080 apachepulsar/pulsar:2.10.0 bin/pulsar standalone`
+
+Wait for 30-60sec.
+
+Then run
+
+`curl localhost:8080/admin/v2/namespaces/public/default/maxTopicsPerNamespace`
+
+or 
+
+`pulsar-admin namespaces get-max-topics-per-namespace public/default`
+
+<img width="692" alt="Screen Shot 2022-06-14 at 9 37 44 PM" src="https://user-images.githubusercontent.com/9302460/173674187-630859b4-c494-4e3c-8910-92f28943e643.png">
+
+> By the way there is some mess in swagger definitions for POST and DELETE methods for this endpoint. According to the comment https://github.com/apache/pulsar/pull/16022#pullrequestreview-1005272736, probably will be fixed in the scope of another issue.
+
+Log:
+
+```
+pulsar_1          | 2022-06-14T19:34:55,371+0000 [pulsar-web-56-4] WARN  org.eclipse.jetty.server.HttpChannel - /admin/v2/namespaces/public/default/maxTopicsPerNamespace
+pulsar_1          | javax.servlet.ServletException: javax.servlet.ServletException: java.lang.NullPointerException
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:162) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.StatisticsHandler.handle(StatisticsHandler.java:179) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.Server.handle(Server.java:516) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpChannel.lambda$handle$1(HttpChannel.java:400) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpChannel.dispatch(HttpChannel.java:645) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:392) [org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:277) [org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:311) [org.eclipse.jetty-jetty-io-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105) [org.eclipse.jetty-jetty-io-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.io.ChannelEndPoint$1.run(ChannelEndPoint.java:104) [org.eclipse.jetty-jetty-io-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.runTask(EatWhatYouKill.java:338) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.doProduce(EatWhatYouKill.java:315) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.tryProduce(EatWhatYouKill.java:173) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.run(EatWhatYouKill.java:131) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:409) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) [?:?]
+pulsar_1          | 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) [?:?]
+pulsar_1          | 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [io.netty-netty-common-4.1.74.Final.jar:4.1.74.Final]
+pulsar_1          | 	at java.lang.Thread.run(Thread.java:829) [?:?]
+pulsar_1          | Caused by: javax.servlet.ServletException: java.lang.NullPointerException
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:410) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:346) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:366) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:319) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:799) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1631) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.apache.pulsar.broker.web.ResponseHandlerFilter.doFilter(ResponseHandlerFilter.java:67) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1434) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1349) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:234) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:146) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	... 19 more
+pulsar_1          | Caused by: java.lang.NullPointerException
+pulsar_1          | 	at org.apache.pulsar.broker.admin.impl.NamespacesBase.internalGetMaxTopicsPerNamespace(NamespacesBase.java:2562) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at org.apache.pulsar.broker.admin.v2.Namespaces.getMaxTopicsPerNamespace(Namespaces.java:1801) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+pulsar_1          | 	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+pulsar_1          | 	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+pulsar_1          | 	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory.lambda$static$0(ResourceMethodInvocationHandlerFactory.java:52) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:124) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:167) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$TypeOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:219) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:79) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:475) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:397) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:81) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:255) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors.process(Errors.java:292) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors.process(Errors.java:274) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors.process(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:265) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:234) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:680) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:394) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:346) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:366) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:319) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:799) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1631) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.apache.pulsar.broker.web.ResponseHandlerFilter.doFilter(ResponseHandlerFilter.java:67) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1434) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1349) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:234) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:146) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	... 19 more
+pulsar_1          | 2022-06-14T19:34:55,374+0000 [pulsar-web-56-4] WARN  org.eclipse.jetty.server.HttpChannelState - unhandled due to prior sendError
+pulsar_1          | javax.servlet.ServletException: javax.servlet.ServletException: java.lang.NullPointerException
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:162) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.StatisticsHandler.handle(StatisticsHandler.java:179) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.Server.handle(Server.java:516) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpChannel.lambda$handle$1(HttpChannel.java:400) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpChannel.dispatch(HttpChannel.java:645) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:392) [org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:277) [org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:311) [org.eclipse.jetty-jetty-io-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105) [org.eclipse.jetty-jetty-io-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.io.ChannelEndPoint$1.run(ChannelEndPoint.java:104) [org.eclipse.jetty-jetty-io-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.runTask(EatWhatYouKill.java:338) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.doProduce(EatWhatYouKill.java:315) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.tryProduce(EatWhatYouKill.java:173) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.run(EatWhatYouKill.java:131) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:409) [org.eclipse.jetty-jetty-util-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) [?:?]
+pulsar_1          | 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) [?:?]
+pulsar_1          | 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [io.netty-netty-common-4.1.74.Final.jar:4.1.74.Final]
+pulsar_1          | 	at java.lang.Thread.run(Thread.java:829) [?:?]
+pulsar_1          | Caused by: javax.servlet.ServletException: java.lang.NullPointerException
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:410) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:346) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:366) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:319) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:799) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1631) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.apache.pulsar.broker.web.ResponseHandlerFilter.doFilter(ResponseHandlerFilter.java:67) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1434) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1349) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:234) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:146) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	... 19 more
+pulsar_1          | Caused by: java.lang.NullPointerException
+pulsar_1          | 	at org.apache.pulsar.broker.admin.impl.NamespacesBase.internalGetMaxTopicsPerNamespace(NamespacesBase.java:2562) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at org.apache.pulsar.broker.admin.v2.Namespaces.getMaxTopicsPerNamespace(Namespaces.java:1801) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+pulsar_1          | 	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+pulsar_1          | 	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+pulsar_1          | 	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory.lambda$static$0(ResourceMethodInvocationHandlerFactory.java:52) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:124) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:167) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$TypeOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:219) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:79) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:475) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:397) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:81) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:255) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors.process(Errors.java:292) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors.process(Errors.java:274) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.internal.Errors.process(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:265) ~[org.glassfish.jersey.core-jersey-common-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:234) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:680) ~[org.glassfish.jersey.core-jersey-server-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:394) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:346) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:366) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:319) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205) ~[org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar:?]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:799) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1631) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.apache.pulsar.broker.web.ResponseHandlerFilter.doFilter(ResponseHandlerFilter.java:67) ~[org.apache.pulsar-pulsar-broker-2.10.0.jar:2.10.0]
+pulsar_1          | 	at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1434) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501) ~[org.eclipse.jetty-jetty-servlet-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1349) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:234) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:146) ~[org.eclipse.jetty-jetty-server-9.4.44.v20210927.jar:9.4.44.v20210927]
+pulsar_1          | 	... 19 more
+pulsar_1          | 2022-06-14T19:34:55,397+0000 [pulsar-web-56-4] INFO  org.eclipse.jetty.server.RequestLog - 172.18.0.1 - - [14/Jun/2022:19:34:55 +0000] "GET /admin/v2/namespaces/public/default/maxTopicsPerNamespace HTTP/1.1" 500 571 "-" "curl/7.79.1" 50
+pulsar_1          | 2022-06-14T19:35:03,443+0000 [pulsar-web-56-7] INFO  org.eclipse.jetty.server.RequestLog - 127.0.0.1 - - [14/Jun/2022:19:35:03 +0000] "GET /admin/v2/persistent/public/functions/coordinate/stats?getPreciseBacklog=false&subscriptionBacklogSize=false&getEarliestTimeInBacklog=false HTTP/1.1" 200 2141 "-" "Pulsar-Java-v2.10.0" 4
+pulsar_1          | 2022-06-14T19:35:03,455+0000 [pulsar-web-56-3] INFO  org.eclipse.jetty.server.RequestLog - 127.0.0.1 - - [14/Jun/2022:19:35:03 +0000] "GET /admin/v2/persistent/public/functions/coordinate/stats?getPreciseBacklog=false&subscriptionBacklogSize=false&getEarliestTimeInBacklog=false HTTP/1.1" 200 2141 "-" "Pulsar-Java-v2.10.0" 6
+pulsar_1          | 2022-06-14T19:35:08,289+0000 [pulsar-web-56-6] INFO  org.eclipse.jetty.server.RequestLog - 172.18.0.4 - - [14/Jun/2022:19:35:08 +0000] "GET /admin/v2/clusters HTTP/1.1" 200 14 "-" "Pulsar-Java-v2.7.0" 10
+pulsar_1          | 2022-06-14T19:35:08,317+0000 [pulsar-web-56-8] INFO  org.eclipse.jetty.server.RequestLog - 172.18.0.4 - - [14/Jun/2022:19:35:08 +0000] "GET /admin/v2/clusters/standalone/failureDomains HTTP/1.1" 200 2 "-" "Pulsar-Java-v2.7.0" 17
+pulsar_1          | 2022-06-14T19:35:08,702+0000 [pulsar-web-56-1] INFO  org.apache.pulsar.broker.admin.impl.BrokersBase - [null] Successfully to get active brokers, cluster=standalone
+pulsar_1          | 2022-06-14T19:35:08,708+0000 [pulsar-web-56-1] INFO  org.eclipse.jetty.server.RequestLog - 172.18.0.4 - - [14/Jun/2022:19:35:08 +0000] "GET /admin/v2/brokers/standalone HTTP/1.1" 200 18 "-" "Pulsar-Java-v2.7.0" 13
+pulsar_1          | 2022-06-14T19:35:08,721+0000 [pulsar-web-56-7] INFO  org.eclipse.jetty.server.RequestLog - 172.18.0.4 - - [14/Jun/2022:19:35:08 +0000] "GET /admin/v2/clusters/standalone HTTP/1.1" 200 230 "-" "Pulsar-Java-v2.7.0" 5
+pulsar_1          | 2022-06-14T19:35:09,386+0000 [SyncThread-7-1] INFO  org.apache.bookkeeper.bookie.EntryLogManagerBase - Creating a new entry log file because current active log channel has not initialized yet
+pulsar_1          | 2022-06-14T19:35:09,390+0000 [SyncThread-7-1] INFO  org.apache.bookkeeper.bookie.EntryLoggerAllocator - Created new entry log file data/standalone/bookkeeper0/current/0.log for logId 0.
+pulsar_1          | 2022-06-14T19:35:09,394+0000 [pool-6-thread-1] INFO  org.apache.bookkeeper.bookie.EntryLoggerAllocator - Created new entry log file data/standalone/bookkeeper0/current/1.log for logId 1.
+
+```

@@ -1,0 +1,231 @@
+onClose in SimpleForwardingClientCallListener is not called even once for grpc stream method
+<!-- Please answer these questions before submitting a bug report. -->
+### What version of gRPC-Java are you using?
+1.42.0
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+Win10, jdk 11.0.11, Intellij Idea debug 2020.3.2, maven tests, grpc-client-spring-boot-autoconfigure 2.13.1.RELEASE
+
+### What did you expect to see?
+When ForwardingClientCallListener.SimpleForwardingClientCallListener used in impl of ClientInterceptor, method `onClose` should be called at least once for streaming server method at the end (Or not?). `onClose` is correctly called once for unary calls.
+
+If I have to use any other ClientCall.Listener tell me which one please and close this issue.
+
+### What did you see instead?
+`onClose` is not called even once for grpc stream method
+
+### Steps to reproduce the bug
+1. Method like `rpc SayHelloStream (HelloRequest) returns (stream HelloReply) {}`
+2. ClientInterceptor impl with ForwardingClientCall.SimpleForwardingClientCall and ForwardingClientCallListener.SimpleForwardingClientCallListener with breakpoint somewhere in `onClose`
+3. Any grpc server logic that work properly with method from `1.`
+4. Any client config with active interceptor from `2.`
+5. Call method from `1.` with blockingStub in debug mode
+6. Then get messages
+7. Make sure that breakpoint and method `onClose` ignored
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->
+
+Interceptor
+```java
+@Slf4j
+public class AllureGrpcClientInterceptor implements ClientInterceptor {
+
+    @Override
+    public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> methodDescriptor,
+                                                               CallOptions callOptions,
+                                                               Channel channel) {
+        final ClientCall<ReqT, RespT> call = channel.newCall(methodDescriptor, callOptions);
+
+        return new ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(call) {
+            private String allureStepUUID;
+            private List<Message> payloads;
+
+            @Override
+            @SneakyThrows
+            public void sendMessage(ReqT message) {
+                allureStepUUID = UUID.randomUUID().toString();
+                payloads = new ArrayList<>();
+                Allure.getLifecycle()
+                        .startStep(
+                                allureStepUUID,
+                                new StepResult().setName("gRPC intercation " + methodDescriptor.getServiceName())
+                        );
+                Allure.addAttachment("gRPC method", ObjectUtils.toString(methodDescriptor));
+                Allure.addAttachment("gRPC request", ObjectUtils.toString(ProtoFormatter.format((Message) message)));
+                super.sendMessage(message);
+            }
+
+            @Override
+            public void start(Listener<RespT> responseListener, Metadata headers) {
+                super.start(
+                        new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
+                            @Override
+                            public void onHeaders(Metadata headers) {
+                                log.info("onHeaders called");
+                                Allure.addAttachment("gRPC headers", ObjectUtils.toString(headers));
+                                super.onHeaders(headers);
+                            }
+
+                            @Override
+                            public void onMessage(RespT message) {
+                                log.info("onMessage called");
+                                payloads.add((Message) message);
+                                super.onMessage(message);
+                            }
+
+                            @Override
+                            public void onClose(Status status, Metadata trailers) {
+                                log.info("onClose called");
+
+                                Allure.addAttachment("gRPC responses", ProtoFormatter.format(payloads));
+                                Allure.addAttachment("gRPC status", ObjectUtils.toString(status));
+
+                                if (status.isOk()) {
+                                    Allure.getLifecycle()
+                                            .updateStep(
+                                                    allureStepUUID,
+                                                    stepResult -> stepResult.setStatus(io.qameta.allure.model.Status.PASSED)
+                                            );
+                                } else {
+                                    Allure.getLifecycle()
+                                            .updateStep(
+                                                    allureStepUUID,
+                                                    stepResult -> stepResult.setStatus(io.qameta.allure.model.Status.FAILED)
+                                            );
+                                }
+                                Allure.getLifecycle().stopStep(allureStepUUID);
+
+                                super.onClose(status, trailers);
+                            }
+                        }, headers);
+            }
+        };
+    }
+
+}
+```
+
+Service logic
+```java
+@GrpcService
+@NoArgsConstructor
+public class GrpcServerEmulator extends GreeterGrpc.GreeterImplBase {
+
+    @Setter
+    private boolean returnError = false;
+
+    @Override
+    public void sayHello(HelloRequest request, StreamObserver<HelloReply> responseObserver) {
+        if (returnError) {
+            responseObserver.onError(new RuntimeException("something wrong"));
+        } else {
+            responseObserver.onNext(HelloReply.newBuilder().setMessage("Hi " + request.getName()).build());
+        }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void sayHelloStream(HelloRequest request, StreamObserver<HelloReply> responseObserver) {
+        if (returnError) {
+            responseObserver.onNext(HelloReply.newBuilder().setMessage("Hi " + request.getName()).build());
+            responseObserver.onError(new RuntimeException("something wrong"));
+        } else {
+            responseObserver.onNext(HelloReply.newBuilder().setMessage("Hi " + request.getName()).build());
+            responseObserver.onNext(HelloReply.newBuilder().setMessage("And again Hi " + request.getName()).build());
+        }
+        responseObserver.onCompleted();
+    }
+}
+```
+
+Test
+```java
+@Slf4j
+@DirtiesContext
+@EnableAutoConfiguration
+@SpringBootTest(
+        classes = ClientTestConfiguration.class,
+        properties = {
+                "grpc.server.port=0",
+                "grpc.client.GLOBAL.negotiationType=PLAINTEXT",
+                "grpc.client.testing.address=self:self"
+        }
+)
+public class InterceptorSmokeReturnValueTest {
+
+    @Autowired
+    GreeterGrpc.GreeterBlockingStub greeterBlockingStub;
+
+    @Autowired
+    GrpcServerEmulator grpcServerEmulator;
+
+    @BeforeEach
+    public void setUpServer() {
+        grpcServerEmulator.setReturnError(false);
+    }
+
+    final HelloRequest request = HelloRequest.newBuilder().setName("Smoke").build();
+
+    @Test
+    public void smokeStreamedMessagesMethodTest() {
+        Allure.addAttachment("message to send", request.toString());
+        Allure.step("Send message then check", ()-> {
+            final Iterator<HelloReply> reply = greeterBlockingStub.sayHelloStream(request);
+            final HelloReply firstReply = reply.next();
+            final HelloReply secondReply = reply.next();
+            assertAll(
+                    () -> assertNotNull(firstReply),
+                    () -> assertNotNull(secondReply),
+                    () -> assertEquals("Hi Smoke", firstReply.getMessage()),
+                    () -> assertEquals("And again Hi Smoke", secondReply.getMessage())
+            );
+        });
+    }
+}
+```
+
+logs
+```
+08:41:20.475 [main] DEBUG org.springframework.test.context.BootstrapUtils - Instantiating CacheAwareContextLoaderDelegate from class [org.springframework.test.context.cache.DefaultCacheAwareContextLoaderDelegate]
+08:41:20.494 [main] DEBUG org.springframework.test.context.BootstrapUtils - Instantiating BootstrapContext using constructor [public org.springframework.test.context.support.DefaultBootstrapContext(java.lang.Class,org.springframework.test.context.CacheAwareContextLoaderDelegate)]
+08:41:20.550 [main] DEBUG org.springframework.test.context.BootstrapUtils - Instantiating TestContextBootstrapper for test class [com.github.allure.extensions.InterceptorSmokeReturnValueTest] from class [org.springframework.boot.test.context.SpringBootTestContextBootstrapper]
+08:41:20.572 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper - Neither @ContextConfiguration nor @ContextHierarchy found for test class [com.github.allure.extensions.InterceptorSmokeReturnValueTest], using SpringBootContextLoader
+08:41:20.577 [main] DEBUG org.springframework.test.context.support.AbstractContextLoader - Did not detect default resource location for test class [com.github.allure.extensions.InterceptorSmokeReturnValueTest]: class path resource [com/github/allure/extensions/InterceptorSmokeReturnValueTest-context.xml] does not exist
+08:41:20.577 [main] DEBUG org.springframework.test.context.support.AbstractContextLoader - Did not detect default resource location for test class [com.github.allure.extensions.InterceptorSmokeReturnValueTest]: class path resource [com/github/allure/extensions/InterceptorSmokeReturnValueTestContext.groovy] does not exist
+08:41:20.577 [main] INFO org.springframework.test.context.support.AbstractContextLoader - Could not detect default resource locations for test class [com.github.allure.extensions.InterceptorSmokeReturnValueTest]: no resource found for suffixes {-context.xml, Context.groovy}.
+08:41:20.659 [main] DEBUG org.springframework.test.context.support.ActiveProfilesUtils - Could not find an 'annotation declaring class' for annotation type [org.springframework.test.context.ActiveProfiles] and class [com.github.allure.extensions.InterceptorSmokeReturnValueTest]
+08:41:20.810 [main] DEBUG org.springframework.boot.test.context.SpringBootTestContextBootstrapper - @TestExecutionListeners is not present for class [com.github.allure.extensions.InterceptorSmokeReturnValueTest]: using defaults.
+08:41:20.811 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper - Loaded default TestExecutionListener class names from location [META-INF/spring.factories]: [org.springframework.boot.test.mock.mockito.MockitoTestExecutionListener, org.springframework.boot.test.mock.mockito.ResetMocksTestExecutionListener, org.springframework.boot.test.autoconfigure.restdocs.RestDocsTestExecutionListener, org.springframework.boot.test.autoconfigure.web.client.MockRestServiceServerResetTestExecutionListener, org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrintOnlyOnFailureTestExecutionListener, org.springframework.boot.test.autoconfigure.web.servlet.WebDriverTestExecutionListener, org.springframework.boot.test.autoconfigure.webservices.client.MockWebServiceServerTestExecutionListener, org.springframework.test.context.web.ServletTestExecutionListener, org.springframework.test.context.support.DirtiesContextBeforeModesTestExecutionListener, org.springframework.test.context.event.ApplicationEventsTestExecutionListener, org.springframework.test.context.support.DependencyInjectionTestExecutionListener, org.springframework.test.context.support.DirtiesContextTestExecutionListener, org.springframework.test.context.transaction.TransactionalTestExecutionListener, org.springframework.test.context.jdbc.SqlScriptsTestExecutionListener, org.springframework.test.context.event.EventPublishingTestExecutionListener]
+08:41:20.823 [main] DEBUG org.springframework.boot.test.context.SpringBootTestContextBootstrapper - Skipping candidate TestExecutionListener [org.springframework.test.context.web.ServletTestExecutionListener] due to a missing dependency. Specify custom listener classes or make the default listener classes and their required dependencies available. Offending class: [javax/servlet/ServletContext]
+08:41:20.825 [main] DEBUG org.springframework.boot.test.context.SpringBootTestContextBootstrapper - Skipping candidate TestExecutionListener [org.springframework.test.context.transaction.TransactionalTestExecutionListener] due to a missing dependency. Specify custom listener classes or make the default listener classes and their required dependencies available. Offending class: [org/springframework/transaction/interceptor/TransactionAttributeSource]
+08:41:20.825 [main] DEBUG org.springframework.boot.test.context.SpringBootTestContextBootstrapper - Skipping candidate TestExecutionListener [org.springframework.test.context.jdbc.SqlScriptsTestExecutionListener] due to a missing dependency. Specify custom listener classes or make the default listener classes and their required dependencies available. Offending class: [org/springframework/transaction/interceptor/TransactionAttribute]
+08:41:20.825 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper - Using TestExecutionListeners: [org.springframework.test.context.support.DirtiesContextBeforeModesTestExecutionListener@43d3aba5, org.springframework.test.context.event.ApplicationEventsTestExecutionListener@6bfaa0a6, org.springframework.boot.test.mock.mockito.MockitoTestExecutionListener@76e9f00b, org.springframework.boot.test.autoconfigure.SpringBootDependencyInjectionTestExecutionListener@314b9e4b, org.springframework.test.context.support.DirtiesContextTestExecutionListener@6f1b8544, org.springframework.test.context.event.EventPublishingTestExecutionListener@51dae791, org.springframework.boot.test.mock.mockito.ResetMocksTestExecutionListener@688a2c09, org.springframework.boot.test.autoconfigure.restdocs.RestDocsTestExecutionListener@5de5e95, org.springframework.boot.test.autoconfigure.web.client.MockRestServiceServerResetTestExecutionListener@365cdacf, org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrintOnlyOnFailureTestExecutionListener@303c55fa, org.springframework.boot.test.autoconfigure.web.servlet.WebDriverTestExecutionListener@9efcd90, org.springframework.boot.test.autoconfigure.webservices.client.MockWebServiceServerTestExecutionListener@7eb200ce]
+08:41:20.828 [main] DEBUG org.springframework.test.context.support.AbstractDirtiesContextTestExecutionListener - Before test class: context [DefaultTestContext@5eea5627 testClass = InterceptorSmokeReturnValueTest, testInstance = [null], testMethod = [null], testException = [null], mergedContextConfiguration = [MergedContextConfiguration@3330f3ad testClass = InterceptorSmokeReturnValueTest, locations = '{}', classes = '{class com.github.allure.extensions.config.ClientTestConfiguration}', contextInitializerClasses = '[]', activeProfiles = '{}', propertySourceLocations = '{}', propertySourceProperties = '{grpc.server.port=0, grpc.client.GLOBAL.negotiationType=PLAINTEXT, grpc.client.testing.address=self:self, org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true}', contextCustomizers = set[[ImportsContextCustomizer@f425231 key = [@org.springframework.boot.test.context.SpringBootTest(args={}, webEnvironment=MOCK, value={}, properties={"grpc.server.port=0", "grpc.client.GLOBAL.negotiationType=PLAINTEXT", "grpc.client.testing.address=self:self"}, classes={com.github.allure.extensions.config.ClientTestConfiguration.class}), @org.springframework.test.context.BootstrapWith(value=org.springframework.boot.test.context.SpringBootTestContextBootstrapper.class), @org.springframework.boot.autoconfigure.EnableAutoConfiguration(exclude={}, excludeName={}), @org.springframework.boot.autoconfigure.AutoConfigurationPackage(basePackages={}, basePackageClasses={}), @org.springframework.test.annotation.DirtiesContext(hierarchyMode=EXHAUSTIVE, methodMode=AFTER_METHOD, classMode=AFTER_CLASS), @org.springframework.context.annotation.Import(value={org.springframework.boot.autoconfigure.AutoConfigurationPackages$Registrar.class}), @org.springframework.context.annotation.Import(value={org.springframework.boot.autoconfigure.AutoConfigurationImportSelector.class})]], org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@644ded04, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@1ba359bd, org.springframework.boot.test.mock.mockito.MockitoContextCustomizer@0, org.springframework.boot.test.web.client.TestRestTemplateContextCustomizer@34d52ecd, org.springframework.boot.test.autoconfigure.actuate.metrics.MetricsExportContextCustomizerFactory$DisableMetricExportContextCustomizer@4047d2d9, org.springframework.boot.test.autoconfigure.properties.PropertyMappingContextCustomizer@0, org.springframework.boot.test.autoconfigure.web.servlet.WebDriverContextCustomizerFactory$Customizer@255eaa6b, org.springframework.boot.test.context.SpringBootTestArgs@1, org.springframework.boot.test.context.SpringBootTestWebEnvironment@2392212b], contextLoader = 'org.springframework.boot.test.context.SpringBootContextLoader', parent = [null]], attributes = map[[empty]]], class annotated with @DirtiesContext [true] with mode [AFTER_CLASS].
+08:41:20.863 [main] DEBUG org.springframework.test.context.support.DependencyInjectionTestExecutionListener - Performing dependency injection for test context [[DefaultTestContext@5eea5627 testClass = InterceptorSmokeReturnValueTest, testInstance = com.github.allure.extensions.InterceptorSmokeReturnValueTest@d48e998, testMethod = [null], testException = [null], mergedContextConfiguration = [MergedContextConfiguration@3330f3ad testClass = InterceptorSmokeReturnValueTest, locations = '{}', classes = '{class com.github.allure.extensions.config.ClientTestConfiguration}', contextInitializerClasses = '[]', activeProfiles = '{}', propertySourceLocations = '{}', propertySourceProperties = '{grpc.server.port=0, grpc.client.GLOBAL.negotiationType=PLAINTEXT, grpc.client.testing.address=self:self, org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true}', contextCustomizers = set[[ImportsContextCustomizer@f425231 key = [@org.springframework.boot.test.context.SpringBootTest(args={}, webEnvironment=MOCK, value={}, properties={"grpc.server.port=0", "grpc.client.GLOBAL.negotiationType=PLAINTEXT", "grpc.client.testing.address=self:self"}, classes={com.github.allure.extensions.config.ClientTestConfiguration.class}), @org.springframework.test.context.BootstrapWith(value=org.springframework.boot.test.context.SpringBootTestContextBootstrapper.class), @org.springframework.boot.autoconfigure.EnableAutoConfiguration(exclude={}, excludeName={}), @org.springframework.boot.autoconfigure.AutoConfigurationPackage(basePackages={}, basePackageClasses={}), @org.springframework.test.annotation.DirtiesContext(hierarchyMode=EXHAUSTIVE, methodMode=AFTER_METHOD, classMode=AFTER_CLASS), @org.springframework.context.annotation.Import(value={org.springframework.boot.autoconfigure.AutoConfigurationPackages$Registrar.class}), @org.springframework.context.annotation.Import(value={org.springframework.boot.autoconfigure.AutoConfigurationImportSelector.class})]], org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@644ded04, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@1ba359bd, org.springframework.boot.test.mock.mockito.MockitoContextCustomizer@0, org.springframework.boot.test.web.client.TestRestTemplateContextCustomizer@34d52ecd, org.springframework.boot.test.autoconfigure.actuate.metrics.MetricsExportContextCustomizerFactory$DisableMetricExportContextCustomizer@4047d2d9, org.springframework.boot.test.autoconfigure.properties.PropertyMappingContextCustomizer@0, org.springframework.boot.test.autoconfigure.web.servlet.WebDriverContextCustomizerFactory$Customizer@255eaa6b, org.springframework.boot.test.context.SpringBootTestArgs@1, org.springframework.boot.test.context.SpringBootTestWebEnvironment@2392212b], contextLoader = 'org.springframework.boot.test.context.SpringBootContextLoader', parent = [null]], attributes = map['org.springframework.test.context.event.ApplicationEventsTestExecutionListener.recordApplicationEvents' -> false]]].
+08:41:20.902 [main] DEBUG org.springframework.boot.ApplicationEnvironment - Activating profiles []
+08:41:20.903 [main] DEBUG org.springframework.test.context.support.TestPropertySourceUtils - Adding inlined properties to environment: {spring.jmx.enabled=false, grpc.server.port=0, grpc.client.GLOBAL.negotiationType=PLAINTEXT, grpc.client.testing.address=self:self, org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true}
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v2.5.8)
+
+2022-03-17 08:41:21.180  INFO 5788 --- [           main] c.g.a.e.InterceptorSmokeReturnValueTest  : Starting InterceptorSmokeReturnValueTest using Java 11.0.11 on DESKTOP-7Q4MI23 with PID 5788 (started by artem in C:\Users\artem\Desktop\grpc-allure-spring-boot-test\grpc-allure-client-interceptor)
+2022-03-17 08:41:21.181  INFO 5788 --- [           main] c.g.a.e.InterceptorSmokeReturnValueTest  : No active profile set, falling back to default profiles: default
+2022-03-17 08:41:21.809  INFO 5788 --- [           main] n.d.b.g.c.a.GrpcClientAutoConfiguration  : Detected grpc-netty-shaded: Creating ShadedNettyChannelFactory + InProcessChannelFactory
+2022-03-17 08:41:22.124  INFO 5788 --- [           main] g.s.a.GrpcServerFactoryAutoConfiguration : Detected grpc-netty-shaded: Creating ShadedNettyGrpcServerFactory
+2022-03-17 08:41:22.251  INFO 5788 --- [           main] n.d.b.g.s.s.AbstractGrpcServerFactory    : Registered gRPC service: com.github.allure.extensions.Greeter, bean: grpcServerEmulator, class: com.github.allure.extensions.config.GrpcServerEmulator
+2022-03-17 08:41:22.252  INFO 5788 --- [           main] n.d.b.g.s.s.AbstractGrpcServerFactory    : Registered gRPC service: grpc.health.v1.Health, bean: grpcHealthService, class: io.grpc.protobuf.services.HealthServiceImpl
+2022-03-17 08:41:22.252  INFO 5788 --- [           main] n.d.b.g.s.s.AbstractGrpcServerFactory    : Registered gRPC service: grpc.reflection.v1alpha.ServerReflection, bean: protoReflectionService, class: io.grpc.protobuf.services.ProtoReflectionService
+2022-03-17 08:41:22.614  INFO 5788 --- [           main] n.d.b.g.s.s.GrpcServerLifecycle          : gRPC Server started, listening on address: *, port: 26863
+2022-03-17 08:41:22.622  INFO 5788 --- [           main] c.g.a.e.InterceptorSmokeReturnValueTest  : Started InterceptorSmokeReturnValueTest in 1.718 seconds (JVM running for 3.727)
+2022-03-17 08:41:23.372  INFO 5788 --- [           main] c.g.a.e.AllureGrpcClientInterceptor      : onHeaders called
+2022-03-17 08:41:23.373  INFO 5788 --- [           main] c.g.a.e.AllureGrpcClientInterceptor      : onMessage called
+2022-03-17 08:41:23.373  INFO 5788 --- [           main] c.g.a.e.AllureGrpcClientInterceptor      : onMessage called
+2022-03-17 08:41:23.469  INFO 5788 --- [           main] n.d.b.g.s.s.GrpcServerLifecycle          : Completed gRPC server shutdown
+
+```

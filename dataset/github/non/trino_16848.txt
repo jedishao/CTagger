@@ -1,0 +1,23 @@
+Kudu MERGE error while delete between two CTAS table
+```
+reproduce:
+
+CREATE t1 AS SELECT * FROM (VALUES (1,'a') AS t(id, name);
+CREATE t2 AS SELECT * FROM (VALUES (1,'a') AS t(id, name);
+
+DELETE FROM t1 WHERE id IN (SELECT id FROM t2)
+
+encountered:
+java.lang.IllegalArgumentException: The page size should be 2 + columnCount (3), but is 4
+	at com.google.common.base.Preconditions.checkArgument(Preconditions.java:299)
+	at io.trino.plugin.kudu.KuduPageSink.storeMergedRows(KuduPageSink.java:210)
+	at io.trino.operator.MergeWriterOperator.addInput(MergeWriterOperator.java:148)
+	at io.trino.operator.Driver.processInternal(Driver.java:407)
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:305)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:701)
+	at io.trino.operator.Driver.process(Driver.java:297)
+	at io.trino.operator.Driver.processForDuration(Driver.java:268)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:845)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:165)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:537)
+```

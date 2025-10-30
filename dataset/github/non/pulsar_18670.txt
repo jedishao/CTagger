@@ -1,0 +1,45 @@
+Improve function worker bootstrap time when runtime is not equals to thread
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+Currently, the Function Worker standalone loads builtin connectors and functions at the bootstrap.
+For each connector, it creates a `Connector` object that contains metadata about the connector (name..) and the ClassLoader.
+ 
+To create the class loader the nar archiver must be unpacked. The archive unpacking is an CPU heavy operation. **With a lot of connectors, the time is relevant. In K8s env, it also leads to the readiness probe.**  
+When not using runtime=thread (99% of the use cases) the classLoader is used by the function worker only in these places:
+1. To get connector's metadata. https://github.com/apache/pulsar/blob/58ad3d09ddca46e9e2805e9c7a37c0de1a5c302d/pulsar-functions/utils/src/main/java/org/apache/pulsar/functions/utils/io/ConnectorUtils.java#L193-L227
+Here we look for 
+- the `pulsar-io.yaml` file
+- Fields definition. `ConfigFieldDefinition`. In order to do that the config class is analyzed with reflection. However these info are served in the REST API if a clients need that (builtinsources/{name}/configdefinition)
+
+2. In the REST API to validate the config
+https://github.com/apache/pulsar/blob/58ad3d09ddca46e9e2805e9c7a37c0de1a5c302d/pulsar-functions/worker/src/main/java/org/apache/pulsar/functions/worker/rest/api/SinksImpl.java#L738-L764
+
+
+### Solution
+
+The idea is that we can only look for the `pulsar-io.yaml` file during the bootstrap and load the classLoader only when needed.
+
+The assumption is that getting only the file `pulsar-io.yaml` from the archive is very much faster than load the whole archive.
+
+For the REST API endpoints the classloader can be loaded on the fly and then cached. 
+Alternatively, the classloaders could be loaded in background after the bootstrap (to avoid cold start time of the first rest api and avoid rest api parallel requests) 
+
+
+
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

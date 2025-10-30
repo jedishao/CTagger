@@ -1,0 +1,39 @@
+connection refused when trying to run Elasticsearch query on presto ( spark )
+Im working on presto on spark. I have Elasticsearch as datasource. Im not able to run the queries using presto.
+
+Elasticsearch.properties -
+
+elasticsearch.ignore-publish-address=true
+elasticsearch.default-schema-name=default
+elasticsearch.host=localhost
+connector.name=elasticsearch
+elasticsearch.port=2900
+docker-compose.yaml
+
+elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.6.1
+    container_name: elasticsearch
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+      - network.host=0.0.0.0
+    ports:
+      - '9200:9200'
+    networks:
+      - pqp-net
+
+networks:
+  pqp-net:
+    driver: bridge
+
+I'm getting below error -
+
+c.f.p.e.client.ElasticsearchClient - Error refreshing nodes com.facebook.presto.spi.PrestoException: Connection refused
+
+Well, Im able to fetch the details of Elasticsearch -
+
+http://localhost:9200
+
+{ "name" : "ab751e0dd0ad", "cluster_name" : "docker-cluster", "cluster_uuid" : "3T66bOexSGOo6Pwtt2Ul4Q", "version" : { "number" : "7.6.1", "build_flavor" : "default", "build_type" : "docker", "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b", "build_date" : "2020-02-29T00:15:25.529771Z", "build_snapshot" : false, "lucene_version" : "8.4.0", "minimum_wire_compatibility_version" : "6.8.0", "minimum_index_compatibility_version" : "6.0.0-beta1" }, "tagline" : "You Know, for Search" }
+
+If anyone faced same issue, please help. Thanks in advance

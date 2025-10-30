@@ -1,0 +1,33 @@
+ com.fasterxml.jackson.databind.JsonMappingException: writerIndex(2147481119) + minWritableBytes(7835) exceeds maxCapacity(2147483647)
+Redisson 3.9.1
+
+This is call we are doing:
+redisClient.get.getMap[NodeId, PartitionChainPropagationDataRto](partitionChainIdKey, CodecCache.getOrCreate(classOf[PartitionChainPropagationDataRto], codecName, isComposite = true, innerCodec)).fastPutAsync(CONTENT, x._2)
+
+And it results in following error, could you please help to fix this issue
+
+Facing this error while writing to RMap object via fast
+`2022-12-26 02:03:48,527 ERROR org.apache.spark.executor.Executor: Exception in task 0.3 in stage 0.0 (TID 3)
+java.lang.IllegalArgumentException: com.fasterxml.jackson.databind.JsonMappingException: writerIndex(2147481119) + minWritableBytes(7835) exceeds maxCapacity(2147483647): PooledUnsafeDirectByteBuf(ridx: 0, widx: 2147481119, cap: 2147483647) (through reference chain: com.mycomosi.eaa.common.infrastructure.redis.v2_2.PartitionChainPropagationDataRto["nodeInstancesPerId"]->java.util.HashMap["c0bed7b9-89d3-11ec-845c-a738f260b99e"])
+        at org.redisson.RedissonObject.encodeMapValue(RedissonObject.java:282) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at org.redisson.RedissonMap.fastPutOperationAsync(RedissonMap.java:1025) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at org.redisson.RedissonMap.fastPutAsync(RedissonMap.java:1010) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at com.mycomosi.eaa.common.infrastructure.chain.RedisSimpleChainStore$$anonfun$addPartitionChains$1.apply(RedisSimpleChainStore.scala:320) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at com.mycomosi.eaa.common.infrastructure.chain.RedisSimpleChainStore$$anonfun$addPartitionChains$1.apply(RedisSimpleChainStore.scala:299) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at scala.collection.immutable.HashMap$HashMap1.foreach(HashMap.scala:221) ~[scala-library-2.11.8.jar:na]
+        at scala.collection.immutable.HashMap$HashTrieMap.foreach(HashMap.scala:428) ~[scala-library-2.11.8.jar:na]
+        at scala.collection.immutable.HashMap$HashTrieMap.foreach(HashMap.scala:428) ~[scala-library-2.11.8.jar:na]
+        at com.mycomosi.eaa.common.infrastructure.chain.RedisSimpleChainStore.addPartitionChains(RedisSimpleChainStore.scala:299) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at com.mycomosi.eaa.common.infrastructure.chain.RedisSafeChainStoreWrapper.com$mycomosi$eaa$common$infrastructure$chain$RedisSafeChainStoreWrapper$$super$addPartitionChains(RedisSafeChainStoreWrapper.scala:38) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at com.mycomosi.eaa.common.infrastructure.chain.RedisSafeChainStoreWrapper$$anonfun$addPartitionChains$1.apply(RedisSafeChainStoreWrapper.scala:38) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at com.mycomosi.eaa.common.infrastructure.chain.RedisSafeChainStoreWrapper$$anonfun$addPartitionChains$1.apply(RedisSafeChainStoreWrapper.scala:38) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at scala.Function2$$anonfun$tupled$1.apply(Function2.scala:48) ~[scala-library-2.11.8.jar:na]
+        at scala.Function2$$anonfun$tupled$1.apply(Function2.scala:47) ~[scala-library-2.11.8.jar:na]
+        at com.mycomosi.eaa.common.application.fwk.Retry$$anonfun$safeCall$1.apply(Retry.scala:25) ~[topology-cache-management.jar:3.5.1-SNAPSHOT]
+        at scala.concurrent.impl.Future$PromiseCompletingRunnable.liftedTree1$1(Future.scala:24) ~[scala-library-2.11.8.jar:na]
+        at scala.concurrent.impl.Future$PromiseCompletingRunnable.run(Future.scala:24) ~[scala-library-2.11.8.jar:na]
+        at scala.concurrent.impl.ExecutionContextImpl$AdaptedForkJoinTask.exec(ExecutionContextImpl.scala:121) ~[scala-library-2.11.8.jar:na]
+        at scala.concurrent.forkjoin.ForkJoinTask.doExec(ForkJoinTask.java:260) ~[scala-library-2.11.8.jar:na]
+        at scala.concurrent.forkjoin.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1339) ~[scala-library-2.11.8.jar:na]
+        at scala.concurrent.forkjoin.ForkJoinPool.runWorker(ForkJoinPool.java:1979) ~[scala-library-2.11.8.jar:na]
+        at scala.concurrent.forkjoin.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:107) ~[scala-library-2.11.8.jar:na]`

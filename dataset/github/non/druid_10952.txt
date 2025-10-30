@@ -1,0 +1,49 @@
+Unicode Characters Problem when parsing MsSql Query
+### Affected Version
+
+The v1.2.5 of Druid.
+
+### Description
+
+Please include as much detailed information about the problem as possible.
+Druid can parse this query just fine (notice unicode, i.e. Turkish characters in schema)
+```
+select [Ülke]
+from [Örnek VeriTabanı].dbo.[MÜŞteri Bilgisi]
+```
+However, it fails to parse the same query (without square brackets)
+```
+select Ülke
+from [Örnek VeriTabanı].dbo.[MÜŞteri Bilgisi]
+```
+with an 
+```
+com.alibaba.druid.sql.parser.ParserException: illegal identifier. pos 7, line 1, column 8, token SELECT
+        at com.alibaba.druid.sql.parser.Lexer.scanIdentifier(Lexer.java:2282)
+        at com.alibaba.druid.sql.parser.Lexer.nextToken(Lexer.java:1126)
+        at com.alibaba.druid.sql.dialect.sqlserver.parser.SQLServerSelectParser.query(SQLServerSelectParser.java:132)
+        at com.alibaba.druid.sql.parser.SQLSelectParser.query(SQLSelectParser.java:374)
+        at com.alibaba.druid.sql.dialect.sqlserver.parser.SQLServerSelectParser.select(SQLServerSelectParser.java:48)
+        at com.alibaba.druid.sql.parser.SQLStatementParser.parseSelect(SQLStatementParser.java:4190)
+        at com.alibaba.druid.sql.parser.SQLStatementParser.parseStatementList(SQLStatementParser.java:204)
+        at com.alibaba.druid.sql.SQLUtils.parseStatements(SQLUtils.java:562)
+        at com.alibaba.druid.sql.SQLUtils.parseStatements(SQLUtils.java:556)
+        at com.alibaba.druid.sql.SQLUtils.parseStatements(SQLUtils.java:579)
+```
+error. Note that, both of the queries are valid T-SQL statements and Ms Sql Server can parse (and return the same result) without any problems. Actually, I expect that 
+ 
+```
+    @Test
+    public void withBracketsTest() {
+        var sql = "select [Ülke]\n        from [Örnek VeriTabanı].dbo.[MÜŞteri Bilgisi]";
+        assertDoesNotThrow(() -> SQLUtils.parseSingleStatement(sql, DbType.sqlserver.toString()));
+    }
+
+    @Test
+    public void withoutBracketsTest() {
+        var sql = "select Ülke\n        from [Örnek VeriTabanı].dbo.[MÜŞteri Bilgisi]";
+        assertDoesNotThrow(() -> SQLUtils.parseSingleStatement(sql, DbType.sqlserver.toString()));
+    }
+```
+both of these tests to pass. Although `withBracketsTest` test passes `withoutBracketsTest` fails. 
+

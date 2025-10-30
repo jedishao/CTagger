@@ -1,0 +1,104 @@
+[Bug] ttl expiration block due to no-recoverable exception even if autoSkipNonRecoverableData=true
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Linux with pulsar 2.8.4 version
+
+### Minimal reproduce step
+
+1. set autoSkipNonRecoverableData=true 
+2. create a new topic t and set TTL for it
+3. create a subscription for this topic
+4. produce some message on this topic
+5. simulate `no such entry` or `ledger not exist`
+6. see the TTL  expiration will block
+
+### What did you expect to see?
+
+TTL expiration task should skip the no-recoverable data if autoSkipNonRecoverableData=true
+
+### What did you see instead?
+
+`No such entry`  and `Error while getting the oldest message` in broker.log
+```shell
+17:01:51.019 [BookKeeperClientWorker-OrderedExecutor-31-0] ERROR org.apache.bookkeeper.client.PendingReadOp - Read of ledger entry failed: L345503 E6912-E6912, Sent to [192.168.1.1:3181, 192.168.1.2:3181], Heard from [] : bitset = {}, Error = 'No such entry'. First unread entry is (-1, rc = null)
+17:01:51.019 [pulsar-msg-expiry-monitor-27-1] WARN  org.apache.pulsar.broker.service.persistent.PersistentTopic - [persistent://test/test/test-partition-0] Error while getting the oldest message
+org.apache.bookkeeper.mledger.ManagedLedgerException$NonRecoverableLedgerException: No such entry
+```
+
+topic internal-stats 
+
+```shell
+$ bin/pulsar-admin topics stats-internal persistent://test/test/test-partition-0
+{
+  "entriesAddedCounter" : 25,
+  "numberOfEntries" : 6958,
+  "totalSize" : 5208458,
+  "currentLedgerEntries" : 0,
+  "currentLedgerSize" : 0,
+  "lastLedgerCreatedTimestamp" : "2022-12-27T03:53:14.9+08:00",
+  "waitingCursorsCount" : 4,
+  "pendingAddEntriesCount" : 0,
+  "lastConfirmedEntry" : "363109:24",
+  "state" : "LedgerOpened",
+  "ledgers" : [ {
+    "ledgerId" : 345503,
+    "entries" : 6933,
+    "size" : 5187644,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 363109,
+    "entries" : 25,
+    "size" : 20814,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 388347,
+    "entries" : 0,
+    "size" : 0,
+    "offloaded" : false,
+    "underReplicated" : false
+  } ],
+  "cursors" : {
+    "test-sub" : {
+      "markDeletePosition" : "345503:6911",
+      "readPosition" : "363109:25",
+      "waitingReadOp" : true,
+      "pendingReadOps" : -4,
+      "messagesConsumedCounter" : 29,
+      "cursorLedger" : 396534,
+      "cursorLedgerLastEntry" : 0,
+      "individuallyDeletedMessages" : "[(363109:-1..363109:24]]",
+      "lastLedgerSwitchTimestamp" : "2022-12-29T13:22:02.962+08:00",
+      "state" : "Open",
+      "numberOfEntriesSinceFirstNotAckedMessage" : 47,
+      "totalNonContiguousDeletedMessagesRange" : 1,
+      "subscriptionHavePendingRead" : true,
+      "subscriptionHavePendingReplayRead" : false,
+      "properties" : { }
+    }
+  },
+  "schemaLedgers" : [ ],
+  "compactedLedger" : {
+    "ledgerId" : -1,
+    "entries" : -1,
+    "size" : -1,
+    "offloaded" : false,
+    "underReplicated" : false
+  }
+}
+
+```
+
+### Anything else?
+
+TTL expiration task should skip the no-recoverable data like a normal read request does if autoSkipNonRecoverableData=true
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

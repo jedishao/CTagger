@@ -1,0 +1,63 @@
+"No route to host" to hdfs arised in k8s after some time's normally running
+I deployed the druid in k8s, using hdfs as deep-storage by mounting the core-site.xml and hdfs-site.xml into the class path of the pod.
+
+Everything worked well, but after a long term(don't known the condition right now), the historical node and middle-manager node just counld't get connected to the hdfs. The logs show: "No route to host".
+
+### Affected Version
+
+0.20.0
+
+### Description
+
+Below is logs from one of the historical node pod
+
+[kdl-druid-historical-10.log](https://github.com/apache/druid/files/6432744/kdl-druid-historical-10.log)
+
+### Investigation
+
+1. jvm's version is 1.8, so java negative DNS caching problem can't be blamed described in [hadoop wiki](https://cwiki.apache.org/confluence/display/HADOOP2/NoRouteToHost).
+
+2. traceroute:
+
+   ```bash
+   /opt/apache-druid-0.20.0 # traceroute 172.25.4.140
+   traceroute to 172.25.4.140 (172.25.4.140), 30 hops max, 46 byte packets
+    1  172.25.40.1 (172.25.40.1)  0.008 ms  0.004 ms  0.001 ms
+    2  10-16-0-14.kdl-prometheus-node-exporter.default.svc.cluster.local (10.16.0.14)  0.212 ms  0.168 ms  0.173 ms
+    3  kdl-hadoop-hdfs-nn-0.kdl-hadoop-hdfs-nn.default.svc.cluster.local (172.25.4.140)  0.157 ms  0.187 ms  0.179 ms
+   ```
+
+   shows that the net inside the cluster works find.
+
+3. ping:
+
+   ```bash
+   /opt/apache-druid-0.20.0 # ping -c 4 172.25.4.140
+   PING 172.25.4.140 (172.25.4.140): 56 data bytes
+   64 bytes from 172.25.4.140: seq=0 ttl=62 time=0.283 ms
+   64 bytes from 172.25.4.140: seq=1 ttl=62 time=0.198 ms
+   64 bytes from 172.25.4.140: seq=2 ttl=62 time=0.203 ms
+   64 bytes from 172.25.4.140: seq=3 ttl=62 time=0.214 ms
+   
+   --- 172.25.4.140 ping statistics ---
+   4 packets transmitted, 4 packets received, 0% packet loss
+   ```
+
+   also works well.
+
+4. ncat:
+
+   ```bash
+   /opt/apache-druid-0.20.0 # ncat -vz 172.25.4.140 8020
+   Ncat: Version 7.91 ( https://nmap.org/ncat )
+   Ncat: Connected to 172.25.4.140:8020.
+   Ncat: 0 bytes sent, 0 bytes received in 0.02 seconds.
+   ```
+
+   so do connection between historical node and hdfs-namenode.
+
+Now I have no idea how to deal with this problems.
+
+My temporary solution is redirect the stdout of the pod to a file, and in liveness check I grep "no route to host" in that file to tell k8s restart the pod when this occur(soooooooo stupid...)
+
+

@@ -1,0 +1,28 @@
+how to determine whether the PrepareStatement precompilation in Presto is actually executed？
+1. Hello, first of all, my purpose is to encapsulate a set of Client APIs that can support PHP, but Presto does not officially support the corresponding functions, so here we can only try to do it ourselves, I used https://github.com/360d-io-labs/PhpPrestoClient
+
+2. When I did not execute the PREPARE statementXXX FROM request "my own SQL", I directly added the [X-Presto-Prepared-Statement] field to the request header when I executed the EXECUTE request and the value was statementXXX = "I "Our own SQL" can directly return the results I want. So, does the PrepareStatement precompilation provided by you have no effect? If there is an effect, why can I still get the result when I do not execute PREPARE? Is this a bug? I hope to get your answer, thank you
+
+this is my php code：
+###  $this->prestoPrepareStatement   👍:  statement = select count(identify) as totalNum, real_region_name, provider from user where real_region_name = ? and provider = ? 
+            $this->headers = array(
+                "X-Presto-User: " . $this->prestoUser,
+                "X-Presto-Catalog: " . $this->prestoCatalog,
+                "X-Presto-Schema: " . $this->prestoSchema,
+                "X-Presto-Language: ".$this->prestoLanguage,
+                "X-Presto-Time-Zone: ".$this->prestoTimeZone,
+                "X-Presto-Added-Prepare: ".$this->prestoAddPrepare,
+                "X-Presto-Prepared-Statement: ".$this->prestoPrepareStatement,
+                "Content-Type: ".$this->contentType,
+                "X-Presto-Source: ".$this->prestoSource,
+                "Connection: ".$this->prestoConnection,
+                "User-Agent: " . $this->userAgent);
+            \curl_setopt($this->connectionSession, CURLOPT_URL, $this->url);
+            \curl_setopt($this->connectionSession, CURLOPT_HTTPHEADER, $this->headers);
+            \curl_setopt($this->connectionSession, CURLOPT_RETURNTRANSFER, 1);
+            \curl_setopt($this->connectionSession, CURLOPT_POST, 1); 
+            \curl_setopt($this->connectionSession, CURLOPT_POSTFIELDS, $this->request);
+            $this->result = \curl_exec($this->connectionSession);
+            $httpCode2 = \curl_getinfo($this->connectionSession, CURLINFO_HTTP_CODE);
+
+

@@ -1,0 +1,8 @@
+Iceberg $files table not show delete files
+For iceberg v2 format, if query `$files` metadata table, e.g. 
+`select * from tmp."test_table$files" where content =1 limit 10;`
+it will return empty result, the reason is that `FilesTable` only iterates `DataFile`, however I think it needs to scan `DeleteFile` as well. 
+
+https://github.com/trinodb/trino/blob/64b0b7d9bf5b0314e0de64a8cee946bfeb283d99/plugin/trino-iceberg/src/main/java/io/trino/plugin/iceberg/FilesTable.java#L179
+
+https://github.com/trinodb/trino/pull/16232 for the fix.

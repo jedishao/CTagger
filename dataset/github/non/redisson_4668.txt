@@ -1,0 +1,8 @@
+org.redisson.client.WriteRedisConnectionException 
+v3.12.4
+
+Intermittently we see `org.redisson.client.WriteRedisConnectionException` in the logs caused by `org.redisson.client.RedisTimeoutException` after 3 retry attempts for `PING` command when actual submitted command is `LPOP` or `RPUSH` (which also says channel closed). 
+
+Does it mean frequent background `PING` commands interfere with commands submitted application? Currently I gave 5 second interval for background PING command, and didn't change default retry attempts and retry interval. `nettyThreads` is given as 256, idle connections are 10, max connections are 256. Couple of years back nettyThreads and max connections used to be 64, we gradually increased it to 256 over the time when I observed spike in `org.redisson.client.WriteRedisConnectionException`. We also scaled application nodes horizontally as organic traffic is increasing YOY. 
+
+We are migrating to v3.17.7 soon, will this help reducing these intermittent errors? 

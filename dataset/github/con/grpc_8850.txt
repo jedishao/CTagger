@@ -1,0 +1,8 @@
+AndroidChannel fails to reconnect after block
+I'm having issues with Firestore (which uses gRPC) not connecting after a device is locked and was able to track it down to here.
+
+https://github.com/grpc/grpc-java/blob/a35336c15fe3235b14a16af117515e113c8d5cee/android/src/main/java/io/grpc/android/AndroidChannelBuilder.java#L297
+
+It seems that the network callback needs to override the onBlockedStatusChanged() function and reconnect when the blocked parameter is false.
+
+I'm seeing onAvailable() only called when my app initially starts but onBlockedStatusChanged() is called with true when it has been idle for a while and false when it comes back up. This was tested on Android 12.

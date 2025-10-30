@@ -1,0 +1,34 @@
+Compaction tasks fails with "indexSpec is not ready: [spec]. Trying the next indexSpec."
+The Druid version where the problem was encountered.
+0.22.1
+
+In 0.19.0 , we saw this [issue](https://github.com/apache/druid/issues/13199)
+After upgrading to 0.22.1
+I have a compaction task for few datasource which is failing with
+`"indexSpec is not ready: [spec]. Trying the next indexSpec."`
+I checked there is no lock present in mysql for this interval and it is fully available i.e. all segments are loaded
+
+after trying some changes in spec when i put this result is success
+`"forceTimeChunkLock": false`
+
+So I thought  there is some lock present for this interval in zk.
+
+After getting inputs from open source slack channel from Mark Herrera , where it suggested gaps in data can cause this issue.
+https://apachedruidworkspace.slack.com/archives/C0303FDCZEZ/p1667922829090939
+
+
+In our case my observations are following
+- I can see compaction tasks are failing for current running month(i.e. 2022-12-01 to 2023-01-01) we are doing day to day compaction
+```
+"granularitySpec": {
+        "segmentGranularity": "DAY",
+        "queryGranularity": null
+    },
+```
+- compaction tasks that has passed for this  interval has continuous data segments for all days(i.e 31 segments) .
+- whichever has failed has gaps in data (i.e. there are less than 31 segments) 
+
+but in `wikipedia datasource` i am not able to do reproduce this issue. I am not sure if the gap in interval is really an issue. This  issue was not present in prior verions
+
+Any help would be appreciated
+

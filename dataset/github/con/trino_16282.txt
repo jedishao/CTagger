@@ -1,0 +1,77 @@
+Coordinator OOM caused by new jackson version regression
+We are upgrading Trino from 367 to 407. Under the load coordinator fails with OutOfMemoryError.
+Heap dump analysis shows that 96% of heap is taken by a single instance of `io.airlift.concurrent.BoundedExecutor` with thread factory producing `remote-task-callback-%s` threads.
+![image](https://user-images.githubusercontent.com/1793410/221585293-bc5c72f3-2e3e-4e70-89d5-efe2756e4399.png)
+As it's difficult to get LinkedQueue size from the heap, I estimated number of different classes referenced by the queue:
+`io.airlift.http.client.jetty.JettyResponseFuture`: 3.45M
+`io.trino.server.remotetask.SimpleHttpResponseHandler`: 3.42M
+Probably the size of the queue is about **3.5M** items.
+
+I've checked Thread dump and noticed that 998 threads like `remote-task-callback-%s` are blocked inside jackson `PrivateMaxEntriesMap`:
+```
+stackTrace:
+java.lang.Thread.State: BLOCKED (on object monitor)
+at java.util.concurrent.ConcurrentHashMap.putVal(java.base@17.0.6/ConcurrentHashMap.java:1031)
+- waiting to lock <0x00007f0306e29600> (a java.util.concurrent.ConcurrentHashMap$TreeBin)
+at java.util.concurrent.ConcurrentHashMap.putIfAbsent(java.base@17.0.6/ConcurrentHashMap.java:1541)
+at com.fasterxml.jackson.databind.util.internal.PrivateMaxEntriesMap.put(PrivateMaxEntriesMap.java:655)
+at com.fasterxml.jackson.databind.util.internal.PrivateMaxEntriesMap.putIfAbsent(PrivateMaxEntriesMap.java:633)
+at com.fasterxml.jackson.databind.util.LRUMap.putIfAbsent(LRUMap.java:53)
+at com.fasterxml.jackson.databind.type.TypeFactory._fromClass(TypeFactory.java:1523)
+at com.fasterxml.jackson.databind.type.TypeFactory._fromParamType(TypeFactory.java:1632)
+at com.fasterxml.jackson.databind.type.TypeFactory._fromAny(TypeFactory.java:1395)
+at com.fasterxml.jackson.databind.type.TypeFactory._resolveSuperInterfaces(TypeFactory.java:1547)
+at com.fasterxml.jackson.databind.type.TypeFactory._fromClass(TypeFactory.java:1494)
+at com.fasterxml.jackson.databind.type.TypeFactory._fromParamType(TypeFactory.java:1632)
+at com.fasterxml.jackson.databind.type.TypeFactory._fromAny(TypeFactory.java:1395)
+at com.fasterxml.jackson.databind.type.TypeFactory._resolveSuperClass(TypeFactory.java:1534)
+at com.fasterxml.jackson.databind.type.TypeFactory._fromClass(TypeFactory.java:1493)
+at com.fasterxml.jackson.databind.type.TypeFactory._bindingsForSubtype(TypeFactory.java:531)
+at com.fasterxml.jackson.databind.type.TypeFactory.constructSpecializedType(TypeFactory.java:510)
+at com.fasterxml.jackson.databind.SerializerProvider.constructSpecializedType(SerializerProvider.java:347)
+at com.fasterxml.jackson.databind.ser.std.ReferenceTypeSerializer._findCachedSerializer(ReferenceTypeSerializer.java:461)
+at com.fasterxml.jackson.databind.ser.std.ReferenceTypeSerializer.serialize(ReferenceTypeSerializer.java:381)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:733)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:178)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:733)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeWithType(BeanSerializerBase.java:657)
+at io.trino.metadata.AbstractTypedJacksonModule$InternalTypeSerializer.serialize(AbstractTypedJacksonModule.java:116)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:733)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:178)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:733)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeWithType(BeanSerializerBase.java:657)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:735)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeWithType(BeanSerializerBase.java:657)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:735)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeWithType(BeanSerializerBase.java:657)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:735)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:178)
+at com.fasterxml.jackson.databind.ser.std.ReferenceTypeSerializer.serialize(ReferenceTypeSerializer.java:386)
+at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:733)
+at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:774)
+at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:178)
+at com.fasterxml.jackson.databind.ser.DefaultSerializerProvider._serialize(DefaultSerializerProvider.java:480)
+at com.fasterxml.jackson.databind.ser.DefaultSerializerProvider.serializeValue(DefaultSerializerProvider.java:400)
+at com.fasterxml.jackson.databind.ObjectWriter$Prefetch.serialize(ObjectWriter.java:1568)
+at com.fasterxml.jackson.databind.ObjectWriter._writeValueAndClose(ObjectWriter.java:1273)
+at com.fasterxml.jackson.databind.ObjectWriter.writeValueAsBytes(ObjectWriter.java:1163)
+at io.airlift.json.JsonCodec.toJsonBytes(JsonCodec.java:211)
+at io.trino.server.remotetask.HttpRemoteTask.sendUpdate(HttpRemoteTask.java:703)
+at io.trino.server.remotetask.HttpRemoteTask$$Lambda$11871/0x00000008039c9d08.run(Unknown Source)
+at io.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:80)
+at io.airlift.concurrent.BoundedExecutor$$Lambda$11850/0x00000008039c76a8.run(Unknown Source)
+at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.6/ThreadPoolExecutor.java:1136)
+at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@17.0.6/ThreadPoolExecutor.java:635)
+at java.lang.Thread.run(java.base@17.0.6/Thread.java:833)
+```
+Search in FasterXML repo showed that TypFactory cache implementation was changed in version 2.14 https://github.com/FasterXML/jackson-databind/pull/3531.
+There is also an open issue which is very similar to what I see https://github.com/FasterXML/jackson-module-scala/issues/428.
+I'm not sure it's completely the same case because in the heap dump I see that `LRUMap` capacity is 200 but actual size is 169 but I could be wrong. Maybe the issue is in low configured concurrency in https://github.com/FasterXML/jackson-databind/blob/jackson-databind-2.14.1/src/main/java/com/fasterxml/jackson/databind/util/LRUMap.java#L39
+

@@ -1,0 +1,84 @@
+[Bug] Cannot update Pulsar function in Pulsar standalone
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+**OS version:** Ubuntu 22.04
+**Pulsar version:** 2.11.0 (using apachepulsar/pulsar-all:2.11.0 Docker image)
+
+### Minimal reproduce step
+
+Run 2.11.0 standalone:
+
+```
+$ docker run -it apachepulsar/pulsar:2.11.0 bin/pulsar standalone
+```
+
+Go into the container and create an arbitrary Pulsar function `test_function.py`.
+
+Then register it:
+
+```
+$ bin/pulsar-admin functions create \
+  --py test_function.py \
+  --classname test_function.ExamplePulsarFunction \
+  --tenant public \
+  --namespace default \
+  --name test-function \
+  --inputs persistent://public/default/test-input-topic \
+  --output persistent://public/default/test-output-topic
+Created successfully
+```
+
+Now try to update it:
+
+```
+$ bin/pulsar-admin functions update \
+  --py test_function.py \
+  --classname test_function.ExamplePulsarFunction \
+  --tenant public \
+  --namespace default \
+  --name test-function \
+  --inputs persistent://public/default/test-input-topic \
+  --output persistent://public/default/test-output-topic
+```
+
+### What did you expect to see?
+
+I'd expect to see the `Updated successfully` message from updating a Pulsar function.
+
+### What did you see instead?
+
+I get the error
+
+```
+Package 'function://public/default/test-function@0' metadata already exists`.
+```
+
+The logs look a bit like this:
+
+```
+2023-03-06T06:34:58,426+0000 [pulsar-web-38-2] ERROR org.apache.pulsar.functions.worker.rest.api.FunctionsImpl - Failed process Function public/default/test-function package: 
+org.apache.pulsar.client.admin.PulsarAdminException$NotFoundException: Package 'function://public/default/test-function@0' metadata already exists
+        at org.apache.pulsar.client.admin.PulsarAdminException.wrap(PulsarAdminException.java:252) ~[org.apache.pulsar-pulsar-client-admin-api-2.11.0.jar:2.11.0]
+        at org.apache.pulsar.client.admin.internal.BaseResource.sync(BaseResource.java:316) ~[org.apache.pulsar-pulsar-client-admin-original-2.11.0.jar:2.11.0]
+        at org.apache.pulsar.client.admin.internal.PackagesImpl.upload(PackagesImpl.java:90) ~[org.apache.pulsar-pulsar-client-admin-original-2.11.0.jar:2.11.0]
+        at org.apache.pulsar.functions.worker.rest.api.ComponentImpl.getFunctionPackageLocation(ComponentImpl.java:411) ~[org.apache.pulsar-pulsar-functions-worker-2.11.0.jar:2.11.0]
+        at org.apache.pulsar.functions.worker.rest.api.FunctionsImpl.updateFunction(FunctionsImpl.java:459) ~[org.apache.pulsar-pulsar-functions-worker-2.11.0.jar:2.11.0]
+        at org.apache.pulsar.broker.admin.impl.FunctionsBase.updateFunction(FunctionsBase.java:326) ~[org.apache.pulsar-pulsar-broker-2.11.0.jar:2.11.0]
+        at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+        at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77) ~[?:?]
+        at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+        ...
+```
+
+### Anything else?
+
+As far as I can tell `ComponentImpl.getFunctionPackageLocation()` is getting called when updating the Pulsar function, but when non-BookKeeper package management is being used (which is the case for standalone) it looks like `PackagesManagementImpl.upload()` happens, and that checks whether metadata exists or not + throws an error if it doesn't...
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,116 @@
+Different values produced by quantilesDoublesSketchToQuantile with the same query
+Different values produced by quantilesDoublesSketchToQuantile with the same query
+
+### Affected Version
+
+0.22.1
+
+### Description
+
+I have a datasource that I'm trying to query using quantiles to get P60. But every time it produced different values
+
+
+Sample json query:
+```
+{
+  "dataSource": "datasource_name",
+  "dimensions": [
+    {
+      "dimension": "__time",
+      "outputName": "date",
+      "outputType": "LONG",
+      "type": "default"
+    },
+    {
+      "dimension": "dimension1",
+      "outputName": "dimension1",
+      "outputType": "STRING",
+      "type": "default"
+    },
+    {
+      "dimension": "dimension2",
+      "outputName": "dimension2",
+      "outputType": "STRING",
+      "type": "default"
+    }
+  ],
+  "granularity": {
+    "type": "all"
+  },
+  "filter": {
+    "fields": [
+      {
+        "dimension": "dimension1",
+        "values": [
+          "dimension1_filter"
+        ],
+        "type": "in"
+      },
+      {
+        "dimension": "dimension2",
+        "values": [
+          "dimension2_filter"
+        ],
+        "type": "in"
+      }
+    ],
+    "type": "and"
+  },
+    "aggregations": [
+        {
+            "name": "quantile_quantity",
+            "fieldName": "quantity",
+            "type": "quantilesDoublesSketch"
+        }
+    ],
+    "postAggregations": [
+        {
+            "name": "aggregated_quantity",
+            "field": {
+                "name": "aggregated_quantity",
+                "fieldName": "quantile_quantity",
+                "type": "fieldAccess"
+            },
+            "fraction": 0.6,
+            "type": "quantilesDoublesSketchToQuantile"
+        }
+    ],
+    "intervals": [
+        "2022-07-10/2022-07-17"
+    ],
+  "queryType": "groupBy"
+}
+```
+Sample of result
+```
+{
+        "aggregated_quantity": 0.8879,
+        "quantile_quantity": 7040
+    }
+```
+
+```
+{
+        "aggregated_quantity": 0.9017,
+        "quantile_quantity": 7040
+    }
+```
+
+```
+{
+        "aggregated_quantity": 0.8984,
+        "quantile_quantity": 7040
+    }
+```
+
+```
+{
+        "aggregated_quantity": 0.905,
+        "quantile_quantity": 7040
+    }
+```
+
+It is quite confusing. Is there some configuration I'm missing or is it a known issue?
+
+Thank you!
+Ruochen

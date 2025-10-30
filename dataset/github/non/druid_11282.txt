@@ -1,0 +1,33 @@
+Permission issues with docker-compose setup
+### Affected Version
+
+0.21.0
+
+### Description
+
+I tried to start up the docker-compose setup from https://github.com/apache/druid/blob/0.21.0/distribution/docker/docker-compose.yml but all the druid containers get permission errors when they try to access the filesystem:
+
+e.g. the broker
+```
+broker           | mkdir: can't create directory 'var/tmp': Permission denied
+broker           | mkdir: can't create directory 'var/druid/': Permission denied
+broker           | mkdir: can't create directory 'var/druid/': Permission denied
+broker           | mkdir: can't create directory 'var/druid/': Permission denied
+broker           | mkdir: can't create directory 'var/druid/': Permission denied
+broker           | mkdir: can't create directory 'var/druid/': Permission denied
+```
+
+Initially I thought the problem was that the "./storage" directory got created as root:root:
+```
+drwxr-xr-x 2 root  root  4.0K May 21 09:54 storage
+```
+
+But even after creating it manually as my own user (with id 1000 like the druid user at https://github.com/apache/druid/blob/0.21.0/distribution/docker/Dockerfile#L48), the druid containers still get the same permission errors.
+
+I think the trouble isn't with the storage volume (at /opt/data) but actually https://github.com/apache/druid/blob/0.21.0/distribution/docker/Dockerfile#L58 which mounts a new anonymous volume at /opt/druid/var. This volume is owned by root.
+
+The docker-compose replaces it with a named volume, but that's still owned by root. The chown and chmod done in the Dockerfile at https://github.com/apache/druid/blob/0.21.0/distribution/docker/Dockerfile#L51-L52 don't help because they only apply to the container filesystem as it was before the volumes got mounted.
+
+The problem seems similar to #11278.
+
+To be honest, I don't see how the docker-compose setup could ever have worked, and I'm not sure how to fix it either, except by having the container start as root, and having an entrypoint script handle the user creation and setting permissions on the target volumes. This is how e.g. the postgres container works.

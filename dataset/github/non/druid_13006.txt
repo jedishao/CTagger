@@ -1,0 +1,54 @@
+It seams that cache does not help Improve query efficiency
+**Druid Version:  apache-druid-0.23.0  single-server/xlarge**
+**historical heapsize: 256g**
+
+We were doing choosing database for  our system, and we did a performance test on druid, and found it seams that cache does not help Improve query efficiency.
+We submit multiple queries concurrently to druid with script like below
+```sh
+#!/bin/bash
+echo "input ts qs"
+ts=$1
+qs=$2
+QUEUE=`cat /opt/druid/luhw/table.txt.$ts`
+THREAD=$ts
+TIMEFILE=multi_druid_query.time${ts}_${qs}
+>$TIMEFILE
+rm -f ./druidResult/*
+
+
+TMPFIFO=/tmp/$$.fifo			         
+mkfifo $TMPFIFO                
+exec 5<>${TMPFIFO}             
+rm -rf ${TMPFIFO}             
+
+for((i=1;i<=$THREAD;i++))
+do
+   echo ;
+done >&5 
+
+for sqlFile in $QUEUE          
+do
+        read -u5        
+        {			
+        cat >./json/${sqlFile}_query.json <<EOF
+{"query": "select TradeTime AS ts,TradeTime as exch_ts,TradeVolume as sz,SAFE_DIVIDE(TradeAmount,TradeVolume)/10 as px from OPT_XDCE WHERE \"__time\" > '2022-08-08T00:00:00.000Z' and \"__time\" < '2022-08-08T23:59:59.999Z'  and idea_instrument='$sqlFile' order by __time asc"}
+EOF
+
+        (time curl -X 'POST' -H 'Content-Type:application/json' -d @/opt/druid/luhw/json/${sqlFile}_query.json http://admin:admin@192.168.1xx.xx:8888/druid/v2/sql 1>> druidResult/test_all_result.json)  2>> $TIMEFILE
+          
+        echo "" >&5    
+        } &
+done
+wait               
+exec 5>&-          
+exit 0
+```
+the core statement is `select TradeTime AS ts,TradeTime as exch_ts,TradeVolume as sz,SAFE_DIVIDE(TradeAmount,TradeVolume)/10 as px from OPT_XDCE WHERE \"__time\" > '2022-08-08T00:00:00.000Z' and \"__time\" < '2022-08-08T23:59:59.999Z'  and idea_instrument='$sqlFile' order by __time asc`
+
+and then I enable pre-cache and whole-cache one by one, and calculate average and maximum time of the queries, I found enable  and disable the cache efficiency is not much different, just like the result as follows
+
+![image](https://user-images.githubusercontent.com/25824870/187639340-4b185c69-1b20-42a4-a0c3-32f58194c3e4.png)
+
+Does anyone have any idea on this case? and is there anything wrong with the tests I did?
+
+Best wishes.

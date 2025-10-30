@@ -1,0 +1,77 @@
+Planning bug  about MATCH_RECOGNIZE clause
+The former issue raised by others is in slack: https://trinodb.slack.com/archives/C0305TQ05KL/p1667214424476489
+
+Now we can reproduce this error 100% in Trino 392, 394 and 402 again, here is the method:  
+
+```
+USE hive.ta;
+
+CREATE TABLE hive.ta.yyc_event_99 (                                                       
+    "#user_id" bigint,                                                                                                                                 
+    "#event_time" timestamp(3),                                                                                                                       
+    "$part_event" varchar,                                                                
+    "$part_date" varchar                                                                  
+ )                                                                                        
+ WITH (                                                                                   
+    format = 'ORC',                                                                       
+    partitioned_by = ARRAY['$part_event','$part_date']                                    
+ );
+
+
+insert into yyc_event_99 ("#user_id", "#event_time", "$part_event", "$part_date") 
+values (1, timestamp '2022-11-29', 'vip_levelup', '2022-11-29');
+
+
+SELECT virtual_user_id
+FROM
+  (
+   SELECT
+   "$part_event",
+   "#user_id" virtual_user_id
+   , "#event_time"
+   FROM
+     yyc_event_99
+   WHERE "$part_event" = 'vip_levelup' AND "$part_date" = '2022-11-29')
+  MATCH_RECOGNIZE (
+   PARTITION BY virtual_user_id
+   ORDER BY "#event_time" ASC
+   ONE ROW PER MATCH
+   AFTER MATCH SKIP PAST LAST ROW
+   PATTERN (((A+) (B+)))
+   DEFINE
+      A AS ("$part_event" IN ('vip_levelup')),
+      B AS (("$part_event" IN ('vip_levelup')) AND ("#event_time" > last(A."#event_time")))
+);
+```
+And the error stack trace is like this:  
+```
+Query 20221208_084341_01562_4iqtd failed: Node-level constant properties contain columns not present in node's output
+com.google.common.base.VerifyException: Node-level constant properties contain columns not present in node's output
+        at com.google.common.base.Verify.verify(Verify.java:126)
+        at io.trino.sql.planner.optimizations.PropertyDerivations.deriveProperties(PropertyDerivations.java:147)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.deriveProperties(AddExchanges.java:1321)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.deriveProperties(AddExchanges.java:1315)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.withDerivedProperties(AddExchanges.java:1310)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.rebaseAndDeriveProperties(AddExchanges.java:1294)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.visitPatternRecognition(AddExchanges.java:362)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.visitPatternRecognition(AddExchanges.java:146)
+        at io.trino.sql.planner.plan.PatternRecognitionNode.accept(PatternRecognitionNode.java:272)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.planChild(AddExchanges.java:1289)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.visitOutput(AddExchanges.java:192)
+        at io.trino.sql.planner.optimizations.AddExchanges$Rewriter.visitOutput(AddExchanges.java:146)
+        at io.trino.sql.planner.plan.OutputNode.accept(OutputNode.java:83)
+        at io.trino.sql.planner.optimizations.AddExchanges.optimize(AddExchanges.java:142)
+        at io.trino.sql.planner.optimizations.StatsRecordingPlanOptimizer.optimize(StatsRecordingPlanOptimizer.java:54)
+        at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:246)
+        at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:221)
+        at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:216)
+        at io.trino.execution.SqlQueryExecution.doPlanQuery(SqlQueryExecution.java:476)
+        at io.trino.execution.SqlQueryExecution.planQuery(SqlQueryExecution.java:457)
+        at io.trino.execution.SqlQueryExecution.start(SqlQueryExecution.java:398)
+        at io.trino.execution.SqlQueryManager.createQuery(SqlQueryManager.java:251)
+        at io.trino.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:143)
+        at io.trino.$gen.Trino_392_98_gda45add____20221208_075224_2.run(Unknown Source)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+        at java.base/java.lang.Thread.run(Thread.java:829)
+```

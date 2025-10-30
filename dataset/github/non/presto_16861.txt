@@ -1,0 +1,46 @@
+OrcWriter causing constant full GCs when creating partitioned table
+When inserting data to a small ORC table with many partitions, OrcWriter causes constant full GCs and sometimes leads to OOMs. The following query creates lineitem with about 15K partitions. The total number of rows is 60K and compressed size is just about 1.4MB, but the heap size reached over 12GB.
+```
+CREATE TABLE hive.tpch_tiny.lineitem_partitioned
+  (
+     "partkey",
+     "suppkey",
+     "linenumber",
+     "quantity",
+     "extendedprice",
+     "discount",
+     "tax",
+     "returnflag",
+     "linestatus",
+     "shipdate",
+     "commitdate",
+     "receiptdate",
+     "shipinstruct",
+     "shipmode",
+     "comment",
+     "orderkey"
+  ) 
+WITH ( partitioned_by = ARRAY['orderkey'], format = 'PARQUET' ) 
+AS
+SELECT "partkey",
+         "suppkey",
+         "linenumber",
+         "quantity",
+         "extendedprice",
+         "discount",
+         "tax",
+         "returnflag",
+         "linestatus",
+         "shipdate",
+         "commitdate",
+         "receiptdate",
+         "shipinstruct",
+         "shipmode",
+         "comment",
+         "orderkey"
+  FROM   tpch.tiny.lineitem; 
+```
+The top allocator is the SliceDictionaryColumnWriter. The problem is the expectedSize passed to SliceDictionaryBuilder constructor was 10000 no matter how small the number of rows are going to be written. The writer creates the SliceDictionaryBuilder for every string column for each partition and allocates 320KB for each of them. 
+![image](https://user-images.githubusercontent.com/33299678/136916649-f742c16c-947d-4dd7-a270-5a89841130b9.png)
+
+We can reduce the initial size, or defer the allocation to the first write.

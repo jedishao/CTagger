@@ -1,0 +1,39 @@
+Do not include a base table in UNION if the base table is completely materialized when expanding materialized view
+For SELECT from MV, when expanding the MV, if the partitionPredicates we get from doesn't include a base table, https://github.com/prestodb/presto/blob/cf2011ef6744fbba3325e02b6cc46cd15e644664/presto-main/src/main/java/com/facebook/presto/sql/analyzer/StatementAnalyzer.java#L1362
+we are returning the entire base table, which is not correct for UNION
+https://github.com/prestodb/presto/blob/3cde0e4ba66c77cb0e1a12605347a05f553279f5/presto-main/src/main/java/com/facebook/presto/sql/analyzer/PredicateStitcher.java#L148-L150
+
+It will result in duplicate records for UNION. We should include the base table for JOIN though.
+
+Ex., supposed my_mv definition contains UNION
+```sql
+CREATE MATERIALIZED VIEW my_mv
+AS SELECT my_col
+FROM my_base_a
+WHERE ds = '2021-06-01'
+
+UNION ALL
+
+SELECT my_col
+FROM my_base_b
+WHERE ds = '2021-06-02'
+```
+When my_mv partition '2021-06-01' is materialized, SELECT from MV should skip my_base_a and return
+```sql
+SELECT *
+FROM my_mv
+```
+should return
+```sql
+SELECT *
+FROM (
+    SELECT my_col
+    FROM my_base_b
+    WHERE ds = '2021-06-02'
+
+    UNION ALL
+
+    SELECT *
+    FROM my_mv
+) my_mv
+```

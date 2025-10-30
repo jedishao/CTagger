@@ -1,0 +1,132 @@
+Topic can't reconnection in sentinel,when have too much Topic.
+When subscriptionsPerConnection=5 and create five topic, topic component will not reconnect.
+In example, topic will not work when topicNumTest = subscriptionsPerConnection and run 'debug sleep 50' to fire sentinel failover.
+Here is example,redisson version is 3.17.3:
+
+package org.test;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import org.redisson.Redisson;
+import org.redisson.api.RTopic;
+import org.redisson.api.RedissonClient;
+import org.redisson.api.listener.StatusListener;
+import org.redisson.client.codec.BaseCodec;
+import org.redisson.client.protocol.Decoder;
+import org.redisson.client.protocol.Encoder;
+import org.redisson.config.Config;
+import org.redisson.config.ReadMode;
+import org.redisson.config.SubscriptionMode;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Scanner;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+
+public class Main {
+
+
+    public static byte[] readByteFromBuf(ByteBuf buf){
+        final byte[] dataByte = new byte[buf.readableBytes()];
+        buf.readBytes(dataByte);
+        return dataByte;
+    }
+
+    public static BaseCodec STRING_CODEC = new BaseCodec() {
+        private final Encoder encoder = in -> {
+            var data = in.toString().getBytes(StandardCharsets.UTF_8);
+            ByteBuf out = ByteBufAllocator.DEFAULT.buffer();
+            out.writeBytes(data);
+            return out;
+        };
+
+        private final Decoder<Object> decoder = (buf, state) -> {
+            var data = readByteFromBuf(buf);
+            return new String(data,StandardCharsets.UTF_8);
+        };
+
+        @Override
+        public Decoder<Object> getValueDecoder() {
+            return decoder;
+        }
+
+        @Override
+        public Encoder getValueEncoder() {
+            return encoder;
+        }
+    };
+
+
+    static RedissonClient createClient(){
+        Config config = new Config();
+        config.useSentinelServers()
+                .setUsername("*********")
+                .setPassword("**********")
+                .setReadMode(ReadMode.MASTER)
+                .setSubscriptionMode(SubscriptionMode.MASTER)
+                .setMasterConnectionPoolSize(90)
+                .setMasterConnectionMinimumIdleSize(30)
+                .setSlaveConnectionPoolSize(90)
+                .setSlaveConnectionMinimumIdleSize(30)
+                .setSubscriptionsPerConnection(5)
+                .setSubscriptionConnectionPoolSize(90)
+                .setSubscriptionConnectionMinimumIdleSize(10)
+                .setMasterName("ecomaster")
+                .setSentinelUsername("**********")
+                .setSentinelPassword("*********")
+                .setSentinelAddresses(List.of(
+                        "redis://192.168.217.129:26379",
+                        "redis://192.168.217.130:26379",
+                        "redis://192.168.217.131:26379"
+                ));
+        return Redisson.create(config);
+    }
+
+    private static RTopic createTopic(RedissonClient client ,int idx){
+        var topic = client.getTopic("TestTopic"+idx,STRING_CODEC);
+        topic.addListener(new StatusListener() {
+            @Override
+            public void onSubscribe(String channel) {
+                System.out.println(LocalDateTime.now()+"#######################");
+            }
+            @Override
+            public void onUnsubscribe(String channel) {
+            }
+        });
+        topic.addListener(String.class,((channel, msg) -> {
+            System.out.println(LocalDateTime.now()+"==========="+msg);
+        }));
+        return topic;
+    }
+
+
+    public static void main(String[] args) {
+        int topicNumTest = 6;
+
+        RedissonClient client = createClient();
+
+        RTopic[] topics = new RTopic[topicNumTest];
+        for(int i=0;i<topicNumTest;i++){
+            topics[i] = createTopic(client,i);
+        }
+
+        try(Scanner scanner = new Scanner(System.in)){
+            while(true){
+                var command = scanner.nextLine();
+                if(command.startsWith("p#")){
+                    var msg = UUID.randomUUID().toString();
+                    int selectTopicIdx = ThreadLocalRandom.current().nextInt(topicNumTest);
+                    topics[selectTopicIdx].publish(msg);
+                }
+                else if(command.startsWith("exit#")){
+                    return;
+                }
+            }
+        }
+
+
+    }
+
+}

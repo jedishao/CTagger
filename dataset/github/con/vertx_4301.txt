@@ -1,0 +1,47 @@
+Thread blocked while try closing a mongoclient
+hi everybody,
+
+I have an app that use multiple databases, so I create multiple connections and keep them in a concurrenthashmap.
+If a connection doesn't exist I simply create a new one and put it into that map, and we will close and remove some of the client if that task get done.
+After many rounds of the create-close-remove operations, exception happens while close some of that client, it says thread has been blocked.
+Why close a mongo client  end up with thread block for that long period of time,  how can I avoid this problem from happen?
+
+THX!
+
+Vertx version: 4.2.3
+Java version : 1.8.0_201
+
+02:10:05.626 WARN  i.v.core.impl.BlockedThreadChecker - Thread Thread[vert.x-eventloop-thread-27,5,main] has been blocked for 5058 ms, time limit is 2000 ms
+io.vertx.core.VertxException: Thread blocked
+	at sun.misc.Unsafe.park(Native Method)
+	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:997)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1304)
+	at java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)
+	at com.mongodb.internal.connection.AsynchronousChannelStream$FutureAsyncCompletionHandler.get(AsynchronousChannelStream.java:317)
+	at com.mongodb.internal.connection.AsynchronousChannelStream$FutureAsyncCompletionHandler.getRead(AsynchronousChannelStream.java:312)
+	at com.mongodb.internal.connection.AsynchronousChannelStream.read(AsynchronousChannelStream.java:151)
+	at com.mongodb.internal.connection.InternalStreamConnection.receiveResponseBuffers(InternalStreamConnection.java:648)
+	at com.mongodb.internal.connection.InternalStreamConnection.receiveMessageWithAdditionalTimeout(InternalStreamConnection.java:513)
+	at com.mongodb.internal.connection.InternalStreamConnection.receiveCommandMessageResponse(InternalStreamConnection.java:356)
+	at com.mongodb.internal.connection.InternalStreamConnection.sendAndReceive(InternalStreamConnection.java:280)
+	at com.mongodb.internal.connection.CommandHelper.sendAndReceive(CommandHelper.java:83)
+	at com.mongodb.internal.connection.CommandHelper.executeCommand(CommandHelper.java:33)
+	at com.mongodb.internal.connection.InternalStreamConnectionInitializer.initializeConnectionDescription(InternalStreamConnectionInitializer.java:107)
+	at com.mongodb.internal.connection.InternalStreamConnectionInitializer.initialize(InternalStreamConnectionInitializer.java:62)
+	at com.mongodb.internal.connection.InternalStreamConnection.open(InternalStreamConnection.java:144)
+	at com.mongodb.internal.connection.UsageTrackingInternalConnection.open(UsageTrackingInternalConnection.java:51)
+	at com.mongodb.internal.connection.DefaultConnectionPool$PooledConnection.open(DefaultConnectionPool.java:431)
+	at com.mongodb.internal.connection.DefaultConnectionPool.get(DefaultConnectionPool.java:115)
+	at com.mongodb.internal.connection.DefaultConnectionPool.get(DefaultConnectionPool.java:100)
+	at com.mongodb.internal.connection.DefaultServer.getConnection(DefaultServer.java:92)
+	at com.mongodb.internal.session.ServerSessionPool.endClosedSessions(ServerSessionPool.java:156)
+	at com.mongodb.internal.session.ServerSessionPool.close(ServerSessionPool.java:103)
+	at com.mongodb.internal.async.client.AsyncMongoClientImpl.close(AsyncMongoClientImpl.java:119)
+	at com.mongodb.reactivestreams.client.internal.MongoClientImpl.close(MongoClientImpl.java:65)
+	at io.vertx.ext.mongo.impl.MongoClientImpl$MongoHolder.close(MongoClientImpl.java:1283)
+	at io.vertx.ext.mongo.impl.MongoClientImpl.close(MongoClientImpl.java:132)
+	at io.vertx.ext.mongo.impl.MongoClientImpl.close(MongoClientImpl.java:1243)
+	at io.vertx.reactivex.ext.mongo.MongoClient.close(MongoClient.java:1921)
+	at io.vertx.reactivex.ext.mongo.MongoClient.close(MongoClient.java:1928)

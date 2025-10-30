@@ -1,0 +1,58 @@
+Service can't connect to Redis slave: java.util.concurrent.CompletionException: org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 21 of 24 were initialized.
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+
+**Expected Behavior:**
+After Upgrading Azure redis 4 to Azure Redis 6, redisson should be able to connect to nodes normally.
+
+**Actual Behavior:**
+Redisson is not able to connect to slave with the below exception:
+java.util.concurrent.CompletionException: org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 21 of 24 were initialized. Redis server: xx.xxx.xx.x/xx.xxx.xx.x:xxxxx
+    at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.completeThrowable(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture$UniAccept.tryFire(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.postComplete(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source)
+    at org.redisson.connection.pool.ConnectionPool.lambda$createConnection$1(ConnectionPool.java:154)
+    at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.postComplete(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source)
+    at org.redisson.connection.pool.ConnectionPool.promiseFailure(ConnectionPool.java:317)
+    at org.redisson.connection.pool.ConnectionPool.lambda$createConnection$7(ConnectionPool.java:276)
+    at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.postComplete(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(Unknown Source)
+    at org.redisson.client.RedisClient$1$2.run(RedisClient.java:250)
+    at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98)
+    at io.netty.util.concurrent.PromiseTask.run(PromiseTask.java:106)
+    at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:174)
+    at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:167)
+    at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:470)
+    at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569)
+    at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+    at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+    at java.base/java.lang.Thread.run(Unknown Source)
+Caused by: org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 21 of 24 were initialized. Redis server: xx.xxx.xx.x/xx.xxx.xx.x:xxxxx
+    at org.redisson.connection.pool.ConnectionPool.lambda$createConnection$1(ConnectionPool.java:153)
+    ... 21 common frames omitted
+Caused by: java.util.concurrent.CompletionException: io.netty.channel.ConnectTimeoutException: connection timed out: xx.xxx.xx.x/xx.xxx.xx.x:xxxxx
+    at java.base/java.util.concurrent.CompletableFuture.encodeRelay(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture.completeRelay(Unknown Source)
+    at java.base/java.util.concurrent.CompletableFuture$UniRelay.tryFire(Unknown Source)
+    ... 13 common frames omitted
+Caused by: io.netty.channel.ConnectTimeoutException: connection timed out: xx.xxx.xx.x/xx.xxx.xx.x:xxxxx
+    at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe$1.run(AbstractNioChannel.java:261)
+    at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98)
+    at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:153)
+    ... 8 common frames omitted
+
+**Steps To Reproduce:**
+Migrate from Azure Redis 4 to Azure Redis 6
+
+**Redisson version:**
+3.17.3

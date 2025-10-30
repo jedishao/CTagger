@@ -1,0 +1,65 @@
+Query status is always Running
+I use the official test case, but the task status always shows running Later, I found that the stage of the task has been in the state of flushing rather than finish. How can I solve this problem
+
+`    
+private DistributedQueryRunner queryRunner;
+
+    @BeforeClass
+    public void setUp()
+            throws Exception
+    {
+        queryRunner = DistributedQueryRunner.builder(testSessionBuilder().build())
+                .setExtraProperties(ImmutableMap.of("http-server.http.port", "8443"))
+                .build();
+        Map<String, String> connectorProperties = ImmutableMap.of();
+        connectorProperties = new HashMap<>(ImmutableMap.copyOf(connectorProperties));
+        connectorProperties.putIfAbsent("connection-url", "jdbc:mysql://XXXXX");
+        connectorProperties.putIfAbsent("connection-user", "XXXX");
+        connectorProperties.putIfAbsent("connection-password", "XXXX");
+
+        queryRunner.installPlugin(new MySqlPlugin());
+        queryRunner.createCatalog("mysql", "mysql", connectorProperties);
+    }
+
+    public static Session.SessionBuilder testSessionBuilder()
+    {
+        return testSessionBuilder(new SessionPropertyManager());
+    }
+
+    private static final QueryIdGenerator queryIdGenerator = new QueryIdGenerator();
+    public static Session.SessionBuilder testSessionBuilder(SessionPropertyManager sessionPropertyManager)
+    {
+        return Session.builder(sessionPropertyManager)
+                .setQueryId(queryIdGenerator.createNextQueryId())
+                .setIdentity(Identity.ofUser("trino"))
+                .setTimeZoneKey(TimeZoneKey.getTimeZoneKey("XXXXX"))
+                .setLocale(ENGLISH)
+                .setUserAgent("agent");
+    }
+
+    @AfterClass(alwaysRun = true)
+    public void tearDown()
+    {
+        queryRunner.close();
+        queryRunner = null;
+    }
+
+    public void testQueryCpuLimit() throws Exception
+    {
+
+        QueryId queryId = createQuery(queryRunner, queryRunner.getDefaultSession(), "SELECT * FROM mysql.meta_manager.meta_connect_info");
+
+        waitForQueryState(queryRunner, queryId, RUNNING);
+
+        QueryManager queryManager = queryRunner.getCoordinator().getQueryManager();
+
+        QueryInfo fullQueryInfo = queryManager.getFullQueryInfo(queryId);
+    }
+`
+![7DE8BB92-0543-417a-A3A7-EFB23CE8F983](https://user-images.githubusercontent.com/48077349/179915700-051074c5-f675-472e-95f7-a8e1b9431f9f.png)
+
+![BF45D09A-F94C-4144-A673-6D96F295C9DB](https://user-images.githubusercontent.com/48077349/179915755-eb5a91ac-c815-44c1-a90b-583562e05b21.png)
+
+![B6463E90-7627-4a75-BA6B-5A8005DD684E](https://user-images.githubusercontent.com/48077349/179915831-2e3c24d0-e240-4774-85cf-ce94d40ae63c.png)
+
+

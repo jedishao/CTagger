@@ -1,0 +1,50 @@
+target and filter types do not match: (ConnectorSession,Block,Object)Slice, (Block,int)Slice
+Recently, I upgrade presto from 336 to 339, this sample query couldn't work anymore.
+```
+SELECT 
+data_map[max_id]
+FROM ( 
+select 
+map_agg(
+	CAST(acc.id as VARCHAR), 
+	map(array['name'],
+		array[CAST(acc.name as VARCHAR)])
+) as data_map,
+max(CAST(acc.id as VARCHAR)) as max_id
+FROM account acc GROUP BY acc.group 
+)
+```
+**exception**:
+```
+Caused by: java.lang.IllegalArgumentException: target and filter types do not match: (ConnectorSession,Block,Object)Slice, (Block,int)Slice
+        at java.base/java.lang.invoke.MethodHandleStatics.newIllegalArgumentException(MethodHandleStatics.java:129)
+        at java.base/java.lang.invoke.MethodHandles.collectArgumentsChecks(MethodHandles.java:4045)
+        at java.base/java.lang.invoke.MethodHandles.collectArguments(MethodHandles.java:4022)
+        at io.prestosql.metadata.ScalarFunctionAdapter.adaptParameter(ScalarFunctionAdapter.java:450)
+        at io.prestosql.metadata.ScalarFunctionAdapter.adapt(ScalarFunctionAdapter.java:216)
+        at io.prestosql.metadata.FunctionInvokerProvider.createFunctionInvoker(FunctionInvokerProvider.java:76)
+        at io.prestosql.metadata.FunctionRegistry.getScalarFunctionInvoker(FunctionRegistry.java:873)
+        at io.prestosql.metadata.MetadataManager.getScalarFunctionInvoker(MetadataManager.java:1583)
+        at io.prestosql.sql.gen.BytecodeUtils.generateFullInvocation(BytecodeUtils.java:240)
+        at io.prestosql.sql.gen.BytecodeGeneratorContext.generateFullCall(BytecodeGeneratorContext.java:99)
+        at io.prestosql.sql.gen.FunctionCallCodeGenerator.generateExpression(FunctionCallCodeGenerator.java:29)
+        at io.prestosql.sql.gen.RowExpressionCompiler$Visitor.visitCall(RowExpressionCompiler.java:94)
+        at io.prestosql.sql.gen.RowExpressionCompiler$Visitor.visitCall(RowExpressionCompiler.java:80)
+        at io.prestosql.sql.relational.CallExpression.accept(CallExpression.java:90)
+        at io.prestosql.sql.gen.RowExpressionCompiler.compile(RowExpressionCompiler.java:77)
+        at io.prestosql.sql.gen.RowExpressionCompiler.compile(RowExpressionCompiler.java:72)
+        at io.prestosql.sql.gen.PageFunctionCompiler.generateEvaluateMethod(PageFunctionCompiler.java:361)
+        at io.prestosql.sql.gen.PageFunctionCompiler.definePageProjectWorkClass(PageFunctionCompiler.java:245)
+        at io.prestosql.sql.gen.PageFunctionCompiler.compileProjectionInternal(PageFunctionCompiler.java:193)
+        at io.prestosql.sql.gen.PageFunctionCompiler.lambda$new$0(PageFunctionCompiler.java:127)
+        at com.google.common.cache.CacheLoader$FunctionToCacheLoader.load(CacheLoader.java:165)
+        at com.google.common.cache.LocalCache$LoadingValueReference.loadFuture(LocalCache.java:3529)
+        at com.google.common.cache.LocalCache$Segment.loadSync(LocalCache.java:2278)
+        at com.google.common.cache.LocalCache$Segment.lockedGetOrLoad(LocalCache.java:2155)
+        at com.google.common.cache.LocalCache$Segment.get(LocalCache.java:2045)
+        ... 88 more
+```
+**Analysis**
+It seems related to https://github.com/prestosql/presto/pull/4343
+in #4343, `Slice` type is removed from `io.prestosql.operator.scalar.MapSubscriptOperator#specialize`, so the targetHandler is ObjectHandler,
+but it didn't removed from `io.prestosql.metadata.ScalarFunctionAdapter#getBlockValue`, it still return SliceHandler 

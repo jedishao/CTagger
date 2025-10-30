@@ -1,0 +1,78 @@
+Discuss about reverting #16937 "skip mis-configured resource usage(>100%) in load balancer"
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+https://github.com/apache/pulsar/pull/16937 has corrected the misconfigured resource usage. But if the user configs the wrong one, the error log will print all the time. See the below logs:
+
+![image](https://user-images.githubusercontent.com/6297296/203512419-5e47de97-67cf-4cb3-bc63-c6d39472b7ad.png)
+
+And after diving into the modification, we find out that it's a breaking change. 
+Before #16937,  the below test could pass, but after #16937, the below test fails
+```
+
+    @Test
+    public void testBrokerThreshold() {
+        LoadData loadData = new LoadData();
+        LocalBrokerData broker1 = new LocalBrokerData();
+        broker1.setCpu(new ResourceUsage(70, 100));    // Need to set `loadBalancerCPUResourceWeight=2`
+        broker1.setMemory(new ResourceUsage(10, 100));
+        broker1.setDirectMemory(new ResourceUsage(10, 100));
+        broker1.setBandwidthIn(new ResourceUsage(500, 1000));
+        broker1.setBandwidthOut(new ResourceUsage(500, 1000));
+        broker1.setBundles(Sets.newHashSet("bundle-1", "bundle-2"));
+        broker1.setMsgThroughputIn(Double.MAX_VALUE);
+
+        LocalBrokerData broker2 = new LocalBrokerData();
+        broker2.setCpu(new ResourceUsage(10, 100));
+        broker2.setMemory(new ResourceUsage(10, 100));
+        broker2.setDirectMemory(new ResourceUsage(10, 100));
+        broker2.setBandwidthIn(new ResourceUsage(500, 1000));
+        broker2.setBandwidthOut(new ResourceUsage(500, 1000));
+        broker2.setBundles(Sets.newHashSet("bundle-3", "bundle-4"));
+
+        BundleData bundleData = new BundleData();
+        TimeAverageMessageData timeAverageMessageData = new TimeAverageMessageData();
+        timeAverageMessageData.setMsgThroughputIn(1000);
+        timeAverageMessageData.setMsgThroughputOut(1000);
+        bundleData.setShortTermData(timeAverageMessageData);
+        loadData.getBundleData().put("bundle-1", bundleData);
+
+        loadData.getBrokerData().put("broker-1", new BrokerData(broker1));
+        loadData.getBrokerData().put("broker-2", new BrokerData(broker2));
+
+        assertFalse(thresholdShedder.findBundlesForUnloading(loadData, conf).isEmpty());
+    }
+```
+
+This means the real CPU usage is only 70%, but we configure loadBalancerCPUResourceWeight= 2, so the current CPU usage is 140%. This will cause the broker to unload some bundles before https://github.com/apache/pulsar/pull/16937. But now, it won't.
+
+And since https://github.com/apache/pulsar/pull/6772 has supported configured resources weight, #16937 breaks the case #6772 mentioned 
+
+> It is hard to determine the threshold value, the default threshold is 85%. But for a broker, the max resource usage is few to reach 85%, which will lead to unbalanced traffic between brokers. The heavy traffic broker's read cache hit rate will decrease.
+
+> When you restart the most brokers of the pulsar cluster at the same time, the whole traffic in the cluster will goes to the rest brokers. The restarted brokers will have no traffic for a long time, due to the rest brokers max resource usage not reach the threshold.
+
+
+
+So I think we need to revert #16937
+
+
+### Solution
+
+_No response_
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

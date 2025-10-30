@@ -1,0 +1,105 @@
+java.lang.NoSuchMethodError: com.fasterxml.jackson.core.io.ContentReference 
+The session manager failed to start when trying to use version 3.17.4. Starts with 3.16.4 but does not write session data into Redis.
+
+### Expected behavior
+Success to start component 
+
+### Actual behavior
+Failed to start component 
+
+### Steps to reproduce or test ase
+Use:
+- redisson-all-3.17.4.jar
+- redisson-tomcat-9-3.17.4.jar
+
+### Redis version
+Redis server v=5.0.7 sha=00000000:0 malloc=jemalloc-5.2.1 bits=64 build=66bd629f924ac924
+
+### Redisson version 
+- 3.17.4
+
+### Redisson configuration
+
+- Server version: Apache Tomcat/9.0.58
+- Server number:  9.0.58.0
+- OS Name:        Linux
+- OS Version:     5.4.0-113-generic
+- Architecture:   amd64
+- JVM Version:    11.0.15+10-Ubuntu-0ubuntu0.20.04.1
+- JVM Vendor:     Private Build
+
+#### Tomcat context.xml
+
+```xml
+<Manager className="org.redisson.tomcat.RedissonSessionManager" configPath="${catalina.base}/conf/redisson.yaml" readMode="REDIS" updateMode="AFTER_REQUEST" broadcastSessionEvents="true" keyPrefix=""/>
+```
+
+#### redisson.yaml
+
+```yaml
+singleServerConfig:
+  address: "redis://127.0.0.1:6379"
+  database: 0
+```
+
+### Bug trace
+
+```
+The session manager failed to start
+org.apache.catalina.LifecycleException: Failed to start component [RedissonSessionManager[StandardEngine[Catalina].StandardHost[localhost].StandardContext[]]]
+	at org.apache.catalina.util.LifecycleBase.handleSubClassException(LifecycleBase.java:440) ~[catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:198) ~[catalina.jar:9.0.58]
+	at org.apache.catalina.core.StandardContext.startInternal(StandardContext.java:5247) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.ContainerBase.addChildInternal(ContainerBase.java:726) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.ContainerBase.addChild(ContainerBase.java:698) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.StandardHost.addChild(StandardHost.java:696) [catalina.jar:9.0.58]
+	at org.apache.catalina.startup.HostConfig.deployDirectory(HostConfig.java:1185) [catalina.jar:9.0.58]
+	at org.apache.catalina.startup.HostConfig$DeployDirectory.run(HostConfig.java:1933) [catalina.jar:9.0.58]
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515) [?:?]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:264) [?:?]
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:75) [tomcat-util.jar:9.0.58]
+	at java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:118) [?:?]
+	at org.apache.catalina.startup.HostConfig.deployDirectories(HostConfig.java:1095) [catalina.jar:9.0.58]
+	at org.apache.catalina.startup.HostConfig.deployApps(HostConfig.java:477) [catalina.jar:9.0.58]
+	at org.apache.catalina.startup.HostConfig.start(HostConfig.java:1618) [catalina.jar:9.0.58]
+	at org.apache.catalina.startup.HostConfig.lifecycleEvent(HostConfig.java:319) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.fireLifecycleEvent(LifecycleBase.java:123) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.setStateInternal(LifecycleBase.java:423) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.setState(LifecycleBase.java:366) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:946) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.StandardHost.startInternal(StandardHost.java:835) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1396) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1386) [catalina.jar:9.0.58]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:264) [?:?]
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:75) [tomcat-util.jar:9.0.58]
+	at java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:140) [?:?]
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:919) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.StandardEngine.startInternal(StandardEngine.java:263) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.StandardService.startInternal(StandardService.java:432) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183) [catalina.jar:9.0.58]
+	at org.apache.catalina.core.StandardServer.startInternal(StandardServer.java:927) [catalina.jar:9.0.58]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183) [catalina.jar:9.0.58]
+	at org.apache.catalina.startup.Catalina.start(Catalina.java:772) [catalina.jar:9.0.58]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+	at org.apache.catalina.startup.Bootstrap.start(Bootstrap.java:345) [bootstrap.jar:9.0.58]
+	at org.apache.catalina.startup.Bootstrap.main(Bootstrap.java:476) [bootstrap.jar:9.0.58]
+Caused by: java.lang.NoSuchMethodError: 'com.fasterxml.jackson.core.io.ContentReference com.fasterxml.jackson.dataformat.yaml.YAMLFactory._createContentReference(java.lang.Object)'
+	at com.fasterxml.jackson.dataformat.yaml.YAMLFactory.createParser(YAMLFactory.java:374) ~[redisson-all-3.17.4.jar:3.17.4]
+	at com.fasterxml.jackson.dataformat.yaml.YAMLFactory.createParser(YAMLFactory.java:348) ~[redisson-all-3.17.4.jar:3.17.4]
+	at com.fasterxml.jackson.dataformat.yaml.YAMLFactory.createParser(YAMLFactory.java:15) ~[redisson-all-3.17.4.jar:3.17.4]
+	at com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:3548) ~[jackson-databind-2.12.6.jar:2.12.6]
+	at com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:3516) ~[jackson-databind-2.12.6.jar:2.12.6]
+	at org.redisson.config.ConfigSupport.fromYAML(ConfigSupport.java:160) ~[redisson-all-3.17.4.jar:3.17.4]
+	at org.redisson.config.Config.fromYAML(Config.java:670) ~[redisson-all-3.17.4.jar:3.17.4]
+	at org.redisson.tomcat.RedissonSessionManager.buildClient(RedissonSessionManager.java:343) ~[redisson-tomcat-9-3.17.4.jar:3.17.4]
+	at org.redisson.tomcat.RedissonSessionManager.startInternal(RedissonSessionManager.java:231) ~[redisson-tomcat-9-3.17.4.jar:3.17.4]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183) ~[catalina.jar:9.0.58]
+	... 40 more
+```
+

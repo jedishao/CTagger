@@ -1,0 +1,53 @@
+Duplicated data with same publish_ts but different message id!
+**Setup**
+- Pulsar 2.7.0, 3-node cluster
+- Pulsar websocket api embedded within broker
+
+**Describe the bug**
+Client device is using websocket to send event-trigger data to pulsar. Network transmission from device to pulsar is in excess of 100ms on average. There is a retry mechanism if fail to send data. This is the snippet:
+
+```python
+...
+self.wsDict[fulltopic] = websocket.create_connection(fulltopic)
+jsd = json.dumps({
+    'payload' : base64.b64encode(json.dumps(data['Data'], ensure_ascii=False).encode('utf-8')).decode('utf-8'),
+    'context' : 5
+})
+self.wsDict[fulltopic].send(jsd)
+res = self.wsDict[fulltopic].recv()
+if self.wsDict[fulltopic].connected:
+    response = json.loads(res)
+    if response['result'] == 'ok':
+        print('ok')
+    else:
+        # retry mechanism
+else:
+    # retry mechanism
+...
+```
+
+Checking back pulsar table, I found sometimes there are **duplicated data of the same publish timestamp but different message id**. Below are the relevant rows, in format (message id, publish timestamp, data):
+```
+...
+(37970857,97,-1,-1) :: 1658156520335 :: b'{"EventStartUTCTime": "2022-07-18 15:01:53", "EventEndLocalTime": "2022-07-18 17:01:53", "EventStartTime": 1658156513, "PeopleId": 1, "EventEndUTCTime": "2022-07-18 15:01:53", "UploadedLocalDateTime": "2022-07-18 17:01:53", "EventEndTime": 1658156513, "EventStartLocalTime": "2022-07-18 17:01:53", "UploadedUTCDateTime": "2022-07-18 15:01:53", "PeopleTypeId": 1}'
+...
+(37970857,149,-1,-1) :: 1658156520335 :: b'{"EventStartUTCTime": "2022-07-18 15:01:53", "EventEndLocalTime": "2022-07-18 17:01:53", "EventStartTime": 1658156513, "PeopleId": 1, "EventEndUTCTime": "2022-07-18 15:01:53", "UploadedLocalDateTime": "2022-07-18 17:01:53", "EventEndTime": 1658156513, "EventStartLocalTime": "2022-07-18 17:01:53", "UploadedUTCDateTime": "2022-07-18 15:01:53", "PeopleTypeId": 1}'
+...
+```
+
+I rule out the possibility of client device executing the retry mechanism because it is physically not possible to send the data 2 times at the exact timestamp up to the milliseconds. 
+
+This issue happens randomly on my other client devices as well, sometimes up to 3 times duplicates.
+
+I have not set [`message deduplication`](https://pulsar.apache.org/docs/cookbooks-deduplication/) on the pulsar server. I do not think it will help because [wiki](https://github.com/apache/pulsar/wiki/PIP-6:-Guaranteed-Message-Deduplication#design) says deduplication is based on message `sequenceId`, which are clearly different above! Plus, deduplication seems to be not supported on pulsar websocket api (correct me if I am wrong).
+
+
+
+
+**To Reproduce**
+Unfortunately, I do not know a reliable way to reproduce the issue. I have tried simulate a device spamming messages into pulsar at quick succession. It happened only 2 times out of 20,000 sends, rather randomly.
+
+**Expected behavior**
+Duplicate should not happen.
+
+What can I do to solve this / diagnose further?

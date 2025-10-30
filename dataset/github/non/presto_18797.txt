@@ -1,0 +1,66 @@
+Failed to query hudi table using presto CLI
+### I want to query hudi table stored in minio s3 bucket. But it failed.
+I have sycned hudi table to Hive metastore by flink, and I can run query such as show tables successfully.
+```
+presto:default> show tables;
+       Table
+-------------------
+ sink_hudi_hive_ro
+ sink_hudi_hive_rt
+```
+
+But when I run `select * from table_name`, the error is as follows.
+```
+presto:default> select * from sink_hudi_hive_ro;
+Query 20221212_080105_00003_hhab6 failed: java.lang.ClassNotFoundException: Class org.apache.hadoop.fs.s3a.S3AFileSystem not found
+```
+
+**The enviroment:**
+presto: 0.277
+hadoop: 3.13
+hive: 3.12
+hudi: 0.12
+
+If I put hadoop-aws-3.1.3.jar and aws-java-sdk-bundle-1.11.271.jar into plugin hudi folder, when I start the  presto service,
+error occurs:
+```
+ERROR   main    com.facebook.presto.server.PrestoServer Guice configuration errors:
+
+1) Error: Error creating instance of configuration class [com.facebook.presto.hive.s3.HiveS3Config]
+
+1 error
+com.google.inject.ConfigurationException: Guice configuration errors:
+
+1) Error: Error creating instance of configuration class [com.facebook.presto.hive.s3.HiveS3Config]
+
+1 error
+        at com.facebook.airlift.configuration.Problems.getException(Problems.java:127)
+        at com.facebook.airlift.configuration.Problems.exceptionFor(Problems.java:141)
+        at com.facebook.airlift.configuration.ConfigurationFactory.newInstance(ConfigurationFactory.java:439)
+        at com.facebook.airlift.configuration.ConfigurationFactory.getDefaultConfig(ConfigurationFactory.java:284)
+        at com.facebook.airlift.configuration.ConfigurationInspector$ConfigRecord.<init>(ConfigurationInspector.java:85)
+        at com.facebook.airlift.configuration.ConfigurationInspector$ConfigRecord.<init>(ConfigurationInspector.java:66)
+        at com.facebook.airlift.configuration.ConfigurationInspector.inspect(ConfigurationInspector.java:38)
+        at com.facebook.airlift.bootstrap.Bootstrap.makePrinterForConfiguration(Bootstrap.java:289)
+        at com.facebook.airlift.bootstrap.Bootstrap.logConfiguration(Bootstrap.java:266)
+        at com.facebook.airlift.bootstrap.Bootstrap.initialize(Bootstrap.java:222)
+        at com.facebook.presto.hudi.HudiConnectorFactory.create(HudiConnectorFactory.java:96)
+        at com.facebook.presto.connector.ConnectorManager.createConnector(ConnectorManager.java:388)
+        at com.facebook.presto.connector.ConnectorManager.addCatalogConnector(ConnectorManager.java:235)
+        at com.facebook.presto.connector.ConnectorManager.createConnection(ConnectorManager.java:227)
+        at com.facebook.presto.connector.ConnectorManager.createConnection(ConnectorManager.java:213)
+        at com.facebook.presto.metadata.StaticCatalogStore.loadCatalog(StaticCatalogStore.java:123)
+        at com.facebook.presto.metadata.StaticCatalogStore.loadCatalog(StaticCatalogStore.java:98)
+        at com.facebook.presto.metadata.StaticCatalogStore.loadCatalogs(StaticCatalogStore.java:80)
+        at com.facebook.presto.metadata.StaticCatalogStore.loadCatalogs(StaticCatalogStore.java:68)
+        at com.facebook.presto.server.PrestoServer.run(PrestoServer.java:150)
+        at com.facebook.presto.server.PrestoServer.main(PrestoServer.java:85)
+Caused by: java.lang.NoClassDefFoundError: Could not initialize class com.facebook.presto.hive.s3.PrestoS3StorageClass
+        at com.facebook.presto.hive.s3.HiveS3Config.<init>(HiveS3Config.java:38)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:423)
+        at com.facebook.airlift.configuration.ConfigurationFactory.newInstance(ConfigurationFactory.java:433)
+        ... 18 more
+```

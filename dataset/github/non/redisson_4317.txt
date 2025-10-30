@@ -1,0 +1,71 @@
+Distributed executor service does not work with NameMapper
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+
+Let's say I configure Redission like this:
+
+```
+final var keyPrefix = "prefix-";
+Config config = new Config();
+config.useSingleServer()
+  .setAddress("redis://localhost:6379");
+config.useSingleServer()
+  .setNameMapper(new NameMapper() {
+            @Override
+            public String map(String name) {
+                return keyPrefix + name;
+            }
+            @Override
+            public String unmap(String name) {
+                return name.substring(keyPrefix.length());
+            }
+        });
+final var redisClient = Redisson.create(config);
+```
+And I used it as follows:
+```
+final RExecutorService consumerExecutorService = redisClient.getExecutorService(
+    "executor", ExecutorOptions.defaults());
+consumerExecutorService.registerWorkers(WorkerOptions.defaults());
+
+final RExecutorService producerExecutorService = redisClient.getExecutorService(
+    "executor", ExecutorOptions.defaults());
+producerExecutorService.submitAsync(new MyTask())
+```
+I would expect that the following run() method would be called.
+```
+static public class MyTask implements Runnable {
+    @Override public void run() { System.out.println("RUN"); }
+}
+```
+**Actual behavior**
+
+It does not work, run() is never called. But it works if setNameMapper is not used.
+
+**Steps to reproduce or test case**
+
+Use code above and any version of Redisson which supports nameMapper (>=3.15.4)
+
+**Redis version**
+
+Used redis from docker image (version 6.2.6).
+
+**Redisson version**
+
+Any version >=3.15.4. I tested 3.15.4 and 3.17.2 with the same result.
+
+**Redisson configuration**
+```
+config.useSingleServer()
+    .setAddress("redis://localhost:6379")
+    .setUsername("default")
+    .setPassword("redis")
+    .setRetryInterval(5_000)
+    .setRetryAttempts(5)
+    .setTimeout(30_000)
+    .setCodec(new JsonJacksonCodec())
+    .setExecutor(new VertxExecutorService<>(vertx));
+```

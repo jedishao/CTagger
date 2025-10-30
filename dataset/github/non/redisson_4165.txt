@@ -1,0 +1,55 @@
+Unable to send PING command over channel
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+Error not occurring.
+**Actual behavior**
+Error occurring.
+**Steps to reproduce or test case**
+Create a topic and send objects through the topic every second. After a few minutes or so this error occurs repeatedly randomly.
+
+```java
+[19:25:12 ERROR] [org.redisson.client.handler.PingConnectionHandler]: Unable to send PING command over channel: [id: 0x1b4d363c, L:/<IP Redacted> - R:<IP Redacted>]
+org.redisson.client.RedisTimeoutException: Command execution timeout for command: (PING), params: [], Redis client: [addr=<IP Redacted>]
+        at org.redisson.client.RedisConnection.lambda$async$0(RedisConnection.java:245) ~[?:?]
+        at io.netty.util.HashedWheelTimer$HashedWheelTimeout.run(HashedWheelTimer.java:715) ~[velocity.jar:3.1.1]
+        at io.netty.util.concurrent.ImmediateExecutor.execute(ImmediateExecutor.java:34) ~[velocity.jar:3.1.1]
+        at io.netty.util.HashedWheelTimer$HashedWheelTimeout.expire(HashedWheelTimer.java:703) ~[velocity.jar:3.1.1]
+        at io.netty.util.HashedWheelTimer$HashedWheelBucket.expireTimeouts(HashedWheelTimer.java:790) ~[velocity.jar:3.1.1]
+        at io.netty.util.HashedWheelTimer$Worker.run(HashedWheelTimer.java:503) ~[velocity.jar:3.1.1]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[velocity.jar:3.1.1]
+        at java.lang.Thread.run(Thread.java:831) [?:?]
+```
+
+**Redis version**
+6.2.3
+**Redisson version**
+3.16.8
+**Redisson configuration**
+```java
+ Config config = new Config();
+        config.setCodec(new JsonJacksonCodec());
+        config.setKeepPubSubOrder(true);
+        config.setThreads(4);
+        config.setNettyThreads(8);
+        var msc = config.useSingleServer();
+        msc.setAddress("redis://" + url + ":" + port);
+        msc.setUsername(user);
+        msc.setPassword(pass);
+        msc.setTcpNoDelay(true);
+        msc.setConnectionMinimumIdleSize(2);
+        msc.setConnectionPoolSize(32);
+        msc.setSubscriptionConnectionMinimumIdleSize(1);
+        msc.setSubscriptionConnectionPoolSize(32);
+        msc.setSubscriptionsPerConnection(5);
+        msc.setTimeout(3000);
+        msc.setConnectTimeout(10000);
+        msc.setRetryAttempts(3);
+        msc.setRetryInterval(1500);
+        msc.setPingConnectionInterval(10000);
+```
+
+**Question**
+Is there maven dependencies for snapshot versions such as 3.16.9? If not, can they be added?

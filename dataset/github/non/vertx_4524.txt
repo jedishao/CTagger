@@ -1,0 +1,35 @@
+NetClient dose not release ByteBuf ?
+```java
+  public static void main(String[] args) {
+        Vertx vertx = Vertx.vertx();
+
+        vertx
+            .createNetServer()
+            .connectHandler(socket -> {
+                socket.handler(buf -> {
+                    System.out.println("from client:" + buf.toString());
+                });
+            })
+            .listen(12331)
+            .succeeded();
+
+        vertx.createNetClient()
+             .connect(12331, "127.0.0.1")
+             .onSuccess(socket -> {
+                 ByteBuf buf = ByteBufAllocator.DEFAULT.buffer();
+                 buf.writeBytes("hello".getBytes());
+
+                 socket.write(Buffer.buffer(buf))
+                       .onSuccess(ignore -> {
+                           System.out.println("buf refCnt:" + buf.refCnt());
+                       });
+             });
+    }
+```
+
+output:
+
+```java
+buf refCnt:1
+from client:hello
+```

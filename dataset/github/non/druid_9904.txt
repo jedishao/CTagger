@@ -1,0 +1,168 @@
+Fail to compact overlapping segments
+### Affected Version
+
+Found in 0.16.x and 0.18.x.
+
+### Description
+
+Compaction task will create segments with `VersionedIntervalTimeline` conflicting when compacting overlapping segments without explicitly specifying segment granularity. Coordinator will constantly fails to poll latest segment records from metadata db when there is an error caused by `VersionedIntervalTimeline` conflicting. And therefore the indexing tasks will constantly fail on segment publishing stage.
+
+### Bug duplication
+1. create a segment with `DAY` segment granularity.
+```json
+
+{
+    "type": "index",
+    "ioConfig": {
+        "type": "index",
+        "firehose": {
+            "type": "inline",
+            "data": "{\"timestamp\":\"2020-05-18T00:00:00.000Z\",\"col\":\"col_1\",\"val\":1}\n{\"timestamp\":\"2020-05-18T01:00:00.000Z\",\"col\":\"col_2\",\"val\":2}\n{\"timestamp\":\"2020-05-18T02:00:00.000Z\",\"col\":\"col_3\",\"val\":3}\n{\"timestamp\":\"2020-05-18T03:00:00.000Z\",\"col\":\"col_4\",\"val\":4}\n{\"timestamp\":\"2020-05-18T04:00:00.000Z\",\"col\":\"col_5\",\"val\":5}\n{\"timestamp\":\"2020-05-18T05:00:00.000Z\",\"col\":\"col_6\",\"val\":6}\n{\"timestamp\":\"2020-05-18T06:00:00.000Z\",\"col\":\"col_7\",\"val\":7}\n{\"timestamp\":\"2020-05-18T07:00:00.000Z\",\"col\":\"col_8\",\"val\":8}\n{\"timestamp\":\"2020-05-18T08:00:00.000Z\",\"col\":\"col_9\",\"val\":9}\n{\"timestamp\":\"2020-05-18T09:00:00.000Z\",\"col\":\"col_10\",\"val\":10}\n{\"timestamp\":\"2020-05-18T10:00:00.000Z\",\"col\":\"col_11\",\"val\":11}\n{\"timestamp\":\"2020-05-18T11:00:00.000Z\",\"col\":\"col_12\",\"val\":12}\n{\"timestamp\":\"2020-05-18T12:00:00.000Z\",\"col\":\"col_13\",\"val\":13}\n{\"timestamp\":\"2020-05-18T13:00:00.000Z\",\"col\":\"col_14\",\"val\":14}\n{\"timestamp\":\"2020-05-18T14:00:00.000Z\",\"col\":\"col_15\",\"val\":15}\n{\"timestamp\":\"2020-05-18T15:00:00.000Z\",\"col\":\"col_16\",\"val\":16}\n{\"timestamp\":\"2020-05-18T16:00:00.000Z\",\"col\":\"col_17\",\"val\":17}\n{\"timestamp\":\"2020-05-18T17:00:00.000Z\",\"col\":\"col_18\",\"val\":18}\n{\"timestamp\":\"2020-05-18T18:00:00.000Z\",\"col\":\"col_19\",\"val\":19}\n{\"timestamp\":\"2020-05-18T19:00:00.000Z\",\"col\":\"col_20\",\"val\":20}\n{\"timestamp\":\"2020-05-18T20:00:00.000Z\",\"col\":\"col_21\",\"val\":21}\n{\"timestamp\":\"2020-05-18T21:00:00.000Z\",\"col\":\"col_22\",\"val\":22}\n{\"timestamp\":\"2020-05-18T22:00:00.000Z\",\"col\":\"col_23\",\"val\":23}\n{\"timestamp\":\"2020-05-18T23:00:00.000Z\",\"col\":\"col_24\",\"val\":24}"
+        }
+    },
+    "tuningConfig": {
+        "type": "index"
+    },
+    "dataSchema": {
+        "dataSource": "inline_data",
+        "granularitySpec": {
+            "type": "uniform",
+            "segmentGranularity": "DAY",
+            "queryGranularity": "NONE",
+            "rollup": false
+        },
+        "parser": {
+            "type": "string",
+            "parseSpec": {
+                "format": "json",
+                "timestampSpec": {
+                    "column": "timestamp",
+                    "format": "iso"
+                },
+                "dimensionsSpec": {
+                    "dimensions": [
+                        "col",
+                        {
+                            "type": "long",
+                            "name": "val"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
+```
+2. create a segment with `HOUR` segment granularity that overlaps the previous segment with `DAY` segment granularity.
+```json
+
+{
+    "type": "index",
+    "ioConfig": {
+        "type": "index",
+        "firehose": {
+            "type": "inline",
+            "data": "{\"timestamp\":\"2020-05-18T20:00:00.000Z\",\"col\":\"col_21\",\"val\":-21}"
+        }
+    },
+    "tuningConfig": {
+        "type": "index"
+    },
+    "dataSchema": {
+        "dataSource": "inline_data",
+        "granularitySpec": {
+            "type": "uniform",
+            "segmentGranularity": "HOUR",
+            "queryGranularity": "NONE",
+            "rollup": false
+        },
+        "parser": {
+            "type": "string",
+            "parseSpec": {
+                "format": "json",
+                "timestampSpec": {
+                    "column": "timestamp",
+                    "format": "iso"
+                },
+                "dimensionsSpec": {
+                    "dimensions": [
+                        "col",
+                        {
+                            "type": "long",
+                            "name": "val"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
+```
+3. now we have two overlapping segments:
+    - `inline_data_2020-05-18T00:00:00.000Z_2020-05-19T00:00:00.000Z_version_1`
+    - `inline_data_2020-05-18T20:00:00.000Z_2020-05-18T21:00:00.000Z_version_2`
+
+then submit a compaction task to compact these two overlapping segments.
+```json
+{
+    "type": "compact",
+    "dataSource": "inline_data",
+    "interval": "2020-05-18/2020-05-19"
+}
+```
+4. when the compaction task finishing, coordinator will constantly get the following error.
+```
+2020-05-17T20:15:20,174 ERROR [org.apache.druid.metadata.SqlSegmentsMetadataManager-Exec--0] org.apache.druid.metadata.SqlSegmentsMetadataManager - Uncaught exception in class org.apache.druid.metadata.SqlSegmentsMetadataManager's polling thread: {class=org.apache.druid.metadata.SqlSegmentsMetadataManager, exceptionType=class org.apache.druid.java.util.common.UOE, exceptionMessage=Cannot add overlapping segments [2020-05-15T05:00:00.000Z/2020-05-15T06:00:00.000Z and 2020-05-15T00:00:00.000Z/2020-05-16T00:00:00.000Z] with the same version [2020-05-17T12:14:26.722Z]}
+org.apache.druid.java.util.common.UOE: Cannot add overlapping segments [2020-05-15T05:00:00.000Z/2020-05-15T06:00:00.000Z and 2020-05-15T00:00:00.000Z/2020-05-16T00:00:00.000Z] with the same version [2020-05-17T12:14:26.722Z]
+        at org.apache.druid.timeline.VersionedIntervalTimeline.addAtKey(VersionedIntervalTimeline.java:638) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.timeline.VersionedIntervalTimeline.add(VersionedIntervalTimeline.java:542) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.timeline.VersionedIntervalTimeline.addAll(VersionedIntervalTimeline.java:226) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.timeline.VersionedIntervalTimeline.addSegments(VersionedIntervalTimeline.java:119) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.timeline.VersionedIntervalTimeline.forSegments(VersionedIntervalTimeline.java:86) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.timeline.VersionedIntervalTimeline.forSegments(VersionedIntervalTimeline.java:79) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.client.DataSourcesSnapshot.lambda$new$3(DataSourcesSnapshot.java:85) ~[druid-server-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.utils.CollectionUtils.lambda$mapValues$0(CollectionUtils.java:101) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at java.util.HashMap.forEach(HashMap.java:1289) ~[?:1.8.0_252]
+        at org.apache.druid.utils.CollectionUtils.mapValues(CollectionUtils.java:101) ~[druid-core-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.client.DataSourcesSnapshot.<init>(DataSourcesSnapshot.java:83) ~[druid-server-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.client.DataSourcesSnapshot.fromUsedSegments(DataSourcesSnapshot.java:55) ~[druid-server-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.metadata.SqlSegmentsMetadataManager.doPoll(SqlSegmentsMetadataManager.java:967) ~[druid-server-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.metadata.SqlSegmentsMetadataManager.poll(SqlSegmentsMetadataManager.java:899) ~[druid-server-0.18.0.jar:0.18.1-SNAPSHOT]
+        at org.apache.druid.metadata.SqlSegmentsMetadataManager.lambda$createPollTaskForStartOrder$0(SqlSegmentsMetadataManager.java:323) ~[druid-server-0.18.0.jar:0.18.1-SNAPSHOT]
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) [?:1.8.0_252]
+        at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:308) [?:1.8.0_252]
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$301(ScheduledThreadPoolExecutor.java:180) [?:1.8.0_252]
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:294) [?:1.8.0_252]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_252]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_252]
+        at java.lang.Thread.run(Thread.java:748) [?:1.8.0_252]
+```
+5. you may wonder what happened if submitting a compaction task with explicit segment granularity, like:
+```json
+{
+    "type": "compact",
+    "dataSource": "inline_data",
+    "interval": "2020-05-18/2020-05-19",
+    "segmentGranularity": "DAY"
+}
+```
+then this task will fail with the following error
+```
+21T02:04:43.735Z', groupId='compact_inline_data_llmogppk_2020-05-21T02:04:43.735Z', taskResource=TaskResource{availabilityGroup='compact_inline_data_llmogppk_2020-05-21T02:04:43.735Z', requiredCapacity=1}, dataSource='inline_data', context={forceTimeChunkLock=true}}]
+java.lang.IllegalStateException: QueryableIndexes are not sorted! Interval[2020-05-18T20:00:00.000Z/2020-05-18T21:00:00.000Z] of segment[inline_data_2020-05-18T20:00:00.000Z_2020-05-18T21:00:00.000Z_2020-05-21T01:58:00.951Z] is laster than interval[2020-05-18T00:00:00.000Z/2020-05-19T00:00:00.000Z] of segment[inline_data_2020-05-18T00:00:00.000Z_2020-05-19T00:00:00.000Z_2020-05-21T01:57:38.882Z]
+	at com.google.common.base.Preconditions.checkState(Preconditions.java:200) ~[guava-16.0.1.jar:?]
+	at org.apache.druid.indexing.common.task.CompactionTask.createDimensionsSpec(CompactionTask.java:718) ~[classes/:?]
+	at org.apache.druid.indexing.common.task.CompactionTask.createDataSchema(CompactionTask.java:664) ~[classes/:?]
+	at org.apache.druid.indexing.common.task.CompactionTask.createIngestionSchema(CompactionTask.java:559) ~[classes/:?]
+	at org.apache.druid.indexing.common.task.CompactionTask.runTask(CompactionTask.java:374) ~[classes/:?]
+	at org.apache.druid.indexing.common.task.AbstractBatchIndexTask.run(AbstractBatchIndexTask.java:123) ~[classes/:?]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:421) [classes/:?]
+	at org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner$SingleTaskBackgroundRunnerCallable.call(SingleTaskBackgroundRunner.java:393) [classes/:?]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_212]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_212]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_212]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_212]
+```
+
+
+

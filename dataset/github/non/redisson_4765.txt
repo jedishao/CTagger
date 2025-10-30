@@ -1,0 +1,13 @@
+ReliableTopic only deletes expired subscribers when a message is read
+### Observation
+[ReliableTopics](https://github.com/redisson/redisson/blob/19f7223033b587aea6bc512bc26dd4ffb1fc8795/redisson/src/main/java/org/redisson/RedissonReliableTopic.java#L46) only [remove expired subscribers and trim messages](https://github.com/redisson/redisson/blob/19f7223033b587aea6bc512bc26dd4ffb1fc8795/redisson/src/main/java/org/redisson/RedissonReliableTopic.java#L228-L244) (i.e. those read by all subscribers) when a new message is published on the topic (i.e. when the blocking [XREAD](https://github.com/redisson/redisson/blob/19f7223033b587aea6bc512bc26dd4ffb1fc8795/redisson/src/main/java/org/redisson/RedissonReliableTopic.java#L185) succeeds to read a message).
+
+### Problematic 
+This is problematic for Reliable topics that are not very active (i.e. do not have a lot of messages published), but have a lot of new subscribers. Over time, the [subscribers list](https://github.com/redisson/redisson/blob/19f7223033b587aea6bc512bc26dd4ffb1fc8795/redisson/src/main/java/org/redisson/RedissonReliableTopic.java#L83) grows very large (of expired subscribers) because they’re only removed on new message reception, which doesn’t happen very often.
+
+As a result, when a message gets published, it doesn't get deleted for a long time (months in my case), because a lot of the expired subscribers, that will never read that message, were not removed from the list.
+
+### Questions
+1. Why does the deletion of old subscribers (and the trimming of messages as a result) not happen in every poll (i.e. even if no message was read)? That way, ReliableTopics that do not get a lot of published messages will behave like those that get a lot of published messages => Both will not have expired subscribers left for long. 
+
+1. Suppose I want expired subscribers to be deleted ASAP. Is there an easier way to achieve this than to manually do it myself (e.g. on a separate cron job)?

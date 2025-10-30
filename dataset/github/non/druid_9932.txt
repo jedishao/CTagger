@@ -1,0 +1,67 @@
+SQL query returns StackOverFlowError
+SQL query returns StackOverFlowError
+
+### Affected Version
+
+0.18.1
+
+### Description
+
+Druid SQL queries sometimes would return StackOverflowError like the following example:
+
+```
+SELECT STDDEV( ( lo_partkey ) ) FILTER ( WHERE ( ( lo_orderdate ) < ( lo_linenumber * lo_partkey ) ) ) AS C1 
+FROM ssb1x 
+WHERE ( ( __time ) <> ( __time ) ) 
+GROUP BY CUBE ( lo_orderkey ) 
+HAVING COUNT( ( lo_orderkey ) ) != 0 
+ORDER BY 1 
+LIMIT 100
+
+javax.servlet.ServletException: java.lang.StackOverflowError
+```
+
+The stack trace from the broker log shows:
+
+```
+Caused by: java.lang.StackOverflowError
+	at org.apache.calcite.rel.core.Values.estimateRowCount(Values.java:170) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdRowCount.getRowCount(RelMdRowCount.java:210) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_RowCount.getRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_RowCount.getRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getRowCount(RelMetadataQuery.java:225) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdRowCount.getRowCount(RelMdRowCount.java:70) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_RowCount.getRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_RowCount.getRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getRowCount(RelMetadataQuery.java:225) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdRowCount.getRowCount(RelMdRowCount.java:131) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_RowCount.getRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_RowCount.getRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getRowCount(RelMetadataQuery.java:225) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdRowCount.getRowCount(RelMdRowCount.java:70) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_RowCount.getRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_RowCount.getRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getRowCount(RelMetadataQuery.java:225) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdDistinctRowCount.getDistinctRowCount(RelMdDistinctRowCount.java:75) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdDistinctRowCount.getDistinctRowCount(RelMdDistinctRowCount.java:266) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_DistinctRowCount.getDistinctRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_DistinctRowCount.getDistinctRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getDistinctRowCount(RelMetadataQuery.java:774) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdRowCount.getRowCount(RelMdRowCount.java:194) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_RowCount.getRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_RowCount.getRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getRowCount(RelMetadataQuery.java:225) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdRowCount.getRowCount(RelMdRowCount.java:70) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_RowCount.getRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_RowCount.getRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getRowCount(RelMetadataQuery.java:225) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdUtil.estimateFilteredRows(RelMdUtil.java:750) ~[calcite-core-1.21.0.jar:1.21.0]
+	at org.apache.calcite.rel.metadata.RelMdRowCount.getRowCount(RelMdRowCount.java:122) ~[calcite-core-1.21.0.jar:1.21.0]
+	at GeneratedMetadataHandler_RowCount.getRowCount_$(Unknown Source) ~[?:?]
+	at GeneratedMetadataHandler_RowCount.getRowCount(Unknown Source) ~[?:?]
+	at org.apache.calcite.rel.metadata.RelMetadataQuery.getRowCount(RelMetadataQuery.java:225) ~[calcite-core-1.21.0.jar:1.21.0]
+
+....
+```
+
+This may be related to https://issues.apache.org/jira/browse/CALCITE-2057, but we don't know for sure until further investigation is done.

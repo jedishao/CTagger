@@ -1,0 +1,35 @@
+authorization by string based resource type instead of enum so that resource types are extensible
+alternative to proposals #11675, #11689, heh. The key was hiding in the "motivation" statement all along, so I think this one is the right version to move forward with.
+
+### Motivation
+
+Currently Druid authorization is handled by Authorizer implementations checking if a `Resource`, which is composed of a type, name, and action can be authorized given some authentication context information. Currently, type is defined by an enum, `ResourceType`, which limits the types of resources that can be authorized to those which have a specific value in this enumeration. #10812 added ResourceType.VIEW to allow SQL view implementations to be authorized, but didn't take the step to plan for the case of the next resource type we might want to model. To increase the expressiveness of our authorization model, the resource type _must_ be made extensible, which will allow us to both expand the authorization model of core Druid components such as system tables and lookups, and additionally allow extension writers to utilize Druid authorization against completely custom "resources".
+
+
+### Proposed changes
+
+`Resource` will be modified to have a `String` type instead of the `ResourceType` enum. `ResourceType` will be repurposed into a class of static constants to provide the built-in Druid resource types to minimally change the code, as the majority of uses of `ResourceType` are to specify the type of resource that is being authorized, e.g. `ResourceType.DATASOURCE`, so these will still exist, just as strings.
+
+For SQL authorization, `NamedSchema` will be expanded to include a new method to provide the type of resource that should be authorized. `PlannerContext` will be updated to include a map of these schema names to resource types, which will be built by `PlannerFactory` from the injected set of `NamedSchema`. [SqlResourceCollectorShuttle](https://github.com/apache/druid/blob/master/sql/src/main/java/org/apache/druid/sql/calcite/planner/SqlResourceCollectorShuttle.java#L73) will be given this `PlannerContext` so that it can lookup the correct resource type so that the proper set of `Resource` is constructed for authorization.
+
+For JSON query authorization, we could consider updating the `DataSource` interface to produce `Resource` directly instead of constructing it from the output of `getTableNames`, which would allow different `DataSource` implementations to produce different types of resources as appropriate. 
+
+I would like to introduce authorization for the SystemSchema as a sort of trial for these changes, so `druid.sql.planner.authorizeSystemTablesDirectly`, defaulting to false, will be added to allow operators to enable this authorization as desired and to not break existing users prior to this permission being granted. I think in the future we would consider switching the default to true, or perhaps always requiring this authorization.
+
+### Rationale
+
+This solution is better than #11675 and #11689 because of its simplicity. The lack of scalability of `ResourceType` is the problem, so making it extensible is the in retrospect obvious solution. I think operationally this approach makes sense too because there is no expansion of scope of the meaning of existing resource types as in #11675, and no alternative split model of permissions or deprecation of existing resource types as in #11689. Additionally, it allows us to lean into having different types of resources, which I think conceptually makes the most sense, because datasources are in fact different from views and lookups and system tables and whatever else.
+
+Like the other two proposals, this does not really conflict with or contradict  the concepts of #9380, though the associated PR will have some minor conflicts since `ResourceType` enum will no longer exist and String should be used instead.
+
+### Operational impact
+
+This approach does provide some minor disruption for extension writers, as `Resource.getType` will now return a `String` instead of an enum, but in most cases this should be very simple to resolve.
+
+There will be no impact during a rolling upgrade, and the only impact of a downgrade would be any additional authorization we add against new resource types introduced after we make this change would not be checked in older versions.
+
+### Test plan (optional)
+
+Existing test coverage should be largely sufficient since this is a very slight refactoring. New tests will be added to ensure system schema authorization works as intended.
+
+

@@ -1,0 +1,45 @@
+PIP-257: Add Open ID Connect Support to Server Components
+Discussion: https://lists.apache.org/thread/ttdh74t6v5nznmtw436otk8qdymjvrfk
+Vote: https://lists.apache.org/thread/h2d48g7s58w1n6426hxlv9kwrj09kczz
+Status: accepted
+
+### Motivation
+
+Apache Pulsar does not yet support a server side `AuthenticationProvider` that implements the Open ID Connect spec for a relying party as defined by https://openid.net/connect/. The only token based authentication is provided via the `AuthenticationProviderToken` class. Given that we already have clients that implement the OAuth2.0 protocol, which integrates easily with an Open ID Connect `AuthenticationProvider`, it would be very helpful to add this support to the Pulsar Server components.
+
+### Goal
+
+In implementing the OIDC spec, we will fulfill both the core (https://openid.net/specs/openid-connect-core-1_0.html) and the discovery (https://openid.net/specs/openid-connect-discovery-1_0.html) portions of the spec in the `AuthenticationProvider` implementation.
+
+The end result will be a plugin that:
+
+* supports multiple token issuers
+
+* retrieves the JWKS uri for each issuer from the token issuer's `/.well-known/openid-configuration` endpoint
+
+* retrieves and caches the JKWS when a client attempts to connect using a token issued by one of the trusted issuers
+
+* refreshes the JWKS after a configured amount of time, which allows for seamless key rotation without needing to restart the proxy, broker, function worker, websocket proxy. (Restarts are still needed to mitigate problems like leaked private keys.)
+
+* verifies that a token's signature and claims are valid
+
+### API Changes
+
+There will be two new public classes:
+
+1. Implement `AuthenticationProvider` with `AuthenticationProviderOpenIDConnect`.
+2. Implement `KubernetesFunctionAuthProvider` with `KubernetesSecretsAuthProvider`.
+
+### Implementation
+
+Add a module to the apache/pulsar repo named `pulsar-openid-connect` where we will implement the logic for `AuthenticationProviderOpenIDConnect`. The core additions will include the ability to discovery the JWKS URI for each token issuer, following the Open ID Connect Discovery protocol, then retrieving and caching the JWKS.
+
+Create a class named `KubernetesSecretsAuthProvider` that mounts a pre-existing secret into the Pulsar Function pod. This class serves two purposes. First, the function worker does not need to have the credentials used by the function pod. Second, the current authentication flow in the function worker is to forward the authentication data used to create the function. Because OpenID Connect supports short lived tokens, it is not valid to assume that the function pod can operate with the supplied authentication data. Instead, a user will be able to configure the function pod with the client id and the client secret necessary to retrieve the authentication token from the OAuth 2 Authorization Server.
+
+### Alternatives
+
+There was an initial attempt to implement this feature here: https://github.com/apache/pulsar/pull/11794. The PR was never completed, so it is closed now.
+
+### Anything else?
+
+We will need to address the proxy authentication handling in order for users to avoid encountering some of the issues documented here https://github.com/apache/pulsar/issues/10816. I plan to follow up with a fix for this issue.

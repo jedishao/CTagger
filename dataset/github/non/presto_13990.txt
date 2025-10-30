@@ -1,0 +1,7 @@
+Optimize string truncation for SliceXXXSelectiveStreamReader
+The truncation in SliceXXXSelectiveStreamReader is quite expensive. This can be optimized in a few efforts:
+1) For some types the truncation can be avoided. For example if all chars are ascii we don't need to calculate the truncated length because the maxCodePoint is already the longest length possible in the file.
+2) We can try to calculate the truncated length more efficiently by doing batch calculation. This change together with https://github.com/prestodb/presto/issues/13989, when filter rate = 1, shows 3x improvement over existing code.
+
+The first idea needs to be studied more.
+

@@ -1,0 +1,87 @@
+Why does 'order by' need more memory than entire dataset size?
+Got below error after running 'select * from hive.redact order by time_stamp desc'
+Data is hudi parquet (hive - STORED AS INPUTFORMAT 'com.uber.hoodie.hadoop.HoodieInputFormat' ) on  s3. 
+
+But entire dataset is only 3.5GB (85 columns wide), why does OrderByOperator need > 26GB ??
+
+com.facebook.presto.ExceededMemoryLimitException: Query exceeded per-node user memory limit of 27GB [Allocated: 27.00GB, Delta: 1.22MB, Top Consumers: {OrderByOperator=26.98GB, MergeSortedPages=17.09MB, ScanFilterAndProjectOperator=146.26kB}]
+	at com.facebook.presto.ExceededMemoryLimitException.exceededLocalUserMemoryLimit(ExceededMemoryLimitException.java:40)
+	at com.facebook.presto.memory.QueryContext.enforceUserMemoryLimit(QueryContext.java:329)
+	at com.facebook.presto.memory.QueryContext.updateUserMemory(QueryContext.java:136)
+	at com.facebook.presto.memory.QueryContext$QueryMemoryReservationHandler.reserveMemory(QueryContext.java:310)
+	at com.facebook.presto.memory.context.RootAggregatedMemoryContext.updateBytes(RootAggregatedMemoryContext.java:37)
+	at com.facebook.presto.memory.context.ChildAggregatedMemoryContext.updateBytes(ChildAggregatedMemoryContext.java:38)
+	at com.facebook.presto.memory.context.ChildAggregatedMemoryContext.updateBytes(ChildAggregatedMemoryContext.java:38)
+	at com.facebook.presto.memory.context.ChildAggregatedMemoryContext.updateBytes(ChildAggregatedMemoryContext.java:38)
+	at com.facebook.presto.memory.context.ChildAggregatedMemoryContext.updateBytes(ChildAggregatedMemoryContext.java:38)
+	at com.facebook.presto.memory.context.SimpleLocalMemoryContext.setBytes(SimpleLocalMemoryContext.java:66)
+	at com.facebook.presto.operator.OperatorContext$InternalLocalMemoryContext.setBytes(OperatorContext.java:598)
+	at com.facebook.presto.util.MergeSortedPages.lambda$pageWithPositions$4(MergeSortedPages.java:148)
+	at com.facebook.presto.operator.WorkProcessorUtils.lambda$null$1(WorkProcessorUtils.java:190)
+	at java.util.Optional.map(Optional.java:215)
+	at com.facebook.presto.operator.WorkProcessorUtils.lambda$flatMap$2(WorkProcessorUtils.java:190)
+	at com.facebook.presto.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:262)
+	at com.facebook.presto.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:315)
+	at com.facebook.presto.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:249)
+	at com.facebook.presto.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:315)
+	at com.facebook.presto.operator.WorkProcessorUtils$2.process(WorkProcessorUtils.java:124)
+	at com.facebook.presto.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:315)
+	at com.facebook.presto.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:249)
+	at com.facebook.presto.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:315)
+	at com.facebook.presto.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:249)
+	at com.facebook.presto.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:315)
+	at com.facebook.presto.operator.exchange.LocalMergeSourceOperator.getOutput(LocalMergeSourceOperator.java:164)
+	at com.facebook.presto.operator.Driver.processInternal(Driver.java:379)
+	at com.facebook.presto.operator.Driver.lambda$processFor$8(Driver.java:283)
+	at com.facebook.presto.operator.Driver.tryWithLock(Driver.java:675)
+	at com.facebook.presto.operator.Driver.processFor(Driver.java:276)
+	at com.facebook.presto.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:1077)
+	at com.facebook.presto.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:162)
+	at com.facebook.presto.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:483)
+	at com.facebook.presto.$gen.Presto_0_220_dirty__0_220____20191211_061749_1.run(Unknown Source)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+
+![image](https://user-images.githubusercontent.com/33283496/70612929-b970a880-1bff-11ea-8f2e-17f6eda8ad58.png)
+
+
+EXPLAIN ANALYZE VERBOSE   output:
+
+Fragment 1 [ROUND_ROBIN]
+    CPU: 59.84s, Scheduled: 1.04m, Input: 4650726 rows (3.17GB); per task: avg.: 4650726.00 std.dev.: 0.00, Output: 4650726 rows (3.17GB)
+    Output layout: [redact_cols]
+    Output partitioning: SINGLE []
+    Stage Execution Strategy: UNGROUPED_EXECUTION
+    - LocalMerge[date_parse DESC_NULLS_LAST] => [redact_colsredact_cols]
+            CPU: 29.64s (18.67%), Scheduled: 31.61s (22.04%), Output: 4650726 rows (3.17GB)
+            Input avg.: 290670.38 rows, Input std.dev.: 162.59%
+        - PartialSort[date_parse DESC_NULLS_LAST] => [redact_colsredact_cols]
+                CPU: 28.11s (17.71%), Scheduled: 28.62s (19.95%), Output: 4650726 rows (3.17GB)
+                Input avg.: 290670.38 rows, Input std.dev.: 162.59%
+            - RemoteSource[2] => [redact_colsredact_cols]
+                    CPU: 1.61s (1.01%), Scheduled: 1.76s (1.23%), Output: 4650726 rows (3.17GB)
+                    Input avg.: 290670.38 rows, Input std.dev.: 162.59%
+
+Fragment 2 [SOURCE]
+    CPU: 1.40m, Scheduled: 1.56m, Input: 4650726 rows (3.66GB); per task: avg.: 4650726.00 std.dev.: 0.00, Output: 4650726 rows (3.17GB)
+    Output layout: [redact_cols]
+    Output partitioning: ROUND_ROBIN []
+    Stage Execution Strategy: UNGROUPED_EXECUTION
+    - ScanProject[table = TableHandle{redact_cols]
+            CPU: 1.40m (53.00%), Scheduled: 1.61m (67.42%), Output: 4650726 rows (3.17GB)
+            Input avg.: 221463.14 rows, Input std.dev.: 190.76%
+            date_parse := "date_parse"(NULLIF("time_stamp", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_9 := "date_parse"(NULLIF("dateorigin", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_13 := "date_parse"(NULLIF("datedestination", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_18 := "date_parse"(NULLIF("forecastedeta", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_27 := "date_parse"(NULLIF("etaorigin", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_28 := "date_parse"(NULLIF("startorigin", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_29 := "date_parse"(NULLIF("endorigin", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_34 := "date_parse"(NULLIF("startdestination", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            date_parse_81 := "date_parse"(NULLIF("forecastedorigineta", 'unknown'), '%Y-%m-%d %H:%i:%s.%f')
+            LAYOUT: redact_cols
+            unknown:string:-1:PARTITION_KEY
+                :: [[unknown]]
+            Input: 4650726 rows (3.66GB), Filtered: 0.00%
+

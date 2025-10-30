@@ -1,0 +1,56 @@
+TIME_FLOOR documentation is incomplete
+`TIME_FLOOR` documentation is incomplete
+
+### Affected Version
+
+Version: 0.21.
+
+### Description
+
+Consider the "stock" Wikipedia data source and stock Docker Druid cluster. The `TIME_FLOOR` function (and documentation) exhibit a number of problems.
+
+My goal is to round the `__time` column to one hour, eventually to `n` hours (or minutes, etc.)
+
+### Periods in Documentation Should Be Quoted
+
+The [documentation](https://druid.apache.org/docs/latest/querying/sql.html#time-functions) describes the `period` argument as:
+
+> Period can be any ISO8601 period, like P3M (quarters) or PT12H (half-days). 
+
+Note that the period examples are unquoted. By contrast, `DATE_TRUNC` says:
+
+> Unit can be 'milliseconds', 'second', 'minute', 'hour', 'day', 'week', 'month', 'quarter', 'year', 'decade', 'century', or 'millennium'.
+
+That is, the examples are quoted. Proposed change:
+
+> Period can be any ISO8601 period, like `P3M` (quarters) or `PT12H` (half-days). 
+
+### Role of Origin is Unclear
+
+The documentation states the function signature is:
+
+> `TIME_FLOOR(<timestamp_expr>, <period>, [<origin>, [<timezone>]])`
+
+Experimentation show that the `<origin>` must be a timestamp, yet the documentation does not give the type. In fact, this is a general flaw not just in Druid, but many SQL references: the argument is given as a type or an explanation, when the user really needs both:
+
+`TIME_FLOOR(<time: timestamp>, <period: varchar>, <origin: timestamp>, <timezone: string>)`
+
+That said, the documentation provides no explanation of the meaning or purpose of the origin. If we're supposed to know (because, say, this is a standard Postgres function), then perhaps provide a link to the "official" description. Else, please describe the origin argument.
+
+### Role of Time Zone is Unclear
+
+The documentation states:
+
+> Rounds down a timestamp, returning it as a new timestamp. ... The time zone, if provided, should be a time zone name like "America/Los_Angeles" or offset like "-08:00". This function is similar to CEIL but is more flexible.
+
+There is no description of what role the timezone plays. Here is one interpretation:
+
+> The input and output values are UTC-based time zones. The timestamp is converted to the given timezone when computing periods of a day or greater: the local timezone determines when midnight occurs.
+
+There is also the origin, so the above may be wrong.
+
+It might be worth adding an example, since time conversions are quite confusing.
+
+Suppose I have a PST time of `2012-08-12T17:00:00 -08:00`. Convert this to UTC and get `2012-08-12T01:00:00Z` in the data. Give `TIME_FLOOR` a time zone of `-08:00` and we get our PST time back. We use `P1D` to truncate this to `2012-08-12T17:00:00 -08:00`. Now, convert it back to UTC and we get `2012-08-11T16:00:00Z`.
+
+Thus, though we've rounded to one day in the local time zone, the hours will be non-zero for the UTC time zone (unless the local time zone is UTC.)

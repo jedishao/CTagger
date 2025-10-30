@@ -1,0 +1,10 @@
+Pushdown DISTINCT agg fields as (additional) GROUP BY keys
+https://github.com/prestodb/sql/issues/24DISTINCT aggs like COUNT DISTINCT are expensive. But in most cases it is helpful to push down these as group by keys before counting them.
+
+SELECT agg(x), COUNT(DISTINCT y) FROM T GROUP BY z;
+
+can be rewritten as
+
+SELECT agg(x), COUNT(DISTINCT y) FROM (SELECT partial_agg(x) AS x, y, z FROM T GROUP BY y, z) AS T GROUP BY z;
+
+It might also make sense to just do this for partial aggregation if we don't want the final agg which can be done in the planner.

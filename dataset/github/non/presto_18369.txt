@@ -1,0 +1,28 @@
+Bugs in lambda variable capture in LATERAL cause
+All the alternatives of the LATERAL clause should work. However, the first one failed as it cannot capture the variable. The 2nd version works mysteriously.
+
+```
+SELECT
+    *
+FROM (
+    VALUES
+        (ARRAY[1, 2], MAP(ARRAY[1, 2], ARRAY['a', 'b']))
+) AS t(arr, mapping)
+CROSS JOIN LATERAL (
+    SELECT
+        TRANSFORM(arr, v -> mapping[v]) AS result
+) -- This does NOT work
+
+-- CROSS JOIN LATERAL (
+--     SELECT
+--         mapping AS xxxxxx,
+--         TRANSFORM(arr, v -> mapping[v]) AS result
+-- ) -- This works
+
+-- CROSS JOIN UNNEST(ARRAY[TRANSFORM(arr, v -> mapping[v])]) AS t2(result) -- This works
+
+-- CROSS JOIN LATERAL (
+--     SELECT
+--         TRANSFORM(arr, v -> v) AS result
+-- ) -- This works too
+```

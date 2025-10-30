@@ -1,0 +1,40 @@
+android: Disabled background data causes errors
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+Hello, we have an app, that implements a widget that gets data using a GRPC stream on an update. However we have many instances where the widget fails to update where we are receiving: 
+
+```
+io.grpc.StatusRuntimeException: UNAVAILABLE: Keepalive failed. The connection is likely gone
+        at io.grpc.Status.asRuntimeException(Status.java:533)
+        at io.grpc.stub.ClientCalls$BlockingResponseStream.hasNext(ClientCalls.java:629)
+        at kotlin.sequences.SequencesKt___SequencesKt.toCollection(_Sequences.kt:722)
+        at kotlin.sequences.SequencesKt___SequencesKt.toMutableList(_Sequences.kt:752)
+        at kotlin.sequences.SequencesKt___SequencesKt.toList(_Sequences.kt:743)
+```
+we are building our channel with the following parameters:
+
+```
+            AndroidChannelBuilder.forAddress("<backend-url-->", 443)
+                .context(context)
+                .keepAliveWithoutCalls(true)
+                .keepAliveTime(5, TimeUnit.SECONDS)
+                .keepAliveTimeout(5, TimeUnit.SECONDS)
+                .useTransportSecurity()
+                .intercept(MetadataInterceptor())
+                .build()
+```
+and we care calling our stream collection using:
+
+```
+        clientWalletCall =
+            channel.newCall(ChartsServiceGrpc.getGetWalletLiveChartMethod(), service.callOptions)
+```
+
+I am assuming, when the app goes the background (due to the user's OS setting restricting background data) that the main grpc channel gets broken and needs time to restart, so when the widget wakes up to update, the call fails. 
+
+What is the best way to address this issue where we need block till the channel is ready to ensure the stream is successful? 

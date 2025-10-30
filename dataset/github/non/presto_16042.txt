@@ -1,0 +1,15 @@
+Hash collision when temporary table uses ORC format and PRESTO_NATIVE bucket function
+Pre-requirements to trigger the issue
+- Enable large batch mode
+- use ORC format as temporary table format
+- use PRESTO_NATIVE as bucket function type
+- only one bucket column for temporary table
+- hive column type is char/varchar/string
+
+
+Problem
+- Input data is partitioned by PRESTO_NATIVE function and sent to a single bucket
+- ORC column writer use DictionaryColumnWriter to encode bucket column, which calls PRESTO_NATIVE function again and results in hash collision
+
+Solution
+- ORC format should use HIVE_COMPATIBLE bucket function

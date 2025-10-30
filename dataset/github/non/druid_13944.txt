@@ -1,0 +1,109 @@
+Inconsistent size column in druid-ui when multiple tiers are loading data
+We have deployed druid 25.0.0 on k8s with 2 tiers for Router -> Broker -> Historical
+
+
+we use the following configuration related to tiering
+
+for _default_tier
+```
+in router 
+druid.service: druid/router
+druid.router.defaultBrokerServiceName: druid/broker
+druid.router.tierToBrokerMap: {"_default_tier":"druid/broker"}
+
+in broker
+druid.service: druid/broker
+druid.broker.select.tier: custom
+druid.broker.select.tier.custom.priorities: 0
+druid.broker.segment.watchedTiers: ["_default_tier"]
+
+in historical 
+druid.service: druid/historical
+druid.server.tier: _default_tier
+druid.server.priority: 0
+```
+
+for ingestion_tier
+```
+in router 
+druid.service: druid/router-test
+druid.router.defaultBrokerServiceName: druid/broker-ingestion
+druid.router.tierToBrokerMap: {"ingestion_tier":"druid/broker-ingestion"}
+
+in broker
+druid.service: druid/broker-ingestion
+druid.broker.select.tier: custom
+druid.broker.select.tier.custom.priorities: 1
+druid.broker.segment.watchedTiers: ["ingestion_tier"]
+
+in historical 
+druid.service: druid/historical-ingestion
+druid.server.tier: ingestion_tier
+druid.server.priority: 1
+```
+
+
+we have added loadRule 
+<img width="500" alt="Screenshot 2023-03-17 at 11 15 05 AM" src="https://user-images.githubusercontent.com/106651335/225822612-620a4b38-b367-4239-8503-85666f260f5a.png">
+
+
+observing the following issue:
+
+When accessing UI through default_tier router, it shows size only for default_tier historicals
+
+<img width="500" alt="Screenshot 2023-03-15 at 2 11 51 PM" src="https://user-images.githubusercontent.com/106651335/225819564-29b4bad5-cc12-4812-912c-4f7fa10c2567.png">
+<img width="500" alt="Screenshot 2023-03-15 at 6 15 39 PM" src="https://user-images.githubusercontent.com/106651335/225820100-c1c671b6-0ca6-4ce6-8277-8ab2580a8f4b.png">
+
+When accessing UI through ingestion_tier router, it shows size only for test_tier historicals
+
+
+<img width="500" alt="Screenshot 2023-03-15 at 2 11 58 PM" src="https://user-images.githubusercontent.com/106651335/225819583-3cd79ab9-0032-4166-84b9-579caa0baecf.png">
+<img width="500" alt="Screenshot 2023-03-15 at 6 16 18 PM" src="https://user-images.githubusercontent.com/106651335/225820106-5a194679-908b-4bd5-9f24-98d02cec6d28.png">
+
+
+we have another cluster with tiering where it shows size for both tier historicals in single ui. Is there any config where it will show both size combined in _default_tier router
+
+I checked the ui code
+`where this api is used '/druid/coordinator/v1/servers?simple' in service-view.tsx`
+which is returning sizes for all clusters but in UI its not displaying
+due to this it shows sizes for both tiers in 'coordinator mode'
+```
+[
+    {
+        "host": "1.1.1.1:8083",
+        "tier": "_default_tier",
+        "type": "historical",
+        "priority": 0,
+        "currSize": 20452535,
+        "maxSize": 5000000000
+    },
+    {
+        "host": "1.1.1.2:8083",
+        "tier": "_default_tier",
+        "type": "historical",
+        "priority": 0,
+        "currSize": 20452535,
+        "maxSize": 5000000000
+    },
+    {
+        "host": "1.1.1.3:8083",
+        "tier": "ingestion_tier",
+        "type": "historical",
+        "priority": 1,
+        "currSize": 20452535,
+        "maxSize": 5000000000
+    },
+    {
+        "host": "1.1.1.4:8083",
+        "tier": "ingestion_tier",
+        "type": "historical",
+        "priority": 1,
+        "currSize": 20452535,
+        "maxSize": 5000000000
+    }
+]
+```
+`however, this call  '/druid/v2/sql' is returning different result .. is this excepted?`
+
+<img width="500" alt="Screenshot 2023-03-16 at 9 42 44 AM" src="https://user-images.githubusercontent.com/106651335/225821078-a0908e97-3191-45dd-966d-c0194e196b9c.png">
+

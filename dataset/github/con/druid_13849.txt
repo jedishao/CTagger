@@ -1,0 +1,11 @@
+Flaky IT: ITBestEffortRollupParallelIndexTest
+[This build](https://github.com/apache/druid/actions/runs/4261216653/jobs/7416347020) failed with a flaky IT. This same IT has, I believe, failed in other builds. It is worth taking a look.
+
+```text
+Error:  Errors: 
+Error:    ITBestEffortRollupParallelIndexTest.testIndexDataVerifySegmentAvailability:192->AbstractIndexerTest.lambda$unloader$0:71->AbstractIndexerTest.unloadAndKillData:85 
+» ISE Error while making request to indexer [404 Not Found No task reports were found for this task. 
+The task may not exist, or it may not have completed yet.]
+```
+
+This is a "new" IT. It may be a race condition. Are we asking for reports before the task has made its way to where the reports API knows about it? This kind of error is pain for users, since it makes Druid non-deterministic. Should we retry for a while to wait for the reports to show up? Please don't wrap the entire test in retries, just do a simple retry loop of the reports request.

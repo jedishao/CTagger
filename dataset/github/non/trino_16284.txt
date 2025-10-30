@@ -1,0 +1,93 @@
+Trino iceberg jdbc catalog should retry connecting to database
+Apparently, Iceberg jdbc catalog does not refresh its connection. We connect our Trino cluster to an aurora serverless db that scales up and down during the day, and can reach 0 instances. When this happens, all connections are lost, but Trino doesn't try to reconnect when executing another query.
+
+## Connection properties
+
+  trusted.properties: |-
+    connector.name=iceberg
+    iceberg.catalog.type=jdbc
+    iceberg.file-format=PARQUET
+    iceberg.jdbc-catalog.catalog-name=trusted
+    iceberg.extended-statistics.enabled=true
+    iceberg.jdbc-catalog.connection-url=jdbc:postgresql://my-cluster:5432/my-db
+    iceberg.jdbc-catalog.connection-user={{.Values.secrets.dbUsr}}
+    iceberg.jdbc-catalog.connection-password={{.Values.secrets.dbPwd}}
+    iceberg.jdbc-catalog.default-warehouse-dir=s3://trusted-data
+    hive.s3.endpoint=https://s3.us-east-1.amazonaws.com
+    hive.s3.aws-access-key={{ .Values.secrets.trustedAwsAccessKey }}
+    hive.s3.aws-secret-key={{ .Values.secrets.trustedAwsSecretKey }}
+
+
+## How to reproduce it
+
+* Start trino cluster connecting to a jdbc iceberg catalog
+* Drop trino user connections from db ( something like: `select pg_terminate_backend(pid) 
+from pg_stat_activity 
+where state = 'idle' 
+and usename = 'trino-user' ;`
+* execute a select statement on a schema table
+
+The error message is:
+
+```
+org.apache.iceberg.jdbc.UncheckedSQLException: Failed to execute exists query: SELECT table_namespace FROM iceberg_tables WHERE catalog_name = ? AND table_namespace LIKE ? LIMIT 1
+	at org.apache.iceberg.jdbc.JdbcUtil.exists(JdbcUtil.java:387)
+	at org.apache.iceberg.jdbc.JdbcUtil.namespaceExists(JdbcUtil.java:348)
+	at org.apache.iceberg.jdbc.JdbcCatalog.namespaceExists(JdbcCatalog.java:464)
+	at io.trino.plugin.iceberg.catalog.jdbc.TrinoJdbcCatalog.namespaceExists(TrinoJdbcCatalog.java:92)
+	at io.trino.plugin.iceberg.IcebergMetadata.schemaExists(IcebergMetadata.java:310)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.schemaExists(ClassLoaderSafeConnectorMetadata.java:175)
+	at io.trino.metadata.MetadataManager.lambda$schemaExists$1(MetadataManager.java:237)
+	at java.base/java.util.stream.MatchOps$1MatchSink.accept(MatchOps.java:90)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)
+	at java.base/java.util.Spliterators$ArraySpliterator.tryAdvance(Spliterators.java:1002)
+	at java.base/java.util.stream.ReferencePipeline.forEachWithCancel(ReferencePipeline.java:129)
+	at java.base/java.util.stream.AbstractPipeline.copyIntoWithCancel(AbstractPipeline.java:527)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:513)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)
+	at java.base/java.util.stream.MatchOps$MatchOp.evaluateSequential(MatchOps.java:230)
+	at java.base/java.util.stream.MatchOps$MatchOp.evaluateSequential(MatchOps.java:196)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+	at java.base/java.util.stream.ReferencePipeline.anyMatch(ReferencePipeline.java:632)
+	at io.trino.metadata.MetadataManager.schemaExists(MetadataManager.java:237)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:2165)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:476)
+	at io.trino.sql.tree.Table.accept(Table.java:60)
+	at io.trino.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:493)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.analyzeFrom(StatementAnalyzer.java:4418)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:2885)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:476)
+	at io.trino.sql.tree.QuerySpecification.accept(QuerySpecification.java:155)
+	at io.trino.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:493)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:501)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:1449)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:476)
+	at io.trino.sql.tree.Query.accept(Query.java:107)
+	at io.trino.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at io.trino.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:493)
+	at io.trino.sql.analyzer.StatementAnalyzer.analyze(StatementAnalyzer.java:455)
+	at io.trino.sql.analyzer.Analyzer.analyze(Analyzer.java:79)
+	at io.trino.sql.analyzer.Analyzer.analyze(Analyzer.java:71)
+	at io.trino.execution.SqlQueryExecution.analyze(SqlQueryExecution.java:258)
+	at io.trino.execution.SqlQueryExecution.<init>(SqlQueryExecution.java:196)
+	at io.trino.execution.SqlQueryExecution$SqlQueryExecutionFactory.createQueryExecution(SqlQueryExecution.java:818)
+	at io.trino.dispatcher.LocalDispatchQueryFactory.lambda$createDispatchQuery$0(LocalDispatchQueryFactory.java:143)
+	at io.trino.$gen.Trino_407____20230227_103935_2.call(Unknown Source)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:131)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:74)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:82)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: org.postgresql.util.PSQLException: This connection has been closed.
+	at org.postgresql.jdbc.PgConnection.checkClosed(PgConnection.java:907)
+	at org.postgresql.jdbc.PgConnection.prepareStatement(PgConnection.java:1783)
+	at org.postgresql.jdbc.PgConnection.prepareStatement(PgConnection.java:454)
+	at org.apache.iceberg.jdbc.JdbcUtil.lambda$exists$1(JdbcUtil.java:372)
+	at org.apache.iceberg.ClientPoolImpl.run(ClientPoolImpl.java:58)
+	at org.apache.iceberg.ClientPoolImpl.run(ClientPoolImpl.java:51)
+	at org.apache.iceberg.jdbc.JdbcUtil.exists(JdbcUtil.java:370)
+	... 49 more
+```

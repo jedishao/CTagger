@@ -1,0 +1,28 @@
+jvm/heapAlloc/bytes not emitted when running Druid with JDK11+
+#12232 officially support JDK11. 
+
+But by staring Druid with JDK11 with the example configuration, we can see an exception message as
+
+```bash
+2022-03-06T14:29:48,890 WARN [main] org.apache.druid.java.util.metrics.AllocationMetricCollectors - Cannot initialize org.apache.druid.java.util.metrics.AllocationMetricCollector
+java.lang.reflect.InaccessibleObjectException: Unable to make public long[] com.sun.management.internal.HotSpotThreadImpl.getThreadAllocatedBytes(long[]) accessible: module jdk.management does not "exports com.sun.management.internal" to unnamed module @6d0b5baf
+        at java.lang.reflect.AccessibleObject.checkCanSetAccessible(AccessibleObject.java:340) ~[?:?]
+        at java.lang.reflect.AccessibleObject.checkCanSetAccessible(AccessibleObject.java:280) ~[?:?]
+        at java.lang.reflect.Method.checkCanSetAccessible(Method.java:198) ~[?:?]
+        at java.lang.reflect.Method.setAccessible(Method.java:192) ~[?:?]
+        at org.apache.druid.java.util.metrics.AllocationMetricCollectors.<clinit>(AllocationMetricCollectors.java:41) [druid-core-0.23.0-SNAPSHOT.jar:0.23.0-SNAPSHOT]
+        at org.apache.druid.java.util.metrics.JvmMonitor.<init>(JvmMonitor.java:79) [druid-core-0.23.0-SNAPSHOT.jar:0.23.0-SNAPSHOT]
+        at org.apache.druid.java.util.metrics.JvmMonitor.<init>(JvmMonitor.java:70) [druid-core-0.23.0-SNAPSHOT.jar:0.23.0-SNAPSHOT]
+        at org.apache.druid.java.util.metrics.JvmMonitor.<init>(JvmMonitor.java:65) [druid-core-0.23.0-SNAPSHOT.jar:0.23.0-SNAPSHOT]
+```
+
+Since `AllocationMetricCollector` is not correctly initialized, the metric `jvm/heapAlloc/bytes` is not emitted.
+
+## Solution
+To fix this problem, we have to add following option to the JVM parameter
+
+```bash
+--add-exports jdk.management/com.sun.management.internal=ALL-UNNAMED
+```
+
+I think it's better for us to detect the JDK version and automatically add above option to the JVM parameter in the shell(node.sh/run-druid)  if current JDK is JDK11+

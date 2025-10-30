@@ -1,0 +1,79 @@
+RLocalCachedMap doesn't reflect external changes to Redis Hash
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+I'm using RLocalCachedMap to access a Hash that is also modified by external processes. I expect the value to be updated when an external process modifies it. But it looks like the local cache entry is not updated/invalidated when it's changed in Redis.
+
+I tried with both SyncStrategy.INVALIDATE and SyncStrategy.UPDATE.
+
+**Expected behavior**
+
+When a Hash value is updated in Redis, or the key is removed, the Redisson RLocalCachedMap instance should reflect the changes.
+
+**Actual behavior**
+When a Hash value is updated in Redis, or the key is removed, the Redisson RLocalCachedMap instance still has the stale value.
+
+**Steps to reproduce or test case**
+
+```
+import org.redisson.Redisson;
+import org.redisson.api.LocalCachedMapOptions;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.redisson.config.Config;
+
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+
+public class RedissonTest {
+    public static void main(String[] args) throws InterruptedException {
+        Config config = new Config();
+        config.useSingleServer()
+                .setDatabase(0)
+                .setAddress("redis://127.0.0.1:6379");
+
+        RedissonClient client = Redisson.create(config);
+
+        String redisCacheMap =  "RedissonBug";
+
+        LocalCachedMapOptions <String, String> lcmo = LocalCachedMapOptions.<String, String> defaults()
+                .syncStrategy(LocalCachedMapOptions.SyncStrategy.INVALIDATE);
+
+        RMap <String, String> map = client.getLocalCachedMap(redisCacheMap, StringCodec.INSTANCE, lcmo);
+        // RMap works as expected, but RLocalCachedMap never reflects Redis state
+        // RMap <String, String> map = client.getMap(redisCacheMap, StringCodec.INSTANCE);
+
+        map.put("mykey", "myval");
+
+        CompletableFuture.runAsync(()->{
+            try {
+                Thread.sleep(6000);
+                Runtime.getRuntime().exec("redis-cli HSET RedissonBug mykey myval2");
+                Thread.sleep(6000);
+                Runtime.getRuntime().exec("redis-cli HSET RedissonBug mykey myval3");
+                Thread.sleep(6000);
+                Runtime.getRuntime().exec("redis-cli HDEL RedissonBug mykey");
+            } catch (InterruptedException | IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+
+        while(true) {
+            System.out.println("mykey: " + map.get("mykey"));
+            Thread.sleep(2000);
+        }
+    }
+}
+```
+
+**Redis version**
+
+Redis server v=7.0.2
+
+**Redisson version**
+3.15.2
+
+**Redisson configuration**

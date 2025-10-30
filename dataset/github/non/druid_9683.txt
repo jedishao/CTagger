@@ -1,0 +1,39 @@
+Update or delete rows suggestion e.g. change status
+### Description
+
+Business Intelligence or operational analytics often require an updated status. So let's say I am watching a recruitment process, the stage of candidates in the recruitment pipeline is constantly changing.
+
+Candidate | Status 
+xyz             | Interview
+abc             | Hiring
+
+etc
+
+### Motivation
+
+Having worked in analytics for many years, I can say without a doubt, this will be hugely valuable. It means I can stream all analytical workloads into Druid without having to mix and match. 
+
+By the way, I am also not too concerned about the size of the data and how real-time it is. Some of the data sets are pretty small, like a million rows or so. I am more interested in a simple/pragmatic solution where all analytical workloads are pushed down to Druid.
+
+### Potential solutions
+
+You may know a better way to deal with this. I read through the documentation and couldn't find anything but I will put down my thoughts for options. 
+
+A while back when I was working on a Cloudera project, one of the data engineers described how he used to keep the latest copy of the data in HIVE (back then HIVE was also immutable, think that has changed since but not sure). 
+
+They would keep appending the data and then the query (and subquery with max) was design to pull back the latest distinct records. Similar to this example on Stackoverflow:
+https://stackoverflow.com/questions/5554075/get-last-distinct-set-of-records
+
+I appreciate this only works well when the data sets aren't huge. Im not sure how that impacts maxSubqueryRows.
+
+Will this work? What is a recommended query to do this? 
+
+Periodically, could flush out the data and rehydrate with fresh data. 
+
+Another way might be to pull out the segment, find the row, edit or snip out the row, then push the segment back and delete the old segment. Probably a limitation on roll up, not sure. By the way, I had an issue with appendToExisting=False, where I had to delete the data first and then run the spec to add the data, otherwise it duplicated data for a while before deleting the old. I will open another ticket to describe that properly. 
+
+I don't like the idea of appending data with count changes i.e. candidate x -1 interview, candidate x +1 hiring. There are all sorts of reasons why this causes problems. You have to be really careful about the design, particularly if you have very wide tables. It is also pretty limited in what analytics you can do with it. 
+
+
+
+ 

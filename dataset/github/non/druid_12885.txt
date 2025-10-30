@@ -1,0 +1,23 @@
+prometheus emitter extension doesn't emit any metrics
+### Affected Version
+
+0.22.1
+
+### Description
+I have a small cluster of druid with 3 nodes. One running historical/middlemanager, second running broker/router and third running coordinator.
+
+I wanted to get metrics from my cluster on segments, compaction task, ingestion task etc and for that I initially tried using druid-exporter plugin but that clubs all the metrics into one metric called druid_emitted_metrics. I instead tried to use prometheus-emitter extension which probably doesn't require running any extra utility like druid-exporter. When setting up I came across several hurdles even when making this extension work. The pull-deps utility doesn't seem to download the jars for this plugin so I had to download all the jars manually and place them in libs, extensions folders. With this I was able to go a bit farther and the middleManager and historical seem to be running now and I can see that port 9999 is being listed on. This is the port which I have configured:
+
+```
+druid.extensions.loadList=["mysql-metadata-storage", .....,  "prometheus-emitter"]
+druid.emitter.prometheus.port=9999
+druid.emitter=prometheus
+druid.monitoring.monitors=["org.apache.druid.java.util.metrics.SysMonitor","org.apache.druid.java.util.metrics.JvmMonitor"]
+```
+
+But when I try to see if I get any metrics from port 9999 then it just hangs infinitely.
+
+```
+curl -X GET http://localhost:9999/metrics
+````
+Above just hangs and doesn't return any response.

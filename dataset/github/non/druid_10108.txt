@@ -1,0 +1,25 @@
+DruidSegmentReader uses wrong timestampSpec column
+### Affected Version
+
+0.17.0
+
+### Description
+
+When using auto-compaction, I found some compaction tasks fail due to errors below:
+```
+ 648 java.lang.ClassCastException: java.lang.String cannot be cast to org.joda.time.DateTime
+ 649         at org.apache.druid.indexing.input.DruidSegmentReader.parseInputRows(DruidSegmentReader.java:123) ~[druid-indexing-service-0.17.0.jar:0.17.0]
+ 650         at org.apache.druid.indexing.input.DruidSegmentReader.parseInputRows(DruidSegmentReader.java:63) ~[druid-indexing-service-0.17.0.jar:0.17.0]
+...
+```
+
+Then I dump some segments in the failed time chunk and found the row contained a `timestamp` field with `String` value ( the actual timestamp field of `timestampSpec` has been renamed to `__time`).
+But when re-indexing happens in compaction, `DruidSegmentReader` just extracts the field `timestamp`  and convert it to `DateTime` explicitly ignoring the actual timestamp field (`__time`), which causes the exception:
+```java
+  @Override
+  protected List<InputRow> parseInputRows(Map<String, Object> intermediateRow) throws ParseException
+  {
+    final DateTime timestamp = (DateTime) intermediateRow.get(TimestampSpec.DEFAULT_COLUMN);
+    return Collections.singletonList(new MapBasedInputRow(timestamp.getMillis(), dimensions, intermediateRow));
+  }
+```

@@ -1,0 +1,9 @@
+How to graceful shutdown client or server when connection still have active streams
+I create a bidirectional streaming RPC.
+In server side, I call onNext of responseStreamObserver continuous, then I try to invoke server.shutdown. 
+But server will never shutdown for there is active stream.
+Only the active stream send end frame will trigger stream close and then trigger the connection close and server shutdown.  
+Also, when I try to shutdown subChannel in client side, connection will never close for there is active stream.
+
+Both side will send a GO_AWAY frame, but in gRPC layer, requestStream can not receive this status, so stream can not stop by send onComplete. 
+Why not notify requestStream when receive a GO_AWAY frame? And then stream will know it's time to do onComplete.

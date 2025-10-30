@@ -1,0 +1,82 @@
+[Bug] RocksDB metadata store cannot be worked with external query engine
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+9f91d7bc269a2b41f241408e1008aa3cd86d9632
+
+### Minimal reproduce step
+
+I'm trying to enable Pulsar SQL to work with the new metadata store and remove the trick documented [here](https://pulsar.apache.org/docs/next/sql-getting-started/#query-data-in-pulsar):
+
+> Starting the Pulsar standalone cluster from scratch doesn't enable ZooKeeper by default. However, the Pulsar SQL depends on ZooKeeper. Therefore, you need to set PULSAR_STANDALONE_USE_ZOOKEEPER=1 to enable ZooKeeper.
+
+Check out the prototype branch: https://github.com/tisonkun/pulsar/pull/12
+
+While I change the metadata store URL to rocksdb db path, I got an error that the database is already in use.
+
+Command:
+
+```
+./bin/pulsar standalone
+./bin/pulsar sql-worker run
+```
+
+with config:
+
+```conf
+pulsar.metadata-url=rocksdb:///path/to/data/metadata
+```
+
+### What did you expect to see?
+
+SQL worker successfully starts and can be queried.
+
+### What did you see instead?
+
+```
+2022-10-26T20:28:23.880+0800	ERROR	main	io.trino.server.Server	org.apache.pulsar.metadata.api.MetadataStoreException: Error open RocksDB database
+java.lang.RuntimeException: org.apache.pulsar.metadata.api.MetadataStoreException: Error open RocksDB database
+	at org.apache.pulsar.sql.presto.PulsarConnectorFactory.create(PulsarConnectorFactory.java:74)
+	at io.trino.connector.ConnectorManager.createConnector(ConnectorManager.java:366)
+	at io.trino.connector.ConnectorManager.createCatalog(ConnectorManager.java:218)
+	at io.trino.connector.ConnectorManager.createCatalog(ConnectorManager.java:210)
+	at io.trino.connector.ConnectorManager.createCatalog(ConnectorManager.java:196)
+	at io.trino.metadata.StaticCatalogStore.loadCatalog(StaticCatalogStore.java:88)
+	at io.trino.metadata.StaticCatalogStore.loadCatalogs(StaticCatalogStore.java:68)
+	at io.trino.server.Server.doStart(Server.java:125)
+	at io.trino.server.Server.lambda$start$0(Server.java:78)
+	at io.trino.$gen.Trino_363____20221026_122819_1.run(Unknown Source)
+	at io.trino.server.Server.start(Server.java:78)
+	at io.trino.server.TrinoServer.main(TrinoServer.java:38)
+Caused by: org.apache.pulsar.metadata.api.MetadataStoreException: Error open RocksDB database
+	at org.apache.pulsar.metadata.impl.RocksdbMetadataStore.openDB(RocksdbMetadataStore.java:311)
+	at org.apache.pulsar.metadata.impl.RocksdbMetadataStore.<init>(RocksdbMetadataStore.java:236)
+	at org.apache.pulsar.metadata.impl.RocksdbMetadataStore.get(RocksdbMetadataStore.java:118)
+	at org.apache.pulsar.metadata.impl.MetadataStoreFactoryImpl.newInstance(MetadataStoreFactoryImpl.java:52)
+	at org.apache.pulsar.metadata.impl.MetadataStoreFactoryImpl.createExtended(MetadataStoreFactoryImpl.java:36)
+	at org.apache.pulsar.metadata.api.extended.MetadataStoreExtended.create(MetadataStoreExtended.java:41)
+	at org.apache.pulsar.sql.presto.PulsarConnectorCache.<init>(PulsarConnectorCache.java:77)
+	at org.apache.pulsar.sql.presto.PulsarConnectorCache.getConnectorCache(PulsarConnectorCache.java:105)
+	at org.apache.pulsar.sql.presto.PulsarConnector.initConnectorCache(PulsarConnector.java:85)
+	at org.apache.pulsar.sql.presto.PulsarConnectorFactory.create(PulsarConnectorFactory.java:70)
+	... 11 more
+Caused by: org.rocksdb.RocksDBException: While lock file: /Users/chenzili/Brittani/pulsar/data/metadata/LOCK: Resource temporarily unavailable
+	at org.rocksdb.TransactionDB.open(Native Method)
+	at org.rocksdb.TransactionDB.open(TransactionDB.java:45)
+	at org.apache.pulsar.metadata.impl.RocksdbMetadataStore.openDB(RocksdbMetadataStore.java:305)
+	... 20 more
+```
+
+### Anything else?
+
+cc @Jason918 @gaoran10 
+
+I don't know whether this is by design.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

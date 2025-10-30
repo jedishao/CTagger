@@ -1,0 +1,12 @@
+Improve Documentation for forceLimitPushDown
+The current documentation for forceLimitPushDown as stated in https://druid.apache.org/docs/latest/querying/groupbyquery.html#groupby-v2-configurations says:
+
+> ... When the sorting order uses fields that are not in the grouping key, applying this optimization can result in approximate results with unknown accuracy, so this optimization is disabled by default in that case
+
+This is highly misleading. The results aren't really approximate, they are arbitrary based on read order. It's possible to produce results that differ from reality by several orders of magnitude. I believe that most users will assume that this flag effectively turns a group-by query into a TopN query, which it does not.
+
+I would recommend disabling this feature when being used by non-group-by column since there is no way to indicate just how far off the results are. At the very least a stronger word-of-warning might be in order:
+
+> When the sorting order uses fields that are not in the grouping key, applying this optimization can produce results with undefined values based on a number of factors. The results will NOT mimic the behavior of TopN. This option is disabled by default in this case.
+
+Note that the motivation for even exploring this option was to do TopN based multiple columns in a performant manner. GroupBy over high cardinality fields does not perform well, and TopN doesn't support multiple columns.

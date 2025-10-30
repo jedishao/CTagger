@@ -1,0 +1,58 @@
+NetServer doesn't reply within executeBlocking messages from another executeBlocking
+### Version
+
+4.2.3
+
+### Context
+
+I have a netserver which responds within a blocking context, when I send a message from another blocking context, the netserver receives it properly, but the task added to the blocking execution context never gets executed and never replies the message.
+
+### Do you have a reproducer?
+This test can be run using `vertx-junit5`
+
+```java
+@Test
+void sendSocketMessage() throws Throwable {
+  Vertx vertx = Vertx.vertx(new VertxOptions());
+  VertxTestContext testContext = new VertxTestContext();
+
+  String host = "localhost";
+  vertx.createNetServer(new NetServerOptions().setLogActivity(true))
+    .connectHandler(socket ->
+      socket.handler(buffer ->
+        vertx.<Void>executeBlocking(promise -> socket.write("goodbye\n")
+          .onSuccess(promise::complete)
+          .onFailure(promise::fail))))
+    .listen(SocketAddress.inetSocketAddress(0, host))
+    .onComplete(testContext.succeeding(server -> {
+      final String message = "hello";
+      vertx.<String>executeBlocking(promise -> {
+        try {
+          Socket client = new Socket(host, server.actualPort());
+          PrintWriter toServer =
+            new PrintWriter(client.getOutputStream(),false);
+          BufferedReader fromServer =
+            new BufferedReader(
+              new InputStreamReader(client.getInputStream()));
+          toServer.print(message);
+          toServer.flush();
+          promise.complete(fromServer.readLine());
+        } catch (Exception e) {
+          promise.fail(e);
+        }
+      }).onComplete(testContext.succeeding(result -> testContext.verify(() -> {
+        Assertions.assertEquals(result, "goodbye");
+        testContext.completeNow();
+      })));
+  }));
+  Assertions.assertTrue(testContext.awaitCompletion(5, TimeUnit.SECONDS), "Test completed on time");
+  if (testContext.failed()) {
+    throw testContext.causeOfFailure();
+  }
+}
+```
+
+### Extra
+
+* If the same NetServer is started from a verticle that gets deployed in the same test, setting the startPromise to match the listen cycle, it works fine
+* If you put the `socket.write` outside the executeBlocking context, the test also passes

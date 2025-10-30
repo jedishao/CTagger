@@ -1,0 +1,33 @@
+Intermittent query failures with Channel Disconnected exception
+### Affected Version
+0.21
+### Description
+
+Observed several intermittent query failures on one of the clusters running on 0.21. The failures have been due to Channel disconnected exception from the netty http client on the Broker:
+
+```
+WARN [ForkJoinPool-1-worker-12] org.apache.druid.client.JsonParserIterator - Query [ccfd5b30-b3c0-4df9-a243-34f3d7448610] to host [historical] interrupted
+org.jboss.netty.channel.ChannelException: Channel disconnected
+        at org.apache.druid.java.util.http.client.NettyHttpClient$1.channelDisconnected(NettyHttpClient.java:351) ~[druid-core-0.21.1]
+        at org.jboss.netty.channel.SimpleChannelUpstreamHandler.handleUpstream(SimpleChannelUpstreamHandler.java:102) ~[netty-3.10.6.Final.jar:?]
+        at org.jboss.netty.channel.DefaultChannelPipeline.sendUpstream(DefaultChannelPipeline.java:564) ~[netty-3.10.6.Final.jar:?]
+        at org.jboss.netty.channel.DefaultChannelPipeline$DefaultChannelHandlerContext.sendUpstream(DefaultChannelPipeline.java:791) ~[netty-3.10.6.Final.jar:?]
+        at org.jboss.netty.channel.SimpleChannelUpstreamHandler.channelDisconnected(SimpleChannelUpstreamHandler.java:208) ~[netty-3.10.6.Final.jar:?]
+        at org.jboss.netty.channel.SimpleChannelUpstreamHandler.handleUpstream(SimpleChannelUpstreamHandler.java:102) ~[netty-3.10.6.Final.jar:?]
+```
+
+Pulled out a tcpdump on the historical for a sample query and there was an unexpected RST frame from the historical to the broker client. It looks like the historical closed the connection even before starting to process the query. Debug jetty logs on the historical pointed to the actual reason for the connection close:
+ 
+```
+javax.net.ssl.SSLHandshakeException: Encrypted buffer max length exceeded
+        at org.eclipse.jetty.io.ssl.SslConnection$DecryptedEndPoint.fill(SslConnection.java:735) ~[jetty-io-9.4.39.v20210325.jar:9.4.39.v20210325]
+        at org.eclipse.jetty.server.HttpConnection.fillRequestBuffer(HttpConnection.java:342) ~[jetty-server-9.4.39.v20210325.jar:9.4.39.v20210325]
+        at org.eclipse.jetty.server.HttpConnection.fillAndParseForContent(HttpConnection.java:316) ~[jetty-server-9.4.39.v20210325.jar:9.4.39.v20210325]
+        at org.eclipse.jetty.server.HttpInputOverHTTP.produceContent(HttpInputOverHTTP.java:33) ~[jetty-server-9.4.39.v20210325.jar:9.4.39.v20210325]
+        at org.eclipse.jetty.server.HttpInput.nextContent(HttpInput.java:382) ~[jetty-server-9.4.39.v20210325.jar:9.4.39.v20210325]
+        at org.eclipse.jetty.server.HttpInput.read(HttpInput.java:316) ~[jetty-server-9.4.39.v20210325.jar:9.4.39.v20210325]
+        at com.fasterxml.jackson.dataformat.smile.SmileParser._loadToHaveAtLeast(SmileParser.java:289) ~[jackson-dataformat-smile-2.10.2.jar:2.10.2]
+```
+
+This was a regression identified on jetty 9.4.39 and has been fixed in 9.4.40 via https://github.com/eclipse/jetty.project/pull/6142. Upgrading our jetty version should fix the issue.
+

@@ -1,0 +1,93 @@
+Redisson can't (de)serialize Java records (Java 17)
+**Expected behavior**
+Being able to store and retrieve Java 17 records to/from Redis using Redisson.
+
+**Actual behavior**
+Whenever we call either `RBucket#get` or `RBucket#set` method with a Java 17 record instead of a class, the following stacktrace is thrown:
+
+```text
+org.jboss.marshalling.TraceInformation: null
+Wrapped by: java.lang.UnsupportedOperationException: can't get field offset on a record class: private final java.lang.String com.example.MyClass.myField
+	at jdk.unsupported/sun.misc.Unsafe.objectFieldOffset(Unsafe.java:648)
+	at org.jboss.marshalling.reflect.SerializableField.<init>(SerializableField.java:58)
+	at org.jboss.marshalling.reflect.SerializableClass.getSerializableFields(SerializableClass.java:127)
+	at org.jboss.marshalling.reflect.SerializableClass.<init>(SerializableClass.java:93)
+	at org.jboss.marshalling.reflect.SerializableClassRegistry$1.computeValue(SerializableClassRegistry.java:62)
+	at org.jboss.marshalling.reflect.SerializableClassRegistry$1.computeValue(SerializableClassRegistry.java:59)
+	at java.base/java.lang.ClassValue.getFromHashMap(ClassValue.java:228)
+	at java.base/java.lang.ClassValue.getFromBackup(ClassValue.java:210)
+	at java.base/java.lang.ClassValue.get(ClassValue.java:116)
+	at org.jboss.marshalling.reflect.SerializableClassRegistry.lookup(SerializableClassRegistry.java:83)
+	at org.jboss.marshalling.river.RiverMarshaller.doWriteObject(RiverMarshaller.java:180)
+	at org.jboss.marshalling.river.BlockMarshaller.doWriteObject(BlockMarshaller.java:65)
+	at org.jboss.marshalling.river.BlockMarshaller.writeObject(BlockMarshaller.java:56)
+	at org.jboss.marshalling.MarshallerObjectOutputStream.writeObjectOverride(MarshallerObjectOutputStream.java:50)
+	at org.jboss.marshalling.river.RiverObjectOutputStream.writeObjectOverride(RiverObjectOutputStream.java:179)
+	at java.base/java.io.ObjectOutputStream.writeObject(ObjectOutputStream.java:350)
+	at java.base/java.util.CollSer.writeObject(ImmutableCollections.java:1465)
+	at org.jboss.marshalling.reflect.JDKSpecific$SerMethods.callWriteObject(JDKSpecific.java:89)
+	at org.jboss.marshalling.reflect.SerializableClass.callWriteObject(SerializableClass.java:199)
+	at org.jboss.marshalling.river.RiverMarshaller.doWriteSerializableObject(RiverMarshaller.java:1089)
+	at org.jboss.marshalling.river.RiverMarshaller.doWriteObject(RiverMarshaller.java:268)
+	at org.jboss.marshalling.river.RiverMarshaller.doWriteFields(RiverMarshaller.java:1143)
+	at org.jboss.marshalling.river.RiverMarshaller.doWriteSerializableObject(RiverMarshaller.java:1101)
+	at org.jboss.marshalling.river.RiverMarshaller.doWriteObject(RiverMarshaller.java:268)
+	at org.jboss.marshalling.river.RiverMarshaller.writeKnownObject(RiverMarshaller.java:696)
+	at org.jboss.marshalling.river.RiverMarshaller.doWriteObject(RiverMarshaller.java:217)
+	at org.jboss.marshalling.AbstractObjectOutput.writeObject(AbstractObjectOutput.java:58)
+	at org.jboss.marshalling.AbstractMarshaller.writeObject(AbstractMarshaller.java:111)
+	at org.redisson.codec.MarshallingCodec.lambda$new$1(MarshallingCodec.java:161)
+	... 32 common frames omitted
+Wrapped by: java.io.IOException: java.lang.UnsupportedOperationException: can't get field offset on a record class: private final java.lang.String com.example.MyClass.myField
+	at org.redisson.codec.MarshallingCodec.lambda$new$1(MarshallingCodec.java:171)
+	at org.redisson.command.CommandAsyncService.encode(CommandAsyncService.java:680)
+	... 31 common frames omitted
+Wrapped by: java.lang.IllegalArgumentException: java.io.IOException: java.lang.UnsupportedOperationException: can't get field offset on a record class: private final java.lang.String com.example.MyClass.myField
+	at org.redisson.command.CommandAsyncService.encode(CommandAsyncService.java:682)
+	at org.redisson.RedissonObject.encode(RedissonObject.java:299)
+	at org.redisson.RedissonBucket.setAsync(RedissonBucket.java:192)
+	at org.redisson.RedissonBucket.set(RedissonBucket.java:183)
+	at com.example.MyRedisClient.set(...)
+        ... Internal stacktrace omitted
+```
+
+This seems to be an issue with the `jboss-marshalling` (https://github.com/jboss-remoting/jboss-marshalling) dependency used by Redisson, and its use of the `Unsafe#objectFieldOffset` method here: https://github.com/jboss-remoting/jboss-marshalling/blob/main/api/src/main/java/org/jboss/marshalling/reflect/SerializableField.java#L58
+
+**Steps to reproduce or test case**
+
+Create any Serializable record class, for example:
+
+```java
+public record MyRecord(String value) implements Serializable {}
+```
+
+Then try to set an instance of this record in a Redis instance using Redisson. The provided stacktrace should occur.
+
+**Redis version**
+Docker image `bitnami/redis:5.0.11`
+
+**Redisson version**
+Redisson `3.17.1`
+
+**Redisson configuration**
+Roughly:
+
+```java
+    private Config buildSentinelRedissonConfig(final String[] sentinelEndpoints, final boolean checkSentinelsList, final String sentinelMasterName, final String requiredPassword, final int connectTimeout, final int readTimeout) {
+        final Config config = new Config();
+        final SentinelServersConfig sentinelServersConfig = config.useSentinelServers();
+
+        sentinelServersConfig
+                .setCheckSentinelsList(checkSentinelsList)
+                .setMasterName(sentinelMasterName)
+                .addSentinelAddress(sentinelEndpoints)
+                .setTimeout(readTimeout)
+                .setConnectTimeout(connectTimeout);
+
+        if (!isNullOrEmpty(requiredPassword))
+            sentinelServersConfig.setPassword(requiredPassword);
+
+        return config;
+    }
+
+```

@@ -1,0 +1,72 @@
+[Bug] [Perf] PerformanceProducer do not produce expected number of messages.
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.9.
+
+### Minimal reproduce step
+
+Use PerformanceProducer with `--num-messages` to determine the number of messages that i want to produce, and with `--num-test-threads` to start multiple threads to working.
+```
+bin/pulsar-perf produce --num-messages 10000000 --num-test-threads 4 ...
+```
+
+
+
+### What did you expect to see?
+
+I want to produce exactly 100000 messages to be produced.
+
+### What did you see instead?
+
+Less than 10000000 messages are produced.
+
+### Anything else?
+
+The root reason is as follows:
+When we use configuration `--num-messages 100000 --num-test-threads 4` to start perf process, process will divide the total messages with threads count, that is `100000/4=25000`, the result of which will be assign as the total messages to be produced by each threads. 
+So, each thread need to 25000 messages.
+But, when one of threads produce 25000 messages, it will call `PerfClientUtils.exit(0);` to terminates the currently running Java Virtual Machine, which will result into that other threads is terminated but do not produce enough messages yet.
+![image](https://user-images.githubusercontent.com/52550727/224208449-d656e0ec-15dd-4bc4-93df-423a8053a88b.png)
+
+
+The test code bellow can simulate this process:
+```
+    public static void main(String[] args) throws InterruptedException {
+        ExecutorService executor = Executors
+                .newCachedThreadPool(new DefaultThreadFactory("pulsar-perf-producer-exec"));
+        CountDownLatch doneLatch = new CountDownLatch(2);
+        executor.submit(()->{
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            System.out.println("thread1: need to be printed.");
+            doneLatch.countDown();
+        });
+        executor.submit(()->{
+            System.out.println("thread2: call system.exit(0).");
+            doneLatch.countDown();
+            System.exit(0);
+        });
+        while (true) {
+            if (doneLatch.getCount() <= 0) {
+                break;
+            }
+            Thread.sleep(10000);
+        }
+    }
+```
+the output as follows:
+<img width="278" alt="image" src="https://user-images.githubusercontent.com/52550727/224208661-a1e75fda-0226-4b79-a23d-7167ec28c5c0.png">
+
+
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

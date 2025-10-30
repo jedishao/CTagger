@@ -1,0 +1,70 @@
+Usage of verify() within `compose()`
+### Version
+
+Version 4.1.8
+
+### Context
+
+For JUnit 5 tests I chain multiple `Future`s together with `compose()` and check each of them with JUnit assertions. At last, I do some assertions in `onComplete()`.
+
+As suggested in the [Vert.x docs](https://vertx.io/docs/vertx-junit5/java/#_use_any_assertion_library) I used `verify()` to encapsulate the assertions. But this lead to weird behavior when it was used within `compose()`. Even tough an assertion failed within a `verify()` within a `compose()`, the following `compose()` calls were executed. I would have expected that they would be skipped as soon as one assertion fails.
+
+I now removed all `verify()` from `compose()` and use it only in `onComplete()`. Now the tests work proper again.
+
+I don't know if this is a bug or intended behavior. If this is intended, please add a hint to the documentation that `verify()` should not be used within `compose()` and instead assertions can be called directly. I couldn't find any hint. Otherwise I request a bug fix hereby.
+
+### Do you have a reproducer?
+
+Here's an example test:
+
+```java
+    @Test
+    public void testVerify(VertxTestContext context) {
+        Promise<Void> promise = Promise.promise();
+        promise.complete();
+        promise.future().compose(v -> {
+            System.out.println("first compose 0");
+            context.verify(() -> {
+                System.out.println("first compose - first verify 0");
+                fail("fail");
+                System.out.println("first compose - first verify 1");
+            });
+            System.out.println("first compose 1");
+            Promise<Void> p = Promise.promise();
+            p.complete();
+            return p.future();
+        }).compose(v -> {
+            System.out.println("second compose 0");
+            Promise<Void> p = Promise.promise();
+            p.complete();
+            return p.future();
+        }).onComplete(res -> {
+            if (res.failed()) {
+                System.out.println("first onComplete failed");
+                context.failNow(res.cause());
+            } else {
+                System.out.println("first onComplete succeeded");
+            }
+        });
+    }
+```
+
+The output of this test is:
+
+```bash
+first compose 0
+first compose - first verify 0
+first compose 1
+second compose 0
+first onComplete succeeded
+```
+
+But I expected it to be:
+
+```bash
+first compose 0
+first compose - first verify 0
+first onComplete failed
+```
+
+This is also the output of the test if `verify()` is removed.

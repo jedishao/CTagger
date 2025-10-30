@@ -1,0 +1,38 @@
+There was a problem setting expire with RBLoomFilter
+```
+        RBloomFilter<String> bloomFilter = redissonClient.getBloomFilter("str_bloom_filter_2");
+        bloomFilter.tryInit(1000,0.1);
+        bloomFilter.add("test")
+        bloomFilter.expire(Instant.now().plusMillis(60));
+```
+## log
+```
+org.redisson.client.RedisException: ERR bad lua script for redis cluster, redis.call/pcall, wrong number of arguments for 'pexpireat' command. channel: [id: 0x400cf43d, L:/******:***** - R:***********.redis.rds.aliyuncs.com/127.0.0.1:6379] command: (EVAL), promise: java.util.concurrent.CompletableFuture@74451ae5[Not completed, 1 dependents], params: [local result = 0;for j = 1, #KEYS, 1 do local expireSet; if ARGV[2] ~= '' then expireSet = redis.call('pexpireat', KEYS[j], ARGV[1], ARGV[2]); else expireSet = redis.call('pexpireat', KEYS[j], ARGV[1]); end; if expireSet == 1 then result = expireSet;end; end; return result; , 2, str_bloom_filter_2, {str_bloom_filter_2}:config, 1668072751474, ]
+
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:370)
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:198)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:137)
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:113)
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501)
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:714)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)
+
+```
+## Redisson version
+3.17.7

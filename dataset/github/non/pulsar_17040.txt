@@ -1,0 +1,75 @@
+[Bug] [txn] can not do txn-produce after several pulsar-perf op and cluster restart
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+- os: Linux  4.19.160-0419160-generic x86_64
+- pulsar-server: 2.9.3
+- pulsar-client: 2.9.2
+- 3 nodes cluster
+- use pulsar-perf to simulate produce/consume, add config "-txn -nmt 50" to enable txn-produce or txn-consume
+- server conf: transactionCoordinatorEnabled=true, acknowledgmentAtBatchIndexLevelEnabled=false, E-Qw-Qa is 3-3-2
+
+### Minimal reproduce step
+
+1. use pulsar-perf to do several perf-test, both txn and non-txn produce/consume work well
+2. during the test, cluster have several time restart broker and bookie
+3. txn-produce failed, but non-txn-produce succeed
+
+
+
+### What did you expect to see?
+
+both txn-produce and non-txn-produce succeed
+
+### What did you see instead?
+
+Broker log do not have any error log, and as the following log shown, it look like the operation timeout is over 30s and client close the producer. But although I add operation-timeout client-config in pulsar-perf and change it to a large value 8min, the problem also occur.
+
+And if I remove "-txn -nmt 50" in pulsar-perf, change it to non-txn produce, it can succeed. The problem seems refer to the txn module. 
+
+Besides, although I restart broker and bookie again, txn-produce still fail. I don't know how to solve it without cleanup the whole cluster. 
+
+client error log:
+```
+15:58:33.534 [pulsar-client-io-3-1] ERROR org.apache.pulsar.client.impl.ProducerImpl - [persistent://test/test/test_txn_perf_tmp-partition-2] [null] Failed to create producer: request timeout {'durationMs': '30000'}
+15:58:33.534 [pulsar-client-io-1-1] ERROR org.apache.pulsar.client.impl.ProducerImpl - [persistent://test/test/test_txn_perf_tmp-partition-2] [null] Failed to create producer: request timeout {'durationMs': '30000'}
+15:58:33.534 [pulsar-client-io-2-1] ERROR org.apache.pulsar.client.impl.PartitionedProducerImpl - [persistent://test/test/test_txn_perf_tmp] Could not create partitioned producer.
+15:58:33.534 [pulsar-client-io-3-1] ERROR org.apache.pulsar.client.impl.PartitionedProducerImpl - [persistent://test/test/test_txn_perf_tmp] Could not create partitioned producer.
+15:58:33.534 [pulsar-client-io-1-1] ERROR org.apache.pulsar.client.impl.PartitionedProducerImpl - [persistent://test/test/test_txn_perf_tmp] Could not create partitioned producer.
+15:58:33.538 [pulsar-perf-producer-exec-1-3] ERROR perf.PerformanceProducer - Got error
+java.util.concurrent.ExecutionException: org.apache.pulsar.client.api.PulsarClientException$TimeoutException: request timeout {'durationMs': '30000'}
+        at java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:357) ~[?:1.8.0_121]
+        at java.util.concurrent.CompletableFuture.get(CompletableFuture.java:1895) ~[?:1.8.0_121]
+        at perf.PerformanceProducer.runProducer(PerformanceProducer.java:540)
+```
+
+server log:
+```
+17:15:32.715 [pulsar-io-27-15] INFO  org.apache.pulsar.broker.service.ServerCnx - New connection from 
+17:15:32.715 [pulsar-io-27-16] INFO  org.apache.pulsar.broker.service.ServerCnx - New connection from 
+17:15:32.715 [pulsar-io-27-17] INFO  org.apache.pulsar.broker.service.ServerCnx - New connection from 
+17:15:32.721 [pulsar-io-27-16] INFO  org.apache.pulsar.broker.service.ServerCnx -[persistent://test/test/test_txn_perf_tmp-partition-0] Creating producer. producerId=0
+17:15:32.721 [pulsar-io-27-15] INFO  org.apache.pulsar.broker.service.ServerCnx - [persistent://test/test/test_txn_perf_tmp-partition-0] Creating producer. producerId=0
+17:15:32.721 [pulsar-io-27-17] INFO  org.apache.pulsar.broker.service.ServerCnx - [persistent://test/test/test_txn_perf_tmp-partition-0] Creating producer. producerId=0
+17:15:32.722 [ForkJoinPool.commonPool-worker-43] INFO  org.apache.pulsar.broker.service.ServerCnx -  persistent://test/test/test_txn_perf_tmp-partition-0 configured with schema false
+17:15:32.722 [ForkJoinPool.commonPool-worker-50] INFO  org.apache.pulsar.broker.service.ServerCnx -  persistent://test/test/test_txn_perf_tmp-partition-0 configured with schema false
+17:15:32.722 [ForkJoinPool.commonPool-worker-50] INFO  org.apache.pulsar.broker.service.ServerCnx -  persistent://test/test/test_txn_perf_tmp-partition-0 configured with schema false
+17:16:32.716 [pulsar-io-27-16] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed producer before its creation was completed. producerId=0
+17:16:32.726 [pulsar-io-27-17] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed producer before its creation was completed. producerId=1
+17:16:32.726 [pulsar-io-27-15] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed producer before its creation was completed. producerId=2
+17:16:32.746 [pulsar-io-27-15] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed connection from 
+17:16:32.746 [pulsar-io-27-16] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed connection from 
+17:16:32.746 [pulsar-io-27-17] INFO  org.apache.pulsar.broker.service.ServerCnx - Closed connection from 
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

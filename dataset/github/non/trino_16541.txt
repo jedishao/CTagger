@@ -1,0 +1,32 @@
+IllegalArgumentException when running INSERT INTO SELECT after updating to 410
+After updating from Trino 407 to 410 I get this error message and stack trace for some queries which did run fine with 407:
+
+```
+java.lang.IllegalArgumentException: Invalid offset or length (4, 65544) in array of length 65544
+	at io.airlift.compress.lz4.Lz4Decompressor.verifyRange(Lz4Decompressor.java:108)
+	at io.airlift.compress.lz4.Lz4Decompressor.decompress(Lz4Decompressor.java:35)
+	at io.trino.execution.buffer.PageDeserializer$SerializedPageInput.decompress(PageDeserializer.java:334)
+	at io.trino.execution.buffer.PageDeserializer$SerializedPageInput.ensureReadable(PageDeserializer.java:261)
+	at io.trino.execution.buffer.PageDeserializer$SerializedPageInput.readBytes(PageDeserializer.java:247)
+	at io.airlift.slice.SliceInput.readBytes(SliceInput.java:222)
+	at io.trino.spi.block.MapBlockEncoding.readBlock(MapBlockEncoding.java:106)
+	at io.trino.metadata.InternalBlockEncodingSerde.readBlock(InternalBlockEncodingSerde.java:63)
+	at io.trino.block.BlockSerdeUtil.readBlock(BlockSerdeUtil.java:43)
+	at io.trino.execution.buffer.PagesSerdeUtil.readRawPage(PagesSerdeUtil.java:78)
+	at io.trino.execution.buffer.PageDeserializer.deserialize(PageDeserializer.java:80)
+	at io.trino.operator.ExchangeOperator.getOutput(ExchangeOperator.java:240)
+	at io.trino.operator.Driver.processInternal(Driver.java:396)
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:299)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:691)
+	at io.trino.operator.Driver.process(Driver.java:291)
+	at io.trino.operator.Driver.processForDuration(Driver.java:262)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:773)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:165)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:523)
+	at io.trino.$gen.Trino_410____20230313_141724_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+```
+
+I am using the `hive` connector, reading & writing Parquet files in an `INSERT INTO SELECT` query through dbt. I rolled back to 407 and reran the query resulting in a successful execution.

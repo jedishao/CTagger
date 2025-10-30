@@ -1,0 +1,39 @@
+[Bug] DBStorageCleanup always logs Deleted Indexes for entries as 0
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Pulsar (broker, bookie, zookeeper) -> 2.10.1
+OS -> Ubuntu 18.04.6
+
+
+### Minimal reproduce step
+
+Publish some data for bookkeeper to trigger GCThread.
+
+### What did you expect to see?
+
+Number of entries which are deleted for number of ledgers
+
+### What did you see instead?
+
+I see number of entries as 0 always
+
+### Anything else?
+
+Here are the logs
+05:15:10.184 [GarbageCollectorThread-11-1] INFO  org.apache.bookkeeper.bookie.GarbageCollectorThread - Enter minor compaction, suspendMinor false
+05:15:10.184 [GarbageCollectorThread-11-1] INFO  org.apache.bookkeeper.bookie.GarbageCollectorThread - Do compaction to compact those files lower than 0.2
+05:15:10.184 [GarbageCollectorThread-11-1] INFO  org.apache.bookkeeper.bookie.GarbageCollectorThread - Compaction: entry log usage buckets[10% 20% 30% 40% 50% 60% 70% 80% 90% 100%] = [0, 0, 0, 0, 1, 12, 24, 22, 30, 268], compacted [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+05:16:09.802 [db-storage-cleanup-10-1] INFO  org.apache.bookkeeper.bookie.storage.ldb.EntryLocationIndex - Deleting indexes for ledgers: [2486561, 2495075, 2495089, 2495070, 2495084, 2486362]
+05:16:09.805 [db-storage-cleanup-10-1] INFO  org.apache.bookkeeper.bookie.storage.ldb.EntryLocationIndex - Deleted indexes for 0 entries from 6 ledgers in 0.003 seconds
+
+Looked into the code to troubleshoot and found that the field deletedIndex value is never updated in org.apache.bookkeeper.bookie.storage.ldb.EntryLocationIndex.removeOffsetFromDeletedLedgers()
+
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

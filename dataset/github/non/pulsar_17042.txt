@@ -1,0 +1,110 @@
+ Topic-level quotas, maxproducers and maxconsumers policy - not working as expected with SSL
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+We use Pulsar version for now - `2.9.2` and Bookkkeeper - `4.14.4`
+Our cluster consists of 9 brokers Pulsar and 9 bookies Bookkeeper. We use partitioned topics with 6 partitions. And our installation Pulsar <> Bookkeeper <> Zookeeper - use SSL.
+
+### Minimal reproduce step
+
+Enable SSL and try to set the topic level policy.
+
+### What did you expect to see?
+
+ Topic-level quotas, maxproducers and maxconsumers policy - working as expected with SSL enabled.
+
+### What did you see instead?
+
+When I tried e.g. to set the quota backlog at the topic level policy or get them on our Pulsar production cluster, I got this error (for example with such a request:
+
+`curl -L http://pulsar03:8080/admin/v2/persistent/public/default/perf_client_perf_queue_3/backlogQuotaMap`
+
+The ERROR:
+`--- An unexpected error occurred in the server ---
+Message: Topic policies cache have not init.`
+
+Stacktrace:
+
+```
+org.apache.pulsar.broker.service.BrokerServiceException$TopicPoliciesCacheNotInitException: Topic policies cache have not init.
+	at org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService.getTopicPolicies(SystemTopicBasedTopicPoliciesService.java:186)
+	at org.apache.pulsar.broker.service.TopicPoliciesService.lambda$getTopicPoliciesAsyncWithRetry$0(TopicPoliciesService.java:90)
+	at org.apache.pulsar.client.util.RetryUtil.executeWithRetry(RetryUtil.java:49)
+	at org.apache.pulsar.client.util.RetryUtil.lambda$executeWithRetry$1(RetryUtil.java:58)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+
+And such an error with any policy at the topic level.
+But I found such a strange pattern - **when the all partitions of a topic belong to the same broker - then the topic-level policies work as expected.**
+And also - **if the partition leaders are different brokers - topic-level policies don’t work as they should** and when i set (or get) backlog quotas or retention at the topic level, an error occurs.
+
+### Anything else?
+
+In addition, I see this WARN in the logs when I set (or get) the topic level policies, for topics whose partitions belong to different brokers:
+
+```
+{
+    "@timestamp": "2022-06-02T15:40:31.041Z",
+    "log.level": "INFO",
+    "message": "New connection from /10.10.10.10:34910",
+    "process.thread.name": "pulsar-io-4-53",
+    "log.logger": "org.apache.pulsar.broker.service.ServerCnx"
+}
+```
+
+```
+
+{
+    "@timestamp": "2022-06-02T15:40:31.047Z",
+    "log.level": "WARN",
+    "message": "[/10.10.10.10:34910] Got exception io.netty.handler.codec.DecoderException: 
+    javax.net.ssl.SSLHandshakeException: error:10000438:SSL routines:OPENSSL_internal:TLSV1_ALERT_INTERNAL_ERROR\n\tat 
+    io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:480)\n\tat 
+    io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:279)\n\tat 
+    io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)\n\tat 
+    io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)\n\tat 
+    io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)\n\tat 
+    io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)\n\tat 
+    io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)\n\tat 
+    io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)\n\tat 
+    io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)\n\tat 
+    io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:795)\n\tat 
+    io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:480)\n\tat 
+    io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)\n\tat 
+    io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)\n\tat 
+    io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)\n\tat 
+    io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)\n\tat java.lang.Thread.run(Thread.java:748)\n
+    Caused by: javax.net.ssl.SSLHandshakeException: error:10000438:SSL routines:OPENSSL_internal:TLSV1_ALERT_INTERNAL_ERROR\n\tat 
+    io.netty.handler.ssl.ReferenceCountedOpenSslEngine.shutdownWithError(ReferenceCountedOpenSslEngine.java:1074)\n\tat 
+    io.netty.handler.ssl.ReferenceCountedOpenSslEngine.sslReadErrorResult(ReferenceCountedOpenSslEngine.java:1365)\n\tat 
+    io.netty.handler.ssl.ReferenceCountedOpenSslEngine.unwrap(ReferenceCountedOpenSslEngine.java:1305)\n\tat 
+    io.netty.handler.ssl.ReferenceCountedOpenSslEngine.unwrap(ReferenceCountedOpenSslEngine.java:1392)\n\tat 
+    io.netty.handler.ssl.ReferenceCountedOpenSslEngine.unwrap(ReferenceCountedOpenSslEngine.java:1435)\n\tat 
+    io.netty.handler.ssl.SslHandler$SslEngineType$1.unwrap(SslHandler.java:221)\n\tat 
+    io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1342)\n\tat 
+    io.netty.handler.ssl.SslHandler.decodeNonJdkCompatible(SslHandler.java:1246)\n\tat 
+    io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1286)\n\tat 
+    io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:510)\n\tat 
+    io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:449)\n\t... 15 more\n",
+    "process.thread.name": "pulsar-io-4-53",
+    "log.logger": "org.apache.pulsar.broker.service.ServerCnx"
+}
+
+```
+Our SSL settings configured according to the documentation.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

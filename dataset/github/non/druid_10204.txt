@@ -1,0 +1,53 @@
+IndexOutOfBoundsException in RelDecorrelator.decorrelateQuery
+This query on the builtin example "wikipedia" dataset:
+
+```
+SELECT
+  (SELECT MIN(__time) FROM wikipedia w2 WHERE w1.countryName = w2.countryName) AS firstseen,
+  countryName
+FROM wikipedia w1
+GROUP BY countryName
+ORDER BY firstseen
+```
+
+Throws the following error during planning:
+
+```
+java.lang.IndexOutOfBoundsException: index (6) must be less than size (2)
+        at com.google.common.base.Preconditions.checkElementIndex(Preconditions.java:313) ~[guava-16.0.1.jar:?]
+        at com.google.common.base.Preconditions.checkElementIndex(Preconditions.java:295) ~[guava-16.0.1.jar:?]
+        at com.google.common.collect.RegularImmutableList.get(RegularImmutableList.java:65) ~[guava-16.0.1.jar:?]
+        at org.apache.calcite.rex.RexBuilder.makeInputRef(RexBuilder.java:859) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.sql2rel.RelDecorrelator$AdjustProjectForCountAggregateRule.lambda$onMatch2$0(RelDecorrelator.java:2501) ~[calcite-core-1.21.0.jar:1.21.0]
+        at java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:193) ~[?:1.8.0_252]
+        at java.util.Iterator.forEachRemaining(Iterator.java:116) ~[?:1.8.0_252]
+        at java.util.Spliterators$IteratorSpliterator.forEachRemaining(Spliterators.java:1801) ~[?:1.8.0_252]
+        at java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:482) ~[?:1.8.0_252]
+        at java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:472) ~[?:1.8.0_252]
+        at java.util.stream.ReduceOps$ReduceOp.evaluateSequential(ReduceOps.java:708) ~[?:1.8.0_252]
+        at java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234) ~[?:1.8.0_252]
+        at java.util.stream.ReferencePipeline.collect(ReferencePipeline.java:566) ~[?:1.8.0_252]
+        at org.apache.calcite.sql2rel.RelDecorrelator$AdjustProjectForCountAggregateRule.onMatch2(RelDecorrelator.java:2502) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.sql2rel.RelDecorrelator$AdjustProjectForCountAggregateRule.onMatch(RelDecorrelator.java:2433) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.plan.AbstractRelOptPlanner.fireRule(AbstractRelOptPlanner.java:319) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.plan.hep.HepPlanner.applyRule(HepPlanner.java:560) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.plan.hep.HepPlanner.applyRules(HepPlanner.java:419) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.plan.hep.HepPlanner.executeInstruction(HepPlanner.java:256) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.plan.hep.HepInstruction$RuleInstance.execute(HepInstruction.java:127) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.plan.hep.HepPlanner.executeProgram(HepPlanner.java:215) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.plan.hep.HepPlanner.findBestExp(HepPlanner.java:202) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.sql2rel.RelDecorrelator.decorrelate(RelDecorrelator.java:250) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.sql2rel.RelDecorrelator.decorrelateQuery(RelDecorrelator.java:215) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.druid.sql.calcite.planner.Rules$DecorrelateAndTrimFieldsProgram.run(Rules.java:300) ~[druid-sql-0.19.0-iap1.jar:0.19.0-iap1]
+        at org.apache.calcite.tools.Programs$SequenceProgram.run(Programs.java:346) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.tools.Programs$SequenceProgram.run(Programs.java:346) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.calcite.prepare.PlannerImpl.transform(PlannerImpl.java:357) ~[calcite-core-1.21.0.jar:1.21.0]
+        at org.apache.druid.sql.calcite.planner.DruidPlanner.planWithDruidConvention(DruidPlanner.java:205) ~[druid-sql-0.19.0-iap1.jar:0.19.0-iap1]
+        at org.apache.druid.sql.calcite.planner.DruidPlanner.plan(DruidPlanner.java:139) ~[druid-sql-0.19.0-iap1.jar:0.19.0-iap1]
+        at org.apache.druid.sql.SqlLifecycle.plan(SqlLifecycle.java:168) ~[druid-sql-0.19.0-iap1.jar:0.19.0-iap1]
+        at org.apache.druid.sql.SqlLifecycle.plan(SqlLifecycle.java:179) ~[druid-sql-0.19.0-iap1.jar:0.19.0-iap1]
+        at org.apache.druid.sql.SqlLifecycle.planAndAuthorize(SqlLifecycle.java:240) ~[druid-sql-0.19.0-iap1.jar:0.19.0-iap1]
+        at org.apache.druid.sql.http.SqlResource.doPost(SqlResource.java:95) [druid-sql-0.19.0-iap1.jar:0.19.0-iap1]
+```
+
+Seen in an internal version that is based on 0.19.0.

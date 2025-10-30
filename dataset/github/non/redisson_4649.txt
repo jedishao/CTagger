@@ -1,0 +1,119 @@
+After failover redisson attempts to connect to the failed master indefinitely
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+**Expected behavior**
+When a new master is elected in the cluster, redisson should realize this and remove the old clients from the connection manager.
+
+**Actual behavior**
+After failover, when new master is elected redisson still tries to create connections to the failed, previous master.
+Even if ReadMode and SubscriptionMode is set to Master.
+
+Redisson floods the log with this:
+```
+2022-11-02 14:53:47.651 --- [isson-timer-4-1] disson.client.handler.ConnectionWatchdog : reconnecting RedisConnection@1075775084 [redisClient=[addr=redis://127.0.0.1:7002], channel=[id: 0x23d123b3, L:/127.0.0.1:63298 ! R:127.0.0.1/127.0.0.1:7002], currentCommand=null, usage=0] to 127.0.0.1/127.0.0.1:7002 
+2022-11-02 14:53:47.651 --- [sson-netty-2-31] org.redisson.client.RedisConnection      : Connection created [addr=redis://127.0.0.1:7002]
+2022-11-02 14:53:47.652 --- [sson-netty-2-15] org.redisson.client.RedisConnection      : Connection created [addr=redis://127.0.0.1:7002]
+2022-11-02 14:53:47.660 --- [sson-netty-2-27] sson.client.handler.ErrorsLoggingHandler : Exception occured. Channel: [id: 0x29805d53, L:/127.0.0.1:63387 - R:127.0.0.1/127.0.0.1:7002]
+java.io.IOException: A l�tez� kapcsolatot a t�voli �llom�s k�nyszer�tetten bez�rta
+	at java.base/sun.nio.ch.SocketDispatcher.read0(Native Method)
+	at java.base/sun.nio.ch.SocketDispatcher.read(SocketDispatcher.java:43)
+	at java.base/sun.nio.ch.IOUtil.readIntoNativeBuffer(IOUtil.java:276)
+	at java.base/sun.nio.ch.IOUtil.read(IOUtil.java:233)
+	at java.base/sun.nio.ch.IOUtil.read(IOUtil.java:223)
+	at java.base/sun.nio.ch.SocketChannelImpl.read(SocketChannelImpl.java:358)
+	at io.netty.buffer.PooledByteBuf.setBytes(PooledByteBuf.java:258)
+	at io.netty.buffer.AbstractByteBuf.writeBytes(AbstractByteBuf.java:1132)
+	at io.netty.channel.socket.nio.NioSocketChannel.doReadBytes(NioSocketChannel.java:357)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:151)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:788)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:724)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+```
+
+**Steps to reproduce or test case**
+Setup a redis cluster with replica nodes. Connect with redisson client. Do failover.
+**Redis version**
+6.2.7
+**Redisson version**
+3.17.7
+**Redisson configuration**
+```java
+        Config config = new Config();
+        config
+                .useClusterServers()
+                .addNodeAddress("redis://127.0.0.1:7000")
+                .addNodeAddress("redis://127.0.0.1:7001")
+                .addNodeAddress("redis://127.0.0.1:7002")
+                .addNodeAddress("redis://127.0.0.1:7003")
+                .addNodeAddress("redis://127.0.0.1:7004")
+                .addNodeAddress("redis://127.0.0.1:7005")
+                .setReadMode(ReadMode.MASTER)
+                .setSubscriptionMode(SubscriptionMode.MASTER)
+                .setRetryAttempts(30)
+                .setRetryInterval(1500);
+```
+
+I've captured the redisson debug logs, and searched for the cluster nodes command. You can see below, that all neccessary information is available to change the master. I realized, there is a function that should do this in `ClusterConnectionManager::changeMaster`. I put a breakpoint there, but it is never called. I think `ClusterConnectionManager::checkMasterNodesChange` should do this, but it's too complex for me to localize the problem.
+
+```
+--
+2022-11-02 14:53:37.213 --- [isson-netty-2-8] edisson.cluster.ClusterConnectionManager : cluster nodes state got from 127.0.0.1/127.0.0.1:7002:
+a95ea3cbfd3d51f8d20b6ecaf49615a32dbd2380 127.0.0.1:7005@17005 slave 1636c6fafd66d2828c039c7b541a27f8bceb53ee 0 1667397216275 317 connected
+e9a0edaeb8f526ab128a6e059fa672c27c6bbf65 127.0.0.1:7003@17003 slave 214e6cc66573fd282fae37dadac5ca339a61c0f3 0 1667397214764 318 connected
+3f264f8dbec00b63727f6b05fe26830ccc032c57 127.0.0.1:7001@17001 master - 0 1667397215000 314 connected 5461-10922
+214e6cc66573fd282fae37dadac5ca339a61c0f3 127.0.0.1:7000@17000 master - 0 1667397216000 318 connected 0-5460
+27283848b42c57c2ec6b130a2865e7ad0615742c 127.0.0.1:7004@17004 slave 3f264f8dbec00b63727f6b05fe26830ccc032c57 0 1667397215269 314 connected
+1636c6fafd66d2828c039c7b541a27f8bceb53ee 127.0.0.1:7002@17002 myself,master - 0 1667397215000 317 connected 10923-16383
+
+--
+2022-11-02 14:53:42.238 --- [isson-netty-2-7] edisson.cluster.ClusterConnectionManager : cluster nodes state got from 127.0.0.1/127.0.0.1:7001:
+e9a0edaeb8f526ab128a6e059fa672c27c6bbf65 127.0.0.1:7003@17003 slave 214e6cc66573fd282fae37dadac5ca339a61c0f3 0 1667397220609 318 connected
+214e6cc66573fd282fae37dadac5ca339a61c0f3 127.0.0.1:7000@17000 master - 0 1667397221111 318 connected 0-5460
+3f264f8dbec00b63727f6b05fe26830ccc032c57 127.0.0.1:7001@17001 myself,master - 0 1667397220000 314 connected 5461-10922
+a95ea3cbfd3d51f8d20b6ecaf49615a32dbd2380 127.0.0.1:7005@17005 slave 1636c6fafd66d2828c039c7b541a27f8bceb53ee 0 1667397222115 317 connected
+1636c6fafd66d2828c039c7b541a27f8bceb53ee 127.0.0.1:7002@17002 master - 1667397219101 1667397217000 317 disconnected 10923-16383
+27283848b42c57c2ec6b130a2865e7ad0615742c 127.0.0.1:7004@17004 slave 3f264f8dbec00b63727f6b05fe26830ccc032c57 0 1667397221111 314 connected
+
+--
+2022-11-02 14:53:50.318 --- [isson-netty-2-2] edisson.cluster.ClusterConnectionManager : cluster nodes state got from 127.0.0.1/127.0.0.1:7000:
+a95ea3cbfd3d51f8d20b6ecaf49615a32dbd2380 127.0.0.1:7005@17005 master - 0 1667397230257 319 connected 10923-16383
+1636c6fafd66d2828c039c7b541a27f8bceb53ee 127.0.0.1:7002@17002 master,fail - 1667397218190 1667397217000 317 disconnected
+e9a0edaeb8f526ab128a6e059fa672c27c6bbf65 127.0.0.1:7003@17003 slave 214e6cc66573fd282fae37dadac5ca339a61c0f3 0 1667397228246 318 connected
+3f264f8dbec00b63727f6b05fe26830ccc032c57 127.0.0.1:7001@17001 master - 0 1667397229000 314 connected 5461-10922
+27283848b42c57c2ec6b130a2865e7ad0615742c 127.0.0.1:7004@17004 slave 3f264f8dbec00b63727f6b05fe26830ccc032c57 0 1667397230000 314 connected
+214e6cc66573fd282fae37dadac5ca339a61c0f3 127.0.0.1:7000@17000 myself,master - 0 1667397228000 318 connected 0-5460
+
+--
+2022-11-02 14:53:56.028 --- [isson-netty-2-7] edisson.cluster.ClusterConnectionManager : cluster nodes state got from 127.0.0.1/127.0.0.1:7001:
+e9a0edaeb8f526ab128a6e059fa672c27c6bbf65 127.0.0.1:7003@17003 slave 214e6cc66573fd282fae37dadac5ca339a61c0f3 0 1667397233683 318 connected
+214e6cc66573fd282fae37dadac5ca339a61c0f3 127.0.0.1:7000@17000 master - 0 1667397233580 318 connected 0-5460
+3f264f8dbec00b63727f6b05fe26830ccc032c57 127.0.0.1:7001@17001 myself,master - 0 1667397233000 314 connected 5461-10922
+a95ea3cbfd3d51f8d20b6ecaf49615a32dbd2380 127.0.0.1:7005@17005 master - 0 1667397235204 319 connected 10923-16383
+1636c6fafd66d2828c039c7b541a27f8bceb53ee 127.0.0.1:7002@17002 master,fail - 1667397219101 1667397217000 317 disconnected
+27283848b42c57c2ec6b130a2865e7ad0615742c 127.0.0.1:7004@17004 slave 3f264f8dbec00b63727f6b05fe26830ccc032c57 0 1667397234186 314 connected
+
+--
+2022-11-02 14:54:01.052 --- [isson-netty-2-7] edisson.cluster.ClusterConnectionManager : cluster nodes state got from 127.0.0.1/127.0.0.1:7001:
+e9a0edaeb8f526ab128a6e059fa672c27c6bbf65 127.0.0.1:7003@17003 slave 214e6cc66573fd282fae37dadac5ca339a61c0f3 0 1667397240272 318 connected
+214e6cc66573fd282fae37dadac5ca339a61c0f3 127.0.0.1:7000@17000 master - 0 1667397239000 318 connected 0-5460
+3f264f8dbec00b63727f6b05fe26830ccc032c57 127.0.0.1:7001@17001 myself,master - 0 1667397238000 314 connected 5461-10922
+a95ea3cbfd3d51f8d20b6ecaf49615a32dbd2380 127.0.0.1:7005@17005 master - 0 1667397239860 319 connected 10923-16383
+1636c6fafd66d2828c039c7b541a27f8bceb53ee 127.0.0.1:7002@17002 master,fail - 1667397219101 1667397217000 317 disconnected
+27283848b42c57c2ec6b130a2865e7ad0615742c 127.0.0.1:7004@17004 slave 3f264f8dbec00b63727f6b05fe26830ccc032c57 0 1667397239236 314 connected
+
+--
+2022-11-02 14:54:06.079 --- [isson-netty-2-7] edisson.cluster.ClusterConnectionManager : cluster nodes state got from 127.0.0.1/127.0.0.1:7001:
+e9a0edaeb8f526ab128a6e059fa672c27c6bbf65 127.0.0.1:7003@17003 slave 214e6cc66573fd282fae37dadac5ca339a61c0f3 0 1667397244804 318 connected
+214e6cc66573fd282fae37dadac5ca339a61c0f3 127.0.0.1:7000@17000 master - 0 1667397244195 318 connected 0-5460
+3f264f8dbec00b63727f6b05fe26830ccc032c57 127.0.0.1:7001@17001 myself,master - 0 1667397243000 314 connected 5461-10922
+a95ea3cbfd3d51f8d20b6ecaf49615a32dbd2380 127.0.0.1:7005@17005 master - 0 1667397245320 319 connected 10923-16383
+1636c6fafd66d2828c039c7b541a27f8bceb53ee 127.0.0.1:7002@17002 master,fail - 1667397219101 1667397217000 317 disconnected
+27283848b42c57c2ec6b130a2865e7ad0615742c 127.0.0.1:7004@17004 slave 3f264f8dbec00b63727f6b05fe26830ccc032c57 0 1667397244315 314 connected
+```

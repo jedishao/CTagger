@@ -1,0 +1,36 @@
+Command execution timeout for command: (AUTH), params: (password masked) 
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+I have two different clusters (A & B) that are deployed and configured in the same way. It worked fine when I used Redisson to link cluster A. However, when I connect to cluster B in the same way, it throw an exception "Command execution timeout for Command: (AUTH), params: (password masked)".
+Using Wireshark to capture and analyze packets, I found that THERE was a wrong encoding for my password in Encoder (my password: 7MThDnzj5p1zenmc).
+The cluster work well after the password is changed
+
+
+**Redis version**
+redis_version:6.2.6
+**Redisson version**
+ Redisson 3.17.1 
+**Redisson configuration**
+```
+    config: |
+      clusterServersConfig:
+        idleConnectionTimeout: 10000
+        connectTimeout: 10000
+        timeout: 3000
+        retryAttempts: 2
+        retryInterval: 1500
+        subscriptionsPerConnection: 5
+        clientName: null
+        loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+        slaveConnectionMinimumIdleSize: 12
+        slaveConnectionPoolSize: 12
+        masterConnectionMinimumIdleSize: 12
+        masterConnectionPoolSize: 12
+        readMode: "SLAVE"
+      threads: 0
+      nettyThreads: 0
+      codec: !<org.redisson.codec.JsonJacksonCodec> {}
+      transportMode: "NIO"
+```

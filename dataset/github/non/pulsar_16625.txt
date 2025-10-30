@@ -1,0 +1,1152 @@
+some consumers of several topics can't consume normally
+**System Info**
+
+Pulsar Version: 2.10.0
+
+Zk version: zookeeper in pulsar2.9.0
+
+OS:  Linux x64
+
+Hardware: 5 Brokers and 5 Bookies hybrid deployment in a machine.  32C128G(4T*12) * 5
+
+​					3 zookeeper nodes 4C32G200GB * 3
+
+Broker Conf File: [[broker.conf](https://github.com/apache/pulsar/files/9119526/broker.txt)](https://github.com/apache/pulsar/files/9119526/broker.txt)
+
+Bookie Conf File: [[bookkeeper.conf](https://github.com/apache/pulsar/files/9119539/bookkeeper.txt)](https://github.com/apache/pulsar/files/9119539/bookkeeper.txt)
+
+**Describe the bug**
+
+After initialized Pulsar cluster,(doc of deployment: https://pulsar.apache.org/docs/2.10.0/deploy-bare-metal/). we synchronized all topics from Pulsar 2.6.0 to Pulsar 2.10.0 (current 7000+topics).After that we started out producer and consumer program,copy all flow from pulsar 2.6.0 to pulsar 2.10.0.But,after a period of time,we found that some consumers of some topics will not consume normally.The screenshot below illustrates this situation.
+
+![all_consumer_of_problem_topic](https://user-images.githubusercontent.com/38206754/179200356-149178a8-1bef-4651-878f-a5df2b62fcda.png)
+
+there are some error logs in our consumer program
+
+```
+time="2022-07-15T13:27:49+08:00" level=error msg="[Discarding corrupted message]" consumerID=4078 msgID="ledgerId:60580 entryId:5516 partition:-1 " name=fwtzx subscription=xxxxx topic="persistent://xxxxx-xxx/xxx/56f085cd0e5b40b687a80a674c189229" validationError=ChecksumMismatch
+time="2022-07-15T13:27:49+08:00" level=error msg="[handle message Id:  ledgerId:60580 entryId:5516 partition:-1 ]" consumerID=4078 error="checksum mismatch received: 0x1a8d6a22 computed: 0xc3262786" local_addr="x.x.x.x:59836" remote_addr="pulsar://x.x.x.x:6650"
+
+```
+
+there are also some error logs in broker log at the same time.
+
+```
+2022-07-15T13:27:18,853+0800 [pulsar-io-4-62] ERROR org.apache.pulsar.broker.service.Consumer - [PersistentSubscription{topic=persistent://xxxx/xxxx/56f085cd0e5b40b687a80a674c189229, name=}] [4078] Received ack for corrupted message at 60580:5440 - Reason: ChecksumMismatch
+2022-07-15T13:27:49,730+0800 [pulsar-io-4-62] ERROR org.apache.pulsar.broker.service.Consumer - [PersistentSubscription{topic=persistent://xxx/xxxx/56f085cd0e5b40b687a80a674c189229, name=}] [4078] Received ack for corrupted message at 60580:5516 - Reason: ChecksumMismatch
+```
+
+**To Reproduce**
+
+it's a pity that we can't give our producer and consumer program,but we can confirm that our program will not definitely affect this situation,because it works correctly with pulsar 2.6.0.
+
+1. start pulsar 2.10.0 cluster.
+2. start our producer and consumer program.
+3. wait for a period time, use pulsar admin stats command or pulsar-manager to get stats,so you can find that consumer out rate is zero.
+
+**Expected behavior**
+
+All of consumers of all of topics can consume normally.
+
+**Screenshots**
+
+![all_consumer_of_problem_topic](https://user-images.githubusercontent.com/38206754/179200356-149178a8-1bef-4651-878f-a5df2b62fcda.png)
+
+in the screenshot above,`demzi`is abnormal consumer，but in the screenshot below that the comsumer named `demzi` belong to the different topic can consume normally. 
+
+![normal_consumer](https://user-images.githubusercontent.com/38206754/179200496-4c5f3164-7526-4327-9a97-5c582d3a0c27.png)
+
+in the screenshot below that the comsumer named `demzi` belong to the different topic in screenshot above can't consume normally
+
+![179174595-b989becb-fe05-4f0e-895f-6c5db87ab90d](https://user-images.githubusercontent.com/38206754/179200580-1a962c94-7b4a-4547-9e8e-a440425b4c89.png)
+
+topics in all of screenshots above are belong to the same namespace and tenant.
+
+
+
+json info below is stats and internal stats of topic named`ed797eee19b14f1db9048194a3853ae7`.
+
+`stats info`
+
+```
+{
+  "msgRateIn" : 5.31688308586027,
+  "msgThroughputIn" : 1739070.470715847,
+  "msgRateOut" : 10.63376598919374,
+  "msgThroughputOut" : 3478140.881904425,
+  "bytesInCounter" : 23288660172,
+  "msgInCounter" : 79811,
+  "bytesOutCounter" : 45274531315,
+  "msgOutCounter" : 154473,
+  "averageMsgSize" : 327084.5799375831,
+  "msgChunkPublished" : false,
+  "storageSize" : 280783674607,
+  "backlogSize" : 0,
+  "publishRateLimitedTimes" : 0,
+  "earliestMsgPublishTimeInBacklogs" : 0,
+  "offloadedStorageSize" : 0,
+  "lastOffloadLedgerId" : 0,
+  "lastOffloadSuccessTimeStamp" : 0,
+  "lastOffloadFailureTimeStamp" : 0,
+  "publishers" : [ {
+    "accessMode" : "Shared",
+    "msgRateIn" : 2.7334445964188916,
+    "msgThroughputIn" : 897628.3040433243,
+    "averageMsgSize" : 328387.23170731706,
+    "chunkedMessageRate" : 0.0,
+    "producerId" : 4162,
+    "supportsPartialProducer" : false,
+    "metadata" : { },
+    "connectedSince" : "2022-07-15T11:33:40.965+08:00",
+    "producerName" : "1296"
+  }, {
+    "accessMode" : "Shared",
+    "msgRateIn" : 2.583438489441378,
+    "msgThroughputIn" : 841442.1666725228,
+    "averageMsgSize" : 325706.29032258067,
+    "chunkedMessageRate" : 0.0,
+    "producerId" : 4162,
+    "supportsPartialProducer" : false,
+    "metadata" : { },
+    "connectedSince" : "2022-07-15T11:30:47.942+08:00",
+    "producerName" : "646"
+  } ],
+  "waitingPublishers" : 0,
+  "subscriptions" : {
+    "perf-test" : {
+      "msgRateOut" : 5.316882956521688,
+      "msgThroughputOut" : 1739070.4283761359,
+      "bytesOutCounter" : 21900023316,
+      "msgOutCounter" : 74335,
+      "msgRateRedeliver" : 0.0,
+      "chunkedMessageRate" : 0,
+      "msgBacklog" : 0,
+      "backlogSize" : 0,
+      "earliestMsgPublishTimeInBacklog" : 0,
+      "msgBacklogNoDelayed" : 0,
+      "blockedSubscriptionOnUnackedMsgs" : false,
+      "msgDelayed" : 0,
+      "unackedMessages" : 0,
+      "type" : "Shared",
+      "msgRateExpired" : 0.0,
+      "totalMsgExpired" : 0,
+      "lastExpireTimestamp" : 0,
+      "lastConsumedFlowTimestamp" : 1657870779250,
+      "lastConsumedTimestamp" : 1657870930521,
+      "lastAckedTimestamp" : 1657870930526,
+      "lastMarkDeleteAdvancedTimestamp" : 1657870930526,
+      "consumers" : [ {
+        "msgRateOut" : 2.7001098325026622,
+        "msgThroughputOut" : 889123.5669237879,
+        "bytesOutCounter" : 18955307813,
+        "msgOutCounter" : 65434,
+        "msgRateRedeliver" : 0.0,
+        "chunkedMessageRate" : 0.0,
+        "consumerName" : "wvhxo",
+        "availablePermits" : 566,
+        "unackedMessages" : 0,
+        "avgMessagesPerEntry" : 1,
+        "blockedConsumerOnUnackedMsgs" : false,
+        "lastAckedTimestamp" : 1657870930526,
+        "lastConsumedTimestamp" : 1657870930521,
+        "metadata" : { },
+        "connectedSince" : "2022-07-15T11:49:26.338+08:00"
+      }, {
+        "msgRateOut" : 2.6167731240190264,
+        "msgThroughputOut" : 849946.861452348,
+        "bytesOutCounter" : 2944715503,
+        "msgOutCounter" : 8901,
+        "msgRateRedeliver" : 0.0,
+        "chunkedMessageRate" : 0.0,
+        "consumerName" : "eiwpn",
+        "availablePermits" : 599,
+        "unackedMessages" : 0,
+        "avgMessagesPerEntry" : 1,
+        "blockedConsumerOnUnackedMsgs" : false,
+        "lastAckedTimestamp" : 1657870930432,
+        "lastConsumedTimestamp" : 1657870930430,
+        "metadata" : { },
+        "connectedSince" : "2022-07-15T14:46:36.316+08:00"
+      } ],
+      "isDurable" : true,
+      "isReplicated" : false,
+      "allowOutOfOrderDelivery" : false,
+      "consumersAfterMarkDeletePosition" : { },
+      "nonContiguousDeletedMessagesRanges" : 0,
+      "nonContiguousDeletedMessagesRangesSerializedSize" : 18,
+      "subscriptionProperties" : { },
+      "replicated" : false,
+      "durable" : true
+    },
+    "subscription_name" : {
+      "msgRateOut" : 5.316883032672052,
+      "msgThroughputOut" : 1739070.453528289,
+      "bytesOutCounter" : 23374507999,
+      "msgOutCounter" : 80138,
+      "msgRateRedeliver" : 0.0,
+      "chunkedMessageRate" : 0,
+      "msgBacklog" : 0,
+      "backlogSize" : 0,
+      "earliestMsgPublishTimeInBacklog" : 0,
+      "msgBacklogNoDelayed" : 0,
+      "blockedSubscriptionOnUnackedMsgs" : false,
+      "msgDelayed" : 0,
+      "unackedMessages" : 0,
+      "type" : "Shared",
+      "msgRateExpired" : 0.0,
+      "totalMsgExpired" : 0,
+      "lastExpireTimestamp" : 1657865239011,
+      "lastConsumedFlowTimestamp" : 1657870930144,
+      "lastConsumedTimestamp" : 1657870930521,
+      "lastAckedTimestamp" : 1657870930535,
+      "lastMarkDeleteAdvancedTimestamp" : 1657870930535,
+      "consumers" : [ {
+        "msgRateOut" : 0.0,
+        "msgThroughputOut" : 0.0,
+        "bytesOutCounter" : 12470952333,
+        "msgOutCounter" : 46230,
+        "msgRateRedeliver" : 0.0,
+        "chunkedMessageRate" : 0.0,
+        "consumerName" : "demzi",
+        "availablePermits" : 0,
+        "unackedMessages" : 0,
+        "avgMessagesPerEntry" : 1,
+        "blockedConsumerOnUnackedMsgs" : false,
+        "lastAckedTimestamp" : 1657864566575,
+        "lastConsumedTimestamp" : 1657864566531,
+        "metadata" : { },
+        "connectedSince" : "2022-07-15T11:31:11.667+08:00"
+      }, {
+        "msgRateOut" : 2.6501078628351578,
+        "msgThroughputOut" : 881596.532124933,
+        "bytesOutCounter" : 6324041349,
+        "msgOutCounter" : 19852,
+        "msgRateRedeliver" : 0.0,
+        "chunkedMessageRate" : 0.0,
+        "consumerName" : "ejynz",
+        "availablePermits" : 8,
+        "unackedMessages" : 0,
+        "avgMessagesPerEntry" : 1,
+        "blockedConsumerOnUnackedMsgs" : false,
+        "lastAckedTimestamp" : 1657870930438,
+        "lastConsumedTimestamp" : 1657870930430,
+        "metadata" : { },
+        "connectedSince" : "2022-07-15T14:07:39.859+08:00"
+      }, {
+        "msgRateOut" : 2.666775169836894,
+        "msgThroughputOut" : 857473.921403356,
+        "bytesOutCounter" : 4579514317,
+        "msgOutCounter" : 14056,
+        "msgRateRedeliver" : 0.0,
+        "chunkedMessageRate" : 0.0,
+        "consumerName" : "vsbvh",
+        "availablePermits" : 9,
+        "unackedMessages" : 0,
+        "avgMessagesPerEntry" : 1,
+        "blockedConsumerOnUnackedMsgs" : false,
+        "lastAckedTimestamp" : 1657870930535,
+        "lastConsumedTimestamp" : 1657870930521,
+        "metadata" : { },
+        "connectedSince" : "2022-07-15T14:14:05.845+08:00"
+      } ],
+      "isDurable" : true,
+      "isReplicated" : false,
+      "allowOutOfOrderDelivery" : false,
+      "consumersAfterMarkDeletePosition" : { },
+      "nonContiguousDeletedMessagesRanges" : 0,
+      "nonContiguousDeletedMessagesRangesSerializedSize" : 18,
+      "subscriptionProperties" : { },
+      "replicated" : false,
+      "durable" : true
+    }
+  },
+  "replication" : { },
+  "deduplicationStatus" : "Disabled",
+  "nonContiguousDeletedMessagesRanges" : 0,
+  "nonContiguousDeletedMessagesRangesSerializedSize" : 36,
+  "compaction" : {
+    "lastCompactionRemovedEventCount" : 0,
+    "lastCompactionSucceedTimestamp" : 0,
+    "lastCompactionFailedTimestamp" : 0,
+    "lastCompactionDurationTimeInMills" : 0
+  }
+}
+```
+
+`internal-stats info`
+
+```
+{
+  "entriesAddedCounter" : 81741,
+  "numberOfEntries" : 1045352,
+  "totalSize" : 281430250165,
+  "currentLedgerEntries" : 933,
+  "currentLedgerSize" : 311482997,
+  "lastLedgerCreatedTimestamp" : "2022-07-15T15:45:17.915+08:00",
+  "waitingCursorsCount" : 2,
+  "pendingAddEntriesCount" : 0,
+  "lastConfirmedEntry" : "61763:932",
+  "state" : "LedgerOpened",
+  "ledgers" : [ {
+    "ledgerId" : 64,
+    "entries" : 4592,
+    "size" : 2147522620,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8591,
+    "entries" : 4374,
+    "size" : 2147602651,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8610,
+    "entries" : 4364,
+    "size" : 2147955554,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8620,
+    "entries" : 4449,
+    "size" : 2147514383,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8647,
+    "entries" : 4326,
+    "size" : 2147809213,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8661,
+    "entries" : 4458,
+    "size" : 2147626310,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8680,
+    "entries" : 4506,
+    "size" : 2147864017,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8695,
+    "entries" : 4634,
+    "size" : 2147603004,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8724,
+    "entries" : 5434,
+    "size" : 2147503578,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 8744,
+    "entries" : 6229,
+    "size" : 2147886295,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 9594,
+    "entries" : 7881,
+    "size" : 2147609865,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 9779,
+    "entries" : 11211,
+    "size" : 2147495663,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 9821,
+    "entries" : 27866,
+    "size" : 2147495679,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 10744,
+    "entries" : 16321,
+    "size" : 2147625044,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 10814,
+    "entries" : 9980,
+    "size" : 2147593524,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 10855,
+    "entries" : 9567,
+    "size" : 2147552339,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 11720,
+    "entries" : 8068,
+    "size" : 2147491135,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 11793,
+    "entries" : 7231,
+    "size" : 2147498641,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 11850,
+    "entries" : 890,
+    "size" : 281475581,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 14161,
+    "entries" : 84,
+    "size" : 26211504,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 18436,
+    "entries" : 8580,
+    "size" : 2147514842,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 21794,
+    "entries" : 7360,
+    "size" : 2147613104,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 21804,
+    "entries" : 7418,
+    "size" : 2147827304,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 21823,
+    "entries" : 7166,
+    "size" : 2147635029,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 22342,
+    "entries" : 6353,
+    "size" : 2147836935,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 22746,
+    "entries" : 6130,
+    "size" : 2147490889,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23434,
+    "entries" : 6164,
+    "size" : 2147765542,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23473,
+    "entries" : 6444,
+    "size" : 2147675767,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23489,
+    "entries" : 6512,
+    "size" : 2147616659,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23505,
+    "entries" : 6589,
+    "size" : 2147487039,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23534,
+    "entries" : 7412,
+    "size" : 2147704633,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23556,
+    "entries" : 7780,
+    "size" : 2147525348,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23566,
+    "entries" : 7068,
+    "size" : 2147775271,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 23942,
+    "entries" : 6174,
+    "size" : 2147646176,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24541,
+    "entries" : 5621,
+    "size" : 2147491980,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24605,
+    "entries" : 5355,
+    "size" : 2147654188,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24638,
+    "entries" : 5031,
+    "size" : 2147700934,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24657,
+    "entries" : 4903,
+    "size" : 2147496553,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24678,
+    "entries" : 4706,
+    "size" : 2147835265,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24702,
+    "entries" : 4658,
+    "size" : 2147819049,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24717,
+    "entries" : 4617,
+    "size" : 2147510933,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24729,
+    "entries" : 4556,
+    "size" : 2147860016,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24741,
+    "entries" : 4502,
+    "size" : 2147711708,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24762,
+    "entries" : 4538,
+    "size" : 2147954765,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24771,
+    "entries" : 4543,
+    "size" : 2147696369,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24787,
+    "entries" : 4514,
+    "size" : 2147591010,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24821,
+    "entries" : 4497,
+    "size" : 2147750756,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24832,
+    "entries" : 4500,
+    "size" : 2147666706,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24850,
+    "entries" : 4525,
+    "size" : 2147782415,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24876,
+    "entries" : 4570,
+    "size" : 2147908568,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 24890,
+    "entries" : 4618,
+    "size" : 2147609937,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 25233,
+    "entries" : 4555,
+    "size" : 2147882063,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 25759,
+    "entries" : 4785,
+    "size" : 2147686484,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 25859,
+    "entries" : 5329,
+    "size" : 2147606636,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 25894,
+    "entries" : 5992,
+    "size" : 2147667546,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 25925,
+    "entries" : 6173,
+    "size" : 2147506275,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 25956,
+    "entries" : 7066,
+    "size" : 2147750143,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 25984,
+    "entries" : 8489,
+    "size" : 2147529113,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 26012,
+    "entries" : 14947,
+    "size" : 2147536584,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 26051,
+    "entries" : 31800,
+    "size" : 2147513278,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 26982,
+    "entries" : 36271,
+    "size" : 2147528297,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 27085,
+    "entries" : 19741,
+    "size" : 2147556293,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 27121,
+    "entries" : 14156,
+    "size" : 2147499263,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 27925,
+    "entries" : 11082,
+    "size" : 2147606053,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28045,
+    "entries" : 10730,
+    "size" : 2147618502,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28113,
+    "entries" : 9982,
+    "size" : 2147510571,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28162,
+    "entries" : 8951,
+    "size" : 2147609396,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28200,
+    "entries" : 8326,
+    "size" : 2147682990,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28252,
+    "entries" : 7673,
+    "size" : 2147626037,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28295,
+    "entries" : 7329,
+    "size" : 2147668143,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28309,
+    "entries" : 7002,
+    "size" : 2147735127,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 28615,
+    "entries" : 8688,
+    "size" : 2147772030,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29181,
+    "entries" : 8251,
+    "size" : 2147629319,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29266,
+    "entries" : 7572,
+    "size" : 2147619347,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29340,
+    "entries" : 6969,
+    "size" : 2147536513,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29373,
+    "entries" : 6868,
+    "size" : 2147695876,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29402,
+    "entries" : 7140,
+    "size" : 2147609479,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29435,
+    "entries" : 7468,
+    "size" : 2147699877,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29465,
+    "entries" : 7122,
+    "size" : 2147754206,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29516,
+    "entries" : 6500,
+    "size" : 2147603141,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29555,
+    "entries" : 6642,
+    "size" : 2147666946,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 29591,
+    "entries" : 6559,
+    "size" : 2147547869,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 30291,
+    "entries" : 6280,
+    "size" : 2147807260,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 30462,
+    "entries" : 6313,
+    "size" : 2147693212,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 30527,
+    "entries" : 6376,
+    "size" : 2147943639,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 30588,
+    "entries" : 6254,
+    "size" : 2147486942,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 30643,
+    "entries" : 5830,
+    "size" : 1998608293,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 31991,
+    "entries" : 4701,
+    "size" : 2147840057,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36490,
+    "entries" : 4678,
+    "size" : 2147560079,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36512,
+    "entries" : 4520,
+    "size" : 2147943263,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36525,
+    "entries" : 4488,
+    "size" : 2147800229,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36551,
+    "entries" : 4399,
+    "size" : 2147663049,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36573,
+    "entries" : 4476,
+    "size" : 2191779099,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36589,
+    "entries" : 4385,
+    "size" : 2147561734,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36612,
+    "entries" : 4375,
+    "size" : 2147509480,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36624,
+    "entries" : 4433,
+    "size" : 2147920410,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36638,
+    "entries" : 4388,
+    "size" : 2147517038,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36651,
+    "entries" : 4372,
+    "size" : 2147718228,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36676,
+    "entries" : 4395,
+    "size" : 2147660681,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36689,
+    "entries" : 4415,
+    "size" : 2147956505,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36702,
+    "entries" : 4468,
+    "size" : 2147758796,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36726,
+    "entries" : 4552,
+    "size" : 2147842691,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36739,
+    "entries" : 4745,
+    "size" : 2147611369,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36754,
+    "entries" : 5212,
+    "size" : 2147553417,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36768,
+    "entries" : 5654,
+    "size" : 2147596502,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36801,
+    "entries" : 6343,
+    "size" : 2147671753,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 36824,
+    "entries" : 6425,
+    "size" : 2147723556,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 37794,
+    "entries" : 7494,
+    "size" : 2147558261,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 37850,
+    "entries" : 8910,
+    "size" : 2147655113,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 37893,
+    "entries" : 12272,
+    "size" : 2147502031,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 37921,
+    "entries" : 32666,
+    "size" : 2147498467,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 37981,
+    "entries" : 37725,
+    "size" : 2147519078,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 39007,
+    "entries" : 20065,
+    "size" : 2147546779,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 39064,
+    "entries" : 14011,
+    "size" : 2147555342,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 39089,
+    "entries" : 10986,
+    "size" : 2147529933,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 39107,
+    "entries" : 10401,
+    "size" : 2147493363,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 40004,
+    "entries" : 9552,
+    "size" : 2147523525,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 40107,
+    "entries" : 8758,
+    "size" : 2147642891,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 40162,
+    "entries" : 8166,
+    "size" : 2147705710,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 40220,
+    "entries" : 7950,
+    "size" : 2147521252,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 40278,
+    "entries" : 6441,
+    "size" : 1837441502,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 41884,
+    "entries" : 89,
+    "size" : 28558495,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 46918,
+    "entries" : 7614,
+    "size" : 2001667067,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 49269,
+    "entries" : 7,
+    "size" : 1822657,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 52588,
+    "entries" : 8417,
+    "size" : 2147659070,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60509,
+    "entries" : 8018,
+    "size" : 2147506406,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60548,
+    "entries" : 7581,
+    "size" : 2147563571,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60564,
+    "entries" : 7665,
+    "size" : 2147490550,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60596,
+    "entries" : 7899,
+    "size" : 2147558053,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60612,
+    "entries" : 8252,
+    "size" : 2147647327,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60630,
+    "entries" : 6696,
+    "size" : 2147853524,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60654,
+    "entries" : 6757,
+    "size" : 2147542237,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60674,
+    "entries" : 6604,
+    "size" : 2147883336,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60702,
+    "entries" : 6507,
+    "size" : 2147548222,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 60727,
+    "entries" : 6412,
+    "size" : 2147500437,
+    "offloaded" : false,
+    "underReplicated" : false
+  }, {
+    "ledgerId" : 61763,
+    "entries" : 0,
+    "size" : 0,
+    "offloaded" : false,
+    "underReplicated" : false
+  } ],
+  "cursors" : {
+    "subscription_name" : {
+      "markDeletePosition" : "61763:932",
+      "readPosition" : "61763:933",
+      "waitingReadOp" : true,
+      "pendingReadOps" : 0,
+      "messagesConsumedCounter" : 81741,
+      "cursorLedger" : 60757,
+      "cursorLedgerLastEntry" : 1246,
+      "individuallyDeletedMessages" : "[]",
+      "lastLedgerSwitchTimestamp" : "2022-07-15T15:27:24.981+08:00",
+      "state" : "Open",
+      "numberOfEntriesSinceFirstNotAckedMessage" : 1,
+      "totalNonContiguousDeletedMessagesRange" : 0,
+      "subscriptionHavePendingRead" : true,
+      "subscriptionHavePendingReplayRead" : false,
+      "properties" : { }
+    },
+    "perf-test" : {
+      "markDeletePosition" : "61763:932",
+      "readPosition" : "61763:933",
+      "waitingReadOp" : true,
+      "pendingReadOps" : 0,
+      "messagesConsumedCounter" : 81741,
+      "cursorLedger" : 60490,
+      "cursorLedgerLastEntry" : 14325,
+      "individuallyDeletedMessages" : "[]",
+      "lastLedgerSwitchTimestamp" : "2022-07-15T11:49:26.232+08:00",
+      "state" : "Open",
+      "numberOfEntriesSinceFirstNotAckedMessage" : 1,
+      "totalNonContiguousDeletedMessagesRange" : 0,
+      "subscriptionHavePendingRead" : true,
+      "subscriptionHavePendingReplayRead" : false,
+      "properties" : { }
+    }
+  },
+  "schemaLedgers" : [ ],
+  "compactedLedger" : {
+    "ledgerId" : -1,
+    "entries" : -1,
+    "size" : -1,
+    "offloaded" : false,
+    "underReplicated" : false
+  }
+}
+```

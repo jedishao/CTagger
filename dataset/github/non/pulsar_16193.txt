@@ -1,0 +1,46 @@
+Function State differs between Java SDK and Rest API
+**Describe the bug**
+When storing a buffer larger than 130 bytes with Java Functions SDK, retrieving this buffer with the Rest API give a larger buffer.
+
+Example with a buffer of size 131
+
+Stored buffer: (size: 131)
+`0a8001127e0a172e6576656e74732e437573746f6d65724372656174656412630a2432336366666263652d623038342d346631352d616565342d32633064313535613166636312026e311a3700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`
+
+Retrieved buffer: (size: 133)
+`0aefbfbd01127e0a172e6576656e74732e437573746f6d65724372656174656412630a2435386565316337302d383937612d346638642d623837662d33366463656431626437373512026e311a3700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`
+
+Using binary encoding of nodejs to decode the stringValue field give same length but result also in difference:
+Stored buffer: (size: 131)
+`0a8001127e0a172e6576656e74732e437573746f6d65724372656174656412630a2439383364626431332d383833332d343234312d383761372d63623663386231616334663112026e311a3700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`
+
+Retrieved buffer: (size: 131)
+`0afd01127e0a172e6576656e74732e437573746f6d65724372656174656412630a2439383364626431332d383833332d343234312d383761372d63623663386231616334663112026e311a3700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`
+
+EDIT: passing by base64 for storing state work. This seems to be related to a binary encoding issue.
+
+
+**To Reproduce**
+Code in pulsar function:
+```java
+context.putState(input.getAggregateId(), ByteBuffer.wrap(message.toByteArray()));
+```
+
+Code in client (typescript):
+```typescript
+const response = await http.default.get(
+  '${this.apiConfig.host}/admin/v3/functions/${params.tenant}/${params.namespace}/${params.name}/state/${params.key}',
+);
+return Buffer.from(response.data.stringValue, 'utf-8');
+```
+
+**Expected behavior**
+The two buffer should always equals
+
+
+**Desktop (please complete the following information):**
+ - OS: Linux
+ - Pulsar 2.9.1
+
+**Additional context**
+Tested on Standalone and cluster version

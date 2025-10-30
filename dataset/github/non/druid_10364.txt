@@ -1,0 +1,53 @@
+Double Sketch Histogram: ReadOnlyException Memory is read only (when split points is >= 50)
+
+### Affected Version
+
+0.19.0
+
+### Description
+
+I attached the debugger to the broker running locally and the issue is easy to see.  If there are > 50 split points, the sketch will perform a sort as part of the process of building the histogram.  See code:
+
+https://github.com/apache/incubator-datasketches-java/blob/bd6f03f6d0a80cfef7f93273f7f696162c7eaf67/src/main/java/org/apache/datasketches/quantiles/DoublesPmfCdfImpl.java#L65-L70
+
+The exception happens when the sketch is backed by a read only direct byte buffer. It tries to write back to itself here:
+
+https://github.com/apache/incubator-datasketches-java/blob/bd6f03f6d0a80cfef7f93273f7f696162c7eaf67/src/main/java/org/apache/datasketches/quantiles/DirectDoublesSketchAccessor.java#L88
+
+
+I'm going to contribute a fix for this in the data sketches library, but I figured I would open a bug here since it's affecting druid.  My thinking is this bug can be closed out when the fix is in data sketches and we can rev the version in druid.
+
+Thanks
+
+
+```
+org.apache.datasketches.memory.ReadOnlyException: Memory is read-only.
+        at org.apache.datasketches.memory.BaseState.checkValidAndBoundsForWrite(BaseState.java:399) ~[datasketches-memory-1.2.0-incubating.jar:?]
+        at org.apache.datasketches.memory.WritableMemoryImpl.putDoubleArray(WritableMemoryImpl.java:214) ~[datasketches-memory-1.2.0-incubating.jar:?]
+        at org.apache.datasketches.quantiles.DirectDoublesSketchAccessor.sort(DirectDoublesSketchAccessor.java:88) ~[datasketches-java-1.3.0-incubating.jar:?]
+        at org.apache.datasketches.quantiles.DoublesPmfCdfImpl.internalBuildHistogram(DoublesPmfCdfImpl.java:70) ~[datasketches-java-1.3.0-incubating.jar:?]
+        at org.apache.datasketches.quantiles.DoublesPmfCdfImpl.getPMFOrCDF(DoublesPmfCdfImpl.java:31) ~[datasketches-java-1.3.0-incubating.jar:?]
+        at org.apache.datasketches.quantiles.DoublesSketch.getPMF(DoublesSketch.java:372) ~[datasketches-java-1.3.0-incubating.jar:?]
+        at org.apache.druid.query.aggregation.datasketches.quantiles.DoublesSketchToHistogramPostAggregator.compute(DoublesSketchToHistogramPostAggregator.java:78) ~[?:?]
+        at org.apache.druid.query.timeseries.TimeseriesQueryQueryToolChest.lambda$makeComputeManipulatorFn$6(TimeseriesQueryQueryToolChest.java:459) ~[druid-processing-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.MappingYieldingAccumulator.accumulate(MappingYieldingAccumulator.java:61) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.common.guava.CombiningSequence$CombiningYieldingAccumulator.accumulateLastValue(CombiningSequence.java:232) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.common.guava.CombiningSequence.makeYielder(CombiningSequence.java:111) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.common.guava.CombiningSequence.toYielder(CombiningSequence.java:81) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.MappedSequence.toYielder(MappedSequence.java:49) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:88) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:84) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.query.CPUTimeMetricQueryRunner$1.wrap(CPUTimeMetricQueryRunner.java:74) ~[druid-processing-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.WrappingSequence.toYielder(WrappingSequence.java:83) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:88) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:84) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.SequenceWrapper.wrap(SequenceWrapper.java:55) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.WrappingSequence.toYielder(WrappingSequence.java:83) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.MappedSequence.toYielder(MappedSequence.java:49) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.MappedSequence.toYielder(MappedSequence.java:49) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.java.util.common.guava.Yielders.each(Yielders.java:32) ~[druid-core-0.19.0.jar:0.19.0]
+        at org.apache.druid.sql.http.SqlResource.doPost(SqlResource.java:112) [druid-sql-0.19.0.jar:0.19.0]
+        at jdk.internal.reflect.GeneratedMethodAccessor97.invoke(Unknown Source) ~[?:?]
+        at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+        at java.lang.reflect.Method.invoke(Method.java:567) ~[?:?]
+```

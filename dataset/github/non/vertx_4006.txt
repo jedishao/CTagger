@@ -1,0 +1,25 @@
+Standard verticles with worker pool name setted are not properly assigned event loop
+### Questions
+
+Multiple standard verticles are assigned only the half of all event loops, and another half of event loops are always idle.
+
+### Version
+
+3.9.4
+
+### Context
+
+When deploying one verticle with worker pool name setted, vertx object's createSharedWorkerExecutor method is called, and in this method getOrCreateContext method is called to add close hook. and out of createSharedWorkerExecutor method the second time getOrCreateContext is called.
+getOrCreateContext method returns event loop one after another, and in current scenario deploying one verticle vertx looped two event loops, and verticle is assigned the second event loop.
+Unfortunately default event loop pool size is core*2, this means no matter how many verticle instances are deployed, they are assigned only the half of all event loops.
+
+### Steps to reproduce
+
+1. Create vertx with default VertxOptions, and default event loop pool size is core*2.
+Vertx vertx = Vertx.vertx(new VertxOptions());
+2. Deploy verticles with worker pool name.
+DeploymentOptions options = new DeploymentOptions().setInstances(2 * CpuCoreSensor.availableProcessors()).setWorkerPoolName("workerPoolName");
+vertx.deployVerticle(bizVerticle, options, ar -> {
+    });
+3. Analyze by VisualVM, and we will see the relations between verticles and eventloop is like this: 
+{verticle-0,eventloop-1},{verticle-1,eventloop-3},{verticle-2,eventloop-5},{verticle-3,eventloop-7},{verticle-4,eventloop-9}......

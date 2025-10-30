@@ -1,0 +1,106 @@
+Trino intermittently fails to pick up IRSA
+Hello Trino folks!
+
+We've been running Trino 403 on EKS via the [Helm chart](https://github.com/trinodb/charts/), with [IRSA](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) enabled to read Delta files from S3 buckets.
+
+This setup works very well for us... _Most_ of the time. Unfortunately, sometimes, a node will start up and fail to get its IRSA authentication, and will use its instance profile instead. The instance profile does not have the correct S3 permissions, and any calls to S3 will then fail with a 403 Access Denied, causing Trino queries to fail with the following stacktrace:
+```
+2022-11-08T17:16:20.185Z	ERROR	SplitRunner-821-67	io.trino.execution.executor.TaskExecutor	Error processing Split 20221108_171619_00082_ssjay.1.1.0-12 {path=s3a://REDACTED/table/0001/block_date=2022-07-09/part-00000-b7d3e0d5-91f0-4a5e-b423-4a115c0dfe47.c000.snappy.parquet, start=0, length=9688} (start = 5538933.073355, wall = 11 ms, cpu = 0 ms, wait = 0 ms, calls = 1): HIVE_CANNOT_OPEN_SPLIT: Error opening Hive split s3a://REDACTED/table/0001/block_date=2022-07-09/part-00000-b7d3e0d5-91f0-4a5e-b423-4a115c0dfe47.c000.snappy.parquet (offset=0, length=9688): com.amazonaws.services.s3.model.AmazonS3Exception: Access Denied (Service: Amazon S3; Status Code: 403; Error Code: AccessDenied; Request ID: GWPGEHRBPM0Z41ER; S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg=; Proxy: null), S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg= (Path: s3a://REDACTED/table/0001/block_date=2022-07-09/part-00000-b7d3e0d5-91f0-4a5e-b423-4a115c0dfe47.c000.snappy.parquet)
+io.trino.spi.TrinoException: Error opening Hive split s3a://REDACTED/table/0001/block_date=2022-07-09/part-00000-b7d3e0d5-91f0-4a5e-b423-4a115c0dfe47.c000.snappy.parquet (offset=0, length=9688): com.amazonaws.services.s3.model.AmazonS3Exception: Access Denied (Service: Amazon S3; Status Code: 403; Error Code: AccessDenied; Request ID: GWPGEHRBPM0Z41ER; S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg=; Proxy: null), S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg= (Path: s3a://REDACTED/table/0001/block_date=2022-07-09/part-00000-b7d3e0d5-91f0-4a5e-b423-4a115c0dfe47.c000.snappy.parquet)
+	at io.trino.plugin.hive.parquet.ParquetPageSourceFactory.createPageSource(ParquetPageSourceFactory.java:290)
+	at io.trino.plugin.deltalake.DeltaLakePageSourceProvider.createPageSource(DeltaLakePageSourceProvider.java:199)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSourceProvider.createPageSource(ClassLoaderSafeConnectorPageSourceProvider.java:49)
+	at io.trino.split.PageSourceManager.createPageSource(PageSourceManager.java:62)
+	at io.trino.operator.TableScanOperator.getOutput(TableScanOperator.java:308)
+	at io.trino.operator.Driver.processInternal(Driver.java:411)
+	at io.trino.operator.Driver.lambda$process$10(Driver.java:314)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:706)
+	at io.trino.operator.Driver.process(Driver.java:306)
+	at io.trino.operator.Driver.processForDuration(Driver.java:277)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:739)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:164)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:515)
+	at io.trino.$gen.Trino_402____20221108_171328_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: io.trino.plugin.hive.s3.TrinoS3FileSystem$UnrecoverableS3OperationException: com.amazonaws.services.s3.model.AmazonS3Exception: Access Denied (Service: Amazon S3; Status Code: 403; Error Code: AccessDenied; Request ID: GWPGEHRBPM0Z41ER; S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg=; Proxy: null), S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg= (Path: s3a://REDACTED/table/0001/block_date=2022-07-09/part-00000-b7d3e0d5-91f0-4a5e-b423-4a115c0dfe47.c000.snappy.parquet)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3InputStream.lambda$openStream$2(TrinoS3FileSystem.java:1373)
+	at io.trino.plugin.hive.util.RetryDriver.run(RetryDriver.java:130)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3InputStream.openStream(TrinoS3FileSystem.java:1360)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3InputStream.openStream(TrinoS3FileSystem.java:1345)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3InputStream.seekStream(TrinoS3FileSystem.java:1338)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3InputStream.lambda$read$1(TrinoS3FileSystem.java:1282)
+	at io.trino.plugin.hive.util.RetryDriver.run(RetryDriver.java:130)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3InputStream.read(TrinoS3FileSystem.java:1281)
+	at java.base/java.io.BufferedInputStream.read1(BufferedInputStream.java:282)
+	at java.base/java.io.BufferedInputStream.read(BufferedInputStream.java:343)
+	at java.base/java.io.DataInputStream.read(DataInputStream.java:151)
+	at java.base/java.io.DataInputStream.read(DataInputStream.java:151)
+	at io.trino.hdfs.FSDataInputStreamTail.readTail(FSDataInputStreamTail.java:59)
+	at io.trino.filesystem.hdfs.HdfsInput.readTail(HdfsInput.java:56)
+	at io.trino.filesystem.TrinoInput.readTail(TrinoInput.java:46)
+	at io.trino.plugin.hive.parquet.TrinoParquetDataSource.readTailInternal(TrinoParquetDataSource.java:54)
+	at io.trino.parquet.AbstractParquetDataSource.readTail(AbstractParquetDataSource.java:90)
+	at io.trino.parquet.reader.MetadataReader.readFooter(MetadataReader.java:98)
+	at io.trino.plugin.hive.parquet.ParquetPageSourceFactory.createPageSource(ParquetPageSourceFactory.java:210)
+	... 16 more
+Caused by: com.amazonaws.services.s3.model.AmazonS3Exception: Access Denied (Service: Amazon S3; Status Code: 403; Error Code: AccessDenied; Request ID: GWPGEHRBPM0Z41ER; S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg=; Proxy: null), S3 Extended Request ID: btz5MHY4uuvDZWpIiCeDvsb7Waxfj5+Er8++1ATgMPF5XhcIvraqklFutzc1rH4GBZVwmhoZdfg=
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.handleErrorResponse(AmazonHttpClient.java:1879)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.handleServiceErrorResponse(AmazonHttpClient.java:1418)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeOneRequest(AmazonHttpClient.java:1387)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeHelper(AmazonHttpClient.java:1157)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.doExecute(AmazonHttpClient.java:814)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeWithTimer(AmazonHttpClient.java:781)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.execute(AmazonHttpClient.java:755)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.access$500(AmazonHttpClient.java:715)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutionBuilderImpl.execute(AmazonHttpClient.java:697)
+	at com.amazonaws.http.AmazonHttpClient.execute(AmazonHttpClient.java:561)
+	at com.amazonaws.http.AmazonHttpClient.execute(AmazonHttpClient.java:541)
+	at com.amazonaws.services.s3.AmazonS3Client.invoke(AmazonS3Client.java:5456)
+	at com.amazonaws.services.s3.AmazonS3Client.invoke(AmazonS3Client.java:5403)
+	at com.amazonaws.services.s3.AmazonS3Client.getObject(AmazonS3Client.java:1524)
+	at io.trino.plugin.hive.s3.TrinoS3FileSystem$TrinoS3InputStream.lambda$openStream$2(TrinoS3FileSystem.java:1365)
+	... 34 more
+```
+
+The only way to fix this issue is to delete the worker pod.
+
+We confirmed via S3 logs that the problematic requests were issued with the node profile rather than the IRSA profile, pointing to an issue with the credentials chain.
+
+After [asking on Slack](https://trinodb.slack.com/archives/CGB0QHWSW/p1668001759114919), we thought it might be an issue with IRSA itself (i.e., the pod starting before IRSA credentials were available). In order to examine this possibility, we did two things:
+- Created an initContainer running `aws sts get-caller-identity` and waiting until the right IAM role comes up: this container always returned the correct IAM role, but some Trino workers were still starting up faulty, so we could confirm that the Pod always received the correct credentials
+- But maybe it's _container-scoped_? We added a custom entrypoint to our Trino container to do the same, and, likewise, it always showed the correct IAM role, and yet some worker nodes still started up wrong, so we ruled out this possibility entirely.
+
+After adding `com.amazonaws=DEBUG` to our logging configuration, we can see how the authentication chain happens in a normal node:
+```
+2022-11-18T15:05:47.758Z	DEBUG	20221118_150542_00001_i5juv.1.0.0-6-103	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from EnvironmentVariableCredentialsProvider: Unable to load AWS credentials from environment variables (AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY) and AWS_SECRET_KEY (or AWS_SECRET_ACCESS_KEY))
+2022-11-18T15:05:47.759Z	DEBUG	20221118_150542_00001_i5juv.1.0.0-6-103	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from SystemPropertiesCredentialsProvider: Unable to load AWS credentials from Java system properties (aws.accessKeyId and aws.secretKey)
+2022-11-18T15:05:47.785Z	DEBUG	20221118_150542_00001_i5juv.1.0.0-58-81	com.amazonaws.request	Sending Request: POST https://sts.eu-west-1.amazonaws.com / (...) 
+(...)
+2022-11-18T15:05:47.996Z	DEBUG	20221118_150542_00001_i5juv.1.0.0-58-81	com.amazonaws.request	Received successful response: 200, AWS Request ID: 70951960-78a5-4b33-a576-e3473b670e0e
+2022-11-18T15:05:47.996Z	DEBUG	20221118_150542_00001_i5juv.1.0.0-58-81	com.amazonaws.requestId	x-amzn-RequestId: 70951960-78a5-4b33-a576-e3473b670e0e
+2022-11-18T15:05:47.997Z	DEBUG	20221118_150542_00001_i5juv.1.0.0-58-81	com.amazonaws.auth.AWSCredentialsProviderChain	Loading credentials from WebIdentityTokenCredentialsProvider
+```
+
+After trying static credentials, which don't exist, Trino tries the WebIdentityTokenCredentialsProvider, which works: all good!
+
+(There's a lot of very similar log lines in there, I assume this happens once per process?)
+
+But in a _problematic_ node, we see the following errors:
+```
+2022-11-20T07:46:17.027008338Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-6-70	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+2022-11-20T07:46:17.026983467Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-2-69	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+2022-11-20T07:46:17.026962152Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-1-81	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+2022-11-20T07:46:17.026960176Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-0-71	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+2022-11-20T07:46:17.026955191Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-7-77	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+2022-11-20T07:46:17.02695308Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-3-80	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+2022-11-20T07:46:17.026950294Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-4-82	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+2022-11-20T07:46:17.026932937Z stderr F 2022-11-20T07:46:17.026Z	DEBUG	20221120_074616_00009_zjt8k.1.11.0-5-66	com.amazonaws.auth.AWSCredentialsProviderChain	Unable to load credentials from WebIdentityTokenCredentialsProvider: Interrupted waiting to refresh the value.
+```
+
+The credentials chain then tries the next auth steps in [the chain](https://docs.aws.amazon.com/sdkref/latest/guide/standardized-credentials.html#credentialProviderChain), and eventually uses the instance credentials from the node itself, following AWS's default credentials chain.
+
+We managed to workaround the issue for now by setting up a [Custom S3 Credentials Provider](https://trino.io/docs/current/connector/hive-s3.html#custom-s3-credentials-provider) class, a barebones subclass of com.amazonaws.auth.WebIdentityTokenCredentialsProvider. Since implementing this workaround, we have not seen any auth issues in any of our nodes.
+
+So my bug report is - _something_ is interrupting the WebIdentityTokenCredentialsProvider, causing it to intermittently crash. I don't have enough knowledge to dive into the Trino code, but if someone could I'd be super grateful 🙏 

@@ -1,0 +1,51 @@
+[Bug] Cannot get replicatedFrom in EntryFilter
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+linux cenos
+pulsar version 2.10.1
+
+### Minimal reproduce step
+
+Configure topic level Geo Replicator bidirectional synchronization.
+Implement Entryfilter below:
+```
+    @Override
+    public FilterResult filterEntry(Entry entry, FilterContext context) {
+        MessageMetadata messageMetaData = context.getMsgMetadata();
+        if(!messageMetaData.hasReplicatedFrom()) {
+            LOG.info("VDCPreferred has no replicatedFrom field, accept");
+        }
+        LOG.info("VDCPreferred ReplicatedFrom {}, ReplicateTosList {}", messageMetaData.hasReplicatedFrom() ? messageMetaData.getReplicatedFrom() : "none", messageMetaData.getReplicateTosList());
+        List<KeyValue> keyValues = messageMetaData.getPropertiesList();
+        for(KeyValue kv : keyValues) {
+            LOG.info("VDCPreferred key {}, value {}", kv.getKey(), kv.getValue());
+        }
+        return FilterResult.ACCEPT;
+    }
+```
+
+
+
+### What did you expect to see?
+
+I want get replicatedFrom in EntryFilter.
+
+### What did you see instead?
+
+Cannot get replicatedFrom in EntryFilter,
+
+see log:
+`VDCPreferred has no replicatedFrom field, accept
+`
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

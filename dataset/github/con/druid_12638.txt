@@ -1,0 +1,17 @@
+Flaky UT: PrefetchableTextFilesFirehoseFactoryTest
+Test [failed on Travis](https://app.travis-ci.com/github/apache/druid/jobs/573231078), works on a Mac. Test passed on previous runs. No code in the PR changed anything in the code covered by this test.
+
+```text
+[ERROR] Tests run: 13, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 73.209 s <<< FAILURE! - in org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactoryTest
+[ERROR] org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactoryTest.testWithSmallCacheAndLargeFetch  Time elapsed: 60.066 s  <<< ERROR!
+java.lang.RuntimeException: java.util.concurrent.TimeoutException
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.openObjectFromLocal(Fetcher.java:226)
+	at org.apache.druid.data.input.impl.prefetch.Fetcher.next(Fetcher.java:177)
+	at org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactory$2.next(PrefetchableTextFilesFirehoseFactory.java:239)
+	at org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactory$2.next(PrefetchableTextFilesFirehoseFactory.java:225)
+	at org.apache.druid.data.input.impl.FileIteratingFirehose.getNextLineIterator(FileIteratingFirehose.java:105)
+	at org.apache.druid.data.input.impl.FileIteratingFirehose.hasMore(FileIteratingFirehose.java:66)
+	at org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactoryTest.testWithSmallCacheAndLargeFetch(PrefetchableTextFilesFirehoseFactoryTest.java:278)
+```
+
+I have observed other failures in "firehose" tests (can't recall if it is this same test), did some poking around, and noticed that the code, while using concurrency constructs, used them independently with no locking between the various objects. I suspect this leads to race conditions and occasional failures.

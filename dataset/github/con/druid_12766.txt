@@ -1,0 +1,25 @@
+Improve functionality of LocalIntermediaryDataManager
+As discussed [in this comment](https://github.com/apache/druid/issues/12692#issuecomment-1170869825),
+there are some issues with the `LocalIntermediaryDataManager`, typically involving race conditions. This is mostly because the peons as well as the middle manager perform discovery, allocation and cleanup of intermediary files.
+
+It is also important to note that this is not an issue when using Indexers because an indexer runs tasks simply as separate threads which share the `LocalIntermediaryDataManager` instance.
+
+----
+
+A possible approach can be as follows:
+
+Expose a `reserve` API on the `ShuffleResource` (used by middle manager/indexer) and peons would call that to reserve a location.
+
+- eliminates race conditions as middle manager becomes the sole storage resource manager
+- peon logic would become much simpler
+  - try to reserve using ShuffleResource API
+  - if succeeds, add segment
+  - if fails, try next location
+  - does not need to keep track of anything else
+  - does not perform cleanup or discovery
+- we can continue to use the same IntermediaryDataManager contract
+
+Cons:
+- introduces new API call between peon and middle manager whenever pushing segment (not very frequent)
+- the new reserve API is relevant only to local storage, as deep storage need not perform a reserve functionality (could be a noop for deep storage)
+

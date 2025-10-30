@@ -1,0 +1,62 @@
+Design a test to reproduce the bug in #15130
+the bug happens in f0616e4b9 "Introduce large dictionary mode" where in getBlock() I had a condition saying 
+```
+if (allNulls || nullsCount == outputPositionCount) {
+            return new RunLengthEncodedBlock(outputType.createBlockBuilder(null, 1).appendNull().build(), positionCount);
+        }
+```
+
+I kept a variable nullsCount and increase it in the readXXX() methods. However, the outputPositionCount could be decreased after a filter function was called after readXX() where the outputPositionCount happens to be the same as nullCount when getBlock() is finally called.
+
+@mbasmanova suggested the following test
+
+Create a dataset with a single int column, such that half of the values are null. Then, run a query:
+
+select a from t where a % 5 >= 0
+
+Let's say we have 1000 rows total. First, we read column "a" and compute nullCount as 500. Then, we apply filter function a % 5 >= 0 which passes for all non-null rows and causes getBlock to be called with outputPositionCount = 500.
+
+The actual situation may be more complex. Note that the shrinking of outputPositionCount happens in `applyFilterFunctions()` -> `getBlockView()`
+```
+@Override
+    public BlockLease getBlockView(int[] positions, int positionCount)
+    {
+        ...
+        if (positionCount < outputPositionCount) {
+            compactValues(positions, positionCount);
+        }
+        ...
+    }
+
+private void compactValues(int[] positions, int positionCount)
+    {
+        int positionIndex = 0;
+        int nextPosition = positions[positionIndex];
+        for (int i = 0; i < outputPositionCount; i++) {
+            ...
+        }
+
+        outputPositionCount = positionCount;
+    }
+```
+From the getNextPage():
+
+```
+for (int i = 0; i < streamReaderOrder.length; i++) {
+            int columnIndex = streamReaderOrder[i];
+
+            if (!hasAnyFilter(columnIndex)) {
+                break;
+            }
+
+            SelectiveStreamReader streamReader = getStreamReader(columnIndex);
+            _positionCount_ = streamReader.read(offset, positionsToRead, positionCount);
+            ...
+
+            if (filterFunctionsOrder[i] != null) {
+                positionCount = applyFilterFunctions(filterFunctionsOrder[i], filterFunctionInputs[i], positionsToRead, _positionCount_);
+                ...
+            }
+        }
+```
+So `streamReader.read(offset, positionsToRead, positionCount)` needs to return a positionCount less than its internal `outputPositionCount`. The returned `positionCount` is `streamPosition` from the read() functions.  We may need multiple columns for this test and a filterFunction that involves two columns. 

@@ -1,0 +1,75 @@
+RedisConnectionException error logs flooding after AWS ElastiCache node failover 
+Command executions failed during the failover but not after that. Errors in logs persisted for prolonged time, we replaced existing client instances with new instances to stop the errors.
+
+org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 0 of 24 were initialized. Server: \<redacted\>
+at java.util.concurrent.CompletableFuture.encodeThrowable (CompletableFuture.java:292:292)
+at java.util.concurrent.CompletableFuture.completeThrowable (CompletableFuture.java:308:308)
+at java.util.concurrent.CompletableFuture.biRelay (CompletableFuture.java:1298:1298)
+at java.util.concurrent.CompletableFuture.andTree (CompletableFuture.java:1321:1321)
+at java.util.concurrent.CompletableFuture.allOf (CompletableFuture.java:2238:2238)
+at org.redisson.connection.balancer.LoadBalancerManager.unfreezeAsync (LoadBalancerManager.java:197:197)
+at org.redisson.connection.balancer.LoadBalancerManager.unfreezeAsync (LoadBalancerManager.java:122:122)
+at org.redisson.connection.MasterSlaveEntry.slaveUpAsync (MasterSlaveEntry.java:467:467)
+at org.redisson.cluster.ClusterConnectionManager.addRemoveSlaves (ClusterConnectionManager.java:589:589)
+at org.redisson.cluster.ClusterConnectionManager.checkSlaveNodesChange (ClusterConnectionManager.java:515:515)
+at org.redisson.cluster.ClusterConnectionManager.lambda$updateClusterState$12 (ClusterConnectionManager.java:492:492)
+at java.util.concurrent.CompletableFuture.uniComposeStage (CompletableFuture.java:995:995)
+at java.util.concurrent.CompletableFuture.thenCompose (CompletableFuture.java:2137:2137)
+at org.redisson.cluster.ClusterConnectionManager.lambda$updateClusterState$15 (ClusterConnectionManager.java:492:492)
+at java.util.concurrent.CompletableFuture.uniWhenComplete (CompletableFuture.java:774:774)
+at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire (CompletableFuture.java:750:750)
+at java.util.concurrent.CompletableFuture.postComplete (CompletableFuture.java:488:488)
+at java.util.concurrent.CompletableFuture.complete (CompletableFuture.java:1975:1975)
+at org.redisson.client.handler.CommandDecoder.completeResponse (CommandDecoder.java:467:467)
+at org.redisson.client.handler.CommandDecoder.handleResult (CommandDecoder.java:461:461)
+at org.redisson.client.handler.CommandDecoder.decode (CommandDecoder.java:392:392)
+at org.redisson.client.handler.CommandDecoder.decodeCommand (CommandDecoder.java:205:205)
+at org.redisson.client.handler.CommandDecoder.decode (CommandDecoder.java:144:144)
+at org.redisson.client.handler.CommandDecoder.decode (CommandDecoder.java:120:120)
+at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection (ByteToMessageDecoder.java:508:508)
+at io.netty.handler.codec.ReplayingDecoder.callDecode (ReplayingDecoder.java:366:366)
+at io.netty.handler.codec.ByteToMessageDecoder.channelRead (ByteToMessageDecoder.java:276:276)
+at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead (AbstractChannelHandlerContext.java:379:379)
+at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead (AbstractChannelHandlerContext.java:365:365)
+at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead (AbstractChannelHandlerContext.java:357:357)
+at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead (DefaultChannelPipeline.java:1410:1410)
+at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead (AbstractChannelHandlerContext.java:379:379)
+at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead (AbstractChannelHandlerContext.java:365:365)
+at io.netty.channel.DefaultChannelPipeline.fireChannelRead (DefaultChannelPipeline.java:919:919)
+at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read (AbstractNioByteChannel.java:166:166)
+at io.netty.channel.nio.NioEventLoop.processSelectedKey (NioEventLoop.java:719:719)
+at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized (NioEventLoop.java:655:655)
+at io.netty.channel.nio.NioEventLoop.processSelectedKeys (NioEventLoop.java:581:581)
+at io.netty.channel.nio.NioEventLoop.run (NioEventLoop.java:493:493)
+at io.netty.util.concurrent.SingleThreadEventExecutor$4.run (SingleThreadEventExecutor.java:989:989)
+at io.netty.util.internal.ThreadExecutorMap$2.run (ThreadExecutorMap.java:74:74)
+at io.netty.util.concurrent.FastThreadLocalRunnable.run (FastThreadLocalRunnable.java:30:30)
+at java.lang.Thread.run (Thread.java:748:748) 
+
+**Expected behavior**
+No errors in logs
+
+**Actual behavior**
+Logs are flooded with these errors, though there are no failed commands through Redisson client.
+
+**Steps to reproduce or test case**
+Have client setup to use all connections and do a failover in AWS, observe the errors in logs.
+
+**Redis version**
+6.2
+
+**Redisson version**
+3.19.0
+
+**Redisson configuration**
+redis:
+  clusterServersConfig:
+    retryAttempts: 0
+    retryInterval: 500
+    slaveConnectionPoolSize: 128
+    masterConnectionPoolSize: 128
+    readMode: "SLAVE"
+    nodeAddresses:
+      - <%= @configuration["elasticache_cluster_address"] %>
+
+We use cluster mode with 5 shards, reads and writes are separated.

@@ -1,0 +1,117 @@
+hive write "Failing write. Tried pipeline recovery 5 times without success."
+Intermittent errors occur when writing large amounts of data to Hive when:
+
+```
+hive to hive write
+hive to iceberg write
+other to hive wirte
+```
+my cluster have 100+ worker nodes, v399
+
+logs
+```
+wait = 0 ms, calls = 2) is finished
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:19.712Z DEBUG   20230308_053031_00005_hn3a3.1.21.0-36-68    io.trino.execution.executor.TaskExecutor    Split 20230308_053031_00005_hn3a3.1.21.0-36  (start = 8.357993383562551E9, wall = 886520 ms, cpu = 2 ms, wait = 0 ms, calls = 2) is finished
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:19.712Z DEBUG   20230308_053031_00005_hn3a3.1.21.0-63-123   io.trino.execution.executor.TaskExecutor    Split 20230308_053031_00005_hn3a3.1.21.0-63  (start = 8.357993384649265E9, wall = 886519 ms, cpu = 3 ms, wait = 0 ms, calls = 2) is finished
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:19.712Z DEBUG   20230308_053031_00005_hn3a3.1.21.0-50-83    io.trino.execution.executor.TaskExecutor    Split 20230308_053031_00005_hn3a3.1.21.0-50  (start = 8.357993384163321E9, wall = 886519 ms, cpu = 2 ms, wait = 0 ms, calls = 2) is finished
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:19.904Z DEBUG   20230308_053031_00005_hn3a3.1.21.0-46-81    io.trino.execution.executor.TaskExecutor    Split 20230308_053031_00005_hn3a3.1.21.0-46  (start = 8.357993383965215E9, wall = 886711 ms, cpu = 799 ms, wait = 0 ms, calls = 4) is finished
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:20.293Z DEBUG   task-notification-3 io.trino.execution.TaskStateMachine Task 20230308_053031_00005_hn3a3.1.21.0 is ABORTED
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:20.294Z DEBUG   Task-20230308_053031_00005_hn3a3.1.21.0-224 io.trino.execution.executor.TaskExecutor    Task finished or failed 20230308_053031_00005_hn3a3.1.21.0
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:20.306Z DEBUG   http-worker-196 io.trino.execution.SqlTask  Aborting task 20230308_053031_00005_hn3a3.1.21.0 output 0
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:20.743Z ERROR   20230308_053031_00005_hn3a3.1.21.0-39-90    io.trino.plugin.hive.orc.OrcFileWriter  Exception when committing file
+trino-worker-5b6cd7d5f8-m7kdj trino-worker java.io.IOException: java.lang.InterruptedException
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.ipc.Client.call(Client.java:1415)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.ipc.Client.call(Client.java:1367)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.ipc.ProtobufRpcEngine$Invoker.invoke(ProtobufRpcEngine.java:228)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.ipc.ProtobufRpcEngine$Invoker.invoke(ProtobufRpcEngine.java:116)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at jdk.proxy5/jdk.proxy5.$Proxy429.delete(Unknown Source)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolTranslatorPB.delete(ClientNamenodeProtocolTranslatorPB.java:637)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.io.retry.RetryInvocationHandler.invokeMethod(RetryInvocationHandler.java:422)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.io.retry.RetryInvocationHandler$Call.invokeMethod(RetryInvocationHandler.java:165)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.io.retry.RetryInvocationHandler$Call.invoke(RetryInvocationHandler.java:157)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.io.retry.RetryInvocationHandler$Call.invokeOnce(RetryInvocationHandler.java:95)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.io.retry.RetryInvocationHandler.invoke(RetryInvocationHandler.java:359)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at jdk.proxy5/jdk.proxy5.$Proxy430.delete(Unknown Source)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.hdfs.DFSClient.delete(DFSClient.java:1606)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.hdfs.DistributedFileSystem$19.doCall(DistributedFileSystem.java:952)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.hdfs.DistributedFileSystem$19.doCall(DistributedFileSystem.java:949)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.fs.FileSystemLinkResolver.resolve(FileSystemLinkResolver.java:81)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.hdfs.DistributedFileSystem.delete(DistributedFileSystem.java:959)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.fs.FilterFileSystem.delete(FilterFileSystem.java:264)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.filesystem.hdfs.HdfsFileSystem.lambda$deleteFile$0(HdfsFileSystem.java:71)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.hdfs.authentication.UserGroupInformationUtils.lambda$executeActionInDoAs$0(UserGroupInformationUtils.java:29)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/javax.security.auth.Subject.doAs(Subject.java:376)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1710)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.hdfs.authentication.UserGroupInformationUtils.executeActionInDoAs(UserGroupInformationUtils.java:27)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.hdfs.authentication.DirectHdfsAuthentication.doAs(DirectHdfsAuthentication.java:38)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.hdfs.HdfsEnvironment.doAs(HdfsEnvironment.java:93)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.filesystem.hdfs.HdfsFileSystem.deleteFile(HdfsFileSystem.java:70)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.plugin.iceberg.IcebergFileWriterFactory.lambda$createOrcWriter$2(IcebergFileWriterFactory.java:219)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.plugin.hive.orc.OrcFileWriter.commit(OrcFileWriter.java:193)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.plugin.iceberg.IcebergPageSink.closeWriter(IcebergPageSink.java:303)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.plugin.iceberg.IcebergPageSink.finish(IcebergPageSink.java:167)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSink.finish(ClassLoaderSafeConnectorPageSink.java:77)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.TableWriterOperator.finish(TableWriterOperator.java:212)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.processInternal(Driver.java:429)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.lambda$process$10(Driver.java:314)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.tryWithLock(Driver.java:706)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.process(Driver.java:306)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.processForDuration(Driver.java:277)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:736)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:164)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:515)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.$gen.Trino_399_CDP____20230308_052838_2.run(Unknown Source)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.lang.Thread.run(Thread.java:833)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker Caused by: java.lang.InterruptedException
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.util.concurrent.FutureTask.awaitDone(FutureTask.java:418)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.util.concurrent.FutureTask.get(FutureTask.java:190)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.ipc.Client$Connection.sendRpcRequest(Client.java:1148)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at org.apache.hadoop.ipc.Client.call(Client.java:1409)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  ... 48 more
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 2023-03-08T05:45:20.750Z ERROR   20230308_053031_00005_hn3a3.1.21.0-39-90    io.trino.operator.Driver    Error closing operator 2 for task 20230308_053031_00005_hn3a3.1.21.0
+trino-worker-5b6cd7d5f8-m7kdj trino-worker java.lang.RuntimeException: Exception during rollback
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.plugin.iceberg.IcebergPageSink.abort(IcebergPageSink.java:192)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSink.abort(ClassLoaderSafeConnectorPageSink.java:85)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.util.AutoCloseableCloser.close(AutoCloseableCloser.java:52)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.TableWriterOperator.close(TableWriterOperator.java:359)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.closeAndDestroyOperators(Driver.java:563)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.destroyIfNecessary(Driver.java:529)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.tryWithLock(Driver.java:740)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.process(Driver.java:306)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.operator.Driver.processForDuration(Driver.java:277)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:736)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:164)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:515)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at io.trino.$gen.Trino_399_CDP____20230308_052838_2.run(Unknown Source)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  at java.base/java.lang.Thread.run(Thread.java:833)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  Suppressed: io.trino.spi.TrinoException: Error rolling back write to Hive
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.plugin.hive.orc.OrcFileWriter.rollback(OrcFileWriter.java:252)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.plugin.iceberg.IcebergPageSink.abort(IcebergPageSink.java:187)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      ... 15 more
+trino-worker-5b6cd7d5f8-m7kdj trino-worker  Caused by: java.io.IOException: Failed to delete file: /cdpdev/bi/prod/dw_iceberg/fact_gift_month/data/order_paid_date_month=2015-10/20230308_053031_00005_hn3a3-39f1d355-386f-47cc-898c-b2ec74a6345c.orc
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.filesystem.hdfs.HdfsFileSystem.lambda$deleteFile$0(HdfsFileSystem.java:72)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.hdfs.authentication.UserGroupInformationUtils.lambda$executeActionInDoAs$0(UserGroupInformationUtils.java:29)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at java.base/javax.security.auth.Subject.doAs(Subject.java:376)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1710)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.hdfs.authentication.UserGroupInformationUtils.executeActionInDoAs(UserGroupInformationUtils.java:27)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.hdfs.authentication.DirectHdfsAuthentication.doAs(DirectHdfsAuthentication.java:38)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.hdfs.HdfsEnvironment.doAs(HdfsEnvironment.java:93)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.filesystem.hdfs.HdfsFileSystem.deleteFile(HdfsFileSystem.java:70)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.plugin.iceberg.IcebergFileWriterFactory.lambda$createOrcWriter$2(IcebergFileWriterFactory.java:219)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      at io.trino.plugin.hive.orc.OrcFileWriter.rollback(OrcFileWriter.java:248)
+trino-worker-5b6cd7d5f8-m7kdj trino-worker      ... 16 more
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 
+trino-worker-5b6cd7d5f8-m7kdj trino-worker 
+```

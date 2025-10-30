@@ -1,0 +1,26 @@
+Reduce method invocation of reservoir sampling
+### Motivation
+
+The periodic task of the Coordinator service could be slow in a large cluster. The periodic task consists of several serial subtasks. According to the profiling result, the segment balance task has some performance issue. I found that the root cause is that the current implementation invokes the sampling method too many times. We can reduce the number of method invocations by increasing the sample size in each invocation.
+
+<img width="1080" alt="image" src="https://user-images.githubusercontent.com/44718283/118240481-a5ecff80-b4cd-11eb-91b2-e310e0fa91ac.png">
+
+
+### Proposed changes
+
+Adding a new Reservoir Sampling method to sample K elements each time instead of only one element each time.
+A default method `pickSegmentsToMove` will be added to interface BalancerStrategy to pick K segments to move in a single method invocation.
+
+### Rationale
+
+The current implementation picks up only one segment each time iterating all segments. When there are a lot segments need to be rebalanced or need to be decommissioned, the load balance calculation will be really slow. By picking up K segments each time will significantly reduce the number of iteration and thus speed up the process.
+
+### Operational impact
+
+There will be no impact in operation
+
+### Test plan (optional)
+
+Ensure test coverage and test it in test cluster
+
+

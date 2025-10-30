@@ -1,0 +1,13 @@
+Improve naming for delete topic error
+**Is your enhancement request related to a problem? Please describe.**
+When I try to delete a topic with a consumer connected, I get the following error:
+```
+$ bin/pulsar-admin topics delete test
+21:20:34.286 [AsyncHttpClient-7-1] WARN  org.apache.pulsar.client.admin.internal.BaseResource - [http://pulsar-proxy.michael-test.svc.cluster.local:8080/admin/v2/persistent/public/default/test?force=false&deleteSchema=false] Failed to perform http delete request: javax.ws.rs.ClientErrorException: HTTP 412 Precondition Failed
+Topic has active producers/subscriptions
+```
+
+Then, when I disconnect my consumer, the deletion succeeds. It is confusing that the error indicates active `subscriptions`. The code appears to have some legacy use cases where subscriptions prevented deletion, but that doesn't appear to be the case any more: https://github.com/apache/pulsar/blob/86ab67f2246e99d4388177d30489199c3f25e2b8/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/persistent/PersistentTopic.java#L1115-L1226
+
+**Describe the solution you'd like**
+I'd like the error message to be descriptive.

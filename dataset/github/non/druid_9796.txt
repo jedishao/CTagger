@@ -1,0 +1,37 @@
+Join condition evaluation deferral
+### Motivation
+
+Defer join condition evaluation past the cursor walking stage when it is possible to do so. The purpose of this is to enable higher performance: today, join conditions are evaluated during cursor walking, which means we need to evaluate once per row. If we could evaluate them after aggregation instead, then we'd need to evaluate once per distinct left-hand-side value, rather than once per row. This can be substantially fewer evaluations.
+
+Once this is done, join involving string columns should be the same speed as using the classic lookup functions.
+
+### Proposed changes
+
+In principle it is possible to do this when the join operator is guaranteed to generate 0 or 1 row for each left-hand-side row.
+
+Specifically, we need to check the following requirements:
+
+- Join type must be LEFT OUTER or INNER (note: for INNER, we'd need to apply a filter to the cursor to remove rows that have no matching right-hand-side values).
+- Condition has only a single equality.
+- Left-hand condition column is string-typed with the `isDictionaryEncoded` capability.
+- Right-hand condition column is unique.
+- Only DimensionSelectors are used from the right hand side (we cannot defer evaluation of other types of selectors).
+
+Note that we can't know the last one in advance, since cursor users are not required to declare in advance what columns they want to read. So we need to detect it during cursor walking and we need to be able to adaptively switch from deferred mode to non-deferred mode.
+
+I'm thinking the logic might be:
+
+1. Check first two preconditions (join type and uniqueness of right-hand condition column).
+2. If the join is inner: "rewrite" `x INNER JOIN y ON x.c = y.c` to `x LEFT JOIN y ON x.c = y.c WHERE x.c IN (SELECT DISTINCT c FROM y)`. Note that we could potentially cache, on a per-segment basis, the bitmap representing the rows of `x` that match `SELECT DISTINCT c FROM y`. This would make the filter particularly cheap to apply.
+3. For any right-hand side column, calling makeDimensionSelector should return a DimensionSelector whose `getRow` returns the same value as the left-hand key column and whose `lookupName` actually evaluates the join condition. This is where the deferral happens: getRow is called during cursor walking, but lookupName is (typically) called afterwards.
+4. If callers request other types of selectors then we need to start evaluating the condition for each row, because other types of selectors don't currently support evaluation deferral.
+
+Perhaps the way to do (3) + (4) is to rework the join matching so it is computed lazily rather than eagerly.
+
+### Rationale
+
+This is the same technique used by expressions and extractionFns in order to make them high speed. In particular, for expressions see SingleStringInputDimensionSelector.
+
+### Operational impact
+
+None.

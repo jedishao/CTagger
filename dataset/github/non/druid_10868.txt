@@ -1,0 +1,81 @@
+Middlemanager Task failing on apparently graceful shutdown
+### Affected Version
+
+0.20.0
+
+### Description
+
+Seen the issue happening twice in two tasks created in the same minute.
+The tasks are reported as failed, but the logs says the task was successful (?). 
+
+Cluster size: 27 Dataservers (Middlemanager + Historical), 2 Brokers, 2 Routers, 2 Overlords, 2 Coordinator, 3 Zookeeper (in dedicated hosts).
+Task status:
+```
+  "statusCode": "FAILED",
+  "status": "FAILED",
+  "runnerStatusCode": "WAITING",
+```
+Log:
+```
+2021-02-08T22:35:36,275 INFO [parent-monitor-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Triggering JVM shutdown.
+2021-02-08T22:35:36,277 INFO [Thread-60] org.apache.druid.cli.CliPeon - Running shutdown hook
+2021-02-08T22:35:36,278 INFO [Thread-60] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [ANNOUNCEMENTS]
+2021-02-08T22:35:36,281 INFO [Thread-60] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/announcements/druid-dataserver-9:8100]
+2021-02-08T22:35:36,302 INFO [Thread-60] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/segments/druid-dataserver-9:8100/druid-dataserver-9:8100_indexer-executor__default_tier_2021-02-08T22:29:32.209Z_4e114ad4878f4dec80462dea24d108fc0]
+2021-02-08T22:35:36,307 INFO [Thread-60] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/internal-discovery/PEON/druid-dataserver-9:8100]
+2021-02-08T22:35:36,327 INFO [Thread-60] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [SERVER]
+2021-02-08T22:35:45,829 INFO [[index_kafka_ssp-events-hourly_2a3e52186bc4cdd_ddcbmbfg]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data for segment[ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139] spill[6] to disk in [5,245] ms (592,218 rows).
+2021-02-08T22:35:46,969 INFO [[index_kafka_ssp-events-hourly_2a3e52186bc4cdd_ddcbmbfg]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data with commit metadata [AppenderatorDriverMetadata{segments={index_kafka_ssp-events-hourly_2a3e52186bc4cdd_0=[SegmentWithState{segmentIdentifier=ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139, state=APPENDING}]}, lastSegmentIds={index_kafka_ssp-events-hourly_2a3e52186bc4cdd_0=ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139}, callerMetadata={nextPartitions=SeekableStreamEndSequenceNumbers{stream='ssp_report', partitionSequenceNumberMap={12=92381673345}}}}] for segments: ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139
+2021-02-08T22:36:06,347 INFO [Thread-60] org.eclipse.jetty.server.AbstractConnector - Stopped ServerConnector@3f45dfec{HTTP/1.1, (http/1.1)}{0.0.0.0:8100}
+2021-02-08T22:36:06,349 INFO [Thread-60] org.eclipse.jetty.server.session - node0 Stopped scavenging
+2021-02-08T22:36:06,354 INFO [Thread-60] org.eclipse.jetty.server.handler.ContextHandler - Stopped o.e.j.s.ServletContextHandler@6b7c4734{/,null,UNAVAILABLE}
+2021-02-08T22:36:06,367 ERROR [Thread-60] org.apache.druid.server.initialization.jetty.JettyServerModule - Jetty lifecycle event failed [class org.eclipse.jetty.server.Server]
+java.util.concurrent.TimeoutException: null
+	at org.eclipse.jetty.util.FutureCallback.get(FutureCallback.java:130) ~[jetty-util-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.util.FutureCallback.get(FutureCallback.java:30) ~[jetty-util-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.server.handler.AbstractHandlerContainer.doShutdown(AbstractHandlerContainer.java:175) ~[jetty-server-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.server.Server.doStop(Server.java:432) ~[jetty-server-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.util.component.AbstractLifeCycle.stop(AbstractLifeCycle.java:93) ~[jetty-util-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.apache.druid.server.initialization.jetty.JettyServerModule$2.stop(JettyServerModule.java:454) ~[druid-server-0.20.0.jar:0.20.0]
+	at org.apache.druid.java.util.common.lifecycle.Lifecycle.stop(Lifecycle.java:368) ~[druid-core-0.20.0.jar:0.20.0]
+	at org.apache.druid.cli.CliPeon.lambda$run$0(CliPeon.java:291) ~[druid-services-0.20.0.jar:0.20.0]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_275]
+2021-02-08T22:36:06,373 WARN [Thread-60] org.apache.druid.server.initialization.jetty.JettyServerModule - Unable to stop Jetty server.
+java.util.concurrent.TimeoutException: null
+	at org.eclipse.jetty.util.FutureCallback.get(FutureCallback.java:130) ~[jetty-util-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.util.FutureCallback.get(FutureCallback.java:30) ~[jetty-util-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.server.handler.AbstractHandlerContainer.doShutdown(AbstractHandlerContainer.java:175) ~[jetty-server-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.server.Server.doStop(Server.java:432) ~[jetty-server-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.eclipse.jetty.util.component.AbstractLifeCycle.stop(AbstractLifeCycle.java:93) ~[jetty-util-9.4.30.v20200611.jar:9.4.30.v20200611]
+	at org.apache.druid.server.initialization.jetty.JettyServerModule$2.stop(JettyServerModule.java:454) ~[druid-server-0.20.0.jar:0.20.0]
+	at org.apache.druid.java.util.common.lifecycle.Lifecycle.stop(Lifecycle.java:368) ~[druid-core-0.20.0.jar:0.20.0]
+	at org.apache.druid.cli.CliPeon.lambda$run$0(CliPeon.java:291) ~[druid-services-0.20.0.jar:0.20.0]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_275]
+2021-02-08T22:36:06,375 INFO [Thread-60] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [NORMAL]
+2021-02-08T22:36:06,376 INFO [Thread-60] org.apache.druid.server.coordination.ZkCoordinator - Stopping ZkCoordinator for [DruidServerMetadata{name='druid-dataserver-9:8100', hostAndPort='druid-dataserver-9:8100', hostAndTlsPort='null', maxSize=0, tier='_default_tier', type=indexer-executor, priority=0}]
+2021-02-08T22:36:06,376 INFO [Thread-60] org.apache.druid.server.coordination.SegmentLoadDropHandler - Stopping...
+2021-02-08T22:36:06,376 INFO [Thread-60] org.apache.druid.server.coordination.SegmentLoadDropHandler - Stopped.
+2021-02-08T22:36:06,388 INFO [Thread-60] org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner - Starting graceful shutdown of task[index_kafka_ssp-events-hourly_2a3e52186bc4cdd_ddcbmbfg].
+2021-02-08T22:36:06,389 INFO [Thread-60] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Stopping gracefully (status: [READING])
+2021-02-08T22:36:09,308 INFO [[index_kafka_ssp-events-hourly_2a3e52186bc4cdd_ddcbmbfg]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data for segment[ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139] spill[7] to disk in [2,714] ms (305,020 rows).
+2021-02-08T22:36:09,895 INFO [[index_kafka_ssp-events-hourly_2a3e52186bc4cdd_ddcbmbfg]-appenderator-persist] org.apache.druid.segment.realtime.appenderator.AppenderatorImpl - Flushed in-memory data with commit metadata [AppenderatorDriverMetadata{segments={index_kafka_ssp-events-hourly_2a3e52186bc4cdd_0=[SegmentWithState{segmentIdentifier=ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139, state=APPENDING}]}, lastSegmentIds={index_kafka_ssp-events-hourly_2a3e52186bc4cdd_0=ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139}, callerMetadata={nextPartitions=SeekableStreamEndSequenceNumbers{stream='ssp_report', partitionSequenceNumberMap={12=92381740546}}}}] for segments: ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139
+2021-02-08T22:36:09,912 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[ssp-events-hourly_2021-02-08T20:00:00.000Z_2021-02-08T21:00:00.000Z_2021-02-08T21:14:50.337Z_139] at path[/druid/segments/druid-dataserver-9:8100/druid-dataserver-9:8100_indexer-executor__default_tier_2021-02-08T22:29:32.209Z_4e114ad4878f4dec80462dea24d108fc0]
+2021-02-08T22:36:09,915 INFO [task-runner-0-priority-0] org.apache.druid.curator.discovery.CuratorDruidNodeAnnouncer - Unannounced self [{"druidNode":{"service":"druid/middleManager","host":"druid-dataserver-9","bindOnHost":false,"plaintextPort":8100,"port":-1,"tlsPort":-1,"enablePlaintextPort":true,"enableTlsPort":false},"nodeType":"peon","services":{"dataNodeService":{"type":"dataNodeService","tier":"_default_tier","maxSize":0,"type":"indexer-executor","priority":0},"lookupNodeService":{"type":"lookupNodeService","lookupTier":"__default"}}}].
+2021-02-08T22:36:09,926 INFO [Thread-60] org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner - Graceful shutdown of task[index_kafka_ssp-events-hourly_2a3e52186bc4cdd_ddcbmbfg] finished in 3,538ms.
+2021-02-08T22:36:09,931 INFO [task-runner-0-priority-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Task completed with status: {
+  "id" : "index_kafka_ssp-events-hourly_2a3e52186bc4cdd_ddcbmbfg",
+  "status" : "SUCCESS",
+  "duration" : 401261,
+  "errorMsg" : null,
+  "location" : {
+    "host" : null,
+    "port" : -1,
+    "tlsPort" : -1
+  }
+}
+2021-02-08T22:36:09,940 INFO [main] org.apache.druid.cli.CliPeon - Thread [Thread[Thread-60,5,main]] is non daemon.
+2021-02-08T22:36:09,940 INFO [main] org.apache.druid.java.util.common.lifecycle.Lifecycle - Lifecycle [module] already stopped and stop was called. Silently skipping
+Cannot remove shutdown hook, already shutting down!
+Finished peon task
+2021-02-08T22:36:09,953 INFO [LookupExtractorFactoryContainerProvider-MainThread] org.apache.druid.query.lookup.LookupReferencesManager - Lookup Management loop exited. Lookup notices are not handled anymore.
+```

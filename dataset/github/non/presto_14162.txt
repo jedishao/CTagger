@@ -1,0 +1,47 @@
+OptimizedPartitionedOutputOperator uses too much memory
+Recently we observed OptimizedPartitionedOutputOperator is using more memory than the legacy PartitionedOutputOperator. There're a few facts that contributed to this increased memory usage:
+
+1. OptimizedPartitionedOutputOperator persists one or several BlockEncodingBuffers for each column for each partition. These buffers won't shrink during the query life time.
+2. For nested  BlockEncodingBuffer, it uses extra int[] to hold the positions, mapped positions and offsets. If the array/map cells are too large (e.g. over a few million entries per row), this positions array itself takes a lot of space.
+3. Each BlockEncodingBuffer maintains several byte[] buffers to hold the data. These buffers are created when the first page comes in, and are being grown by a factor of 2 on the fly. This may cause the buffer to grow larger than necessary. Reducing the growth factor to 1.5 regressed the performance, therefore we want to keep the growth factor 2 but enforce stricter limit of the buffer sizes.
+4. We add at least one top level row into the buffer at a time. Some cell may be very big (e.g. array with millions of entries), and the buffer for this single row would be up to several dozens of MB. In this case, the size limit "driver.max-page-partitioning-buffer-size" would be ignored.
+
+We propose the following changes to address the problem:
+
+1. Reuse the arrays
+
+The OptimizedPartitionedOutputOperator adds the data from incoming page to buffers partition by partition, and within each partition column by column. There's opportunity we can reuse the buffers for different partitions. In the following PRs, we reused the int[] and byte[] buffers by using SimpleArrayAllocator:
+
+- https://github.com/prestodb/presto/pull/14234 : Reuse buffers in OptimizedPartitionedOutputOperator - part 1 serializedRowSizes, offsetsCopy, positions, mappedPositions and offsets
+- https://github.com/prestodb/presto/pull/14286 : Reuse buffers in OptimizedPartitionedOutputOperator - part 2 : byte[] buffers in BlockEncodingBuffer
+
+2. Reduce the positions/mappedPositions array sizes
+
+Previously the positions array was initialized to be the incoming page's positionCount size. This could waste lots of memory since each partition may only get a small portion of rows. https://github.com/prestodb/presto/pull/14222 reduces the initial positions array size from positionCount to `min(positionCount, (positionCount / partitionCount + 1) * 2)` and grow it on the fly
+
+3. Enforce buffer size limits for BlockEncodingBuffer
+https://github.com/prestodb/presto/pull/14295 uses incoming blocks' retained sizes as an estimation for how large the buffers can grow. Before this limit was reached, the byte[] buffers were grown with growth factor 2. Once this limit is reached the growth factor would become 1.
+
+4. Bug fixes in memory counting
+- https://github.com/prestodb/presto/pull/14297 Fix getRetainedSizeInBytes for DecodedBlockNode
+- https://github.com/prestodb/presto/pull/14296 Fix getRetainedSizeInBytes for ColumnarXXX
+- https://github.com/prestodb/presto/pull/14249 Fix memory tracking for PartitionedOutputOperator
+
+**Further work:**
+
+https://github.com/prestodb/presto/pull/14234 and https://github.com/prestodb/presto/pull/14286 reuses the buffers between partitions. Ie. these buffers can be reused by the next partition if the current page can be consumed totally for the current partition. This can be further improved to be reused between different BlockEncodingBuffers within the same partition, if we can move the calculation of row sizes into the Page/Block interface. Currently we need to calculate the row sizes in BlockEncodingBuffers after the positions/offsets are populated for all BlockEncodingBuffers in the same partition. This forbids reusing the buffers among BlockEncodingBuffers within the same partition. If we can move the calculation of row sizes out of BlockEncodingBuffer, then we can populate the positions/offsets block by block within each partition
+```
+for each incoming page, 
+    populate top level positions for each partition;
+    calculate rowsizes by calling page.getSerializedRowSizes(int[] serializedRowSizes);
+for each partition
+    while the current page is not totally consumed
+        calculate batchSize for current batch;
+        for each column i
+            populate nested level positions, mappedpositions and offsets for the whole block if they are not populated yet(first batch in page)
+            blockEncodingBuffers[i].appendDataInBatch();
+            flush the current buffer if full.
+            if the last batch, return nested level positions, mappedpositions and offsets to allocator
+            if the last batch causes a flush, return the byte[] buffers to allocator
+```
+Most of times, a page can be consumed in a single batch. This new work flow would allow these buffers to be reused among blockEncodingBuffers as well as among partitions. However we may need to add page#getSerializedRowSizes(int[] serializedRowSizes) to Page and Block interface.

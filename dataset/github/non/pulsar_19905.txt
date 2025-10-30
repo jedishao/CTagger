@@ -1,0 +1,45 @@
+[Bug][CI] pulsar-function-go build failures are ignored when the last commit in the PR doesn't modify go files
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+master
+
+### Minimal reproduce step
+
+- create a PR with changes to pulsar-function-go which break the build
+- add a commit outside of pulsar-function-go
+- the CI build passes successfully and makes the PR mergable
+
+### What did you expect to see?
+
+- if the pulsar-function-go job fails for the PR, it shouldn't make the CI build mergable
+
+### What did you see instead?
+
+- the PR was mergable
+
+### Anything else?
+
+This is a known limitation of the way how the GitHub Actions workflow ci-go-functions.yaml has been configured to trigger for changes to `pulsar-function-go/**` path
+
+```
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/**'
+      - 'pulsar-function-go/**'
+  workflow_dispatch:
+```
+
+the problem would be fixed by using `apache/pulsar-test-infra/paths-filter@master` for detecting changed files in `ci-go-functions.yaml`.
+
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

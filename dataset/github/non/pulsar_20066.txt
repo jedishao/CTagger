@@ -1,0 +1,33 @@
+[Bug] [broker] Producer and consumer will all be disconnected while using tenant admin to produce/consume
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Pulsar 2.9.3
+
+### Minimal reproduce step
+
+1. Set up a pulsar cluster with `topicLevelPoliciesEnabled=true`.
+2. Create a namespace `t1/n1` and set admin role `tenant_admin` as the admin of tenant `t1`.
+3. Create topic `t1/n1/t1` and use role `tenant_admin` to produce/consumer this topic. DO NOT GRANT the permissions of `tenant_admin` to the topic/namespace.
+4. Update the namespace/topic policy, such as grant another role `role1` with produce to topic `t1/n1/t1`.
+5. We can see the producers/consumers of role `tenant_admin` will all first disconnect and then reconnect.
+
+### What did you expect to see?
+
+All producers and consumers should be stable.
+
+### What did you see instead?
+
+The producers/consumers of role `tenant_admin` will all first disconnect and then reconnect.
+
+### Anything else?
+
+According to the logic in `org.apache.pulsar.broker.service.ServerCnx`, all permission check will go to `org.apache.pulsar.broker.authorization.PulsarAuthorizationProvider#allowTopicOperationAsync`, which means the tenant admin should be the super user of all namespace/topic under specific tenant.
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

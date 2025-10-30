@@ -1,0 +1,13 @@
+Result level caching is not working
+Result level caching is currently broken in master for all kind of queries. 
+
+### Affected Version
+
+Master
+
+### Description
+
+During the query execution on the broker side, `ClientQuerySegmentWalker` wraps the `CachingClusteredClient.run` method in a chain of query runners. One of the participating runner is `ResultLevelCachingQueryRunner` which is responsible for populating result level cache. It assumes that when this chain is invoked, the `responseContext` is updated with the `E-TAG`. This `E-TAG` is used in `ResultLevelCachingQueryRunner` and if this `E-TAG` is null, result level cache is not populated. The flow is much better explained in #8713 
+
+The problem is that chain of query runners now include a `RetryQueryRunner` on top of `CachingClusteredClient.run` which similar to `UnionQueryRunner` in #8713, turns an `eager` load into a `lazy` load. Because of this, `ResultLevelCachingQueryRunner` never actually sees the `E-TAG` when it tries to access it. It's populated in the `responseContext` later on during the query execution. Because of this, result level cache is never populated. 
+

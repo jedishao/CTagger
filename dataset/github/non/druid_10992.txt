@@ -1,0 +1,31 @@
+The coordinator raises an exception when a tier has no server
+When I shut down all the historicals of a tier, A NullPointerException exception gets raised in a log when the coordinator tries to emit a metric.
+
+```
+ ERROR [Coordinator-Exec--0] org.apache.druid.server.coordinator.DruidCoordinator - Caught exception, ignoring so that schedule keeps going.: {class=org.apache.druid.server.coordinator.DruidCoordinator, exceptionType=class java.lang.NullPointerException, exceptionMessage=null}
+ java.lang.NullPointerException: null
+ 	at org.apache.druid.server.coordinator.duty.EmitClusterStatsAndMetrics.lambda$run$1(EmitClusterStatsAndMetrics.java:114) ~[druid-server-0.20.0.jar:0.20.0]
+ 	at org.apache.druid.server.coordinator.CoordinatorStats.forEachTieredStat(CoordinatorStats.java:92) ~[druid-server-0.20.0.jar:0.20.0]
+ 	at org.apache.druid.server.coordinator.duty.EmitClusterStatsAndMetrics.run(EmitClusterStatsAndMetrics.java:107) ~[druid-server-0.20.0.jar:0.20.0]
+ 	at org.apache.druid.server.coordinator.DruidCoordinator$DutiesRunnable.run(DruidCoordinator.java:792) [druid-server-0.20.0.jar:0.20.0]
+ 	at org.apache.druid.server.coordinator.DruidCoordinator$2.call(DruidCoordinator.java:619) [druid-server-0.20.0.jar:0.20.0]
+ 	at org.apache.druid.server.coordinator.DruidCoordinator$2.call(DruidCoordinator.java:612) [druid-server-0.20.0.jar:0.20.0]
+ 	at org.apache.druid.java.util.common.concurrent.ScheduledExecutors$4.run(ScheduledExecutors.java:158) [druid-core-0.20.0.jar:0.20.0]
+ 	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) [?:1.8.0_265]
+ 	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_265]
+ 	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180) [?:1.8.0_265]
+ 	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293) [?:1.8.0_265]
+ 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_265]
+ 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_265]
+ 	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_265]
+INFO [Coordinator-Exec--0] org.apache.druid.server.coordinator.duty.LogUsedSegments - Found [xxx] used segments.
+```
+
+It gets raised [here](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/server/coordinator/duty/EmitClusterStatsAndMetrics.java#L143) I think.
+
+Could we get rid of it?
+
+### Affected Version
+
+The Druid version where the problem was encountered: 0.20.0, maybe master also
+

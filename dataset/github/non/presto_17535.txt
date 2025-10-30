@@ -1,0 +1,92 @@
+Add subfield pruning for lambdas
+## Context
+Class `PushdownSubfields.SubfieldExtractor` only supports extracting subfields from normal scalar functions and variables. There are quite a few cases that subfields are intensively used by lambdas with an "indirect subfield access". Take the following SQL snippet as an example. If `a.b.c` is of type `array(row(...))` and `d` is a subfield of `c`, then we should add `a.b.c[*].d` as a candidate instead of reading the content of `c`.
+```sql
+FILTER(
+  a.b.c, 
+  x -> x.d = 'something'
+)
+```
+
+## What to do
+- We need to add the lambda subfield extraction in class `PushdownSubfields`. The following code piece is a prototype to make the above case work. Benchmark shows good results.
+- The functions to be supported should go beyond `filter`. Some commonly used ones include `transform`, `reduce`, `zip`, `zip_with`. `map_zip_with`, `transform_keys`, `transform_values`, and `map_filter`.
+- The array reader can already handle wild card; so nothing to be changed in `presto-orc` at least for array lambda functions. For map reader, please investigate accordingly.
+- Thorough unit tests are needed.
+
+## Prototype
+```java
+@Override
+public Void visitCall(CallExpression call, Context context)
+{
+    if (metadata.getFunctionAndTypeManager().getFunctionMetadata(call.getFunctionHandle()).getName().getObjectName().equals("filter")) {
+        Optional<Subfield> subfield = toSubfield(call.getArguments().get(0), functionResolution, expressionOptimizer, connectorSession);
+        if (subfield.isPresent()) {
+            checkState(call.getArguments().get(1) instanceof LambdaDefinitionExpression);
+            LambdaDefinitionExpression lambda = (LambdaDefinitionExpression) call.getArguments().get(1);
+            String root = lambda.getArguments().get(0);
+            Context subContext = new Context();
+            lambda.getBody().accept(this, subContext);
+            if (subContext.subfields.isEmpty()) {
+                context.subfields.add(subfield.get());
+                return null;
+            }
+            for (Subfield innerSubfield : subContext.subfields) {
+                if (innerSubfield.getRootName().equals(root)) {
+                    List<PathElement> newPath = ImmutableList.<PathElement>builder()
+                            .addAll(subfield.get().getPath())
+                            .add(allSubscripts())
+                            .addAll(innerSubfield.getPath())
+                            .build();
+                    context.subfields.add(new Subfield(subfield.get().getRootName(), newPath));
+                }
+            }
+        }
+        return null;
+    }
+...
+```
+
+## Benchmark
+
+Run the following queries to load the data
+```sql
+CREATE TABLE hive.tpch.customer1 (
+    "custkey" ARRAY(ROW(name VARCHAR, address VARCHAR))
+)
+WITH (
+    format = 'ORC'
+);
+```
+
+```sql
+INSERT INTO hive.tpch.customer1
+SELECT
+    ARRAY_AGG(custkey) custkey
+FROM (
+    SELECT
+        CAST(ROW(name, address) AS ROW(name VARCHAR, address VARCHAR)) custkey,
+        name
+    FROM customer
+)
+GROUP BY
+    name;
+```
+
+Run the following queries to validate the gains. Note that we need to tune the hive reader parameters so that the orc reader doesn't fetch an multi-MB large block in one shot.
+```sql
+SELECT
+    COUNT_IF(CARDINALITY(FILTER(custkey, x -> position('9' IN x.name) > 0)) > 0)
+FROM hive.tpch.customer1;
+```
+
+Before:
+```
+0:02 [150K rows, 3.36MB] [73.7K rows/s, 1.65MB/s]
+```
+
+
+After:
+```
+0:02 [150K rows, 566KB] [97.8K rows/s, 369KB/s]
+```

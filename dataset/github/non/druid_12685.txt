@@ -1,0 +1,102 @@
+Incorrect result produced by quantilesDoublesSketchToQuantile with even number of values
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+0.22.1
+
+### Description
+
+I have a datasource that I'm trying to query using quantiles to get the median value (P50).
+When there is odd number of values (eg. `10, 20, 30, 40, 50`) I get the mean value correctly: `30`.
+When there is even number of values (eg. `10, 20, 30, 40`) the mean value would normally be `25`, but I'm getting `30` instead.
+
+Sample json query:
+
+```
+{
+  "dataSource": "datasource_name",
+  "dimensions": [
+    {
+      "dimension": "__time",
+      "outputName": "date",
+      "outputType": "LONG",
+      "type": "default"
+    },
+    {
+      "dimension": "dimension1",
+      "outputName": "dimension1",
+      "outputType": "STRING",
+      "type": "default"
+    },
+    {
+      "dimension": "dimension2",
+      "outputName": "dimension2",
+      "outputType": "STRING",
+      "type": "default"
+    }
+  ],
+  "granularity": {
+    "type": "all"
+  },
+  "filter": {
+    "fields": [
+      {
+        "dimension": "dimension1",
+        "values": [
+          "dimension1_filter"
+        ],
+        "type": "in"
+      },
+      {
+        "dimension": "dimension2",
+        "values": [
+          "dimension2_filter"
+        ],
+        "type": "in"
+      }
+    ],
+    "type": "and"
+  },
+  "aggregations": [
+    {
+      "name": "quantile_quantity",
+      "fieldName": "quantity",
+      "type": "quantilesDoublesSketch",
+    }
+  ],
+  "postAggregations": [
+    {
+      "name": "aggregated_quantity",
+      "field": {
+        "name": "aggregated_quantity",
+        "fieldName": "quantile_quantity",
+        "type": "fieldAccess"
+      },
+      "fraction": 0.5,
+      "type": "quantilesDoublesSketchToQuantile",
+    }
+  ],
+  "intervals": [
+    "2022-06-05/2022-06-12"
+  ],
+  "queryType": "groupBy"
+}
+```
+
+Above query has some filters on dimensions just to limit the result to a sample of 4 values and reproduce this issue. I'm including the whole query above just in case any of these configurations affect the result I'm getting.
+
+This is the result:
+
+```
+dimension1    aggregated_quantity    dimension2    quantile_quantity    date
+dimension1_filter    30    dimension2_filter    4    1654387200000
+```
+
+I have read the quantile definition here https://druid.apache.org/docs/latest/development/extensions-core/datasketches-quantiles.html - `This returns an approximation to the value that would be preceded by a given fraction of a hypothetical sorted version of the input stream.`
+
+This is a bit ambiguous without any examples and gotchas about the even number of values mentioned above. Plus, per definition it should return the value that "precedes" the fraction, but seems like it returns the value that succeeds the fraction instead.
+
+Is there some configuration I'm missing to calculate the correct median value?
+
+Thank you!

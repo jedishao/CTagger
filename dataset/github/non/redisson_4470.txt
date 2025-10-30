@@ -1,0 +1,76 @@
+Quarkus warns about Unknown property for 'quarkus.redisson.*'
+**Expected behavior**
+Configuration Properties to be recognized correctly. 
+
+**Actual behavior**
+Editor(VS Code 1.70.0-insider) , Maven Build (quarkus-maven-plugin:2.11.2.Final ) and quarkus runtime all complain / warn about unrecognized properties for redisson.
+
+## Vscode warnings
+<img width="541" alt="image" src="https://user-images.githubusercontent.com/100834512/183287906-fa309bfb-51bf-408c-916a-7ec660ba07e4.png">
+
+## Buildtime output
+```
+[INFO] --- quarkus-maven-plugin:2.11.2.Final:build (default) @ some-project ---
+[WARNING] [io.quarkus.config] Unrecognized configuration key "quarkus.redisson.threads" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+[WARNING] [io.quarkus.config] Unrecognized configuration key "quarkus.redisson.single-server-config.password" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+[WARNING] [io.quarkus.config] Unrecognized configuration key "quarkus.redisson.single-server-config.username" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+[WARNING] [io.quarkus.config] Unrecognized configuration key "quarkus.redisson.single-server-config.address" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+[WARNING] [io.quarkus.config] Unrecognized configuration key "quarkus.redisson.netty-threads" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+```
+
+## Runtime output
+```
+Sun, Aug 7 2022 6:36:49 am | __ ____ __ _____ ___ __ ____ ______
+Sun, Aug 7 2022 6:36:49 am | --/ __ \/ / / / _ \| / _ \/ //_/ / / / __/
+Sun, Aug 7 2022 6:36:49 am | -/ /_/ / /_/ / __ \|/ , _/ ,< / /_/ /\ \
+Sun, Aug 7 2022 6:36:49 am | --\___\_\____/_/ \|_/_/\|_/_/\|_\|\____/___/
+Sun, Aug 7 2022 6:36:49 am | 2022-08-07 10:36:48,407 WARN [io.qua.config] (Quarkus Main Thread) Unrecognized configuration key "quarkus.redisson.netty-threads" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+Sun, Aug 7 2022 6:36:49 am | 2022-08-07 10:36:48,407 WARN [io.qua.config] (Quarkus Main Thread) Unrecognized configuration key "quarkus.redisson.threads" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+Sun, Aug 7 2022 6:36:49 am | 2022-08-07 10:36:48,407 WARN [io.qua.config] (Quarkus Main Thread) Unrecognized configuration key "quarkus.redisson.single-server-config.address" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+Sun, Aug 7 2022 6:36:49 am | 2022-08-07 10:36:48,407 WARN [io.qua.config] (Quarkus Main Thread) Unrecognized configuration key "quarkus.redisson.single-server-config.username" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+Sun, Aug 7 2022 6:36:49 am | 2022-08-07 10:36:48,408 WARN [io.qua.config] (Quarkus Main Thread) Unrecognized configuration key "quarkus.redisson.single-server-config.password" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+Sun, Aug 7 2022 6:36:50 am | 2022-08-07 10:36:50,029 INFO [org.red.Version] (Quarkus Main Thread) Redisson 3.16.1
+```
+
+**Steps to reproduce or test case**
+1.  Create Quarkus app and add extension
+```
+$ quarkus create app com.example:test-redisson:1.0
+$ cd test-redisson
+$ quarkus extension add org.redisson:redisson-quarkus-20:3.17.5
+```
+2. Update application.properties
+```
+quarkus.redisson.single-server-config.address=redis://redis-master.services:6379
+quarkus.redisson.single-server-config.username=username
+quarkus.redisson.single-server-config.password=some-password
+quarkus.redisson.threads=3
+quarkus.redisson.netty-threads=3
+```
+4. If using an VScode, it will complain about unknown properties, 
+5. Perform Quarkus build , it will complain about the  unknown properties `quarkus build`
+6. Performing Quarkus dev, will complain about the  unknown properties in runtime
+
+
+**Redis version**
+6.2.7
+
+**Redisson version**
+```
+    <dependency>
+      <groupId>org.redisson</groupId>
+      <artifactId>redisson-quarkus-20</artifactId>
+      <version>3.17.5</version>
+    </dependency>
+```
+**Redisson configuration**
+```
+quarkus.redisson.single-server-config.address=redis://redis-master.services:6379
+quarkus.redisson.single-server-config.username=username
+quarkus.redisson.single-server-config.password=some-password
+quarkus.redisson.threads=3
+quarkus.redisson.netty-threads=3
+```
+
+** Quarkus platform version **
+6.11.2.Final

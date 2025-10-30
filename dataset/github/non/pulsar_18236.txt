@@ -1,0 +1,174 @@
+[Bug] Message lost after forcefully stopping broker
+## Version
+
+Formally reproduced the bug on Apache Pulsar 2.9.3 and 2.10.2. Based on my understanding of the code, it affects all active versions of Pulsar.
+
+## Minimal steps to reproduce
+
+1. Start a Pulsar cluster (I had one in k8s).
+2. Create a topic and subscription `bin/pulsar-admin topics create-subscription -s abc test1`
+3. Produce a message to that topic `bin/pulsar-client produce -m test test1`
+4. View internal stats to see broker state and zookeeper state `bin/pulsar-admin topics stats-internal test1`
+    ```json
+    {
+      "entriesAddedCounter" : 1,
+      "numberOfEntries" : 1,
+      "totalSize" : 54,
+      "currentLedgerEntries" : 1,
+      "currentLedgerSize" : 54,
+      "lastLedgerCreatedTimestamp" : "2022-10-28T03:51:10.805Z",
+      "waitingCursorsCount" : 0,
+      "pendingAddEntriesCount" : 0,
+      "lastConfirmedEntry" : "66:0",
+      "state" : "LedgerOpened",
+      "ledgers" : [ {
+        "ledgerId" : 66,
+        "entries" : 0,
+        "size" : 0,
+        "offloaded" : false,
+        "underReplicated" : false
+      } ],
+      "cursors" : {
+        "abc" : {
+          "markDeletePosition" : "66:-1",
+          "readPosition" : "66:0",
+          "waitingReadOp" : false,
+          "pendingReadOps" : 0,
+          "messagesConsumedCounter" : 0,
+          "cursorLedger" : 67,
+          "cursorLedgerLastEntry" : 1,
+          "individuallyDeletedMessages" : "[]",
+          "lastLedgerSwitchTimestamp" : "2022-10-28T03:51:10.815Z",
+          "state" : "Open",
+          "numberOfEntriesSinceFirstNotAckedMessage" : 1,
+          "totalNonContiguousDeletedMessagesRange" : 0,
+          "subscriptionHavePendingRead" : false,
+          "subscriptionHavePendingReplayRead" : false,
+          "properties" : { }
+        }
+      },
+      "schemaLedgers" : [ ],
+      "compactedLedger" : {
+        "ledgerId" : -1,
+        "entries" : -1,
+        "size" : -1,
+        "offloaded" : false,
+        "underReplicated" : false
+      }
+    }
+    ```
+5. Kill the broker forcefully. This makes sure that it doesn't have a chance to persist the subscription state to zookeeper.
+6. Restart the broker.
+7. Get the internal stats for the topic: `bin/pulsar-admin topics stats-internal test1`
+    ```json
+    {
+      "entriesAddedCounter" : 0,
+      "numberOfEntries" : 1,
+      "totalSize" : 54,
+      "currentLedgerEntries" : 0,
+      "currentLedgerSize" : 0,
+      "lastLedgerCreatedTimestamp" : "2022-10-28T03:54:27.951Z",
+      "waitingCursorsCount" : 0,
+      "pendingAddEntriesCount" : 0,
+      "lastConfirmedEntry" : "66:0",
+      "state" : "LedgerOpened",
+      "ledgers" : [ {
+        "ledgerId" : 66,
+        "entries" : 1,
+        "size" : 54,
+        "offloaded" : false,
+        "underReplicated" : false
+      }, {
+        "ledgerId" : 71,
+        "entries" : 0,
+        "size" : 0,
+        "offloaded" : false,
+        "underReplicated" : false
+      } ],
+      "cursors" : {
+        "abc" : {
+          "markDeletePosition" : "66:0",
+          "readPosition" : "66:1",
+          "waitingReadOp" : false,
+          "pendingReadOps" : 0,
+          "messagesConsumedCounter" : 0,
+          "cursorLedger" : 67,
+          "cursorLedgerLastEntry" : 1,
+          "individuallyDeletedMessages" : "[]",
+          "lastLedgerSwitchTimestamp" : "2022-10-28T03:54:27.965Z",
+          "state" : "NoLedger",
+          "numberOfEntriesSinceFirstNotAckedMessage" : 1,
+          "totalNonContiguousDeletedMessagesRange" : 0,
+          "subscriptionHavePendingRead" : false,
+          "subscriptionHavePendingReplayRead" : false,
+          "properties" : { }
+        }
+      },
+      "schemaLedgers" : [ ],
+      "compactedLedger" : {
+        "ledgerId" : -1,
+        "entries" : -1,
+        "size" : -1,
+        "offloaded" : false,
+        "underReplicated" : false
+      }
+    }
+    ```
+8. Get the stats again and see that the ledger for the single message in the backlog is now gone: ``bin/pulsar-admin topics stats-internal test1``
+    ```json
+    {
+      "entriesAddedCounter" : 0,
+      "numberOfEntries" : 0,
+      "totalSize" : 0,
+      "currentLedgerEntries" : 0,
+      "currentLedgerSize" : 0,
+      "lastLedgerCreatedTimestamp" : "2022-10-28T03:54:27.951Z",
+      "waitingCursorsCount" : 0,
+      "pendingAddEntriesCount" : 0,
+      "lastConfirmedEntry" : "66:0",
+      "state" : "LedgerOpened",
+      "ledgers" : [ {
+        "ledgerId" : 71,
+        "entries" : 0,
+        "size" : 0,
+        "offloaded" : false,
+        "underReplicated" : false
+      } ],
+      "cursors" : {
+        "abc" : {
+          "markDeletePosition" : "66:0",
+          "readPosition" : "66:1",
+          "waitingReadOp" : false,
+          "pendingReadOps" : 0,
+          "messagesConsumedCounter" : 0,
+          "cursorLedger" : 67,
+          "cursorLedgerLastEntry" : 1,
+          "individuallyDeletedMessages" : "[]",
+          "lastLedgerSwitchTimestamp" : "2022-10-28T03:54:27.965Z",
+          "state" : "NoLedger",
+          "numberOfEntriesSinceFirstNotAckedMessage" : 1,
+          "totalNonContiguousDeletedMessagesRange" : 0,
+          "subscriptionHavePendingRead" : false,
+          "subscriptionHavePendingReplayRead" : false,
+          "properties" : { }
+        }
+      },
+      "schemaLedgers" : [ ],
+      "compactedLedger" : {
+        "ledgerId" : -1,
+        "entries" : -1,
+        "size" : -1,
+        "offloaded" : false,
+        "underReplicated" : false
+      }
+    }
+    ```
+9. Note that if you run `bin/pulsar-client consume -s abc test`, you'll just wait forever.
+   
+## What did you expect to see?
+
+The mark delete position and the read position should not move forward from step 4 to step 7.
+
+## What did you see instead?
+
+I lost a message.

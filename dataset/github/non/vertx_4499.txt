@@ -1,0 +1,54 @@
+MimeMapping.getMimeTypeForExtension should be Case Insensitive
+### Issue
+
+Static file response no content type if extension name contains upper case characters
+
+[StaticHandlerImpl.java#L463](https://github.com/vert-x3/vertx-web/blob/efc35f2caeedc135779895b9008268cdcbdb9042/vertx-web/src/main/java/io/vertx/ext/web/handler/impl/StaticHandlerImpl.java#L463)
+
+### Version
+
+4.2.7
+
+### Do you have a reproducer?
+[MimeMapping.java#L1016](https://github.com/eclipse-vertx/vert.x/blob/11ab144725e551be591118831377101015e1392c/src/main/java/io/vertx/core/http/impl/MimeMapping.java#L1016)
+
+### Steps to reproduce
+
+```java
+@TestMethodOrder(OrderAnnotation.class)
+public class MimeMappingTester {
+
+    @Test
+    @Order(1)
+    void textLocalFile() {
+        Path file = Path.of("/Users/leo/Pictures/IMG_4157.JPG");
+        System.out.println(String.format("'%s', contentType: %s", file, MimeMapping.getMimeTypeForFilename(file.toString())));
+
+        Path file2 = Path.of("/Users/leo/Pictures/IMG_4157.jpg");
+        System.out.println(String.format("'%s', contentType: %s", file2, MimeMapping.getMimeTypeForFilename(file2.toString())));
+    }
+
+    @Test
+    @Order(2)
+    void textUrlFile() {
+        try {
+            URL url = new URL("https://xgos.com/Pictures/IMG_4157.JPG");
+            System.out.println(String.format("'%s', contentType: %s", url, MimeMapping.getMimeTypeForFilename(url.toString())));
+
+            URL url2 = new URL("https://xgos.com/Pictures/IMG_4157.jpg");
+            System.out.println(String.format("'%s', contentType: %s", url2, MimeMapping.getMimeTypeForFilename(url2.toString())));
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### Console Output
+```console
+'/Users/leo/Pictures/IMG_4157.JPG', contentType: null
+'/Users/leo/Pictures/IMG_4157.jpg', contentType: image/jpeg
+
+'https://xgos.com/Pictures/IMG_4157.JPG', contentType: null
+'https://xgos.com/Pictures/IMG_4157.jpg', contentType: image/jpeg
+```

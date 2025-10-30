@@ -1,0 +1,53 @@
+PIP-197: Add Schema hash and equals to public API
+<!---
+Instructions for creating a PIP using this issue template:
+
+ 1. The author(s) of the proposal will create a GitHub issue ticket using this template.
+    (Optionally, it can be helpful to send a note discussing the proposal to
+    dev@pulsar.apache.org mailing list before submitting this GitHub issue. This discussion can
+    help developers gauge interest in the proposed changes before formalizing the proposal.)
+ 2. The author(s) will send a note to the dev@pulsar.apache.org mailing list
+    to start the discussion, using subject prefix `[PIP] xxx`. To determine the appropriate PIP
+    number `xxx`, inspect the mailing list (https://lists.apache.org/list.html?dev@pulsar.apache.org)
+    for the most recent PIP. Add 1 to that PIP's number to get your PIP's number.
+ 3. Based on the discussion and feedback, some changes might be applied by
+    the author(s) to the text of the proposal.
+ 4. Once some consensus is reached, there will be a vote to formally approve
+    the proposal. The vote will be held on the dev@pulsar.apache.org mailing list. Everyone
+    is welcome to vote on the proposal, though it will considered to be binding
+    only the vote of PMC members. It will be required to have a lazy majority of
+    at least 3 binding +1s votes. The vote should stay open for at least 48 hours.
+ 5. When the vote is closed, if the outcome is positive, the state of the
+    proposal is updated and the Pull Requests associated with this proposal can
+    start to get merged into the master branch.
+
+-->
+
+ML discussion thread: https://lists.apache.org/thread/brf946dgzojlqkd8y9s2h11b0rg47qcd
+
+## Motivation
+
+Currently, the `Schema` interface in the public client-api does not provide access to a sensible hash function. The fallback to Java’s object-equality makes it unfit for use in most hash-based collections. For example, it prevents usage as a key in a cache.
+Further, the lack of a reliable equals function means that there is no way to identify if two schemas are the same thing.  
+
+## Goal
+
+The goal of this proposal is to provide a sensible `hashCode` and `equals` implementation for Schema as part of the public API. 
+
+Currently, pulsar-common contains `SchemaHash`, a wrapper class that exists to solve the aforementioned problems. However, `SchemaHash` is not part of the public API, so users should not depend on it.
+
+
+## API Changes
+
+There is no further change required as moving `SchemaHash` from pulsar-common to the public API. The only further change could be to re-think the class name, as the wrapper offers more than just a schemas hash. 
+
+## Implementation
+
+Move `SchemaHash` from pulsar-common `org.apache.pulsar.common.protocol.schema` package into pulsar-client-api `org.apache.pulsar.common.schema` package. 
+
+
+## Reject Alternatives
+
+Providing default methods for `equals` and `hashCode` directly on the `Schema` interface is not possible because Java prohibits overriding the base Object methods.
+Another option would be to provide the `hashCode` and `equals` functionality through similarly-named default methods that could be used by any `Schema` implementation. The drawback of this idea is that it requires developers to override the equals and hashCode to use these provided methods, as well as possibly polluting the interface.
+

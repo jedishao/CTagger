@@ -1,0 +1,90 @@
+org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Triggering JVM shutdown
+The Druid version where the problem was encountered: apache-druid-0.20.1
+
+**Description**
+We installed my Druid cluster on single server deployed in kubernetes. 
+**the supervisors can run, but the tasks failed because of the jvm error.**
+
+**My java environment setting are as follows:**
+After Adding customized JVM config on historical JVM.config using docker file It will gice below error.
+
+**Below is my historical JVM.config**
+-server
+-Xms4g
+-Xmx8g
+-XX:MaxDirectMemorySize=12g
+-XX:+ExitOnOutOfMemoryError
+-XX:+UseG1GC
+-Duser.timezone=UTC
+-Dfile.encoding=UTF-8
+-Djava.io.tmpdir=var/tmp
+-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+
+Error: Could not create the Java Virtual Machine.
+Error: A fatal exception has occurred. Program will exit.
+Unrecognized option: -server
+
+**Here is the task log :**
+
+2021-03-19T11:38:21,034 INFO [parent-monitor-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Triggering JVM shutdown.
+2021-03-19T11:38:21,035 INFO [Thread-63] org.apache.druid.cli.CliPeon - Running shutdown hook
+2021-03-19T11:38:21,036 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [ANNOUNCEMENTS]
+2021-03-19T11:38:21,039 INFO [Thread-63] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/announcements/localhost:8100]
+2021-03-19T11:38:21,051 INFO [Thread-63] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,054 INFO [Thread-63] org.apache.druid.curator.announcement.Announcer - Unannouncing [/druid/internal-discovery/PEON/localhost:8100]
+2021-03-19T11:38:21,056 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [SERVER]
+2021-03-19T11:38:21,062 INFO [Thread-63] org.eclipse.jetty.server.AbstractConnector - Stopped ServerConnector@4f525e13{HTTP/1.1, (http/1.1)}{0.0.0.0:8100}
+2021-03-19T11:38:21,062 INFO [Thread-63] org.eclipse.jetty.server.session - node0 Stopped scavenging
+2021-03-19T11:38:21,064 INFO [Thread-63] org.eclipse.jetty.server.handler.ContextHandler - Stopped o.e.j.s.ServletContextHandler@7976e536{/,null,STOPPED}
+2021-03-19T11:38:21,066 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [NORMAL]
+2021-03-19T11:38:21,066 INFO [Thread-63] org.apache.druid.server.coordination.ZkCoordinator - Stopping ZkCoordinator for [DruidServerMetadata{name='localhost:8100', hostAndPort='localhost:8100', hostAndTlsPort='null', maxSize=0, tier='_default_tier', type=indexer-executor, priority=0}]
+2021-03-19T11:38:21,067 INFO [Thread-63] org.apache.druid.server.coordination.SegmentLoadDropHandler - Stopping...
+2021-03-19T11:38:21,067 INFO [Thread-63] org.apache.druid.server.coordination.SegmentLoadDropHandler - Stopped.
+2021-03-19T11:38:21,067 INFO [Thread-63] org.apache.druid.indexing.overlord.SingleTaskBackgroundRunner - Starting graceful shutdown of task[index_kafka_VEHICLE_RAW_DATA_DRUID_204e2ce89f87f44_ogekjhnp].
+2021-03-19T11:38:21,067 INFO [Thread-63] org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner - Stopping forcefully (status: [PUBLISHING])
+2021-03-19T11:38:21,076 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T04:00:00.000Z_2021-03-19T05:00:00.000Z_2021-03-19T04:00:10.207Z_3] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,078 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-16T11:00:00.000Z_2021-03-16T12:00:00.000Z_2021-03-16T11:00:05.094Z_29] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,078 INFO [LookupExtractorFactoryContainerProvider-MainThread] org.apache.druid.query.lookup.LookupReferencesManager - Lookup Management loop exited. Lookup notices are not handled anymore.
+2021-03-19T11:38:21,079 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-16T11:00:00.000Z_2021-03-16T12:00:00.000Z_2021-03-16T11:00:05.094Z_31] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,079 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-17T19:00:00.000Z_2021-03-17T20:00:00.000Z_2021-03-17T19:00:09.029Z_41] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,080 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T10:00:00.000Z_2021-03-19T11:00:00.000Z_2021-03-19T10:00:05.912Z_2] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,080 INFO [Thread-63] org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager - CoordinatorPollingBasicAuthorizerCacheManager is stopping.
+2021-03-19T11:38:21,080 INFO [Thread-63] org.apache.druid.security.basic.authorization.db.cache.CoordinatorPollingBasicAuthorizerCacheManager - CoordinatorPollingBasicAuthorizerCacheManager is stopped.
+2021-03-19T11:38:21,081 INFO [Thread-63] org.apache.druid.security.basic.authentication.db.cache.CoordinatorPollingBasicAuthenticatorCacheManager - CoordinatorPollingBasicAuthenticatorCacheManager is stopping.
+2021-03-19T11:38:21,081 INFO [Thread-63] org.apache.druid.security.basic.authentication.db.cache.CoordinatorPollingBasicAuthenticatorCacheManager - CoordinatorPollingBasicAuthenticatorCacheManager is stopped.
+2021-03-19T11:38:21,081 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T09:00:00.000Z_2021-03-19T10:00:00.000Z_2021-03-19T09:00:05.383Z_2] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,081 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-16T10:00:00.000Z_2021-03-16T11:00:00.000Z_2021-03-16T10:00:06.370Z_48] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,082 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T11:00:00.000Z_2021-03-19T12:00:00.000Z_2021-03-19T11:00:06.214Z] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,083 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T08:00:00.000Z_2021-03-19T09:00:00.000Z_2021-03-19T08:00:10.208Z_2] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,083 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T10:00:00.000Z_2021-03-19T11:00:00.000Z_2021-03-19T10:00:05.912Z_1] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,084 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T07:00:00.000Z_2021-03-19T08:00:00.000Z_2021-03-19T07:00:10.223Z_1] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,084 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T04:00:00.000Z_2021-03-19T05:00:00.000Z_2021-03-19T04:00:10.207Z_2] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,085 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-16T11:00:00.000Z_2021-03-16T12:00:00.000Z_2021-03-16T11:00:05.094Z_30] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,085 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T09:00:00.000Z_2021-03-19T10:00:00.000Z_2021-03-19T09:00:05.383Z_3] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,085 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T00:00:00.000Z_2021-03-19T01:00:00.000Z_2021-03-19T00:00:06.539Z_6] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,086 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-02-26T10:00:00.000Z_2021-02-26T11:00:00.000Z_2021-03-19T10:11:31.350Z] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,086 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T10:00:00.000Z_2021-03-19T11:00:00.000Z_2021-03-19T10:00:05.912Z_3] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,086 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T09:00:00.000Z_2021-03-19T10:00:00.000Z_2021-03-19T09:00:05.383Z_4] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,087 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T10:00:00.000Z_2021-03-19T11:00:00.000Z_2021-03-19T10:00:05.912Z] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,087 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T09:00:00.000Z_2021-03-19T10:00:00.000Z_2021-03-19T09:00:05.383Z_1] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,087 INFO [task-runner-0-priority-0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - Unannouncing segment[VEHICLE_RAW_DATA_DRUID_2021-03-19T00:00:00.000Z_2021-03-19T01:00:00.000Z_2021-03-19T00:00:06.539Z_7] at path[/druid/segments/localhost:8100/localhost:8100_indexer-executor__default_tier_2021-03-19T10:07:56.008Z_0e07ad87f60d4107a0662c8a28a9b3e90]
+2021-03-19T11:38:21,088 INFO [task-runner-0-priority-0] org.apache.druid.curator.discovery.CuratorDruidNodeAnnouncer - Unannounced self [{"druidNode":{"service":"druid/middleManager","host":"localhost","bindOnHost":false,"plaintextPort":8100,"port":-1,"tlsPort":-1,"enablePlaintextPort":true,"enableTlsPort":false},"nodeType":"peon","services":{"dataNodeService":{"type":"dataNodeService","tier":"_default_tier","maxSize":0,"type":"indexer-executor","priority":0},"lookupNodeService":{"type":"lookupNodeService","lookupTier":"__default"}}}].
+2021-03-19T11:38:21,093 INFO [Curator-Framework-0] org.apache.curator.framework.imps.CuratorFrameworkImpl - backgroundOperationsLoop exiting
+2021-03-19T11:38:21,096 INFO [task-runner-0-priority-0] org.apache.druid.indexing.worker.executor.ExecutorLifecycle - Task completed with status: {
+  "id" : "index_kafka_VEHICLE_RAW_DATA_DRUID_204e2ce89f87f44_ogekjhnp",
+  "status" : "SUCCESS",
+  "duration" : 5426310,
+  "errorMsg" : null,
+  "location" : {
+    "host" : null,
+    "port" : -1,
+    "tlsPort" : -1
+  }
+}
+2021-03-19T11:38:21,096 INFO [Thread-63] org.apache.zookeeper.ZooKeeper - Session: 0x100aea4bdde0016 closed
+2021-03-19T11:38:21,096 INFO [Thread-63] org.apache.druid.java.util.common.lifecycle.Lifecycle - Stopping lifecycle [module] stage [INIT]
+2021-03-19T11:38:21,096 INFO [main-EventThread] org.apache.zookeeper.ClientCnxn - EventThread shut down for session: 0x100aea4bdde0016
+2021-03-19T11:38:21,097 INFO [main] org.apache.druid.cli.CliPeon - Thread [Thread[Thread-63,5,main]] is non daemon.
+2021-03-19T11:38:21,097 INFO [main] org.apache.druid.java.util.common.lifecycle.Lifecycle - Lifecycle [module] already stopped and stop was called. Silently skipping
+Cannot remove shutdown hook, already shutting down!
+Finished peon task

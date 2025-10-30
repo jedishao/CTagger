@@ -1,0 +1,110 @@
+HAVING on multi-value column should not be pushed down to WHERE
+Originally reported in #10011.
+
+The issue is that a query like this:
+
+```sql
+SELECT
+  dim1,
+  dim3,  
+  COUNT(*)
+FROM druid.foo
+GROUP BY dim1, dim3
+HAVING dim3 = 'b'
+```
+
+Will get rewritten into this:
+
+```sql
+SELECT
+  dim1,
+  dim3,  
+  COUNT(*)
+FROM druid.foo
+WHERE dim3 = 'b'
+GROUP BY dim1, dim3
+```
+
+This is a valid rewrite if dim3 is singly-valued, and is a good optimization because WHERE is more efficient than HAVING. But it's not valid if dim3 is multi-value. We'll need to only apply this rewrite in cases where dim3 is singly-valued.
+
+This will probably involve threading multi-valuedness type information through the SQL type system, which we aren't currently doing AFAIK.
+
+Here are two tests that illustrate the intended behavior:
+
+```java
+  @Test // This test passes today
+  public void testHavingOnColumnFromGroupBy() throws Exception
+  {
+    // Cannot vectorize due to grouping on a multi-value column.
+    cannotVectorize();
+
+    // dim1 is singly-valued, dim3 is multi-valued
+    testQuery(
+        "SELECT\n"
+        + "  dim1,\n"
+        + "  dim3,\n"
+        + "  COUNT(*)\n"
+        + "FROM druid.foo\n"
+        + "GROUP BY dim1, dim3\n"
+        + "HAVING dim1 = '10.1'",
+        ImmutableList.of(
+            GroupByQuery.builder()
+                        .setDataSource(CalciteTests.DATASOURCE1)
+                        .setInterval(querySegmentSpec(Filtration.eternity()))
+                        .setGranularity(Granularities.ALL)
+                        .setDimFilter(selector("dim1", "10.1", null))
+                        .setDimensions(
+                            dimensions(
+                                new DefaultDimensionSpec("dim1", "d0"),
+                                new DefaultDimensionSpec("dim3", "d1")
+                            )
+                        )
+                        .setAggregatorSpecs(aggregators(new CountAggregatorFactory("a0")))
+                        .setContext(QUERY_CONTEXT_DEFAULT)
+                        .build()
+        ),
+        ImmutableList.of(
+            new Object[]{"10.1", "b", 1L},
+            new Object[]{"10.1", "c", 1L}
+        )
+    );
+  }
+
+  @Test // This test fails today
+  public void testHavingOnMultiValueColumnFromGroupBy() throws Exception
+  {
+    // Cannot vectorize due to grouping on a multi-value column.
+    cannotVectorize();
+
+    // dim1 is singly-valued, dim3 is multi-valued
+    testQuery(
+        "SELECT\n"
+        + "  dim1,\n"
+        + "  dim3,\n"
+        + "  COUNT(*)\n"
+        + "FROM druid.foo\n"
+        + "GROUP BY dim1, dim3\n"
+        + "HAVING dim3 = 'b'",
+        ImmutableList.of(
+            GroupByQuery.builder()
+                        .setDataSource(CalciteTests.DATASOURCE1)
+                        .setInterval(querySegmentSpec(Filtration.eternity()))
+                        .setGranularity(Granularities.ALL)
+                        .setDimensions(
+                            dimensions(
+                                new DefaultDimensionSpec("dim1", "d0"),
+                                new DefaultDimensionSpec("dim3", "d1")
+                            )
+                        )
+                        .setHavingSpec(having(selector("d1", "b", null)))
+                        .setAggregatorSpecs(aggregators(new CountAggregatorFactory("a0")))
+                        .setContext(QUERY_CONTEXT_DEFAULT)
+                        .build()
+        ),
+        ImmutableList.of(
+            new Object[]{NULL_STRING, "b", 1L},
+            new Object[]{"10.1", "b", 1L}
+        )
+    );
+  }
+```

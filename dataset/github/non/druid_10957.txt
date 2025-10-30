@@ -1,0 +1,129 @@
+doubleMean aggregation metric in subquery cannot be further aggregated
+doubleMean aggregation metric in subquery cannot be further aggregated
+
+### Affected Version
+0.20
+
+### Description
+I have a groupBy query with subquery. 
+In the subquery, I aggregate the metric with doubleMean. I wish to further aggregate with doubleSum in outer query. It won't work and the result is always 0. Is this expected?
+
+```
+{
+  "queryType": "groupBy",
+  "dataSource": {
+    "type": "query",
+    "query": {
+      "queryType": "groupBy",
+      "dataSource": "viaops_metric_specguide",
+      "intervals": [
+        "2020-02-23T04:00+12:00/2020-03-01T04:00+12:00",
+        "2020-02-16T04:00+12:00/2020-02-23T04:00+12:00",
+        "2020-02-09T04:00+12:00/2020-02-16T04:00+12:00",
+        "2020-02-02T04:00+12:00/2020-02-09T04:00+12:00",
+        "2020-01-26T04:00+12:00/2020-02-02T04:00+12:00"
+      ],
+      "filter": {
+        "type": "and",
+        "fields": [
+          {
+            "type": "selector",
+            "dimension": "metric_name",
+            "value": "Successful API Attempt"
+          },
+          {
+            "type": "selector",
+            "dimension": "app",
+            "value": "Quantum"
+          },
+          {
+            "type": "in",
+            "dimension": "api",
+            "values": [
+              "",
+              "stbDeviceEdgeRefresh",
+              "deviceEdgeDevices",
+              "avappsTermsAndConditions",
+              "viewingHistoryEdgeViewingHistory",
+              "loginEdgeSessionInfo",
+              "searchEdgeSavedSearchRecent",
+              "searchEdgeUnfiltered",
+              "networkSettingsEdgeSettings",
+              "viewingHistoryEdgeCollated",
+              "watchListEdgeWatchList",
+              "lrmEdgeEntitlements",
+              "companionDevicesEdgeHandoff",
+              "searchedgeV1CatalogUnfiltered",
+              "loginEdgeLogin",
+              "savedSearchEdgeSavedSearch"
+            ]
+          }
+        ]
+      },
+      "granularity": {
+        "type": "period",
+        "period": "PT5M",
+        "timeZone": "Pacific/Kwajalein",
+        "origin": "2020-03-01T04:00+12:00"
+      },
+      "dimensions": [
+        {
+          "type": "default",
+          "dimension": "app"
+        },
+        {
+          "type": "default",
+          "dimension": "metric_name"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "doubleMean",
+          "name": "__aggr",
+          "fieldName": "metric_value"
+        }
+      ],
+      "context": {
+        "populateCache": false,
+        "useCache": false,
+        "serializeDateTimeAsLong": true
+      }
+    }
+  },
+  "aggregations": [
+    {
+      "type": "count",
+      "name": "__count"
+    },
+    {
+      "type": "doubleSum",
+      "name": "__sum",
+      "fieldName": "__aggr"
+    }
+  ],
+  "intervals": [
+    "-10000/10000"
+  ],
+  "granularity": {
+    "type": "period",
+    "period": "PT1H",
+    "timeZone": "Pacific/Kwajalein",
+    "origin": "2020-03-01T04:00+12:00"
+  },
+  "dimensions": [
+    {
+      "type": "default",
+      "dimension": "app"
+    },
+    {
+      "type": "default",
+      "dimension": "metric_name"
+    }
+  ],
+  "context": {
+    "populateCache": false,
+    "useCache": false,
+    "serializeDateTimeAsLong": true
+  }
+}
+```

@@ -1,0 +1,21 @@
+Compaction tasks with segment locking can fail when segment granularity is changed
+### Affected Version
+
+Master (I haven't done  afull analysis, but probably this bug was introduced in https://github.com/apache/druid/pull/10742).
+
+### Description
+
+Suppose the following scenario. The compaction task uses only the dynamic partitioning here.
+
+1. Ingest some data for an interval of `2021-01-01/2021-01-02`. This data is partitioned by the `HOUR` segment granularity.
+2. Compact a partial interval of `2021-01-01:01:00:00/2021-01-01:02:00:00` with the `MINUTE` segment granularity.
+3. Compact the full interval of `2021-01-01/2021-01-02` again but with `null` segment granularity. 
+
+In the Step 3, the below can happen.
+
+1. The compaction task will determine what lock type to use by looking at _all segments to compact_. Since the segment granularity is changed in the step 2, the compaction task will use the time chunk lock to lock the intervals of those segments (in `isReady()`).
+2. When the compaction task starts, it will generate ingestion specs _per time chunk of the segments to compact_.
+3. While generating ingestion specs, when segment granularity = `null`, the compaction task will try to find the segment granularity from those segments per time chunk. As a result, the task will think that segment granularity has changed for some intervals (`2021-01-01:01:00:00/2021-01-01:02:00:00` in this example) but not for all.
+4. When the compaction task executes the ingestion specs it generated, it creates an `ParallelIndexSupervisorTask` instance to execute an ingestion spec and calls `ParallelIndexSupervisorTask.isReady()`. This is necessary to early check if its lock is revoked.
+5. Because it uses the shared code path, `ParallelIndexSupervisorTask.isReady()` will try to determine the lock type again by checking whether the segment granularity is changed. However, this time, _it will look at only the intervals of segments in the generated ingestion spec_. Note that this ingestion spec was created for one time chunk in the Step 2 and 3.
+6. As a result, it will try to use the segment lock for other intervals than `2021-01-01:01:00:00/2021-01-01:02:00:00` because the segment granularity is not changed for those intervals. However, the locking will fail because the compaction task already acquired locks of a different type in the Step 1.

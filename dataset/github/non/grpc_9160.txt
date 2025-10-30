@@ -1,0 +1,82 @@
+Error "grpc-message: Method not found: check" for Sample Implementation
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+I have written the sample code for authorisation using gRPC service. I was unable to find an easy way to implement the service.
+
+```
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+
+public class AuthServer {
+
+    public static void main(String[] args) throws Exception {
+        // Create a new server to listen on port 8081
+        Server server = ServerBuilder.forPort(5051)
+            .addService(new ExtAuthService())
+            .build();
+
+        // Start the server
+        server.start();
+
+        // Server threads are running in the background.
+        System.out
+            .println("+++++++++++++++++++++++ gRPC server started ++++++++++++++++++++++++++++");
+        // Don't exit the main thread. Wait until server is terminated.
+        server.awaitTermination();
+    }
+}
+```
+
+The external authorisation service is follows.
+
+```
+import com.google.rpc.Status;
+import io.envoyproxy.envoy.service.auth.v3.AuthorizationGrpc;
+import io.envoyproxy.envoy.service.auth.v3.CheckRequest;
+import io.envoyproxy.envoy.service.auth.v3.CheckResponse;
+import io.envoyproxy.envoy.service.auth.v3.OkHttpResponse;
+import io.grpc.stub.StreamObserver;
+
+public class ExtAuthService extends AuthorizationGrpc.AuthorizationImplBase {
+
+    @Override
+    public void check (CheckRequest request, StreamObserver<CheckResponse> responseObserver) {
+
+        System.out.println("++++++++++hit+++++++++++++++");
+
+        System.out.println(request);
+
+        CheckResponse response = CheckResponse.newBuilder()
+            .setStatus(Status.newBuilder().build())
+            .setOkResponse(OkHttpResponse.newBuilder().build())
+            .build();
+
+        // Use responseObserver to send a single response back
+        responseObserver.onNext(response);
+
+        // When you are done, you must call onCompleted.
+        responseObserver.onCompleted();
+    }
+}
+```
+
+Request:
+```
+curl -X POST -vs -H "Authorization: Bearer foo" -H 'Content-Type: application/grpc' -H 'Accept: application/grpc' -H 'TE: trailers' -w "\n" --http2-prior-knowledge http://localhost:5051/check
+```
+
+Response:
+```
+* Connection state changed (MAX_CONCURRENT_STREAMS == 2147483647)!
+< HTTP/2 200 
+< content-type: application/grpc
+< grpc-status: 12
+< grpc-message: Method not found: check
+```
+
+What am I missing?

@@ -1,0 +1,118 @@
+index_parallel with single_dim partitionSpec type generating just one file/segment
+### Affected Version
+Druid Built From Source as of Fri Jun 5, 2020
+
+### Description
+
+We are trying to create new druid ingestion specs to pull from s3 directly via index_parallel rather than hadoop. The outputs simply don't seem to be partitioned though.
+
+To make it easy to reproduce, here is a simple config that shows the issue:
+
+```
+{
+  "spec": {
+    "type": "index_parallel",
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "http",
+        "uris": [
+          "https://druid.apache.org/data/wikipedia.json.gz",
+          "https://druid.apache.org/data/wikipedia.json.gz"
+        ]
+      },
+      "inputFormat": {
+        "type": "json"
+      }
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "partitionsSpec": {
+        "type": "single_dim",
+        "partitionDimension": "channel",
+        "maxRowsPerSegment": 2000
+      },
+      "forceGuaranteedRollup": true,
+      "maxNumConcurrentSubTasks": 4
+    },
+    "dataSchema": {
+      "dataSource": "wikipedia-test-partitioned-2",
+      "granularitySpec": {
+        "type": "uniform",
+        "segmentGranularity": "DAY",
+        "queryGranularity": "HOUR",
+        "rollup": true,
+        "intervals": [
+          "2000-01-01/2030-01-01"
+        ]
+      },
+      "timestampSpec": {
+        "column": "timestamp",
+        "format": "iso"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "channel",
+          "cityName",
+          "comment",
+          "countryIsoCode",
+          "countryName",
+          "diffUrl",
+          "flags",
+          "isAnonymous",
+          "isMinor",
+          "isNew",
+          "isRobot",
+          "isUnpatrolled",
+          "metroCode",
+          "namespace",
+          "page",
+          "regionIsoCode",
+          "regionName",
+          "user"
+        ]
+      },
+      "metricsSpec": [
+        {
+          "name": "count",
+          "type": "count"
+        },
+        {
+          "name": "sum_added",
+          "type": "longSum",
+          "fieldName": "added"
+        },
+        {
+          "name": "sum_commentLength",
+          "type": "longSum",
+          "fieldName": "commentLength"
+        },
+        {
+          "name": "sum_deleted",
+          "type": "longSum",
+          "fieldName": "deleted"
+        },
+        {
+          "name": "sum_delta",
+          "type": "longSum",
+          "fieldName": "delta"
+        },
+        {
+          "name": "sum_deltaBucket",
+          "type": "longSum",
+          "fieldName": "deltaBucket"
+        }
+      ]
+    }
+  },
+  "type": "index_parallel"
+}
+```
+
+Since maxRowsPerSegment is 2,000 and there are 24,000 rows in the dateset, I was expecting many partitions.
+
+I made sure to set two files so that it could be parallelized, since I saw some comments about needing to set maxNumConcurrentSubTasks and figured this might also apply to needing multiple input files.
+
+Of course the data that I have is much larger, coming out to a few GB, but I'm seeing the exact same issue.
+
+I have tried both setting targetRowsPerSegment and maxRowsPerSegment, and neither work.

@@ -1,0 +1,117 @@
+Webclient not using all event loop
+Hi,
+
+I am running this code on 8 core machine with 16 event loop. However the webclient is not using all the event loop and all webclient request are running on single event loop. Am I doing it incorrectly or is it a bug ?
+
+Also there was some documentation I read long back on how to use Vertx to create standalone application (not using verticles). Can someone share the link for that ?
+
+pom.xml
+```
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-tcnative-boringssl-static</artifactId>
+            <scope>compile</scope>
+            <optional>false</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-epoll</artifactId>
+            <classifier>linux-x86_64</classifier>
+            <scope>compile</scope>
+            <optional>false</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>2.14.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.22</version>
+            <scope>provided</scope>
+        </dependency>
+
+```
+
+```
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.impl.cpu.CpuCoreSensor;
+import io.vertx.core.net.OpenSSLEngineOptions;
+import io.vertx.ext.web.client.HttpResponse;
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+public class VertxFuture {
+  private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(VertxFuture.class);
+  public static AtomicInteger atomicInteger = new AtomicInteger();
+  public static AtomicInteger outerAtomicInteger = new AtomicInteger();
+
+  public static void main(String[] args) {
+    System.setProperty("vertx.disableDnsResolver", "true");
+    Vertx vertx = Vertx.vertx(new VertxOptions().setEventLoopPoolSize(2 * CpuCoreSensor.availableProcessors()).setPreferNativeTransport(true));
+    try {
+      Instant now = Instant.now();
+      WebClient webclient = WebClient.create(vertx, new WebClientOptions()
+              .setTryUseCompression(true)
+              .setVerifyHost(false)
+              .setReuseAddress(true)
+              .setReusePort(true)
+              .setTcpFastOpen(true)
+              .setTcpNoDelay(true)
+              .setTcpQuickAck(true)
+              .setKeepAlive(true)
+              .setMaxPoolSize(100)
+              .setOpenSslEngineOptions(new OpenSSLEngineOptions().setSessionCacheEnabled(false)));
+      List<Future> collect = IntStream.range(0, 100).mapToObj(x -> (new VertxFuture()).request(webclient, now)).collect(Collectors.toList());
+      System.out.println("Started: " + now);
+      CompositeFuture.all(collect).toCompletionStage().toCompletableFuture().get();
+      System.out.println("Completed: " + Instant.now());
+      System.out.println("Inner Counter: " + atomicInteger.get());
+      System.out.println("Outer Counter: " + outerAtomicInteger.get());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+  }
+
+  public Future request(WebClient webClient, Instant instant) {
+    return webClient.get(443,
+                    "application-dev.test.com",
+                    "/test/0cd7729e-ab1b-445e-ad9f-22a7214305b1/details")
+            .ssl(true)
+            .putHeader("trace_id", "test12341")
+            .putHeader("span_id", "test12341")
+            .send()
+            .flatMap(new Function<HttpResponse<Buffer>, Future<io.vertx.ext.web.client.HttpResponse<Buffer>>>() {
+              @Override
+              public Future<io.vertx.ext.web.client.HttpResponse<Buffer>> apply(HttpResponse<Buffer> bufferHttpResponse) {
+                log.info("Running on event loop");
+                outerAtomicInteger.incrementAndGet();
+                if (Instant.now().isBefore(instant.plusSeconds(10))) {
+                  atomicInteger.incrementAndGet();
+                  return request(webClient, instant);
+                } else {
+                  return Future.<io.vertx.ext.web.client.HttpResponse<Buffer>>succeededFuture(bufferHttpResponse);
+                }
+              }
+            });
+  }
+}
+```

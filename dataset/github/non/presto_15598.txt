@@ -1,0 +1,43 @@
+ Incorrect filtering of null values for timestamps
+I was playing around with an attribute `date_joined` which is of _timestamp_ data type and one thing doesn't quite add up.
+
+This works fine:
+```
+SELECT HISTOGRAM(date_joined IS NULL)
+FROM users_table
+---
+{false=9500, true=100}
+```
+
+This works fine as well:
+```
+SELECT COUNT(*)
+FROM users_table
+WHERE date_joined IS NOT NULL
+---
+9500
+```
+
+What _doesn't work_ is:
+```
+SELECT COUNT(*)
+FROM users_table
+WHERE date_joined IS NULL
+---
+0
+```
+
+But to my surprise, this works fine:
+```
+SELECT COUNT(*)
+FROM users_table
+WHERE DATE(date_joined) IS NULL
+---
+100
+```
+
+Any ideas what might be wrong? This is certainly not an expected behaviour.
+
+Thanks!
+
+P. S. Using Presto 0.217 for Amazon Athena engine version 2

@@ -1,0 +1,32 @@
+Spill is not easily triggered when enabling spill
+We have a POC trino cluster running on yarn with 26 workers, each worker is configured with 12G container memory and 9G JVM heap memory.
+
+When try to test spill, we have the following configuration:
+```
+query.max-memory=64G
+query.max-total-memory=128G
+query.max-memory-per-node=3G
+spill-enabled=true
+spiller-spill-path=/dataX/trino-spill/
+max-spill-per-node=200GB
+query-max-spill-per-node=150GB
+spiller-threads=2
+spill-compression-enabled=true
+```
+
+When trying out different queries (join, aggregation, group by) to see if spill would happen, we kept getting 
+```
+io.trino.ExceededMemoryLimitException: Query exceeded distributed user memory limit of 64GB
+```
+
+We took some time trying to figure out why spilled wasnt triggered by looking into source code and some trial and error on some other configuration values, and noticed the spill condition is directly linked and heavily affected by the value of:
+```
+memory-revoking-target
+memory-revoking-threshold
+```
+Basically, the smaller the threshold, the easier it is to trigger spill.
+
+I was wondering if these two value should be linked in the official Trino document (https://trino.io/docs/current/admin/spill.html)
+The memory revoking was vaguely mentioned in one of the paragraphs, but the actual configuration was not linked at all.
+
+Not sure if this was done on purpose or just lack of documentation. Let me know.

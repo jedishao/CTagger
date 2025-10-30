@@ -1,0 +1,25 @@
+PartitionOutputOperator fails for array with NULL element
+`PartitionOutputOperator` fails to partition and RLE block containing complex type like `ARRAY` with `NULL` element.
+
+```
+java.lang.NullPointerException: Cannot invoke "java.lang.Boolean.booleanValue()" because the return value of "io.trino.type.BlockTypeOperators$BlockPositionEqual.equal(io.trino.spi.block.Block, int, io.trino.spi.block.Block, int)" is null
+	at io.trino.type.BlockTypeOperators$BlockPositionEqual.equalNullSafe(BlockTypeOperators.java:92)
+	at io.trino.operator.output.RleAwarePositionsAppender.appendRle(RleAwarePositionsAppender.java:78)
+	at io.trino.operator.output.UnnestingPositionsAppender.append(UnnestingPositionsAppender.java:47)
+	at io.trino.operator.output.PositionsAppenderPageBuilder.appendToOutputPartition(PositionsAppenderPageBuilder.java:60)
+	at io.trino.operator.output.PagePartitioner.partitionPageByColumn(PagePartitioner.java:237)
+	at io.trino.operator.output.PagePartitioner.partitionPage(PagePartitioner.java:158)
+	at io.trino.operator.output.PartitionedOutputOperator.addInput(PartitionedOutputOperator.java:312)
+	at io.trino.operator.Driver.processInternal(Driver.java:399)
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:297)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:689)
+	at io.trino.operator.Driver.process(Driver.java:289)
+	at io.trino.operator.Driver.processForDuration(Driver.java:260)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:755)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:165)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:523)
+	at io.trino.$gen.Trino_406_65_g0a3ccd0____20230215_034024_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1589)
+```

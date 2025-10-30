@@ -1,0 +1,19 @@
+Hot properties support
+Presto currently supports two different ways to customize the code and provide different behavior:
+
+* Config files (.properties files)
+* Session properties
+
+These each provide different functionality:
+
+| Config files | Session properties|
+-------------- | -------------------
+| Static config -- need cluster bounce to update | Can by configured dynamically via a SessionPropertyConfigurationManager |
+| Can be used anywhere in the code | Can only be used wherever a Session is wired | 
+| Controls behavior globally | Controls behavior per-query |
+
+What's missing is a new category that has the dynamic nature of session properties, but is used to globally control behavior in the system anywhere in the code.  We can introduce a new type of configuration, called a hot property, that provides these missing qualities.
+
+Why do add this new type of property when session properties fill in most of this functionality?  The problem with session properties is there are hundreds of them, and many times session properties are introduced solely to control behavior, where a hot property with a sensible default would be sufficient.  By creating hot properties, we can deprecate session properties that ought to be properties, and control the explosion of session property injection in the code, and reduce the cognitive overhead of having so many user tunable session properties to begin with.
+
+The dynamic configuration source for a hot property could be backed by a configurable plugin which allows one to write a data source for the properties.  Examples of plugins could be file based plugins, where changes to the properties files automatically propagate to the hot property, or a MySQL backed source.

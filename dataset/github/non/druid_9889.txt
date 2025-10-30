@@ -1,0 +1,10 @@
+Add new configuration for kill task to skip segments that has been last modified within the config value time
+### Description
+
+Introduce a new configuration for the kill task with the key druid.coordinator.kill.fromLastModified. The value will be time period. The kill task will then skip any segments that has been last modified within the configured value.
+
+### Motivation
+
+Currently we only have druid.coordinator.kill.durationToRetain which looks at the "end" time of the segments. However, this does not prevent accident / misconfigured segments to be kill. For example, a misconfigured drop rule accidentally drop segments from 6M to 1Year ago period. Most likely, these segments would be way pass druid.coordinator.kill.durationToRetain and be kill right away in the next kill cycle. Even worst would be if the kill cycle is very frequent, then it might be too late to catch the misconfigured rules and the segments would be kill (unable to recover). Obviously, the root cause is the human operator but that can and sometime do happens. This features aims to make mistake less costly if they do happen. 
+
+Want to see if anyone has any experience / recommendation and if something like this would be beneficial to others.

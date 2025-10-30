@@ -1,0 +1,42 @@
+Left join wrongly optimized into inner join and returned empty results
+Hi community, we have found an unexpected phenomenon in the left join clause, below is the reproduction:  
+```
+ CREATE TABLE hive.test.yyc_test ( 
+    "#uuid" varchar,               
+    col varchar                    
+ )                                 
+ WITH (                            
+    format = 'ORC'                 
+ );
+
+insert into yyc_test ("#uuid", col) values ('abc', 'def');
+
+CREATE TABLE hive.test.yyc_test2 (      
+    "#uuid" varchar,                     
+    col varchar,                         
+    "$part_date" varchar                 
+)                                       
+WITH (                                  
+    format = 'ORC',                      
+    partitioned_by = ARRAY['$part_date'] 
+);
+
+insert into yyc_test2 ("#uuid", col, "$part_date") values ('ghi', 'jkl', '2023-03-13' );
+
+select a."#uuid", b."#uuid" from yyc_test a left join yyc_test2 b on a."#uuid" = b."#uuid" where b."$part_date" between '2023-03-13' and '2023-03-16';
+```  
+Then the query results of the last select clause was empty:  
+![745a4874-f3cd-41e5-a5b8-2834bc11f63a](https://user-images.githubusercontent.com/26461591/224884539-89178be9-eea5-405d-9582-6b28674f80b4.jpeg)  
+But the expected result of LEFT JOIN should be:  
+```
+ #uuid | #uuid 
+-------+------
+|abc|NULL|
+```
+Then we saw the logical plan, and found that the LEFT JOIN node was optimized into INNER JOIN node:  
+![image](https://user-images.githubusercontent.com/26461591/224885240-de3fe6dc-3c1c-4ee9-924b-7f19c8b3a22f.png)  
+So we debugged the source codes, it seems that this phenomenon was related to here:  
+![image](https://user-images.githubusercontent.com/26461591/224885533-63e1b2ec-51b6-4de3-bcb6-7cb0cebc23e3.png)  
+This phenomenon could be seen in version 392 and 402.
+
+

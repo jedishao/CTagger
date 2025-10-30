@@ -1,0 +1,34 @@
+IT Conversion Tasks
+This issue tracks issues to be completed as we roll out the [new IT framework](https://github.com/apache/druid/pull/12368):
+
+#### Test Conversions
+
+Convert the remaining tests from the "old" to the "new" format. This has turned out to be rather simple in for the two simple cases done thus far. Be on the alert for any "hard" cases.
+
+#### Revisit Guice Setup
+
+The current PR uses a bit of a "brute force" approach to Guice initialization, in part to deal with a lifecycle managed object which is lazy initialized and so is created (by test dependencies) after the lifecycle is started. The general need is to define a "client" form of Guice initialization that recognizes that consumers of the various Druid classes are not created at startup, as they are in the server. The current form works, but may run into problems in other tests that require additional lifecycle managed, lazy initialized resources.
+
+#### Security Tests
+
+The current PR ignores the security setup. The original setup can likely be reused in bulk, with a few changes for where files are put (`/target/docker/shared` instead of `~/shared` for example.) Still, this work must be done.
+
+#### Migrate Travis Builds
+
+The current PR contains two test cases, but they are not invoked in the Travis build. This was done to reduce the change in a single PR. A next step is to replace, one by one, the "test groups" in the Travis build with the equivalent profile + module in the new ITs.
+
+#### pom.xml Cleanup
+
+In the root `pom.xml`:
+
+```text
+                        <!-- The ITs has test code sprinkled through the module tree. Remove the following
+                             once the old version is retired. -->
+```
+
+Go ahead and remove the classes in question from the Jacoco exclusions portion of the `pom.xml` file.
+
+#### Retire Old ITs
+
+Finally, once the code is no longer used, remove the old ITs. Where there is shared code, migrate it to the new modules, likely `it-base`.
+

@@ -1,0 +1,13 @@
+Inefficient scheduling simple and quick to process splits for workers
+Scheduler assign splits in batches and check state with interval for updates. For simple assignments, worker can process them faster than it receive new ones. The way to mitigate is to increase `max-splits-per-node` to assign more work for node, but this comes with regression for more advanced queries during benchmarks. The best approach is to detect when node processed all assignments in check interval and adjust how many splits assign to node for a single stage.
+
+The way to reproduce:
+```
+select count(orderkey) from sf100.lineitem;
+```
+Results:
+```
+max-splits-per-node 100: 1140.83 s (current default)
+max-splits-per-node 200: 617.16 s
+max-splits-per-node 1000: 414.3 s
+```

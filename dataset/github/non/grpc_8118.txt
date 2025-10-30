@@ -1,0 +1,228 @@
+:grpc-xds:test is flaky on ARM64 Linux
+A bunch of test cases is highly flaky (almost always fails) when run on arm64 linux (both under real machine or emulator)
+
+```
+> Task :grpc-xds:test
+
+io.grpc.xds.XdsSdsClientServerTest > mtlsClientServer_changeServerContext_expectException FAILED
+    value of: throwable.getCause().getMessage()
+    expected: General OpenSslEngine problem
+    but was : PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+        at io.grpc.xds.XdsSdsClientServerTest.mtlsClientServer_changeServerContext_expectException(XdsSdsClientServerTest.java:302)
+
+        Caused by:
+        io.grpc.StatusRuntimeException: UNAVAILABLE: io exception
+        Channel Pipeline: [SslHandler#0, ProtocolNegotiators$ClientTlsHandler#0, WriteBufferingAndExceptionHandler#0, DefaultChannelPipeline$TailContext#0]
+            at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+            at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+            at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+            at io.grpc.testing.protobuf.SimpleServiceGrpc$SimpleServiceBlockingStub.unaryRpc(SimpleServiceGrpc.java:354)
+            at io.grpc.xds.XdsSdsClientServerTest.unaryRpc(XdsSdsClientServerTest.java:459)
+            at io.grpc.xds.XdsSdsClientServerTest.mtlsClientServer_changeServerContext_expectException(XdsSdsClientServerTest.java:298)
+
+            Caused by:
+            javax.net.ssl.SSLHandshakeException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+                at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:131)
+                at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:349)
+                at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:292)
+                at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:287)
+                at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.checkServerCerts(CertificateMessage.java:1356)
+                at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.onConsumeCertificate(CertificateMessage.java:1231)
+                at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.consume(CertificateMessage.java:1174)
+                at java.base/sun.security.ssl.SSLHandshake.consume(SSLHandshake.java:392)
+                at java.base/sun.security.ssl.HandshakeContext.dispatch(HandshakeContext.java:443)
+                at java.base/sun.security.ssl.SSLEngineImpl$DelegatedTask$DelegatedAction.run(SSLEngineImpl.java:1074)
+                at java.base/sun.security.ssl.SSLEngineImpl$DelegatedTask$DelegatedAction.run(SSLEngineImpl.java:1061)
+                at java.base/java.security.AccessController.doPrivileged(Native Method)
+                at java.base/sun.security.ssl.SSLEngineImpl$DelegatedTask.run(SSLEngineImpl.java:1008)
+                at io.netty.handler.ssl.SslHandler.runAllDelegatedTasks(SslHandler.java:1550)
+                at io.netty.handler.ssl.SslHandler.runDelegatedTasks(SslHandler.java:1564)
+                at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1448)
+                at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1275)
+                at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1322)
+                at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501)
+                at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:440)
+                at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+                at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+                at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+                at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+                at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:714)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576)
+                at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+                at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+                at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+                at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+                at java.base/java.lang.Thread.run(Thread.java:829)
+
+                Caused by:
+                sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+                    at java.base/sun.security.validator.PKIXValidator.doBuild(PKIXValidator.java:439)
+                    at java.base/sun.security.validator.PKIXValidator.engineValidate(PKIXValidator.java:306)
+                    at java.base/sun.security.validator.Validator.validate(Validator.java:264)
+                    at java.base/sun.security.ssl.X509TrustManagerImpl.validate(X509TrustManagerImpl.java:313)
+                    at java.base/sun.security.ssl.X509TrustManagerImpl.checkTrusted(X509TrustManagerImpl.java:276)
+                    at java.base/sun.security.ssl.X509TrustManagerImpl.checkServerTrusted(X509TrustManagerImpl.java:141)
+                    at io.grpc.xds.internal.sds.trust.SdsX509TrustManager.checkServerTrusted(SdsX509TrustManager.java:245)
+                    at java.base/sun.security.ssl.CertificateMessage$T13CertificateConsumer.checkServerCerts(CertificateMessage.java:1334)
+                    ... 32 more
+
+                    Caused by:
+                    sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+                        at java.base/sun.security.provider.certpath.SunCertPathBuilder.build(SunCertPathBuilder.java:141)
+                        at java.base/sun.security.provider.certpath.SunCertPathBuilder.engineBuild(SunCertPathBuilder.java:126)
+                        at java.base/java.security.cert.CertPathBuilder.build(CertPathBuilder.java:297)
+                        at java.base/sun.security.validator.PKIXValidator.doBuild(PKIXValidator.java:434)
+                        ... 39 more
+
+io.grpc.xds.XdsSdsClientServerTest > requireClientAuth_noClientCert_expectException FAILED
+    value of           : throwable.getCause().getMessage()
+    expected to contain: CERTIFICATE_REQUIRED
+    but was            : javax.net.ssl.SSLHandshakeException: Received fatal alert: bad_certificate
+        at io.grpc.xds.XdsSdsClientServerTest.requireClientAuth_noClientCert_expectException(XdsSdsClientServerTest.java:184)
+
+        Caused by:
+        io.grpc.StatusRuntimeException: UNAVAILABLE: ssl exception
+            at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+            at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+            at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+            at io.grpc.testing.protobuf.SimpleServiceGrpc$SimpleServiceBlockingStub.unaryRpc(SimpleServiceGrpc.java:354)
+            at io.grpc.xds.XdsSdsClientServerTest.unaryRpc(XdsSdsClientServerTest.java:459)
+            at io.grpc.xds.XdsSdsClientServerTest.requireClientAuth_noClientCert_expectException(XdsSdsClientServerTest.java:175)
+
+            Caused by:
+            io.netty.handler.codec.DecoderException: javax.net.ssl.SSLHandshakeException: Received fatal alert: bad_certificate
+                at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:471)
+                at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+                at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+                at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+                at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+                at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:714)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576)
+                at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+                at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+                at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+                at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+                at java.base/java.lang.Thread.run(Thread.java:829)
+
+                Caused by:
+                javax.net.ssl.SSLHandshakeException: Received fatal alert: bad_certificate
+                    at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:131)
+                    at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:117)
+                    at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:336)
+                    at java.base/sun.security.ssl.Alert$AlertConsumer.consume(Alert.java:293)
+                    at java.base/sun.security.ssl.TransportContext.dispatch(TransportContext.java:185)
+                    at java.base/sun.security.ssl.SSLTransport.decode(SSLTransport.java:171)
+                    at java.base/sun.security.ssl.SSLEngineImpl.decode(SSLEngineImpl.java:681)
+                    at java.base/sun.security.ssl.SSLEngineImpl.readRecord(SSLEngineImpl.java:636)
+                    at java.base/sun.security.ssl.SSLEngineImpl.unwrap(SSLEngineImpl.java:454)
+                    at java.base/sun.security.ssl.SSLEngineImpl.unwrap(SSLEngineImpl.java:433)
+                    at java.base/javax.net.ssl.SSLEngine.unwrap(SSLEngine.java:637)
+                    at io.netty.handler.ssl.JdkSslEngine.unwrap(JdkSslEngine.java:92)
+                    at io.netty.handler.ssl.JdkAlpnSslEngine.unwrap(JdkAlpnSslEngine.java:143)
+                    at io.netty.handler.ssl.SslHandler$SslEngineType$3.unwrap(SslHandler.java:282)
+                    at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1380)
+                    at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1275)
+                    at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1322)
+                    at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501)
+                    at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:440)
+                    ... 17 more
+
+io.grpc.xds.XdsSdsClientServerTest > mtls_badClientCert_expectException FAILED
+    value of           : throwable.getCause().getMessage()
+    expected to contain: CERTIFICATE_REQUIRED
+    but was            : javax.net.ssl.SSLHandshakeException: Received fatal alert: certificate_unknown
+        at io.grpc.xds.XdsSdsClientServerTest.mtls_badClientCert_expectException(XdsSdsClientServerTest.java:220)
+
+        Caused by:
+        io.grpc.StatusRuntimeException: UNAVAILABLE: ssl exception
+            at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+            at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+            at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+            at io.grpc.testing.protobuf.SimpleServiceGrpc$SimpleServiceBlockingStub.unaryRpc(SimpleServiceGrpc.java:354)
+            at io.grpc.xds.XdsSdsClientServerTest.unaryRpc(XdsSdsClientServerTest.java:459)
+            at io.grpc.xds.XdsSdsClientServerTest.performMtlsTestAndGetListenerWatcher(XdsSdsClientServerTest.java:324)
+            at io.grpc.xds.XdsSdsClientServerTest.mtls_badClientCert_expectException(XdsSdsClientServerTest.java:211)
+
+            Caused by:
+            io.netty.handler.codec.DecoderException: javax.net.ssl.SSLHandshakeException: Received fatal alert: certificate_unknown
+                at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:471)
+                at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+                at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+                at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+                at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+                at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+                at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:714)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650)
+                at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576)
+                at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+                at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+                at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+                at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+                at java.base/java.lang.Thread.run(Thread.java:829)
+
+                Caused by:
+                javax.net.ssl.SSLHandshakeException: Received fatal alert: certificate_unknown
+                    at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:131)
+                    at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:117)
+                    at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:336)
+                    at java.base/sun.security.ssl.Alert$AlertConsumer.consume(Alert.java:293)
+                    at java.base/sun.security.ssl.TransportContext.dispatch(TransportContext.java:185)
+                    at java.base/sun.security.ssl.SSLTransport.decode(SSLTransport.java:171)
+                    at java.base/sun.security.ssl.SSLEngineImpl.decode(SSLEngineImpl.java:681)
+                    at java.base/sun.security.ssl.SSLEngineImpl.readRecord(SSLEngineImpl.java:636)
+                    at java.base/sun.security.ssl.SSLEngineImpl.unwrap(SSLEngineImpl.java:454)
+                    at java.base/sun.security.ssl.SSLEngineImpl.unwrap(SSLEngineImpl.java:433)
+                    at java.base/javax.net.ssl.SSLEngine.unwrap(SSLEngine.java:637)
+                    at io.netty.handler.ssl.JdkSslEngine.unwrap(JdkSslEngine.java:92)
+                    at io.netty.handler.ssl.JdkAlpnSslEngine.unwrap(JdkAlpnSslEngine.java:143)
+                    at io.netty.handler.ssl.SslHandler$SslEngineType$3.unwrap(SslHandler.java:282)
+                    at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1380)
+                    at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1275)
+                    at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1322)
+                    at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501)
+                    at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:440)
+                    ... 17 more
+
+2740 tests completed, 3 failed, 9 skipped
+
+> Task :grpc-xds:test FAILED
+```
+
+Result links:
+https://fusion2.corp.google.com/invocations/6899d02c-8a6c-4776-a3ef-74b5408df814/targets/grpc%2Fjava%2Fmaster%2Fbranch%2Flinux_aarch64/log
+https://fusion2.corp.google.com/invocations/73a858b3-938f-4422-bd0a-eed5a9e8cdca/targets/grpc%2Fjava%2Fmaster%2Fbranch%2Flinux_aarch64/log
+https://fusion2.corp.google.com/invocations/ea814305-575b-4efe-b7e5-fd86b4ca7316/targets/grpc%2Fjava%2Fmaster%2Fbranch%2Flinux_aarch64/log
+
+
+
+### What version of gRPC-Java are you using?
+
+upstream/master
+
+### What is your environment?
+
+java --version
+openjdk 11.0.10 2021-01-19
+OpenJDK Runtime Environment (build 11.0.10+9-Ubuntu-0ubuntu1.18.04)
+OpenJDK 64-Bit Server VM (build 11.0.10+9-Ubuntu-0ubuntu1.18.04, mixed mode)
+
+### Steps to reproduce the bug
+
+run `buildscripts/run_arm64_tests_in_docker.sh` to reproduce under an emulator.
+Otherwise, just run the :grpc-xds:test if on arm64 machine.

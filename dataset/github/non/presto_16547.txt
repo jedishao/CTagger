@@ -1,0 +1,10 @@
+[Design] Realize Presto cpu control ability based on real-time penalty mechanism
+Presto will monitor the cpu used during SQL running. Its principle is to add the group's totalCpuTime to the group's cpuUsageMillis when the query ends. On the other hand, in Coordinator, every group will generate cpuQuota every once in a while, and the cpuUsageMillis maintained in the corresponding group will subtract the corresponding cpuQuota. When the group's cpuUsageMillis is greater than softCpuLimitMillis, the number of queries that can be executed will be reduced; when cpuUsageMillis is greater than hardCpuLimitMillis, the group's new queries will not be executed.
+
+It has two problems
+* Group's query can use more cpu than hardCpuLimitMillis, and the query being executed will not be limited, only new queries will be queued.
+* The cpuUsageMillis of the group will be counted only when the query is finished, instead of real-time statistics. Therefore, if the running query uses a large amount of cpu, the new query can still be executed.
+
+In response to these problems, we designed a new real-time cpu usage based on query, which limits both the query being executed and the new query. It has been running stably in our production environment for a year, and it can effectively limit the use of a large number of cpu by a small number of users. We hope to contribute this feature to the community.
+
+Here is the design docs: https://docs.google.com/document/d/1sCJDpLaVPeTpNvnRkloIudGm0hDn_1ArRWYTa3fDEHw/edit?usp=sharing

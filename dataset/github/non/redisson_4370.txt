@@ -1,0 +1,50 @@
+cache never expired when using spring cache manager and without property spring.cache.cache-names
+**Expected behavior**
+
+When using spring cache and set property `spring.cache.redis.time-to-live` and without property `spring.cache.cache-names`, cache will expire on specified time.
+
+**Actual behavior**
+
+redis cache map never expired.
+
+I read RedissonSpringCacheManager.java and believe it caused by following codes:
+https://github.com/redisson/redisson/blob/5feb1d01a5eda4fd499eca6fc9c60834088b77ec/redisson/src/main/java/org/redisson/spring/cache/RedissonSpringCacheManager.java#L217
+
+```java
+
+    protected CacheConfig createDefaultConfig() {
+        return new CacheConfig();
+    }
+
+    public Cache getCache(String name) {
+        Cache cache = instanceMap.get(name);
+        if (cache != null) {
+            return cache;
+        }
+        if (!dynamic) {
+            return cache;
+        }
+        
+        CacheConfig config = configMap.get(name);
+        if (config == null) {
+            config = createDefaultConfig();
+            configMap.put(name, config);
+        }
+        
+        if (config.getMaxIdleTime() == 0 && config.getTTL() == 0 && config.getMaxSize() == 0) {
+            return createMap(name, config);
+        }
+        
+        return createMapCache(name, config);
+    }
+```
+
+cacheManager never read property `spring.cache.redis.time-to-live` when creating new default cacheConfig, so it will use RMap instead of RedissonCache when caching data, which will not expired.
+
+**Redis version**
+
+Redis 5.0.10
+
+**Redisson version**
+
+3.17.4

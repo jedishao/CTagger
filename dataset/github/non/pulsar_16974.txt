@@ -1,0 +1,30 @@
+JDBC Connection pool support for Pulsar JDBC sink connectors
+**Is your feature request related to a problem? Please describe.**
+Hi, Team,
+
+Recently I want to try Pulsar [CDC Source Connector](https://pulsar.apache.org/docs/next/io-cdc) and [JDBC Sink Connector for PGSQL](https://pulsar.apache.org/docs/next/io-quickstart#connect-pulsar-to-postgresql) to sink multiple table data between PGSQLs.
+
+But I find that the [JDBC sink connector for PGSQL](https://pulsar.apache.org/docs/next/io-jdbc-sink/#example-for-postgresql) is configured per-target-table basis; it seems that I can not sink several different target tables in a config file.
+
+Although I can set up multiple configuration files for each target tables (the same target PGSQL database), this might cause the target side PGSQL pool performance due to many occupied connections.
+
+In PGSQL, it is always a good practice [to utilize connect pool when many client-side connections are needed.](https://wiki.postgresql.org/wiki/Number_Of_Database_Connections#The_Need_for_an_External_Pool); and this might also holds for other databases (e.g. Cassandra).
+
+I think Pulsar can provide JDBC connection pool for all supported JDBC sink connectors and other sink connectors if possible.
+https://jdbc.postgresql.org/documentation/head/datasource.html
+https://docs.datastax.com/en/developer/java-driver/4.14/manual/core/pooling/
+https://dev.mysql.com/doc/connector-j/8.0/en/connector-j-usagenotes-j2ee-concepts-connection-pooling.html
+https://mariadb.com/docs/connect/programming-languages/java/connection-pools/
+
+**Describe the solution you'd like**
+If my understanding is correct, Pulsar IO connectors are controlled by [`pulsar-admin` tool](https://pulsar.apache.org/docs/next/io-use/), it would be great to create connection pool for specified connector with some option of `pulsar-admin sinks` command.
+
+- Providing a subcommand `pulsar-admin sinks pool` to create a connection pool resource
+- `pulsar-admin sinks pool` may provide `--name` and `--pool-config`, etc, just like [`pulsar-admin sinks create` suboption.](https://pulsar.apache.org/tools/pulsar-admin/2.11.0-SNAPSHOT/#-em-create-em--30)
+- Providing a new [JDBC sink configuration property](https://pulsar.apache.org/docs/next/io-jdbc-sink/#configuration) `connpool` to link with pre-configured connection pool.
+
+**Additional context**
+As far as I know, in kafka connect there is no such feature available.
+If Pulsar can provide such database performance-friendly feature, this feature can be attractive for new users.
+
+Best Regards.

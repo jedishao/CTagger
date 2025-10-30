@@ -1,0 +1,36 @@
+SQL Query fails to return expected results with scalar function wrapping an aggregate function in an inner query.
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+0.20.1
+
+### Description
+
+Using the wikipedia tutorial data, this query works fine.   Note the `SUM(added)` in the inner query.
+```sql
+select DS_GET_QUANTILE(DS_QUANTILES_SKETCH(xxxx), 0.5) AS test 
+FROM
+(select countryIsoCode, SUM(added) AS xxxx 
+FROM wikipedia
+GROUP BY 1 
+having xxxx > 0)
+```
+
+Now change the query to be `ABS(SUM(added))` and no results are produced.   Expected the same result.    Note the `having` clause must be present to observe this defect.
+
+Also note I believe this has been fixed in the latest version of Imply druid.
+
+full query that fails:
+
+```sql
+select DS_GET_QUANTILE(DS_QUANTILES_SKETCH(xxxx), 0.5) AS test 
+FROM
+(select countryIsoCode, ABS(SUM(added)) AS xxxx 
+FROM wikipedia
+GROUP BY 1 
+having xxxx > 0)
+```
+
+- Cluster size:  micro
+- Configurations in use:  wikipedia tutorial data

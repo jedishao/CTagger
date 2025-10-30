@@ -1,0 +1,54 @@
+PIP-240: A new API to unload subscriptions
+### Motivation
+
+We sometimes try to unload the topic to resolve some consumption-stop issues. But the unloading topic will also impact the producer side.
+
+### Goal
+
+Providing a new API to unload the subscription dimension triggers reconnection of all consumers on that subscription and reconnection is guaranteed by the client. The API will be used in these ways:
+- unload special subscription of one topic(or partitioned topic)
+- unload all subscriptions of one topic(or partitioned topic)
+- unload subscriptions of one topic(or partitioned topic) by regular expression
+  - If a reader's subscription name is not set, a random subscription name prefixed with 'multiTopicsReader-' or 'reader-' will be used, and users can uninstall these subscriptions using regular expressions. 
+
+In addition to triggering consumer disconnection, Unload Subscribers will restart the Dispatcher, which resets the redeliver message queue and delayed message queue in the Broker's memory, which can help resolve issues caused by an abnormal dispatcher state. However, the execution flow of Unload Subscribers does not include a restart of the Managed Cursor related to this dispatcher; if there is a problem with the cursor, we can only rely on the unload topic to solve it.
+
+Note: From the client's perspective, this connection may be shared by consumers, producers, and transactions, so Unload Subscribers maybe impact the producer and transaction.
+
+#### These scenarios are not supported
+- Functions `message-dedup`, `geo-replication,` and `shadow-topic` also read messages from the topic, but Unload Subscribers will not support triggering restarts of these three functions( because the cursor is used directly to read the data in these scenarios, not the consumer or reader ).
+- The Compression task(subscription name is `__compaction`) also use a reader to read data, but Unload Subscribers does not support it because this task creates a new reader each time it starts.
+- Do not support all topics related to Transaction features.
+  - `__transaction_buffer_snapshot` works with the task TB recover,  and this task will create a new reader each time they start.
+  - `__transaction_pending_ack` works with the task Transaction Pending Ack Store replay,  and this task will use managed cursor directly to read data.
+  - `__transaction_log_xxx` works with the task Transaction Log, which will use managed cursor directly to read data.
+  - `transaction_coordinator_assign` No data will be written on this topic.
+
+#### Special system topic supports
+The system topic `__change_events` is used to support topic-level policies, there may also be some message delivery issues in this scenario, so Unload Subscribers will support this topic.
+
+### API Changes
+
+#### Pulsar admin changes
+
+##### For topics
+```
+pulsar-admin topics unload {topic_name} -s {sub_name}
+```
+
+##### Explain the param `-s`
+- set param `-s` to special sub name to unload special subscription
+- set param `-s` to `**` to unload all subscriptions under this topic
+- set param `-s` to `regexp` to unload a batch subscriptions under this topic 
+
+#### Endpoint changes
+
+##### PersistentTopics.java
+```java
+/**
+ * @subscription The value can be "**" to indicate all subscriptions under the topic of unload, a regular expression to indicate the part of the subscription whose name conforms to the rule of unload, or a specified subscription name
+ */
+@PUT
+@Path("/{tenant}/{namespace}/{topic}/{subscription}/unload")
+public void unloadSubscription(String tenant, String namespace, String topic, String subscription);
+```

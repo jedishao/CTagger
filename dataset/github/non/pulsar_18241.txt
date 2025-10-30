@@ -1,0 +1,73 @@
+[Bug] `InvalidCookieException` when restart pulsar standalone with multiple bookies
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Master branch.
+
+### Minimal reproduce step
+
+After #18206, I can start pulsar standalone with multiple bookies. But if I restart the server, `InvalidCookieException` will occur.
+
+1. `rm data` to remove the old data folder.
+2. `bin/pulsar standalone --num-bookies 2` to start pulsar **with multiple bookies**, use rocksDB as the metadata store by default.
+3. `Ctrl + C` stop the server.
+4. `bin/pulsar standalone --num-bookies 2` to start pulsar again. Then `InvalidCookieException` occurs.
+
+### What did you expect to see?
+
+Start normally.
+
+### What did you see instead?
+
+```java
+2022-10-28T16:51:26,983+0800 [main] INFO  org.apache.pulsar.PulsarStandalone - Starting BK with RocksDb metadata store
+2022-10-28T16:51:27,696+0800 [main] INFO  org.apache.pulsar.metadata.impl.RocksdbMetadataStore - new RocksdbMetadataStore,url=MetadataStoreConfig(sessionTimeoutMillis=30000, allowReadOnlyOperations=false, configFilePath=null, batchingEnabled=true, batchingMaxDelayMillis=5, batchingMaxOperations=1000, batchingMaxSizeKb=128, metadataStoreName=metadata-store, synchronizer=null),instanceId=2
+2022-10-28T16:51:27,705+0800 [main] INFO  org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationManager - Initializing metadata for new cluster, ledger root path: /ledgers
+2022-10-28T16:51:27,711+0800 [main] ERROR org.apache.pulsar.metadata.bookkeeper.PulsarRegistrationManager - Ledger root path: /ledgers already exists
+2022-10-28T16:51:27,750+0800 [main] INFO  org.apache.pulsar.metadata.bookkeeper.BKCluster - Starting new bookie on port: 49762
+2022-10-28T16:51:27,757+0800 [main] INFO  org.apache.bookkeeper.server.Main - Load lifecycle component : org.apache.bookkeeper.server.service.StatsProviderService
+2022-10-28T16:51:27,763+0800 [main] INFO  org.apache.bookkeeper.meta.MetadataDrivers - BookKeeper metadata driver manager initialized
+2022-10-28T16:51:27,907+0800 [main] ERROR org.apache.pulsar.PulsarStandaloneStarter - Failed to start pulsar service.
+org.apache.bookkeeper.bookie.BookieException$InvalidCookieException: Cookie [4
+bookieHost: "192.168.50.151:49762"
+journalDir: "data/standalone/bookkeeper"
+ledgerDirs: "1\tdata/standalone/bookkeeper"
+instanceId: "acc22dd1-4491-4b9c-964d-35dc8782c437"
+] is not matching with [4
+bookieHost: "192.168.50.151:60773"
+journalDir: "data/standalone/bookkeeper"
+ledgerDirs: "1\tdata/standalone/bookkeeper"
+instanceId: "acc22dd1-4491-4b9c-964d-35dc8782c437"
+]
+	at org.apache.bookkeeper.bookie.Cookie.verifyInternal(Cookie.java:138) ~[org.apache.bookkeeper-bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.bookie.Cookie.verify(Cookie.java:149) ~[org.apache.bookkeeper-bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.bookie.LegacyCookieValidation.verifyAndGetMissingDirs(LegacyCookieValidation.java:202) ~[org.apache.bookkeeper-bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.bookie.LegacyCookieValidation.checkCookies(LegacyCookieValidation.java:87) ~[org.apache.bookkeeper-bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.bookkeeper.server.Main.buildBookieServer(Main.java:422) ~[org.apache.bookkeeper-bookkeeper-server-4.15.1.jar:4.15.1]
+	at org.apache.pulsar.metadata.bookkeeper.BKCluster.startBookie(BKCluster.java:299) ~[org.apache.pulsar-pulsar-metadata-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+	at org.apache.pulsar.metadata.bookkeeper.BKCluster.startNewBookie(BKCluster.java:283) ~[org.apache.pulsar-pulsar-metadata-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+	at org.apache.pulsar.metadata.bookkeeper.BKCluster.startBKCluster(BKCluster.java:184) ~[org.apache.pulsar-pulsar-metadata-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+	at org.apache.pulsar.metadata.bookkeeper.BKCluster.<init>(BKCluster.java:137) ~[org.apache.pulsar-pulsar-metadata-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+	at org.apache.pulsar.metadata.bookkeeper.BKCluster$BKClusterConf.build(BKCluster.java:114) ~[org.apache.pulsar-pulsar-metadata-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+	at org.apache.pulsar.PulsarStandalone.startBookieWithMetadataStore(PulsarStandalone.java:454) ~[org.apache.pulsar-pulsar-broker-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+	at org.apache.pulsar.PulsarStandalone.start(PulsarStandalone.java:295) ~[org.apache.pulsar-pulsar-broker-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+	at org.apache.pulsar.PulsarStandaloneStarter.main(PulsarStandaloneStarter.java:141) ~[org.apache.pulsar-pulsar-broker-2.11.0-SNAPSHOT.jar:2.11.0-SNAPSHOT]
+```
+
+
+### Anything else?
+
+This issue won't occur If I use zookeeper:
+
+```shell
+$ PULSAR_STANDALONE_USE_ZOOKEEPER=1 ./bin/pulsar standalone --num-bookies 2
+```
+
+
+### Are you willing to submit a PR?
+
+- [x] I'm willing to submit a PR!

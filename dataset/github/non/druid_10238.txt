@@ -1,0 +1,167 @@
+Perfect rollup is not perfect (maybe due to multi-value dimension?) 
+
+### Affected Version
+
+0.18.1
+
+### Description
+ingestion spec:
+```
+{
+  "type": "index_parallel",
+  "spec": {
+    "dataSchema": {
+      "dimensionsSpec": {
+        "dimensions": [
+          "dimensionA",
+          "dimensionB",
+          "dimensionC",
+          "dimensionD",
+          "dimensionE",
+          "dimensionF"
+        ]
+      },
+      "metricsSpec": [
+        {
+          "fieldName": "firstPartyCookie",
+          "name": "1stPartyCookie_hll",
+          "type": "HLLSketchBuild"
+        },
+        {
+          "fieldName": "thirdPartyCookie",
+          "name": "3rdPartyCookie_hll",
+          "type": "HLLSketchBuild"
+        },
+        {
+          "fieldName": "viewCount",
+          "name": "viewCount",
+          "type": "longSum"
+        }
+      ],
+      "granularitySpec": {
+        "intervals": [
+          "2020-08-04T15:00:00.000Z/2020-08-04T16:00:00.000Z"
+        ],
+        "segmentGranularity": "hour",
+        "queryGranularity": "hour",
+        "type": "uniform"
+      },
+      "timestampSpec": {
+        "column": "timestamp",
+        "format": "auto"
+      },
+      "dataSource": "xxx_production"
+    },
+    "ioConfig": {
+      "inputSource": {
+        "prefixes": [
+          "s3://xxx/2020-08/04/15"
+        ],
+        "type": "s3"
+      },
+      "type": "index_parallel",
+      "inputFormat": {
+        "listDelimiter": "\u0001",
+        "columns": [
+          "timestamp",
+          "dimensionA",
+          "dimensionB",
+          "dimensionC",
+          "dimensionD",
+          "dimensionE",
+          "dimensionF"
+          "firstPartyCookie",
+          "thirdPartyCookie",
+          "viewCount"
+        ],
+        "type": "csv"
+      }
+    },
+    "tuningConfig": {
+      "forceGuaranteedRollup": "true",
+      "partitionsSpec": {
+        "numShards": 1,
+        "type": "hashed"
+      },
+      "maxNumConcurrentSubTasks": 7,
+      "type": "index_parallel"
+    }
+  }
+}
+```
+
+When I do some SQL `select *` query on the ingested druid data, I realize there are some rows with the same dimensions, which means they are not perfectly rolled up.
+
+To validate my assumption, I tried to reindex the existing data source using druid inputSource, and the output segment is about 50% size and 50% number of rows compared to the origin. I did the same SQL query, and I don't see rows with the same dimensions this time. I think it's perfectly rolled up now after reindexing.
+
+reindex spec:
+```
+{
+  "type": "index_parallel",
+  "spec": {
+    "dataSchema": {
+      "dataSource": "xxx_rollup_reindex",
+      "timestampSpec": {
+        "column": "timestamp",
+        "format": "auto"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "dimensionA",
+          "dimensionB",
+          "dimensionC",
+          "dimensionD",
+          "dimensionE",
+          "dimensionF"
+        ]
+      },
+      "metricsSpec": [
+        {
+          "fieldName": "1stPartyCookie_hll",
+          "name": "1stPartyCookie_hll",
+          "type": "HLLSketchMerge"
+        },
+        {
+          "fieldName": "3rdPartyCookie_hll",
+          "name": "3rdPartyCookie_hll",
+          "type": "HLLSketchMerge"
+        },
+        {
+          "fieldName": "viewCount",
+          "name": "viewCount",
+          "type": "longSum"
+        }
+      ],
+      "granularitySpec": {
+        "type": "uniform",
+        "segmentGranularity": "hour",
+        "queryGranularity": "hour",
+        "intervals": [
+          "2020-08-04T15:00:00.000Z/2020-08-04T16:00:00.000Z"
+        ]
+      }
+    },
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "druid",
+        "dataSource": "xxx_production",
+        "interval": "2020-08-04T15:00:00.000Z/2020-08-04T16:00:00.000Z"
+      }
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "maxNumConcurrentSubTasks": 1,
+      "forceGuaranteedRollup": "true",
+      "partitionsSpec": {
+        "numShards": 1,
+        "type": "hashed"
+      }
+    }
+  }
+}
+```
+
+One of my dimension is a multi-value dimension, maybe that's the reason? But still, we would expect "forceGuaranteedRollup": "true" to give me a perfect rollup anyway.
+
+Thanks!

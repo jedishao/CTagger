@@ -1,0 +1,34 @@
+Azure Premium Cluster Configuration Failover Issue
+We are connecting to an azure premium cluster with 3 nodes using the clustering configuration with redisson 3.16.8.  Whenever azure starts doing failovers removing and promoting nodes for patching we receive the following:
+
+`org.redisson.client.RedisException: Unexpected exception while processing command
+                    java.util.concurrent.CompletableFuture.encodeThrowable(Unknown Source)
+                  java.util.concurrent.CompletableFuture.completeThrowable(Unknown Source)
+                       java.util.concurrent.CompletableFuture$AsyncRun.run(Unknown Source)
+                                      util.TokenAwareRunnable.run(TokenAwareRunnable.java:28)
+                         java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+                        java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+                                                      java.lang.Thread.run(Unknown Source)
+caused by org.redisson.client.RedisException: Unexpected exception while processing command
+       org.redisson.command.CommandAsyncService.convertException(CommandAsyncService.java:325)
+                    org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:127)
+                                      org.redisson.RedissonObject.get(RedissonObject.java:82)
+                                   org.redisson.RedissonLock.tryAcquire(RedissonLock.java:144)
+                                      org.redisson.RedissonLock.tryLock(RedissonLock.java:218)
+            com.cloudbreak.marttix.lock.LockProvider$Lock.lambda$lock$0(LockProvider.java:103)
+…marttix.command.executor.RedisCommandExecutor.executeWithRetry(RedisCommandExecutor.java:68)
+                     com.cloudbreak.marttix.lock.LockProvider$Lock.lock(LockProvider.java:101)
+                   com.cloudbreak.marttix.service.TaskService.createTask(TaskService.java:1678)
+ com.cloudbreak.marttix.service.TaskService.createDefaultInteractionTask(TaskService.java:1334)
+        com.cloudbreak.marttix.service.TaskService.createInteractionTask(TaskService.java:1300)
+…ak.marttix.service.InteractionService.lambda$createInteraction$2(InteractionService.java:467)
+                       java.util.concurrent.CompletableFuture$AsyncRun.run(Unknown Source)
+                                      util.TokenAwareRunnable.run(TokenAwareRunnable.java:28)
+                         java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+                        java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+                                                      java.lang.Thread.run(Unknown Source)
+caused by java.lang.IllegalStateException: Only 1 of 2 slaves were synced`
+
+Can someone please tell us how to properly configure redisson in this scenario to avoid these errors? If we reboot the cluster everything fails over successfully. It is only when they are promoting a slave to master during failover and removing the master for patching that we seem to experience the issue.
+
+thanks!

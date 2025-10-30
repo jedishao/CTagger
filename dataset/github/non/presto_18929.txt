@@ -1,0 +1,97 @@
+Iceberg tables are not filtered out correctly
+### Description
+Used **Presto JDBC driver** version `0.277`.
+
+There are a few issues with Iceberg tables filtering using `getTables` driver's method.
+
+Below code correctly finds the Iceberg table in the `iceberg` catalog:
+```java
+DatabaseMetaData meta = con.getMetaData();
+ResultSet res = meta.getTables("iceberg", "icb", null, new String[]{"TABLE"});
+```
+the result:
+`icebergtest`
+
+#### 1. When I enter the non existing table name:
+```java
+DatabaseMetaData meta = con.getMetaData();
+ResultSet res = meta.getTables("iceberg", "preto", null, new String[]{"TABLE"});
+```
+I'm getting all the tables that are on Hive:
+```
+atables
+coffee
+db_tabs10000x
+db_tabs50000x
+default
+empty
+hivecczoo
+hiveconnector
+hivepartitionwrite
+icb
+impala
+information_schema
+lng
+sampledb
+stocks
+sys
+testdb
+userdb
+```
+#### Correct behavior
+No table should be returned
+#### 2. When I enter the existing but non iceberg table:
+```java
+DatabaseMetaData meta = con.getMetaData();
+ResultSet res = meta.getTables("iceberg", "atables", null, new String[]{"TABLE"});
+```
+I'm getting the error: `Error: java.sql.SQLException: Query failed (#20230113_152508_00142_f5fpv): java.net.SocketTimeoutException: Read timed out`
+Attaching the full stacktrace:
+[fullstacktrace.txt](https://github.com/prestodb/presto/files/10413005/fullstacktrace.txt)
+#### Correct behavior
+No table should be returned or a message that would say that table is not an iceberg table.
+
+#### 3. When I enter the non existing table and when I don't specify the catalog name:
+```java
+DatabaseMetaData meta = con.getMetaData();
+ResultSet res = meta.getTables(null, "preto", null, new String[]{"TABLE"});
+```
+I'm getting once again the whole list of tables from the Hive:
+```
+atables
+coffee
+db_tabs10000x
+db_tabs50000x
+default
+empty
+hivecczoo
+hiveconnector
+hivepartitionwrite
+icb
+impala
+information_schema
+lng
+sampledb
+stocks
+sys
+testdb
+userdb
+```
+#### Correct behavior
+No table should be returned
+
+### Presto Catalogs configuration
+`iceberg.properties`:
+```properties
+connector.name=iceberg
+hive.metastore.uri=thrift://hivehost:hiveport
+iceberg.catalog.type=hive
+```
+`hive.properties`:
+```properties
+connector.name=hive-hadoop2
+hive.metastore.uri=thrift://hivehost:hiveport
+hive.metastore.username=hive
+hive.allow-drop-table=true
+hive.hdfs.impersonation.enabled=false
+```

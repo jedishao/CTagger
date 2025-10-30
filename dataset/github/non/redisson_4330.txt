@@ -1,0 +1,113 @@
+Redis 7 Sentinel - unknown subcommand 'SLAVES'
+
+**Expected behavior**
+After upgrading our redis cluster in 7.0.0 we have this error on tomcat startup
+
+```
+	org.apache.catalina.LifecycleException: org.redisson.client.RedisConnectionException: SENTINEL SENTINELS command returns empty result! Set checkSentinelsList = false to avoid this check.
+		at org.redisson.tomcat.RedissonSessionManager.buildClient(RedissonSessionManager.java:357)
+		at org.redisson.tomcat.RedissonSessionManager.startInternal(RedissonSessionManager.java:231)
+		at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+		at org.apache.catalina.core.StandardContext.startInternal(StandardContext.java:5247)
+		at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+		at org.apache.catalina.core.ContainerBase.addChildInternal(ContainerBase.java:726)
+		at org.apache.catalina.core.ContainerBase.addChild(ContainerBase.java:698)
+		at org.apache.catalina.core.StandardHost.addChild(StandardHost.java:696)
+		at org.apache.catalina.startup.HostConfig.deployDirectory(HostConfig.java:1185)
+		at org.apache.catalina.startup.HostConfig$DeployDirectory.run(HostConfig.java:1933)
+		at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+		at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+		at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:75)
+		at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:118)
+		at org.apache.catalina.startup.HostConfig.deployDirectories(HostConfig.java:1095)
+		at org.apache.catalina.startup.HostConfig.deployApps(HostConfig.java:477)
+		at org.apache.catalina.startup.HostConfig.start(HostConfig.java:1618)
+		at org.apache.catalina.startup.HostConfig.lifecycleEvent(HostConfig.java:319)
+		at org.apache.catalina.util.LifecycleBase.fireLifecycleEvent(LifecycleBase.java:123)
+		at org.apache.catalina.util.LifecycleBase.setStateInternal(LifecycleBase.java:423)
+		at org.apache.catalina.util.LifecycleBase.setState(LifecycleBase.java:366)
+		at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:946)
+		at org.apache.catalina.core.StandardHost.startInternal(StandardHost.java:835)
+		at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+		at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1396)
+		at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1386)
+		at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+		at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:75)
+		at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:140)
+		at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:919)
+		at org.apache.catalina.core.StandardEngine.startInternal(StandardEngine.java:263)
+		at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+		at org.apache.catalina.core.StandardService.startInternal(StandardService.java:432)
+		at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+		at org.apache.catalina.core.StandardServer.startInternal(StandardServer.java:927)
+		at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+		at org.apache.catalina.startup.Catalina.start(Catalina.java:772)
+		at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+		at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+		at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+		at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+		at org.apache.catalina.startup.Bootstrap.start(Bootstrap.java:345)
+		at org.apache.catalina.startup.Bootstrap.main(Bootstrap.java:476)
+	Caused by: org.redisson.client.RedisConnectionException: SENTINEL SENTINELS command returns empty result! Set checkSentinelsList = false to avoid this check.
+		at org.redisson.connection.SentinelConnectionManager.<init>(SentinelConnectionManager.java:193)
+		at org.redisson.config.ConfigSupport.createConnectionManager(ConfigSupport.java:193)
+		at org.redisson.Redisson.<init>(Redisson.java:67)
+		at org.redisson.Redisson.create(Redisson.java:108)
+		at org.redisson.tomcat.RedissonSessionManager.buildClient(RedissonSessionManager.java:355)
+		... 42 more
+	Caused by: org.redisson.client.RedisException: ERR unknown subcommand 'SLAVES'. Try SENTINEL HELP.. channel: [id: 0x48cd38ef, L:/10.18.127.140:53726 - R:redis-prod-rds01-2.redis-prod-rds01-headless.infra.svc.cluster.local/10.18.229.86:26379] command: (SENTINEL SLAVES), promise: java.util.concurrent.CompletableFuture@31a469fe[Not completed, 1 dependents], params: [redisk8s]
+		at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:370)
+		at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:198)
+		at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:137)
+		at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:113)
+		at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:510)
+		at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366)
+		at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:279)
+		at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+		at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+		at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+		at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+		at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+		at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+		at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+		at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+		at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:722)
+		at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658)
+		at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584)
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496)
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+		at java.base/java.lang.Thread.run(Thread.java:829)
+``` 
+
+**Steps to reproduce or test case**
+
+**Redis version** 7.0.0
+
+**Redisson version** 3.17.3
+
+**Redisson configuration**
+```
+sentinelServersConfig:
+  password: ${REDIS_PASSWORD}
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 10
+  slaveConnectionMinimumIdleSize: 2
+  slaveConnectionPoolSize: 10
+  masterConnectionMinimumIdleSize: 5
+  masterConnectionPoolSize: 10
+  idleConnectionTimeout: 5000
+  pingConnectionInterval: 5000
+  dnsMonitoringInterval: 5000
+  checkSentinelsList: true
+  clientName: ${HOSTNAME}
+  sentinelAddresses:
+  - "redis://redis-prod-rds01-0.redis-prod-rds01-headless.infra.svc.cluster.local:26379"
+  - "redis://redis-prod-rds01-1.redis-prod-rds01-headless.infra.svc.cluster.local:26379"
+  - "redis://redis-prod-rds01-2.redis-prod-rds01-headless.infra.svc.cluster.local:26379"
+  - "redis://redis-prod-rds01-3.redis-prod-rds01-headless.infra.svc.cluster.local:26379"
+  - "redis://redis-prod-rds01-4.redis-prod-rds01-headless.infra.svc.cluster.local:26379"
+  masterName: "redisk8s"
+useThreadClassLoader: false
+``` 

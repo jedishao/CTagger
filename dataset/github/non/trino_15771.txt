@@ -1,0 +1,122 @@
+Cassandra set of UDTs broken after 379
+## Problem / Bug
+
+Trino versions greater than 379 return the string `"[\"com.datastax.oss.driver.internal.core.data.DefaultUdtValue@eff5bf6f\"]",` for Cassandra columns representing a set of UDTs `set<frozen<UDT>>`. Before version 380, Trino returned a string representation of the UDT. 
+
+Example: 
+
+`"[\"{product:'80525301435',barcode:'805253014351',unit_type:'Piece',unit_qty:11,qty:11,product_name:'W515B Premium',contents_uuid:cad7841f-03c2-461a-851a-369a4bf8f8fa}\"]",`
+
+Trino 380 and greater return:
+
+`"[\"com.datastax.oss.driver.internal.core.data.DefaultUdtValue@eff5bf6f\"]",`
+
+While the string representation could have been better, it did allow us to access and parse the data. Is this a bug, or is there a way to return this data? We want to use newer versions of Trino; however, this issue prevents us from upgrading.
+
+We get the same results from the REST API and JDBC driver.
+
+## Further Details
+
+We are using Cassandra version 3.0.27.
+
+### Example Schema and Query
+
+Query:
+```sql
+SELECT contents, created_by_client FROM cassandra.prod.system_inventory_collection WHERE system = 'x' AND mode = 'live' AND collection_type = 'repack' AND collection_id = '2052099990195800010922'
+```
+
+The `system_inventory_collection` table contains a set (array) of `inventory_contents_type` UDTs:
+
+Table `system_inventory_collection`:
+```sql
+create table system_inventory_collection
+(
+    system            text,
+    mode              text,
+    collection_type   text,
+    collection_id     text,
+    contents          set<frozen<inventory_contents_type>>,
+    created_by_client frozen<client>,
+    modified          timestamp,
+    primary key ((system, mode, collection_type, collection_id))
+)
+```
+
+UDT `inventory_contents_type`:
+
+```sql
+create type inventory_contents_type (
+    product text,
+    barcode text,
+    unit_type text,
+    unit_qty int,
+    qty int,
+    product_name text,
+    contents_uuid uuid
+)
+```
+
+Trino <= 379 returns:
+
+```json
+"data": [
+    [
+        "[\"{product:'80525301435',barcode:'805253014351',unit_type:'Piece',unit_qty:11,qty:11,product_name:'W515B Premium',contents_uuid:cad7841f-03c2-461a-851a-369a4bf8f8fa}\"]",
+        [
+            "9999",
+            "1",
+            "1111",
+            "",
+            "6.0.318",
+            null,
+            null,
+            "x"
+        ]
+    ]
+],
+```
+
+Trino 380-405 returns:
+
+```json
+"data": [
+    [
+        "[\"com.datastax.oss.driver.internal.core.data.DefaultUdtValue@eff5bf6f\"]",
+        [
+            "9999",
+            "1",
+            "1111",
+            "",
+            "6.0.318",
+            null,
+            null,
+            "x"
+        ]
+    ]
+],
+```
+
+Column info for `contents` is the same pre and post-Trino 379:
+
+```json
+"columns": [
+    {
+        "name": "contents",
+        "type": "varchar",
+        "typeSignature": {
+            "rawType": "varchar",
+            "arguments": [
+                {
+                    "kind": "LONG",
+                    "value": 2147483647
+                }
+            ]
+        }
+    },
+```
+
+Related ticket:  Map Cassandra collections to Trino collections #660 
+Related PR:  Map Cassandra LIST to Trino ARRAY Type #13230
+
+While more robust handling of SETs and LISTs of UDTs would be nice, the behavior before 380 at least allowed us to access the data. 

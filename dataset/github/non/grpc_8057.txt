@@ -1,0 +1,73 @@
+rpc failure - java.lang.NoSuchMethodError: io.netty.buffer.PooledByteBufAllocator
+### What version of gRPC-Java are you using?
+1.36.1
+
+### What is your environment?
+mac 10.15.7
+
+22:33 $ java --version
+openjdk 11.0.5 2019-10-15 LTS
+OpenJDK Runtime Environment Zulu11.35+13-CA (build 11.0.5+10-LTS)
+OpenJDK 64-Bit Server VM Zulu11.35+13-CA (build 11.0.5+10-LTS, mixed mode)
+
+### What did you expect to see?
+
+Successful rpcs.
+
+### What did you see instead?
+
+```
+io.grpc.StatusRuntimeException: INTERNAL: Panic! This is a bug!
+        at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+        at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+        at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+        at cosmos.auth.v1beta1.QueryGrpc$QueryBlockingStub.account(QueryGrpc.java:193)
+        ...
+Caused by: java.lang.NoSuchMethodError: 'void io.netty.buffer.PooledByteBufAllocator.<init>(boolean, int, int, int, int, int, int, boolean)'
+        at io.grpc.netty.Utils.createByteBufAllocator(Utils.java:172)
+        at io.grpc.netty.Utils.access$000(Utils.java:71)
+        at io.grpc.netty.Utils$ByteBufAllocatorPreferDirectHolder.<clinit>(Utils.java:93)
+        at io.grpc.netty.Utils.getByteBufAllocator(Utils.java:140)
+        at io.grpc.netty.NettyClientTransport.start(NettyClientTransport.java:245)
+        at io.grpc.internal.ForwardingConnectionClientTransport.start(ForwardingConnectionClientTransport.java:33)
+        at io.grpc.internal.ForwardingConnectionClientTransport.start(ForwardingConnectionClientTransport.java:33)
+        at io.grpc.internal.InternalSubchannel.startNewTransport(InternalSubchannel.java:258)
+        at io.grpc.internal.InternalSubchannel.access$400(InternalSubchannel.java:65)
+        at io.grpc.internal.InternalSubchannel$2.run(InternalSubchannel.java:200)
+        at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+        at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+        at io.grpc.internal.ManagedChannelImpl$NameResolverListener.onResult(ManagedChannelImpl.java:1815)
+        at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:333)
+
+```
+
+### Steps to reproduce the bug
+
+This happens every time for certain rpcs and other rpcs work fine. I can't quite see any difference between the working and non working rpcs.
+
+When using the following dependencies all rpcs work fine.
+
+```
+grpc_version = '1.32.3'
+netty_handler_version = '4.1.51.Final'
+netty_transport_version = '4.1.51.Final'
+netty_ssl_version = '2.0.31.Final'
+```
+
+but we upgraded to 1.36.1 to solve the netty handler header bug so we're now using the following dependencies and we see this rpc failure.
+
+```
+grpc_version = '1.36.1'
+netty_handler_version = '4.1.60.Final'
+netty_transport_version = '4.1.60.Final'
+netty_ssl_version = '2.0.38.Final'
+```
+
+I also tried the following dependencies based on this https://github.com/grpc/grpc-java/blob/master/SECURITY.md and we get the same rpc failure as well.
+
+```
+grpc_version = '1.35.1'
+netty_handler_version = '4.1.52.Final'
+netty_transport_version = '4.1.52.Final'
+netty_ssl_version = '2.0.34.Final'
+```

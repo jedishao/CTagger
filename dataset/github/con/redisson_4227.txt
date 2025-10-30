@@ -1,0 +1,60 @@
+RedissonLock.unlock
+redisson-all-3.16.1 After the version
+We have a lock on the line that has not been released
+
+error log
+java.lang.IllegalStateException: Sync methods can't be invoked from async/rx/reactive listeners
+	at org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:108)
+	at org.redisson.RedissonObject.get(RedissonObject.java:82)
+	at org.redisson.RedissonLock.unlock(RedissonLock.java:306)
+
+java.lang.IllegalStateException: Sync methods can't be invoked from async/rx/reactive listeners
+	at org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:108)
+	at org.redisson.RedissonObject.get(RedissonObject.java:82)
+	at org.redisson.RedissonLock.tryAcquire(RedissonLock.java:143)
+	at org.redisson.RedissonLock.lock(RedissonLock.java:97)
+	at org.redisson.RedissonLock.lock(RedissonLock.java:69)
+
+
+3.12.1  version
+  @Override
+    public <V> V get(RFuture<V> future) {
+        try {
+            future.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if (future.isSuccess()) {
+            return future.getNow();
+        }
+
+        throw convertException(future);
+    }
+    
+3.16.1
+@Override
+    public <V> V get(RFuture<V> future) {
+        if (Thread.currentThread().getName().startsWith("redisson-netty")) {
+            throw new IllegalStateException("Sync methods can't be invoked from async/rx/reactive listeners");
+        }
+
+        try {
+            future.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RedisException(e);
+        }
+        if (future.isSuccess()) {
+            return future.getNow();
+        }
+
+        throw convertException(future);
+    }
+
+Why add this judgment
+  if (Thread.currentThread().getName().startsWith("redisson-netty")) {
+            throw new IllegalStateException("Sync methods can't be invoked from async/rx/reactive listeners");
+        }
+
+
+

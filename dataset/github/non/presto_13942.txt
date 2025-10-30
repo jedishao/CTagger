@@ -1,0 +1,107 @@
+Connector doesn't receive filters for columns over Map types
+When implementing a connector, I found out that it's impossible to handle any WHERE filters over columns of type Map[VARCHAR, VARCHAR].
+
+Example:
+```sql
+SELECT testcolumn FROM testtable WHERE testcolumn['foo'] = 'bar';
+```
+
+**Expected**: `columnDomains` has some domain for testcolumn['foo']
+**Observed**: `columnDomains` is empty.
+
+```java
+
+public class TestMetadata implements ConnectorMetadata {
+	private final SchemaTableName tableName = new SchemaTableName("testschema", "testtable");
+	private final List<ColumnMetadata> columns;
+
+	@Inject
+	public TestMetadata(ConnectorContext context) {
+		columns = Lists.newArrayList(new ColumnMetadata("testcolumn", getLabelsType(context)));
+	}
+
+	@Override
+	public List<ConnectorTableLayoutResult> getTableLayouts(
+			ConnectorSession session,
+			ConnectorTableHandle table,
+			Constraint<ColumnHandle> constraint,
+			Optional<Set<ColumnHandle>> desiredColumns) {
+
+		List<ColumnDomain<ColumnHandle>> columnDomains = constraint.getSummary().getColumnDomains().get();
+
+		// This assert fails
+		assert (!columnDomains.isEmpty());
+
+		return Collections.emptyList();
+	}
+
+	private MapType getLabelsType(ConnectorContext context) {
+		VarcharType keyType = VarcharType.VARCHAR;
+		VarcharType valueType = VarcharType.VARCHAR;
+
+		MethodHandle keyTypeNativeGetter = MethodHandleUtil.nativeValueGetter(keyType);
+		MethodHandle keyNativeEquals = context.getTypeManager()
+				.resolveOperator(OperatorType.EQUAL, ImmutableList.of(keyType, keyType));
+		MethodHandle keyNativeHashCode = context.getTypeManager()
+				.resolveOperator(OperatorType.HASH_CODE, ImmutableList.of(keyType));
+
+		MethodHandle keyBlockNativeEquals = MethodHandleUtil.compose(keyNativeEquals, keyTypeNativeGetter);
+		MethodHandle keyBlockEquals = MethodHandleUtil.compose(
+				keyNativeEquals,
+				keyTypeNativeGetter,
+				keyTypeNativeGetter
+		);
+		MethodHandle keyBlockHashCode = MethodHandleUtil.compose(keyNativeHashCode, keyTypeNativeGetter);
+
+		return new MapType(
+				keyType,
+				valueType,
+				keyBlockNativeEquals,
+				keyBlockEquals,
+				keyNativeHashCode,
+				keyBlockHashCode
+		);
+	}
+
+	@Override
+	public List<String> listSchemaNames(ConnectorSession session) {
+		return ImmutableList.of(tableName.getSchemaName());
+	}
+
+	@Override
+	public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table) {
+		return new ConnectorTableMetadata(tableName, columns);
+	}
+
+	@Override
+	public ColumnMetadata getColumnMetadata(
+			ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle) {
+		return columns.get(0);
+	}
+
+	@Override
+	public Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(
+			ConnectorSession session, SchemaTablePrefix prefix) {
+		return ImmutableMap.of(tableName, columns);
+	}
+
+	@Override
+	public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle) {
+		return new ConnectorTableLayout(handle);
+	}
+
+	@Override
+	public ConnectorTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName) {
+		return null;
+	}
+
+	@Override
+	public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle) {
+		return null;
+	}
+}
+```
+
+
+
+

@@ -1,0 +1,91 @@
+[Bug] Docker build fails if UBUNTU_MIRROR is not set 
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+master
+
+### Minimal reproduce step
+
+Clone the project and run:
+```
+mvn package -f docker/pom.xml -Pdocker
+```
+
+The build fails with:
+```
+02:46:41  # newer versions of the distribution.
+02:46:41  deb ${env.UBUNTU_MIRROR} focal main restricted
+02:46:41  # deb-src ${env.UBUNTU_MIRROR} focal main restricted
+02:46:41  
+02:46:41  ## Major bug fix updates produced after the final release of the
+02:46:41  ## distribution.
+02:46:41  deb ${env.UBUNTU_MIRROR} focal-updates main restricted
+02:46:41  # deb-src ${env.UBUNTU_MIRROR} focal-updates main restricted
+02:46:41  
+02:46:41  ## N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
+02:46:41  ## team. Also, please note that software in universe WILL NOT receive any
+02:46:41  ## review or updates from the Ubuntu security team.
+02:46:41  deb ${env.UBUNTU_MIRROR} focal universe
+02:46:41  # deb-src ${env.UBUNTU_MIRROR} focal universe
+02:46:41  deb ${env.UBUNTU_MIRROR} focal-updates universe
+02:46:41  # deb-src ${env.UBUNTU_MIRROR} focal-updates universe
+02:46:41  
+02:46:41  ## N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
+02:46:41  ## team, and may not be under a free licence. Please satisfy yourself as to
+02:46:41  ## your rights to use the software. Also, please note that software in
+02:46:41  ## multiverse WILL NOT receive any review or updates from the Ubuntu
+02:46:41  ## security team.
+02:46:41  deb ${env.UBUNTU_MIRROR} focal multiverse
+02:46:41  # deb-src ${env.UBUNTU_MIRROR} focal multiverse
+02:46:41  deb ${env.UBUNTU_MIRROR} focal-updates multiverse
+02:46:41  # deb-src ${env.UBUNTU_MIRROR} focal-updates multiverse
+02:46:41  
+02:46:41  ## N.B. software from this repository may not have been tested as
+02:46:41  ## extensively as that contained in the main release, although it includes
+02:46:41  ## newer versions of some applications which may provide useful features.
+02:46:41  ## Also, please note that software in backports WILL NOT receive any review
+02:46:41  ## or updates from the Ubuntu security team.
+02:46:41  deb ${env.UBUNTU_MIRROR} focal-backports main restricted universe multiverse
+02:46:41  # deb-src ${env.UBUNTU_MIRROR} focal-backports main restricted universe multiverse
+02:46:41  
+02:46:41  ## Uncomment the following two lines to add software from Canonical's
+02:46:41  ## 'partner' repository.
+02:46:41  ## This software is not part of Ubuntu, but is offered by Canonical and the
+02:46:41  ## respective vendors as a service to Ubuntu users.
+02:46:41  # deb http://archive.canonical.com/ubuntu focal partner
+02:46:41  # deb-src http://archive.canonical.com/ubuntu focal partner
+02:46:41  
+02:46:41  deb ${env.UBUNTU_SECURITY_MIRROR} focal-security main restricted
+02:46:41  # deb-src ${env.UBUNTU_SECURITY_MIRROR} focal-security main restricted
+02:46:41  deb ${env.UBUNTU_SECURITY_MIRROR} focal-security universe
+02:46:41  # deb-src ${env.UBUNTU_SECURITY_MIRROR} focal-security universe
+02:46:41  deb ${env.UBUNTU_SECURITY_MIRROR} focal-security multiverse
+02:46:41  # deb-src ${env.UBUNTU_SECURITY_MIRROR} focal-security multiverse
+02:46:41  [INFO] DOCKER> [91mE: Malformed entry 3 in list file /etc/apt/sources.list (URI parse)
+02:46:41  E: The list of sources could not be read.
+02:46:41  
+02:46:41  [INFO] DOCKER> Removing intermediate container 6fcab9e31242
+02:46:41  [ERROR] DOCKER> Unable to build image [pulsar] : "The command '/bin/sh -c sed -i -e \"s|[http://archive\\.ubuntu\\.com/ubuntu/|${UBUNTU_MIRROR:-mirror://mirrors.ubuntu.com/mirrors.txt}|g\](http://archive//.ubuntu//.com/ubuntu/%7C$%7BUBUNTU_MIRROR:-mirror://mirrors.ubuntu.com/mirrors.txt%7D%7Cg/)"      -e \"s|[http://security\\.ubuntu\\.com/ubuntu/|${UBUNTU_SECURITY_MIRROR:-http://security.ubuntu.com/ubuntu/}|g\](http://security//.ubuntu//.com/ubuntu/%7C$%7BUBUNTU_SECURITY_MIRROR:-http://security.ubuntu.com/ubuntu/%7D%7Cg/)" /etc/apt/sources.list && cat /etc/apt/sources.list      && echo 'Acquire::http::Timeout \"30\";\\nAcquire::ftp::Timeout \"30\";\\nAcquire::Retries \"3\";' > /etc/apt/apt.conf.d/99timeout_and_retries      && apt-get update      && apt-get -y dist-upgrade      && apt-get -y install --no-install-recommends netcat dnsutils less procps iputils-ping                  python3 python3-kazoo python3-pip                  curl ca-certificates wget apt-transport-https' returned a non-zero code: 100"  ["The command '/bin/sh -c sed -i -e \"s|[http://archive\\.ubuntu\\.com/ubuntu/|${UBUNTU_MIRROR:-mirror://mirrors.ubuntu.com/mirrors.txt}|g\](http://archive//.ubuntu//.com/ubuntu/%7C$%7BUBUNTU_MIRROR:-mirror://mirrors.ubuntu.com/mirrors.txt%7D%7Cg/)"      -e \"s|[http://security\\.ubuntu\\.com/ubuntu/|${UBUNTU_SECURITY_MIRROR:-http://security.ubuntu.com/ubuntu/}|g\](http://security//.ubuntu//.com/ubuntu/%7C$%7BUBUNTU_SECURITY_MIRROR:-http://security.ubuntu.com/ubuntu/%7D%7Cg/)" /etc/apt/sources.list && cat /etc/apt/sources.list      && echo 'Acquire::http::Timeout \"30\";\\nAcquire::ftp::Timeout \"30\";\\nAcquire::Retries \"3\";' > /etc/apt/apt.conf.d/99timeout_and_retries      && apt-get update      && apt-get -y dist-upgrade      && apt-get -y install --no-install-recommends netcat dnsutils less procps iputils-ping                  python3 python3-kazoo python3-pip                  curl ca-certificates wget apt-transport-https' returned a non-zero code: 100" ]
+```
+
+### What did you expect to see?
+
+The build to pass and creates the docker image.
+
+CI never noticed it because it sets the UBUNTU_MIRROR env.
+
+### What did you see instead?
+
+The build fails because the UBUNTU_MIRROR arg value is not resolved (and it's "{env.UBUNTU_MIRROR}"
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

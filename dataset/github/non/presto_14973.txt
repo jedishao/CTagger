@@ -1,0 +1,15 @@
+Setting up High Availability for presto 0.234.1 in Google Compute Engine not GKE
+We are using Presto 0.234.1 version in Google Compute Engine. We are trying to achieve High Availability on the Presto Coordinators. 
+
+We can have multiple Presto Coordinators. Has anybody done this in past of setting up High Availability for Presto.
+
+We want to use this approach. Provide us steps how I can achieve this.
+
+1. Set up 2 or 3 nodes as coordinators.
+2. Tell them to run their own discovery servers in their config.
+3. Tell them to point at localhost for their own discovery server – this is quite important.
+4. Tell them not to do work (It will keep things more stable, but unfortunately, that means that your cluster has less power.  You’ll probably have far more workers than coordinators though, so it shouldn’t be an issue).
+Install HA proxy on the coordinator nodes.  Have all the coordinator nodes registered in order and make all but the first one a “backup”.  So, for example, run HA Proxy port 8385 and run Presto on port 8321.  All traffic will go to node #1 unless its down, in which case it will go to node #2, and so on.
+5. Set up a load balancer in front of the coordinator nodes pointing at the HA proxy port and make sure traffic can get through.
+6. Set up all worker nodes to target the load balancer for the discovery server.  So, all workers target the load balancer, which goes to any coordinator, all of which redirect to the primary one.  The primary coordinator always has all workers reaching it courtesy of HA proxy.
+7. As each coordinator itself only reports to its localhost discovery server, coordinators will not end up talking to each other’s discovery servers and will not interfere with each other.  Only one coordinator will ever have workers registered with it at a time.

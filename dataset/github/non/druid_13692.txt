@@ -1,0 +1,12 @@
+Druid Version 0.22.1 - Long Coordinator handoff times
+Hi Druid team,
+We manage a cluster that has over 3K+ peons (116 middle managers) and 200+ historical nodes (4-5 million segments) with two masters configured as both coordinator/overlord.  We run close to around 400+ streaming ingest jobs into druid and we noticed that many of our peon tasks are getting stuck via "Coordinator handoff scheduled - Still waiting for handoff for X segments".  This handoff can take anywhere from a few minutes to 30+ minutes depending on the configured completionTimeout period (Job Fails, but its still marked as success in the logs).  
+
+In order to optimize our druid cluster we began modifying the following parameters which did help the performance of the coordinator/overlord, but we are still seeing handoff times taking 20-30 minutes at times.
+1. Decreased percentOfSegmentsToConsiderPerMove from 70 percent down to 10 percent.  
+2. Modified our tasks to create larger and fewer segments to bring down the overall segment count. 
+3. increased the number of pendingSegment threads on the coordinator/overlord from 1 to 10 to handle handing off multiple segments.
+
+Some of the optimization done in 25.0.0 should assist this via the batch segment allocation parameter, but im wondering prior to 25.0.0 if there are strategies that can be employed to improve the segment handoff time on the coordinator?
+
+2nd question is even if a task does not complete within the completionTimeout window I am assuming the segment isnt just dropped, since internally in the logs the task is marked as successfull but the segment will likely not be served for queries until the handoff internally is completed by the coordinator -> historical (meaning the peon will not serve requests either for that segment as the task has been terminated once completionTimeout window has elapsed).  Is this a correct assumption?  

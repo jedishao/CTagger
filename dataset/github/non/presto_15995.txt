@@ -1,0 +1,15 @@
+Drop tables does not work in Hive connector (schemas other than default)
+Cluster is configured to have  `hive.security=sql-standard` which means Presto would depend on hive for authorization. But it fails to obey those permissions. 
+A user is granted insert, delete, update permission on table but they are unable to perform DROP operations on the tables. 
+
+> [4] Query failed (#20210423_015337_00486_tchca): Access Denied: Cannot drop a column from table staging
+
+Note:   `hive.allow-drop-table=true` property  cannot be used when `hive.security=sql-standard`. Cluster fails to boot up. 
+> 2021-04-23T10:42:23.160-0700    ERROR   main    com.facebook.presto.server.PrestoServer Unable to create injector, see the following errors:
+> 1) Configuration property 'hive.allow-drop-table' was not used
+>   at com.facebook.airlift.bootstrap.Bootstrap.lambda$initialize$2(Bootstrap.java:244)
+> 
+
+Related: https://github.com/prestodb/presto/issues/3912 
+
+Conversion: https://prestodb.slack.com/archives/C07JH9WMQ/p1619143424297100

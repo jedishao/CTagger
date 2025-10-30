@@ -1,0 +1,18 @@
+Broker select custom priority NPE
+### Affected Version
+Master branch
+
+### Description
+1) When `druid.broker.select.tier` is set to `custom` and `druid.broker.select.tier.custom.priorities` is omitted, we get NPE when broker updates server view, e.g, when there's segment balance in historical nodes.
+2) When `druid.broker.select.tier` is set to `custom` and `druid.broker.select.tier.custom.priorities` doesn't explicitly list all the priorities of existing tiers, we get NPE same as above.
+
+```
+Exception in thread "BrokerServerView-1985" java.lang.NullPointerException
+        at java.util.Comparator.lambda$comparingInt$7b0bb60$1(Comparator.java:490)
+        at it.unimi.dsi.fastutil.ints.IntComparators$1.compare(IntComparators.java:86)
+        at it.unimi.dsi.fastutil.ints.Int2ObjectRBTreeMap.compare(Int2ObjectRBTreeMap.java:205)
+        at it.unimi.dsi.fastutil.ints.Int2ObjectRBTreeMap.findKey(Int2ObjectRBTreeMap.java:219)
+        at it.unimi.dsi.fastutil.ints.Int2ObjectRBTreeMap.get(Int2ObjectRBTreeMap.java:931)
+        at it.unimi.dsi.fastutil.ints.Int2ObjectMap.computeIfAbsent(Int2ObjectMap.java:380)
+        at org.apache.druid.client.selector.ServerSelector.addServerAndUpdateSegment(ServerSelector.java:72)
+```

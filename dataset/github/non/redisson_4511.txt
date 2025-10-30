@@ -1,0 +1,80 @@
+Redisson throws RedisConnectionException: Can't add slave on Azure Redis instance unavailability and doesn't recover
+Context:
+Our service is using Redisson to connect to an Azure Redis cluster. Both use cases (caching & distributed locking) are applied, and usually things are working smoothly.
+
+It is just when Microsoft has regular OS patching and 1 or 2 out of the 8 instances (and corresponding connection ports) become unavailable for ~4minutes and the service instances being connected via redisson to Azure Redis begin to throw RedisConnectionExceptions.
+
+Before opening this issue, I checked previously resolved issues **4311** and **4245** which reported similar behaviour.
+`org.redisson.client.RedisTimeoutException:* Command execution timeout for command: (AUTH), params: (password masked), Redis client: [addr=rediss://10.112.94.132:15000]*`
+
+`CompletionException: org.redisson.client.RedisConnectionException: Unable to init enough connections amount! Only 11 of 12 were initialized. Redis server: 10.112.94.132/10.112.94.132:15001
+Caused by: java.util.concurrent.CompletionException*: io.netty.channel.ConnectTimeoutException: connection timed out: 10.112.94.132/10.112.94.132:15001`
+
+**Expected behavior**
+When one of Azure Redis instance is unavailable (due to maintenance or regular OS patching), Redisson should connect to one of the other available instances.
+
+**Actual behavior**
+When one of Azure Redis instance is unavailable (due to maintenance, failovers or regular OS patching), Redisson attempts (and fails) to connect to the unavailable cluster instance.
+It usually takes ~4 minutes for the Azure Redis instance to come back online.
+
+It can be observed that the instances unavailability happens throughout the day, not all at once.
+![image](https://user-images.githubusercontent.com/11807000/186420437-332470c5-24b5-4622-a587-84357fb764c3.png)
+
+The case of instance (port) 15003 : Splunk 22.08.2022 21:59 → Azure UTC 23.08.2022 04:59
+![image](https://user-images.githubusercontent.com/11807000/186421334-0d32613d-f2b9-421f-b8fe-60780f5291ee.png)
+![image](https://user-images.githubusercontent.com/11807000/186421435-61e78464-b543-4135-b023-368a0fef2cd6.png)
+
+The case of instance (port) 15006: Splunk 22.08.2022 10:39 → Azure UTC 23.08.2022 05:39
+![image](https://user-images.githubusercontent.com/11807000/186421557-0c07107f-125f-41c6-b76a-d2dc2d208b17.png)
+![image](https://user-images.githubusercontent.com/11807000/186421598-ff3c7d46-2ffa-4b1e-9c19-bbffe66d8495.png)
+
+The case of instance (port) 15000: Splunk 22.08.2022 23:18 → Azure UTC 23.08.2022 06:18 
+![image](https://user-images.githubusercontent.com/11807000/186421893-395d4ef1-3d3d-4f87-8478-9255efbb3991.png)
+![image](https://user-images.githubusercontent.com/11807000/186421921-1e221d5e-acb0-4f75-8e44-8e31246f3c54.png)
+
+
+**Steps to reproduce or test case**
+Multiple springboot service instances connected randomly to one of the available Redis instances (at different ports).
+One of the Redis instance goes down (unavailable).
+RedisConnectionExceptions are thrown by the service instance connected to unavailable Redis instance and it doesn't recover.
+
+**Redis version**
+4.0.14
+Azure Redis Premium P1 (6 x 24GB)
+
+**Redisson version**
+3.17.3
+
+**Redisson configuration**
+clusterServersConfig:
+  idleConnectionTimeout: ${REDIS_IDLE_CONNECTION_TIMEOUT:-10000}
+  connectTimeout: ${REDIS_CONNECTION_TIMEOUT:-15000}
+  timeout: ${REDIS_TIMEOUT:-15000}
+  retryAttempts: ${REDIS_RETRY_ATTEMPTS:-10}
+  retryInterval: ${REDIS_RETRY_INTERVAL:-1500}
+  failedSlaveReconnectionInterval: ${REDIS_FAILED_SLAVE_RECONNECTION_INTERVAL:-3000}
+  failedSlaveCheckInterval: ${REDIS_FAILED_SLAVE_CHECK_INTERVAL:-60000}
+  nodeAddresses:
+    - ${REDIS_HOST:-null}
+  password: ${REDIS_PASSWORD:-null}
+  subscriptionsPerConnection: ${REDIS_SUBSCRIPTIONS_PER_CONNECTION:-5}
+  clientName: ${REDIS_CLIENT_NAME:-null}
+  loadBalancer: ${REDIS_LOAD_BALANCER:-!<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}}
+  subscriptionConnectionMinimumIdleSize: ${REDIS_SUBCRIPTION_CONNECTION_MINIMUM_IDLE_SIZE:-1}
+  subscriptionConnectionPoolSize: ${REDIS_SUBSCRIPTION_POOL_SIZE:-50}
+  slaveConnectionMinimumIdleSize: ${REDIS_SLAVE_CONNECTION_MINIMUM_IDLE_SIZE:-24}
+  slaveConnectionPoolSize: ${REDIS_SLAVE_CONNECTION_POOL_SIZE:-128}
+  masterConnectionMinimumIdleSize: ${REDIS_MASTER_CONNECTION_MINIMUM_IDLE_SIZE:-24}
+  masterConnectionPoolSize: ${REDIS_MASTER_CONNECTION_POOL_SIZE:-128}
+  readMode: ${REDIS_READ_MODE:-"SLAVE"}
+  subscriptionMode: ${REDIS_SUBSCRIPTION_MODE:-"SLAVE"}
+  scanInterval: ${REDIS_SCAN_INTERVAL:-1000}
+  pingConnectionInterval: ${REDIS_PING_CONNECTION_INTERVAL:-0}
+  keepAlive: ${REDIS_KEEP_ALIVE:-false}
+  tcpNoDelay: ${REDIS_TCP_NO_DELAY:-false}
+threads: ${REDIS_THREADS:-64}
+nettyThreads: ${REDIS_NETTY_THREADS:-128}
+codec: ${REDIS_CODEC:-!<org.redisson.codec.FstCodec> {}}
+transportMode: ${REDIS_TRANSPORT_MODE:-"NIO"}
+lockWatchdogTimeout: 60000
+checkLockSyncedSlaves: false

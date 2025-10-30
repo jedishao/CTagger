@@ -1,0 +1,24 @@
+PAGE_TRANSPORT_TIMEOUT error when jetty thread pool is full
+# Reliability issue due to saturation of jetty threads
+
+Under a high workload, Jetty Http Servlet server could run out of jetty threads, which is configured by property “_http-server.threads.max_”. When http request is waiting for too long, worker to worker communication such as page transport will timeout. Eventually, queries with task scheduled on that worker will fail with error code **PAGE_TRANSPORT_TIMEOUT**.
+
+# Investigation
+
+After analyzing http worker threads, here are some major usage of jetty threads
+
+* Write serialized page inside PagesResponseWriter
+* Http request logging
+* Contention of memory update in memory tracking
+* Attaching timeout handlers for long poll responses
+* Http request stats update 
+* Http response timer update
+
+# Planned changes
+
+* Use non-blocking IO for asynchronous processing of page transport
+* Use ConcurrentScheduler to schedule timeout tasks
+* Disable recording of unused stats
+* Disable http GET/PUT/POST logging in Airlift and use presto internal logging instead for debugging
+* Optimize memory tracking
+

@@ -1,0 +1,13 @@
+Parallel Minor Compaction
+### Description
+
+We are currently working in adding minor compaction to our systems. We have seen with testing minor compaction, a single compaction task is working fine for small data sources. However when running minor compaction on one of our larger data sources with ~500 segments per interval, the minor compaction task is taking several hours to process. We have seen compaction jobs running for about 10 hours. This would be much too large to be of value for us. We are running a Major Compaction job after about 5 hours.   For minor compaction to be something that will work for us, we will need to reduce the runtime drastically. 
+
+To achieve that we are looking to enable parallelism for compaction. For this we are planning to implement a parallel compaction task. This task would look similar to ‘index_parallel’ as it would run multiple sub-tasks in parallel.  Each of these sub-tasks will be assigned a small sub-set of segments in the interval to be compacted. The logic within the sub tasks would be very similar to compaction/IndexTask where data is compacted and segments generated using OverrideShardSpec. Once the compaction is complete, the original segments would then be overwritten by the newly created compacted segments.  
+
+Would greatly appreciate any input and please let us know if there are any suggestions or existing solutions that we may not be aware of.
+
+### Motivation
+
+Please provide the following for the desired feature or change:
+- We are looking to enhance minor compaction to better support intervals with large number of segments.

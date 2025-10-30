@@ -1,0 +1,84 @@
+[Bug]  Delayed message delivery receive duplicate messages when unload topic
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.7.5、2.8.4、master
+
+### Minimal reproduce step
+
+1. Run the code for 20 minutes
+
+public static void main(String[] args) {
+        String url = "pulsar://10.98.242.210:6650";
+        String t = "persistent://components/test/test_deliver";
+        new Thread(() -> {
+            try {
+                PulsarClient client = PulsarClient.builder()
+                    .serviceUrl(url)
+                    .ioThreads(1)
+                    .listenerThreads(2)
+                    .build();
+                Producer<String> producerA = client.newProducer(Schema.STRING)
+                    .topic(t)
+                    .producerName("test")
+                    .create();
+                Random random = new Random();
+                while (true) {
+                    String message = String.valueOf(System.currentTimeMillis());
+                    producerA.newMessage(Schema.STRING).value(message).deliverAfter(random.nextInt(30), TimeUnit.MINUTES).send();
+                    Thread.sleep(10L);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+        Set<String> stringSet = new ConcurrentHashSet<>();
+        try {
+            PulsarClient client = PulsarClient.builder()
+                .serviceUrl(url)
+                .ioThreads(1)
+                .listenerThreads(2)
+                .build();
+            Consumer consumer = client.newConsumer(Schema.STRING)
+                .topic(t)
+                .subscriptionName("frozen")
+                .subscriptionType(SubscriptionType.Shared)
+                .subscribe();
+            while (true) {
+                Message<String> message = consumer.receive();
+                if (stringSet.contains(message.getValue())) {
+                    log.info("duplicate messages thread={} message={}", Thread.currentThread().getName(), message.getValue());
+                } else {
+                    stringSet.add(message.getValue());
+                }
+                consumer.acknowledge(message);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+2. After 20 minutes, execute unload cmd:
+bin/pulsar-admin topics unload persistent://components/test/test_deliver
+3. See consumer log,duplicate messages
+
+
+### What did you expect to see?
+
+no duplicate messages
+
+### What did you see instead?
+
+duplicate messages
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

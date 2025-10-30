@@ -1,0 +1,45 @@
+NPE when querying tables with BigQuery connector
+Hi, 
+
+I'm getting an NPE when trying to query tables in BQ. I can run `SHOW TABLES` without any problems, but I get this error when running `SELECT * FROM <table_name>` on any of the tables listed:
+
+```
+java.lang.NullPointerException: undefined
+	at java.base/java.util.Objects.requireNonNull(Objects.java:208)
+	at java.base/java.util.Optional.of(Optional.java:111)
+	at com.facebook.presto.plugin.bigquery.BigQueryMetadata.getBigQueryTable(BigQueryMetadata.java:160)
+	at com.facebook.presto.plugin.bigquery.BigQueryMetadata.getTableHandle(BigQueryMetadata.java:118)
+	at com.facebook.presto.metadata.MetadataManager.getTableHandle(MetadataManager.java:334)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:1087)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitTable(StatementAnalyzer.java:312)
+	at com.facebook.presto.sql.tree.Table.accept(Table.java:53)
+	at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:326)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.analyzeFrom(StatementAnalyzer.java:2292)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:1355)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuerySpecification(StatementAnalyzer.java:312)
+	at com.facebook.presto.sql.tree.QuerySpecification.accept(QuerySpecification.java:127)
+	at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:326)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:336)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:938)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.visitQuery(StatementAnalyzer.java:312)
+	at com.facebook.presto.sql.tree.Query.accept(Query.java:94)
+	at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer$Visitor.process(StatementAnalyzer.java:326)
+	at com.facebook.presto.sql.analyzer.StatementAnalyzer.analyze(StatementAnalyzer.java:304)
+	at com.facebook.presto.sql.analyzer.Analyzer.analyze(Analyzer.java:82)
+	at com.facebook.presto.sql.analyzer.Analyzer.analyze(Analyzer.java:74)
+	at com.facebook.presto.execution.SqlQueryExecution.<init>(SqlQueryExecution.java:183)
+	at com.facebook.presto.execution.SqlQueryExecution.<init>(SqlQueryExecution.java:94)
+	at com.facebook.presto.execution.SqlQueryExecution$SqlQueryExecutionFactory.createQueryExecution(SqlQueryExecution.java:768)
+	at com.facebook.presto.dispatcher.LocalDispatchQueryFactory.lambda$createDispatchQuery$0(LocalDispatchQueryFactory.java:117)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:125)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:57)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:78)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:630)
+	at java.base/java.lang.Thread.run(Thread.java:832)
+```
+
+I'm running `0.253-d7b7ff7` and can run selects on other data sources without any problems.

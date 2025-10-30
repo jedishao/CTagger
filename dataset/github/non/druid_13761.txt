@@ -1,0 +1,25 @@
+Query return not meaningful results with success status when "replicant = 1" when segments are missing
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+0.23
+
+### Description
+
+Please include as much detailed information about the problem as possible.
+- Cluster size
+- Configurations in use
+- Steps to reproduce the problem
+- The error message or stack traces encountered. Providing more context, such as nearby log messages or even entire logs, can be helpful.
+- Any debugging that you have already done
+
+
+The details are discussed here with @sergioferragut.  https://apachedruidworkspace.slack.com/archives/C0309C9L90D/p1675451098380909
+
+Basically, a query using simple quantile scanning table (data source) would return NaN as 95th percentile and finished in several millisecond; for the 1st time and 2nd time. Waiting for several minutes and query again, it would return in 10 sec with more meaningful result.
+
+The broker, one historical and finally the coordinator logs are all examined it. It seems this issue happened when 'replicant = 1' and one historical node were lost. And this triggered segment moving across the board. This like trigger NaN query issue. 
+
+-  1 broker and 100 historical
+

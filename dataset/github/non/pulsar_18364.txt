@@ -1,0 +1,78 @@
+[Bug] Unable to init topic policies as maximum subscription limit reached on __change_events topic
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+streamnative/pulsar:2.9.3.14
+
+
+### Minimal reproduce step
+
+1. Have topic policies enabled and system topic enabled.
+2. Create a namespace ns under tenant tenant
+3. Create multiple persistent topics with more than 2-3 partitions. Set topic level retention on each topic.
+
+
+After a point, setting retention fails as the broker serving the POST /setRetention request is unable to fetch topic policies.. i.e. create a reader to the persistent://tenant/ns/__change_events topic with the error: "Exceed the maximum number of subscriptions of the topic: persistent://tenant/ns/__change_events"
+
+From an live in production example, these are the relavant values:
+
+```
+pulsar@pulsar-toolset-0:~/bin$ ./pulsar-admin topics subscriptions persistent://tenant/ns/__change_events
+"reader-6eb89f97f3"
+"reader-55417a0399"
+"reader-f7263963cd"
+"reader-aae5d9ee98"
+"reader-cfdb7f6bd3"
+"__compaction"
+"reader-0374c90c95"
+"reader-f31288423d"
+"reader-633e6c7cc8"
+"reader-7869aacb65"
+pulsar@pulsar-toolset-0:~/bin$ ./pulsar-admin topics get-max-subscriptions persistent://tenant/ns/__change_events
+null
+pulsar@pulsar-toolset-0:~/bin$ ./pulsar-admin namespaces get-max-subscriptions-per-topic tenant/ns               
+5
+```
+
+
+### What did you expect to see?
+
+Since system topic (__change_events) is required by every broker serving any partition from the namespace tenant/ns, it shouldn't ever face issue in creating a reader.
+
+### What did you see instead?
+
+the broker trying to set retention to the newly created topic failed to init topic policies as it wasn't able to create a consumer on the corresponding __change_events topic.
+
+Upon checking, the broker trying to set retention (broker-0) had logs like:
+
+```
+ 08:05:10.237 [pulsar-2-4] WARN  org.apache.pulsar.client.util.RetryUtil - Execution with retry fail, because of Topic policies cache have not init., will retry in 500 ms
+ org.apache.pulsar.broker.service.BrokerServiceException$TopicPoliciesCacheNotInitException: Topic policies cache have not init.
+ Caused by: org.apache.pulsar.client.api.PulsarClientException$NotAllowedException: {"errorMsg":"Exceed the maximum number of subscriptions of the topic: persistent://tenant/ns/__change_events","reqId":3555043927966534349, "remote":"<broker_16>/<broker_16>:6650", "local":"/<hidden>:58334"}
+ 08:05:25.909 [pulsar-io-4-6] ERROR org.apache.pulsar.client.impl.ClientCnx - Get not allowed error, Exceed the maximum number of subscriptions of the topic: persistent://tenant/ns/__change_events
+ 08:05:27.747 [pulsar-io-4-6] WARN  org.apache.pulsar.client.impl.ClientCnx - [id: 0x1c3ff8b6, L:/<hidden>:58334 - R:1<broker-16>:6650] Received error from server: Exceed the maximum number of subscriptions of the topic: persistent://tenant/ns/__change_events
+    at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:488) ~[?:1.8.0_342]
+    at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:487) ~[io.netty-netty-transport-classes-epoll-4.1.77.Final.jar:4.1.77.Final]
+ 08:05:27.747 [pulsar-io-4-6] WARN  org.apache.pulsar.client.impl.PulsarClientImpl - [persistent://tenant/ns/__change_events] Failed to get create topic reader
+ ...
+ 08:05:24.885 [pulsar-2-5] INFO  org.eclipse.jetty.server.RequestLog - <hidden_ip> - - [02/Nov/2022:08:05:09 +0000] "POST /admin/v2/persistent/tenant/ns/p0/retention?authoritative=false HTTP/1.1" 500 1395 "-" "Pulsar-Java-v2.7.2" 14996
+```
+
+The only relevant logs in broker-16 serving the __change_events topic are:
+
+```
+ 08:05:13.628 [ForkJoinPool.commonPool-worker-5] ERROR org.apache.pulsar.broker.service.persistent.PersistentTopic - [persistent://tenant/ns/__change_events] Failed to create subscription: reader-3d507955d1
+ java.util.concurrent.CompletionException: org.apache.pulsar.broker.service.BrokerServiceException$NotAllowedException: Exceed the maximum number of subscriptions of the topic: persistent://tenant/ns/__change_events
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

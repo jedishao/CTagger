@@ -1,0 +1,12 @@
+Table in accessible with error - failed accessing transaction log
+`Failed accessing transaction log for table: schema.table`
+There is a delta table stored at a S3 location and I am using the following query to create a table using the delta location.
+```
+CREATE TABLE  glue.default.table(dummy bigint)
+WITH (
+location = 's3://*****',
+partitioned_by = ARRAY['year','month','day']);
+```
+I am using glue for storing the metadata and in the above query I am giving a dummy schema and partition because this information is picked up automatically from _delta_log . I was able to verify the schema and partition inference from a trino client UI (DBeaver) and using show create table. But when I try to query the table I get the above error.
+I was able to narrow the source of error to the *****checkpoint*****.parquet files present in _delta_log .By deleting these checkpoints file and without any change in the table or table properties I was able to query the table successfully.But new writes to this location will generate new checkpoint files in _delta_log and the table becomes inaccessible again.
+A workaround for this is changing the location of checkpoints files to a separate location than the table

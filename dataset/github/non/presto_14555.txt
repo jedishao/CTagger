@@ -1,0 +1,43 @@
+Pushdown filter on dictionary to InputStream
+Our internal CPU profiles on multiple clusters show that `SliceDictionarySelectiveReader#readDictionary()` takes substantial CPU cost. For example:
+```
+          ns  percent  samples  top
+  ----------  -------  -------  ---
+ 48062396728   29.52%     4806  jbyte_disjoint_arraycopy
+ 17029924889   10.46%     1703  io.airlift.compress.zstd.ZstdFrameDecompressor.decompressSequences
+  8519760187    5.23%      852  com.facebook.presto.spi.block.VariableWidthBlock.getPositionsSizeInBytes
+  7660354755    4.71%      766  io.airlift.slice.Slice.<init>
+  6040217381    3.71%      604  jint_disjoint_arraycopy
+
+--- 47332345210 ns (29.08%), 4733 samples
+  [ 0] jbyte_disjoint_arraycopy
+  [ 1] com.facebook.presto.orc.stream.ByteArrayInputStream.next
+  [ 2] com.facebook.presto.orc.reader.SliceDictionarySelectiveReader.readDictionary
+  [ 3] com.facebook.presto.orc.reader.SliceDictionarySelectiveReader.openRowGroup
+  [ 4] com.facebook.presto.orc.reader.SliceDictionarySelectiveReader.read
+  [ 5] com.facebook.presto.orc.reader.SliceSelectiveStreamReader.read
+  [ 6] com.facebook.presto.orc.OrcSelectiveRecordReader$OrcBlockLoader.load
+  [ 7] com.facebook.presto.orc.OrcSelectiveRecordReader$OrcBlockLoader.load
+  [ 8] com.facebook.presto.spi.block.LazyBlock.assureLoaded
+  [ 9] com.facebook.presto.spi.block.LazyBlock.getLoadedBlock
+  [10] com.facebook.presto.spi.Page.getLoadedPage
+  [11] com.facebook.presto.operator.TableScanOperator.getOutput
+  [12] com.facebook.presto.operator.Driver.processInternal
+  [13] com.facebook.presto.operator.Driver.lambda$processFor$8
+  [14] com.facebook.presto.operator.Driver$$Lambda$2884.915044301.get
+  [15] com.facebook.presto.operator.Driver.tryWithLock
+  [16] com.facebook.presto.operator.Driver.processFor
+  [17] com.facebook.presto.execution.SqlTaskExecution$DriverSplitRunner.processFor
+  [18] com.facebook.presto.execution.executor.PrioritizedSplitRunner.process
+  [19] com.facebook.presto.execution.executor.TaskExecutor$TaskRunner.run
+  [20] com.facebook.presto.$gen.Presto_0_231_SNAPSHOT_574c984____20191204_230315_1.run
+  [21] java.util.concurrent.ThreadPoolExecutor.runWorker
+  [22] java.util.concurrent.ThreadPoolExecutor$Worker.run
+  [23] java.lang.Thread.run
+```
+
+In the above profile, the jbyte_disjoint_arraycopy was all from copying the decompressed dictionary before any filter can be evaluated. This method is calling `dictionaryDataStream.next()` for each byte array, then truncate the string and update the offsets array. It can be optimized in two aspects:
+
+1. Do not copy the dictionary if no rows pass the filter: this requires evaluating the filter on the dictionary without copying from InputStream to StreamReader.
+2. Calculate total length and read the data in one shot
+

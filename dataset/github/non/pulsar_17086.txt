@@ -1,0 +1,110 @@
+[Bug] [Broker]Topic level Offload policies set failed when use method pusarAdmin.topicPolicies().setOffloadPolicies()
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+OS version: CentOS Linux release 7.4.1708
+Pulsar version: 2.9.2
+
+### Minimal reproduce step
+
+```
+public class TopicLevelOffloadPoliciesTool {
+
+  public static void main(String[] args) throws PulsarClientException, PulsarAdminException {
+    // 1. construct Pulsar Admin client
+    PulsarAdmin pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl("").authentication("", "").build();
+    // 2. construct OffloadPoliciesImpl
+    OffloadPoliciesImpl.OffloadPoliciesImplBuilder offloadPoliciesImplBuilder = new OffloadPoliciesImpl.OffloadPoliciesImplBuilder();
+    OffloadPoliciesImpl offloadPolicies = offloadPoliciesImplBuilder
+        .fileSystemURI("")
+        .fileSystemProfilePath("")
+        .managedLedgerOffloadDriver("")
+        .managedLedgerOffloadThresholdInBytes(11111L).build();
+    // 3. call setOffloadPolicies method to set topic level offload policies
+    pulsarAdmin.topicPolicies().setOffloadPolicies("", offloadPolicies);
+  }
+
+}
+
+```
+
+### What did you expect to see?
+
+When I call the pusarAdmin.topicPolicies().setOffloadPolicies(), the Pulsar Broker should update the offload policies for topic normally, and when pulsar client attach the offload threshold, then Pulsar Broker will trigger the offload。
+
+### What did you see instead?
+
+1. Fist, When I call pusarAdmin.topicPolicies().setOffloadPolicies(), Pulsar Broker will print the exception:
+```
+org.apache.pulsar.broker.service.BrokerServiceException$ServiceUnitNotReadyException: Namespace bundle for topic (persistent://ys/ys1/topic1-partition-1) not served by this instance. Please redo the lookup. Request is denied: namespace=ys/ys1
+```
+Pulsar client also print server 500 error
+2. And when I get topic level offload policies use command, there are will show the offload policies I set just now, But when the Pulsar Client trigger Pulsar Broker to offloading, there will be just some partitions trigger offload.
+
+### Anything else?
+
+1. The part circled in the figure below will check whether all partitions are managed by the current broker when updating the partition-level policy. For topics whose partitions are distributed on different brokers, there must be exceptions here: 
+```
+org.apache.pulsar.broker.service.BrokerServiceException$ServiceUnitNotReadyException: Namespace bundle for topic (persistent://ys/ys1/topic1-partition-1) not served by this instance. Please redo the lookup. Request is denied: namespace=ys/ys1
+```
+![分层存储bug截图](https://user-images.githubusercontent.com/37037195/184531756-ffee9c23-2887-4766-8915-f45a88566816.jpeg)
+2. My Solution: We can remove the logic of setting partition-level offload storage policies: then it will be like the below:
+```
+    protected CompletableFuture<Void> internalSetOffloadPolicies(OffloadPoliciesImpl offloadPolicies) {
+        return getTopicPoliciesAsyncWithRetry(topicName)
+            .thenCompose(op -> {
+                TopicPolicies topicPolicies = op.orElseGet(TopicPolicies::new);
+                topicPolicies.setOffloadPolicies(offloadPolicies);
+                return pulsar().getTopicPoliciesService().updateTopicPoliciesAsync(topicName, topicPolicies);
+            }).thenCompose(__ -> {
+                //The policy update is asynchronous. Cache at this step may not be updated yet.
+                //So we need to set the loader by the incoming offloadPolicies instead of topic policies cache.
+                PartitionedTopicMetadata metadata = fetchPartitionedTopicMetadata(pulsar(), topicName);
+                if (metadata.partitions > 0) {
+                    List<CompletableFuture<Void>> futures = new ArrayList<>(metadata.partitions);
+                    for (int i = 0; i < metadata.partitions; i++) {
+                        futures.add(internalUpdateOffloadPolicies(offloadPolicies, topicName.getPartition(i)));
+                    }
+                    return FutureUtil.waitForAll(futures);
+                } else {
+                    return internalUpdateOffloadPolicies(offloadPolicies, topicName);
+                }
+            });
+    }
+```
+to 
+```
+    protected CompletableFuture<Void> internalSetOffloadPolicies(OffloadPoliciesImpl offloadPolicies) {
+        return getTopicPoliciesAsyncWithRetry(topicName)
+            .thenCompose(op -> {
+                TopicPolicies topicPolicies = op.orElseGet(TopicPolicies::new);
+                topicPolicies.setOffloadPolicies(offloadPolicies);
+                return pulsar().getTopicPoliciesService().updateTopicPoliciesAsync(topicName, topicPolicies);
+            });
+    }
+```
+and change the offload policies update logic in the below method:
+```
+    private CompletableFuture<Void> checkPersistencePolicies() {
+        TopicName topicName = TopicName.get(topic);
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        brokerService.getManagedLedgerConfig(topicName).thenAccept(config -> {
+            // update managed-ledger config and managed-cursor.markDeleteRate
+            this.ledger.setConfig(config);
+            future.complete(null);
+        }).exceptionally(ex -> {
+            log.warn("[{}] Failed to update persistence-policies {}", topic, ex.getMessage());
+            future.completeExceptionally(ex);
+            return null;
+        });
+        return future;
+    }
+```
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

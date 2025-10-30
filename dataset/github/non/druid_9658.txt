@@ -1,0 +1,89 @@
+Sampler with Inline input source swallows up columns that are all `null`
+### Affected Version
+
+0.17.0
+
+### Description
+
+When posting to the sampler with an inline input source that has a column that is all `null` that column would not be returned as part of the parsed fields without explicit dimensions being set.
+
+Try sending:
+
+```json
+{
+  "type": "index",
+  "spec": {
+    "ioConfig": {
+      "type": "index",
+      "inputSource": {
+        "type": "inline",
+        "data": "{\"make\":\"Honda\",\"model\":\"Odyssey\",\"a\":null}\n{\"make\":\"Tesla\",\"model\":\"Cybertruck\",\"a\":null}"
+      },
+      "inputFormat": {
+        "type": "json"
+      }
+    },
+    "dataSchema": {
+      "dataSource": "sample",
+      "timestampSpec": {
+        "column": "!!!_no_such_column_!!!",
+        "missingValue": "1970-01-01T00:00:00Z"
+      },
+      "dimensionsSpec": {}
+    },
+    "type": "index",
+    "tuningConfig": {
+      "type": "index"
+    }
+  },
+  "samplerConfig": {
+    "numRows": 500,
+    "timeoutMs": 15000
+  }
+}
+```
+
+to:
+
+`/druid/indexer/v1/sampler`
+
+You get back:
+
+```json
+{
+  "numRowsRead": 2,
+  "numRowsIndexed": 2,
+  "data": [
+    {
+      "input": {
+        "make": "Honda",
+        "model": "Odyssey",
+        "a": null
+      },
+      "parsed": {
+        "__time": 0,
+        "model": "Odyssey",
+        "make": "Honda"
+      }
+    },
+    {
+      "input": {
+        "make": "Tesla",
+        "model": "Cybertruck",
+        "a": null
+      },
+      "parsed": {
+        "__time": 0,
+        "model": "Cybertruck",
+        "make": "Tesla"
+      }
+    }
+  ]
+}
+```
+
+Notice how the `a` column is in not returned as part of a the parsed section.
+
+This creates issues with columns that happen to be all `null` in the sample (of 20) that is used by the console.
+
+Just to be clear: I would expect the column to show up in the `parsed` section even if all the values for it are `null`

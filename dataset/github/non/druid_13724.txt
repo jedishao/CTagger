@@ -1,0 +1,19 @@
+Pravega Druid extension
+### Motivation
+Pravega is a storage system for data streams. It stores large amounts of data in a row-oriented manner which allows for all data points relating to one object to be stored in the same data block. This is beneficial for queries needing to read and manipulate an entire object, but it is slow to analyze large amounts of data. This is an issue because when we want to process events via big data
+analytics queries, efficiency is poor. Creating a Druid Pravega extension would allow for Pravega streams to be fetched and stored in Druid's column oriented structure allowing for efficient querying on the data.
+
+### Proposed changes
+Within druid/extension-core, the `pravega-indexing-service` directory will be created to store the plugin/connector. We aim to create a custom class that will inherit from the SeekableStream class (similar to the Kafka connector).  This will allow for a stream to be read from a specified point in time. 
+
+Pravega API will be used to fetch the events contained within the streams which will then need to be transformed to a druid compatible format such as JSON (with timestamp and dimensions added).  Then an ingestion task will need to be started utilizing the Druid Overlord, alongside the ingestion spec which tells Druid where to find the data, the format of the data, and how to index it. Lastly, the Druid ingestion API will be utilized to store the information into Druid.
+
+The existing Kafka Druid connector will be used as a reference for creating this Pravega Druid connector.
+
+### Rationale
+This solution is the best one because Druid works best with event oriented data, perfect for Pravega integration since Pravega's streams contain segments which consist of events that were gathered from a variety of data sources. Druid's high efficiency and ability to compress columns made it the best choice to integrate with Pravega. 
+
+### Operational impact
+The operational impact of adding a Druid Pravega connector would depend on factors such as the size of the data being processed, current Druid infrastructure, as well as the design of the Druid Pravega connector itself. The connector could increase load on the system if the connector handles a lot of data, potentially decreasing performance.
+
+Nothing in the current Druid design will be removed, only additions will be made to mimic the Kafka Druid connector. 

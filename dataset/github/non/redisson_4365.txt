@@ -1,0 +1,33 @@
+Retry Attempt with Schedule
+Hi,
+
+I'm using the Redisson to schedule tasks using the schedule method. What i would like to know is the expected behavior when an exception is thrown during the task execution.
+
+I expected that after the exception was thrown, the task would be rescheduled again taking into account the values in retryInterval and retryAttempts.
+
+The example is quite simple. A task is schedule to run every 10 minutes. The task only throws an exception.
+
+`RScheduledFuture<?> future = RExecutor.schedule(new TestTask(), CronSchedule.of("0 */10 * * * *"));`
+
+```
+public class TestTask implements Runnable, Serializable {
+
+    @RInject
+    private RedissonClient redissonClient;
+
+    public TestTask() {
+    }
+
+    @SneakyThrows
+    @Override
+    public void run() {
+        throw new ApiFailureException("test");
+    }
+
+}
+```
+If the retryInterval is 1min and the retryAttempts 3, I was expecting that, after the task starts, an exception was thrown and then the task was rescheduled for a minute later (3 times).
+
+Is this the expected behavior?
+
+Thanks

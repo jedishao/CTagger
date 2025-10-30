@@ -1,0 +1,17 @@
+Presto and keystores in PKCS12 format
+Hi everybody,
+
+I am running a little Presto cluster with 5 worker nodes and one coordinator, version 0.226. So far I have been using https for intra-worker communications and worker-coordinator communications, via self signed CA and jks keystores. I am trying to migrate this setting to another one that uses PKCS12 keystores, but for some reason it doesn't work. I don't see any error logs when coordinator/workers start, but the workers are unable to contact the coordinator emitting only:
+
+```
+io.airlift.discovery.client.Announcer        Cannot connect to discovery server for announce: Announcement failed for https://host:port
+```
+(host:port combination is the right one that works fine with jks keystores).
+
+I tried to enable debug logging to see if any hint appeared in the logs about what it is failing, but didn't get anything. I see something like:
+
+```
+INFO        main        org.eclipse.jetty.util.ssl.SslContextFactory        x509=X509@468be356(1,h=[an-presto1001.eqiad.wmnet],w=[]) for SslContextFactory@5c9ac4cc[provider=null,keyStore=file:///etc/presto/ssl/server.p12,trustStore=null]
+```
+
+That seems to indicate that the keystore is read, but now I am wondering if PKCS12 keystores are supported in Presto?

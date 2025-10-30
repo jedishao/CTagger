@@ -1,0 +1,52 @@
+Concurrent PrestoQueries are getting Slow as Concurrency increases
+Hi All,
+
+I am doing stress testing of Presto queries on hudi tables on S3. When I run the query individually I am getting the result in **3 seconds**, but when I increase the concurrency(100 queries/sec), the queries are getting slower  - **20 seconds** (every stage - planning, execution etc.)
+
+**My Environment Details:**
+
+- Cloud: AWS
+- Platform: Presto on EMR
+- EMR Version: 6.5.0
+- Presto Version: 0.261
+- Storage: AWS S3
+- External Hive Metastore: AWS Aurora - MySQL
+- Hive Version: 3.1.2
+
+**Cluster Info:**
+Instance Type: r5.4xlarge
+No of nodes: 32
+
+**Presto Configuration:**
+
+  {
+    "Classification": "emrfs-site",
+    "Properties": {
+      "fs.s3.maxConnections": "50000"
+    }
+  },
+  {
+    "Classification": "presto-config",
+    "Properties": {
+      "task.concurrency": "16",
+      "query.max-concurrent-queries": "256",
+      "task.max-worker-threads": "256",
+      "node-scheduler.max-splits-per-node": "512",
+      "node-scheduler.max-pending-splits-per-task": "512",
+      "query.max-memory": "1274GB",
+      "query.max-memory-per-node": "19GB",
+      "query.max-total-memory-per-node": "39GB",
+      "task.http-response-threads": "5000",
+      "resources.reserved-system-memory": "29GB",
+      "query.remote-task.max-callback-threads": "5000",
+      "query.execution-policy": "phased",
+      "query.manager-executor-pool-size": "10"
+    },
+    "Configurations": []
+  }
+  
+
+<img width="700" alt="Screen Shot 2022-03-15 at 11 29 40 AM" src="https://user-images.githubusercontent.com/22526075/158413212-7c3ef41d-03e4-40e5-bcf7-29336a83f855.png">
+
+Could you please help me on what am I doing wrong?
+ 

@@ -1,0 +1,22 @@
+Fairlock does not work properly
+Hi
+I'm having problem using redisson fairlock.
+When there's so many threads in the lock queue, the thread didn't try to acquire lock and failed to acquire.
+So I checked the ttl that "tryLockInnerAsync" returns and found that it keeps decreasing.
+Eventually the thread got ttl of 3 seconds and failed to acquire lock.
+
+However, I found an suspicious point of "tryLockInnerAsync" function in "RedissonLock" class.
+![image](https://user-images.githubusercontent.com/11921551/207798003-769596f2-874a-41a3-87c2-086f6ca8ddf5.png)
+The first one passes variable unit.
+But the next one passes TimeUnit.MILLISECONDS.
+I think it affects to calculate ttl and should be same for unit.
+When leaseTime is milliseconds and waitTime is seconds, it can be a problem.
+Is there any reason to always send "TimeUnit.MILLISECONDS"?
+Thanks in advance.
+
+Redis version
+5.0.9
+Redisson version
+3.13.6
+Redisson configuration
+default config

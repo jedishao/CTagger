@@ -1,0 +1,74 @@
+ Redisson TTL value -1 Issue | version : 3.16.5
+Hi,
+
+Though, we are explicitly providing the TTL for our cache keys, when we check the ttl of the keys in redis-cli using : `ttl <key>`, we are getting `-1`. As per Redis docs, `"-1"` means the key won't expire. We have configured the TTL value to be set as `9000ms` for testing purposes.
+
+Also a few observations : 
+
+- Though the ttl command returns -1, we have observed that the key indeed gets expired in approx. 9 seconds.
+- The above is however very intermittent, sometimes a few keys get expired and a few not, sometimes no key would get expired.
+
+Please find below the cache configuration file that we are using, for your reference : 
+
+`public class CacheConfiguration extends CachingConfigurerSupport {
+
+    private final CacheProps cacheProperties;
+    private final RedisProps redisProperties;
+
+    @Autowired
+    public CacheConfiguration(CacheProps cacheProperties, RedisProps redisProperties) {
+        this.cacheProperties = cacheProperties;
+        this.redisProperties = redisProperties;
+    }
+
+    @Bean(name ="redisson", destroyMethod="shutdown")
+    public RedissonClient redissonClient(){
+        Config config = new Config();
+        String connectionProtocol = System.getenv("NODE_ENV").equals("local") ? "redis://" : "rediss://";
+        String url = connectionProtocol + redisProperties.getHost() + ":" + redisProperties.getPort();
+        SingleServerConfig singleServerConfig = config.useSingleServer();
+        singleServerConfig.setAddress(url)
+                .setDatabase(redisProperties.getDatabase())
+                .setConnectTimeout(redisProperties.getConnectTimeout())
+                .setConnectionPoolSize(redisProperties.getConnectionPoolSize())
+                .setConnectionMinimumIdleSize(redisProperties.getConnectionMinimumIdleSize());
+
+        if(redisProperties.getApiKey()!=null && !redisProperties.getApiKey().isEmpty()) {
+            singleServerConfig.setPassword(redisProperties.getApiKey());
+        }
+
+        try {
+            return Redisson.create(config);
+        } catch (Exception e) {
+            log.error("RedissonClient init redis url:[{}], Exception:", url, e);
+            return null;
+        }
+    }
+
+    @Bean
+    @Override
+    public CacheManager cacheManager() {
+        Map<String, CacheConfig> config = new HashMap<>();
+        CacheConfig cacheConfig = new CacheConfig();
+        cacheConfig.setTTL(cacheProperties.getTtl()); // The value of ttl is set to 9000ms for testing purposes
+        cacheConfig.setMaxIdleTime(cacheProperties.getMaxIdleTime()); // The value of maxIdleTime is set to 0
+        for(String cache: CacheConstant.CACHE_LIST_WITH_DEFAULT_CONFIG){
+            config.put(CacheConstant.getCacheNameWithPrefix(cache),cacheConfig);
+        }
+        return new RedissonSpringCacheManager(redissonClient(), config);
+    }
+
+    @Bean
+    @Override
+    public CacheResolver cacheResolver() {
+        return new PropertyResolvingCacheResolver(cacheManager());
+    }
+
+    @Bean
+    @Override
+    public KeyGenerator keyGenerator() {
+        return new CustomCacheKeyGenerator();
+    }
+}`
+
+

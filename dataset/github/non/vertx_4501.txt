@@ -1,0 +1,40 @@
+http responses from server are cut-off for certain files when Brotli compression is enabled.
+### Version
+
+vert.x 4.3.3.
+
+### Context
+
+Using a vertx http2 server with tls and configured with the new brotli support, some resources are cut-off in the response. This seems to be slightly rare, as it only seems to happen for 2/40 files loaded from an index page (one js file UTF-8 and one webfont, see reproducer).
+
+Configured as documented here (note: brotli4j's requirement for native libs is missing from vert.x documentation)
+https://vertx.io/docs/vertx-core/java/#_http_compression_algorithms
+
+### Do you have a reproducer?
+
+See: https://github.com/codingchili/vertx-brotli-reproducer
+
+### Steps to reproduce
+
+1. Create a vert.x http/2 server with tls and brotli enabled per the docs.
+2. Request files from the server and note that files are cut-off. 
+
+For instructions on running the reproducer, see README.md.
+
+### Extra
+
+Environment
+* JVM: 17.0.1 (Oracle Corporation 17.0.1+12-39)
+* OS:   Windows 10 10.0 amd64
+
+Brotli version
+```
+implementation 'com.aayushatharva.brotli4j:brotli4j:1.8.0'
+implementation 'com.aayushatharva.brotli4j:native-windows-x86_64:1.8.0'
+```
+
+Vert.x
+```
+implementation 'io.vertx:vertx-core:4.3.3'
+implementation 'io.vertx:vertx-web:4.3.3'
+```

@@ -1,0 +1,52 @@
+Suggestions for Segments doc
+Suggestions to improve the segments.md and compaction.md files raised by Paul Rogers in the PR: https://github.com/apache/druid/pull/12344 but outside the scope of that change.
+***
+segments.md
+--------------
+Text: Note that the bitmap is different from the dictionary and list data structures: the dictionary and list grow linearly with the size of the data, but the size of the bitmap section is the product of data size * column cardinality. 
+
+Paul Rogers: I believe that the dictionary grows linearly with the cardinality of the data (number of unique values.)
+***
+Text: A ColumnDescriptor is an object that allows the use of Jackson's polymorphic deserialization to add new and interesting methods of serialization with minimal impact to the code. It consists of some metadata about the column (for example: type, whether it's multi-value) and a list of serialization/deserialization logic that can deserialize the rest of the binary.
+
+Paul Rogers: Not user this paragraph is of value to most users. It seems of more interest to developers of Druid or extensions.
+***
+Text: foo_2015-01-01/2015-01-02_v1_0
+
+Paul Rogers: Since / is the Unix/Linux directory path separator, the actual file name probably uses an underscore. The format shown here may be for S3. The local file naming format (on my Mac) seems much different. Maybe get an update from the Druid folks?
+***
+Text: By default, Druid string dimension columns use the values `''` and `null` interchangeably and numeric and metric columns can not represent `null` at all, instead coercing nulls to `0`. However, Druid also provides a SQL compatible null handling mode, which you can enable at the system level, through `druid.generic.useDefaultValueForNull`. This setting, when set to `false`, allows Druid to create segments _at ingestion time_ in which the string columns can distinguish `''` from `null`, and numeric columns which can represent `null` valued rows instead of `0`.
+
+Paul Rogers: This is a tricky area! As it turns out, Druid does both, and the effect is throughout the system, not just in the storage layer.
+***
+Text: In "SQL-compatible" mode, blanks and NULL values are distinct: a column can be NULL, '' or 'foo'. In "replace nulls with blanks" (legacy) mode. blanks are considered to be NULL, there is no NULL value, and it is impossible to store a blank string.
+Same story with numbers for 0 and NULL.
+
+This option must be set at the time that Druid is first installed. Choose wisely as behavior will be surprising if the setting is changed once the system contains data.
+
+This means that users should decide, when first installing Druid, if their app requires NULL (unknown) values, or if the incoming data uses blanks & zeros for missing values. Configure Druid accordingly. After that, the data stored in the system, and the computation engine, will all work consistently with that choice. In SQL, in non-SQL compatible mode (i.e. useDefaultValueForNull=true, a NULL constant in SQL will be treated as either a blank string or zero, depending on the data type.
+
+Paul Rogers: This topic really deserves its own section or page, since it pretty much means that Druid is two different systems and the user must choose which to use at the first installation.
+***
+Text: String dimension columns contain no additional column structures in this mode, instead they reserve an additional dictionary entry for the `null` value. Numeric columns are stored in the segment with an additional bitmap in which the set bits indicate `null` valued rows. 
+
+Paul Rogers: in this mode: in which mode? To keep things sane, perhaps have one section for SQL-compatible null behavior, another for Druid Native behavior. (I call it "Druid Native" because "replace nulls with blanks or zeros behavior" is too much of a mouthful.)
+***
+Text: The `smoosh` files represent multiple files "smooshed" together in order to minimize the number of file descriptors that must be open to house the data. They are files of up to 2GB in size (to match the limit of a memory mapped ByteBuffer in Java). The `smoosh` files house individual files for each of the columns in the data as well as an `index.drd` file with extra metadata about the segment.
+
+Paul Rogers: Question: above we said segments should ideally be 300-700 MB in size. But, here, we say that individual smoosh files must be less than 2GB. Since a segment can consist of multiple such files, that would give a segment size of, say, 10 * 2GB = 20GB, which would be rather large.
+
+Maybe we can explain how many smoosh files we try to create. Do we always create just one? More than one if data size is above some number? This is probably another @gianm question.
+***
+Text: For each row in the list of column data, there is only a single bitmap that has a non-zero entry. 
+
+Victoria Lim: What does this mean? Where do I see the non-zero entry?
+***
+compaction.md
+----------------
+
+Text: Apache Druid supports schema changes. Therefore, dimensions can be different across segments even if they are a part of the same data source. See [Different schemas among segments](../design/segments.md#segments-with-different-schemas). If the input segments have different dimensions, the resulting compacted segment include all dimensions of the input segments. 
+
+Paul Rogers: "include all dimensions of the input segments" --> "includes the union of all columns across all the input segments".
+
+What happens if column c occurs in two input segments, but with differing types? Would be good to ask a Druid engineer what happens, then record that here.

@@ -1,0 +1,26 @@
+Services accessing MetadataStore crashes when DBCP settings are provided
+### Affected Version
+
+0.17.0
+
+### Description
+
+**Cluster size:** Can be produced at any size
+
+**Configurations in use**
+
+The following parameters are passed to coordinator (we're using official Docker images that's why they're splitted by `_`):
+
+```
+druid_metadata_storage_connector_dbcp_initialSize: 50
+druid_metadata_storage_connector_dbcp_maxTotal: 50
+druid_metadata_storage_connector_dbcp_maxIdle: 50
+```
+
+When these settings are in place, coordinator instances simply crash with the following stack trace:
+
+[stack.txt](https://github.com/apache/druid/files/4502755/stack.txt)
+
+The issue seems to be a decision made in commons-dbcp2 where they try to initialize the data source if `initialSize` is anything greater than 0. DBCP assumes that the data source is already initialized with necessary parameters at that stage however Druid passes some required parameters after the data source is initialized including the driver.
+
+An easy workaround is to omit initialSize and use min/max size instead. However in case one needs to initialize the requested number of connections from the start, it seems to be impossible.

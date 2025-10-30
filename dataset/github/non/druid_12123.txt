@@ -1,0 +1,14 @@
+Kafka Indexing does not fail ingestion task on OffsetOutOfRangeException even when no reset policy is configured
+### Affected Version
+
+0.22.1
+
+### Description
+
+Steps to reproduce:
+
+1. Create Kafka Supervisor (setting `resetOffsetAutomatically=false`) and let it read data from kafka until offset n (n > 0)
+2. Reset the kafka Topic, so that the latest offset gets resetted in kafka. Now druid tries to read data from offset n which is not (yet) existent in kafka since it got resetted
+3. Kafka Index task is not able to ingest any more data, yet the tasks reports a success status after taskDuration
+
+The expected behavior would be that the index tasks fails. Also the documentation indicates that the task should fail. 

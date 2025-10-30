@@ -1,0 +1,19 @@
+Reuse auxiliary buffers among BlockEncodingBuffers within the same partition in OptimizedPartitionedOutputOperator
+https://github.com/prestodb/presto/pull/14234 reuses positions (for nested level), offsets and mappedPositions between partitions. Ie. these buffers can be reused by the next partition if the current page can be consumed totally for the current partition. This can be improved to be reused between different BlockEncodingBuffers within the same partition, if we can move the calculation of row sizes into the Page/Block interface. Currently we need to calculated the row sizes in BlockEncodingBuffers after the positions/offsets are populated for all BlockEncodingBuffers in the same partition. This forbids reusing the buffers among BlockEncodingBuffers within the   same partition. If we can move the calculation of row sizes out of BlockEncodingBuffer, then we can populate the positions/offsets block by block within each partition
+
+``` 
+for each incoming page, 
+    populate top level positions for each partition;
+    calculate rowsizes by calling page.getSerializedRowSizes(int[] serializedRowSizes);
+for each partition
+    while the current page is not totally consumed
+        calculate batchSize for current batch;
+        for each column i
+            populate nested level positions, mappedpositions and offsets for the whole block if they are not populated yet(first batch in page)
+            blockEncodingBuffers[i].appendDataInBatch();
+            if the last batch, return nested level positions, mappedpositions and offsets to allocator
+```
+Most of times, a page can be consumed in a single batch. This new work flow would allow these buffers to be reused among blockEncodingBuffers as well as among partitions.
+
+The blocking issue is we need to add `page#getSerializedRowSizes(int[] serializedRowSizes)` to Page and  Block interface.
+        

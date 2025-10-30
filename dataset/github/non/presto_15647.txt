@@ -1,0 +1,39 @@
+Slow query with Intersect
+Query composed of Intersect operation transforms into an union followed by distinct groupby to conjugate all sources of the intersect. This could be a potential issue when the predicate on smaller table is unable to reduce the data output from large table causing more unncessary data to reduce at local exchange followed by the distinct aggregation.
+
+For example, for TPCDS - q14, CTE table `avg_sales` has 3 INTERSECTs for which each is a result of 3 table joins with a local predicate on the dimention table.  Each select is a result of multiple join operations, to intersect these selects, presto would need to scan all data sources. The filter predicate on the dimension table does not work properly to remove the other fact table on union operation. 
+
+`SELECT iss.i_brand_id    brand_id, 
+      iss.i_class_id    class_id, 
+      iss.i_category_id category_id 
+FROM   store_sales, 
+      item iss, 
+      date_dim d1 
+WHERE  ss_item_sk = iss.i_item_sk 
+      AND ss_sold_date_sk = d1.d_date_sk 
+      AND d1.d_year BETWEEN 1999 AND 1999 + 2 
+INTERSECT 
+SELECT ics.i_brand_id, 
+      ics.i_class_id, 
+      ics.i_category_id 
+FROM   catalog_sales, 
+      item ics, 
+      date_dim d2 
+WHERE  cs_item_sk = ics.i_item_sk 
+      AND cs_sold_date_sk = d2.d_date_sk 
+      AND d2.d_year BETWEEN 1999 AND 1999 + 2 
+INTERSECT 
+SELECT iws.i_brand_id, 
+      iws.i_class_id, 
+      iws.i_category_id 
+FROM   web_sales, 
+      item iws, 
+      date_dim d3 
+WHERE  ws_item_sk = iws.i_item_sk 
+      AND ws_sold_date_sk = d3.d_date_sk 
+      AND d3.d_year BETWEEN 1999 AND 1999 + 2`
+
+Problem with this query is that the dynamic filtering on `item` table is missing
+![image](https://user-images.githubusercontent.com/32091981/106092640-8d560680-60e3-11eb-8adf-20c5b4984a10.png)
+
+This can be optimized to transform INTERSECT into a join followed by distinct aggregation, to avoid reading more data that could potentially be skipped by the join filters in honor of dynamic filtering pushdown.

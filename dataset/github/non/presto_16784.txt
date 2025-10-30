@@ -1,0 +1,70 @@
+How to read files on hdfs in udf? Class org.apache.hadoop.hdfs.DistributedFileSystem not found 
+Hi,
+
+I need to read files on hdfs in udf, so when i try to read a file from hdfs
+
+it throws below exception
+
+```
+CurrencyPrestoUDFstaticsun.misc.Launcher$AppClassLoader@18b4aac2
+java.lang.RuntimeException: java.lang.ClassNotFoundException: Class org.apache.hadoop.hdfs.DistributedFileSystem not found
+at org.apache.hadoop.conf.Configuration.getClass(Configuration.java:2197)
+at org.apache.hadoop.fs.FileSystem.getFileSystemClass(FileSystem.java:2654)
+at org.apache.hadoop.fs.FileSystem.createFileSystem(FileSystem.java:2667)
+at org.apache.hadoop.fs.FileSystem.access$200(FileSystem.java:94)
+at org.apache.hadoop.fs.FileSystem$Cache.getInternal(FileSystem.java:2703)
+at org.apache.hadoop.fs.FileSystem$Cache.get(FileSystem.java:2685)
+at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:373)
+at org.apache.hadoop.fs.FileSystem$1.run(FileSystem.java:162)
+at org.apache.hadoop.fs.FileSystem$1.run(FileSystem.java:159)
+at java.security.AccessController.doPrivileged(Native Method)
+at javax.security.auth.Subject.doAs(Subject.java:422)
+at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1746)
+at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:159)
+at com.yoozoo.dw.udf.CurrencyPrestoUDF.<clinit>(CurrencyPrestoUDF.java:38)
+at sun.misc.Unsafe.ensureClassInitialized(Native Method)
+at java.lang.invoke.DirectMethodHandle$EnsureInitialized.computeValue(DirectMethodHandle.java:330)
+at java.lang.invoke.DirectMethodHandle$EnsureInitialized.computeValue(DirectMethodHandle.java:327)
+at java.lang.ClassValue.getFromHashMap(ClassValue.java:227)
+at java.lang.ClassValue.getFromBackup(ClassValue.java:209)
+at java.lang.ClassValue.get(ClassValue.java:115)
+at java.lang.invoke.DirectMethodHandle.checkInitialized(DirectMethodHandle.java:351)
+at java.lang.invoke.DirectMethodHandle.ensureInitialized(DirectMethodHandle.java:341)
+at java.lang.invoke.DirectMethodHandle.internalMemberNameEnsureInit(DirectMethodHandle.java:291)
+at java.lang.invoke.MethodHandle.invokeWithArguments(MethodHandle.java:627)
+at java.lang.invoke.MethodHandle.invokeWithArguments(MethodHandle.java:649)
+at com.facebook.presto.sql.InterpretedFunctionInvoker.invoke(InterpretedFunctionInvoker.java:99)
+at com.facebook.presto.sql.InterpretedFunctionInvoker.invoke(InterpretedFunctionInvoker.java:51)
+at com.facebook.presto.sql.planner.ExpressionInterpreter$Visitor.visitFunctionCall(ExpressionInterpreter.java:891)
+at com.facebook.presto.sql.tree.FunctionCall.accept(FunctionCall.java:119)
+at com.facebook.presto.sql.tree.AstVisitor.process(AstVisitor.java:27)
+at com.facebook.presto.sql.planner.ExpressionInterpreter.optimize(ExpressionInterpreter.java:267)
+```
+
+I tried to use plugin classloader but couldn’t find the right way. Can you help me?
+
+```java
+public class AddFunctionPlugin implements Plugin {
+    private static ClassLoader classLoader =Thread.currentThread().getContextClassLoader();
+    static {
+        if (classLoader == null) {
+            classLoader = AddFunctionPlugin.class.getClassLoader();
+        }
+        System.out.println("AddFunctionPlugin: "+classLoader.toString());
+    }
+
+    @Override
+    public Set<Class<?>> getFunctions()
+    {
+        try(ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)){
+            return ImmutableSet.<Class<?>>builder()
+                    .add(CurrencyPrestoUDF.class)
+                   .add(UnionMaxPrestoUDAF.class)
+                    .build();
+        }catch (Exception e){
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+}
+```

@@ -1,0 +1,64 @@
+Protocol error on H2C Server with compression enabled and blocking handler
+
+### Version
+
+Which version(s) did you encounter this bug ? 
+4.0.3
+
+### Context
+
+Following error is thrown by curl when performing h2c upgrade to the server configured with compression enabled and a blocking handler
+
+```
+*   Trying ::1...
+* TCP_NODELAY set
+* Connected to localhost (::1) port 8080 (#0)
+> GET / HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/7.64.1
+> Accept: */*
+> Connection: Upgrade, HTTP2-Settings
+> Upgrade: h2c
+> HTTP2-Settings: AAMAAABkAARAAAAAAAIAAAAA
+> 
+< HTTP/1.1 101 Switching Protocols
+< connection: upgrade
+< upgrade: h2c
+* Received 101
+* Using HTTP2, server supports multi-use
+* Connection state changed (HTTP/2 confirmed)
+* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+* http2 error: Remote peer returned unexpected data while we expected SETTINGS frame.  Perhaps, peer does not support HTTP/2 properly.
+* Connection #0 to host localhost left intact
+
+```
+
+### Do you have a reproducer?
+
+```
+public class Main {
+    public static void main(String[] args) {
+        Vertx vertx = Vertx.vertx();
+        var options = new HttpServerOptions()
+            .setCompressionSupported(true)
+            .setDecompressionSupported(true);
+        HttpServer server = vertx.createHttpServer(options);
+        Router router = Router.router(vertx);
+        router.get().blockingHandler(event -> {
+            event.end("pong");
+        });
+
+        server.requestHandler(router)
+                .listen(8080);
+    }
+}
+```
+
+### Steps to reproduce
+
+1. Run the above code snippet
+2. Execute
+```
+ curl --http2 localhost:8080 -v
+```
+

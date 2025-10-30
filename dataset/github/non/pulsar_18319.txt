@@ -1,0 +1,51 @@
+PIP-222: Add  CommandPartitionedTopicMetadata metrics
+### Motivation
+
+Currently, there's no way to track CommandPartitionedTopicMetadata requests. There's no metrics that indicate that a broker is handling CommandPartitionedTopicMetadata requests.
+
+[Misconfigured]( https://github.com/apache/pulsar/issues/18243#:~:text=One%20example%20of,a%20Pulsar%20client. ) clients might flood brokers with CommandPartitionedTopicMetadata requests and cause high CPU consumption.
+
+### Goal
+
+1. Provide `pulsar_broker_command_execution_latency` metric
+2. Provide `pulsar_broker_command_execution_failed` metric
+
+### API Changes
+
+_No response_
+
+### Implementation
+
+1. Initialize a `Histogram` instance in [ServerCnx.java](https://github.com/apache/pulsar/blob/master/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java) to record the command execution latency
+    ```
+    private static final Histogram COMMAND_EXECUTION_LATENCY = Histogram
+            .build("pulsar_broker_command_execution_latency", "-")
+            .unit("ms")
+            .labelNames("command")
+            .buckets(1, 10, 50, 100, 200, 500, 1000, 2000)
+            .register();
+    ```
+    The instance has the following labels:
+        a. cluster: The name of the cluster
+        b. command: The name of the command
+
+2. Initialize a `Counter` instance in [ServerCnx.java](https://github.com/apache/pulsar/blob/master/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java) to record the command execution failed ops  
+    ```
+    private static final Counter COMMAND_EXECUTION_FAILED = Counter
+            .build("pulsar_broker_command_execution_failed", "-")
+            .labelNames("command", "code")
+            .register();
+    ```
+    The instance has the following labels:
+    a. cluster: The name of the cluster
+    b. command: The name of the command
+    c. code: The command execution failed reason, see [ServerError](https://github.com/apache/pulsar/blob/67d9d63882a7814077646ace80a387f58600f20f/pulsar-common/src/main/proto/PulsarApi.proto#L193-L231)
+    
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+Related issue link: https://github.com/apache/pulsar/issues/18243

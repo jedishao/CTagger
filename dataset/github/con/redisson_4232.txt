@@ -1,0 +1,36 @@
+when redisson unlock throw Exception cause The lock is not released
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+when redisson unlock throw Exception cause The lock is not released
+cause: redis obtain pool timeout  so obtainLock.unlock()  is Exception but watch dog is  renew this key
+**Expected behavior**
+unlock success
+**Actual behavior**
+unlock failed
+**Steps to reproduce or test case**
+```java
+RLock obtainLock = redissonClient.getLock("test_unlock");
+        if (!obtainLock.tryLock()) {
+            return ;
+        }
+        try {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } finally {
+            //Simulation anomaly
+            if (true) {
+                throw new RuntimeException("");
+            }
+            //异常
+            obtainLock.unlock();
+        }
+```
+**Redis version**
+spring-data-redis-2.1.1-release
+**Redisson version**
+3.13.5
+**Redisson configuration**

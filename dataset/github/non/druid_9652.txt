@@ -1,0 +1,328 @@
+[Draft] 0.18.0 release notes
+Apache Druid 0.18.0 contains over 200 new features, performance enhancements, bug fixes, and major documentation improvements from 42 contributors. Check out the [complete list of changes](https://github.com/apache/druid/compare/0.17.0...0.18.0) and [everything tagged to the milestone](https://github.com/apache/druid/milestone/37).
+
+# New Features
+
+## Join support
+
+Join is a key operation in data analytics. Prior to 0.18.0, Druid supported some join-related features, such as Lookups or semi-joins in SQL. However, the use cases for those features were pretty limited and, for other join use cases, users had to denormalize their datasources when they ingest data instead of joining them at query time, which could result in exploding data volume and long ingestion time.
+
+Druid 0.18.0 supports real joins for the first time ever in its history. Druid supports INNER, LEFT, and CROSS joins for now. For native queries, the `join` datasource has been newly introduced to represent a join of two datasources. Currently, only the _left-deep_ join is allowed. That means, only a `table` or another `join` datasource is allowed for the left datasource. For the right datasource, `lookup`, `inline`, or `query` datasources are allowed. Note that join of Druid datasources is not supported yet. There should be only one `table` datasource in the same join query.
+
+Druid SQL also supports joins. Under the covers, SQL join queries are translated into one or several native queries that include join datasources. See [Query translation](TBD) for more details of SQL translation and best practices to write efficient queries.
+
+When a join query is issued, the Broker first _evaluates_ all datasources except for the base datasource which is the only `table` datasource in the query. The evaluation can include executing subqueries for `query` datasources. Once the Broker evaluates all non-base datasources, it replaces them with `inline` datasources and sends the rewritten query to data nodes (see the below "Query inlining in Brokers" section for more details). Data nodes use the hash join to process join queries. They build a hash table for each non-primary leaf datasource unless it already exists. Note that only `lookup` datasource currently has a pre-built hash table. See [Query execution](TBD) for more details about join query execution.
+
+Joins can affect performance of your queries. In general, any queries including joins can be slower than equivalent queries against a denormalized datasource. The `LOOKUP` function could perform better than joins with lookup datasources. See [Join performance](TBD) for more details about join query performance and future plans for performance improvement.
+
+https://github.com/apache/druid/pull/8728
+https://github.com/apache/druid/pull/9545
+https://github.com/apache/druid/pull/9111
+
+## Query inlining in Brokers
+
+Druid is now able to execute a nested query by inlining subqueries. Any type of subquery can be on top of any type of another, such as in the following example:
+
+```
+             topN
+               |
+       (join datasource)
+         /          \
+(table datasource)  groupBy
+```
+
+To execute this query, the Broker first evaluates the leaf groupBy subquery; it sends the subquery to data nodes and collects the result. The collected result is materialized in the Broker memory. Once the Broker collects all results for the groupBy query, it rewrites the topN query by replacing the leaf groupBy with an inline datasource which has the result of the groupBy query. Finally, the rewritten query is sent to data nodes to execute the topN query.
+
+## Query laning and prioritization
+
+When you run multiple queries of heterogenous workloads at a time, you may sometimes want to control the resource commitment for a query based on its priority. For example, you would want to limit the resources assigned to less important queries, so that important queries can be executed in time without being disrupted by less important ones.
+
+Query laning allows you to control capacity utilization for heterogeneous query workloads. With laning, the broker examines and classifies a query for the purpose of assigning it to a 'lane'. Lanes have capacity limits, enforced by the Broker, that can be used to ensure sufficient resources are available for other lanes or for interactive queries (with no lane), or to limit overall throughput for queries within the lane.
+
+Automatic query prioritization determines the query priority based on the configured strategy. The threshold-based prioritization strategy has been added; it automatically lowers the priority of queries that cross any of a configurable set of thresholds, such as how far in the past the data is, how large of an interval a query covers, or the number of segments taking part in a query.
+
+See https://github.com/apache/druid/blob/0.18.0/docs/configuration/index.md#query-prioritization-and-laning for more details.
+
+https://github.com/apache/druid/issues/6993
+https://github.com/apache/druid/pull/9407
+https://github.com/apache/druid/pull/9493
+
+### New dimension in query metrics
+
+Since a native query containing subqueries can be executed part-by-part, a new `subQueryId` has been introduced. Each subquery has different `subQueryId`s but same `queryId`. The `subQueryId` is available as a new dimension in query metrics.
+
+### New configuration
+
+A new `druid.server.http.maxSubqueryRows` configuration controls the maximum number of rows materialized in the Broker memory.
+
+Please see [docs (TBD)](TBD) for more details.
+
+https://github.com/apache/druid/pull/9533
+
+## SQL grouping sets
+
+GROUPING SETS is now supported, allowing you to combine multiple GROUP BY clauses into one GROUP BY clause. This GROUPING SETS clause is internally translated into the groupBy query with `subtotalsSpec`. The LIMIT clause is now applied after subtotalsSpec, rather than applied to each grouping set.
+
+https://github.com/apache/druid/pull/9122
+
+## SQL Dynamic parameters
+
+Druid now supports dynamic parameters for SQL. To use dynamic parameters, replace any literal in the query with a question mark (`?`) character. These question marks represent the places where the parameters will be bound at execution time. See https://github.com/apache/druid/blob/0.18.0/docs/querying/sql.md#query-syntax for more details.
+
+https://github.com/apache/druid/pull/6974
+
+# Important Changes
+
+## `applyLimitPushDownToSegments` is disabled by default
+
+`applyLimitPushDownToSegments` was added in 0.17.0 to push down limit evaluation to queryable nodes, limiting results during segment scan for groupBy v2. This can lead to performance degradation, as reported in https://github.com/apache/druid/issues/9689, if many segments are involved in query processing. This is because “limit push down to segment scan” initializes an aggregation buffer per segment, the overhead for which is not negligible. Enable this configuration only if your query involves a relatively small number of segments per historical or realtime task.
+
+https://github.com/apache/druid/pull/9711
+
+## New lag metrics for Kinesis
+
+Kinesis indexing service now provides new lag metrics, listed below, which are computed based on [MillisBehindLatest in GetRecords response in Kinesis](https://docs.aws.amazon.com/kinesis/latest/APIReference/API_GetRecords.html#Streams-GetRecords-response-MillisBehindLatest):
+
+- `ingest/{supervisor type}/lag/time`: total time in millis behind the latest offsets of the stream
+- `ingest/{supervisor type}/maxLag/time`: max time in millis behind the latest offsets of the stream
+- `ingest/{supervisor type}/avgLag/time`: avg time in millis behind the latest offsets of the stream
+
+https://github.com/apache/druid/pull/9509
+
+## Roaring bitmaps as default
+
+Druid supports two bitmap types, i.e., Roaring and CONCISE. Since Roaring bitmaps provide a better out-of-box experience (faster query speed in general), the default bitmap type is now switched to Roaring bitmaps. See https://github.com/apache/druid/blob/0.18.0/docs/design/segments.md#compression for more details about bitmaps.
+
+https://github.com/apache/druid/pull/9548
+
+## Complex metrics behavior change at ingestion time when SQL-compatible null handling is disabled (default mode)
+
+When SQL-compatible null handling is disabled, the behavior of complex metric aggregation at ingestion time has now changed to be consistent with that at query time. The complex metrics are aggregated to the default 0 values for nulls instead of skipping them during ingestion.
+
+https://github.com/apache/druid/pull/9484
+
+## Array expression syntax change
+
+Druid expression now supports typed constructors for creating arrays. Arrays can be defined with an explicit type. For example, `<LONG>[1, 2, null]` creates an array of `LONG` type containing `1`, `2`, and `null`. Note that you can still create an array without an explicit type. For example, `[1, 2, null]` is still a valid syntax to create an equivalent array. In this case, Druid will infer the type of array from its elements. This new syntax applies to empty arrays as well. `<STRING>[]`, `<DOUBLE>[]`, and `<LONG>[]` will create an empty array of `STRING`, `DOUBLE`, and `LONG` type, respectively.
+
+https://github.com/apache/druid/pull/9367
+
+## Enabling pending segments cleanup by default
+
+The `pendingSegments` table in the metadata store is used to create unique new segment IDs for appending tasks such as Kafka/Kinesis indexing tasks or batch tasks of appending mode. Automatic pending segments cleanup was introduced in 0.12.0, but has been disabled by default prior to 0.18.0. This configuration is now enabled by default.
+
+https://github.com/apache/druid/pull/9385
+
+## Creating better input splits for native parallel indexing
+
+The Parallel task now can create better splits. Each split can contain multiple input files based on their size. Empty files will be ignored. The split size is controllable with the new split hint spec. See https://github.com/apache/druid/blob/0.18.0/docs/ingestion/native-batch.md#split-hint-spec for more details.
+
+https://github.com/apache/druid/pull/9360
+https://github.com/apache/druid/pull/9450
+
+## Transform is now an extension point
+
+[`Transform`](https://github.com/apache/druid/blob/0.18.0/processing/src/main/java/org/apache/druid/segment/transform/Transform.java) is an `Interface` that represents a transformation to be applied to each row at ingestion time. This interface is now an Extension point. Please see https://druid.apache.org/docs/0.18.0/development/modules.html#writing-your-own-extensions for how to add your custom `Transform`.
+
+https://github.com/apache/druid/pull/9319
+
+## `chunkPeriod` query context is removed
+
+`chunkPeriod` has been deprecated since 0.14.0 because of its limited usage (it was sometimes useful for only groupBy v1). This query context is now removed in 0.18.0.
+
+https://github.com/apache/druid/pull/9216
+
+## Experimental support for Java 11
+
+Druid now experimentally supports Java 11. You can run the same Druid binary distribution with Java 11 which is compiled with Java 8. Our tests on Travis include:
+
+- Compiling and running unit tests with Java 11
+- Compiling with Java 8 and running integration tests with Java 11
+
+Performance testing results are not available yet.
+
+### Warnings for illegal reflective accesses when running Druid with Java 11
+
+Since Java 9, it issues a warning when it is found that some libraries use reflection to illegally access internal APIs of the JDK. These warnings will be fixed by modifying Druid codes or upgrading library versions in future releases. For now, these warnings can be suppressed by adding JVM options such as `--add-opens` or `--add-exports`. See [JDK 11 Migration Guide](https://docs.oracle.com/en/java/javase/11/migrate/index.html#JSMIG-GUID-7BB28E4D-99B3-4078-BDC4-FC24180CE82B) for more details.
+
+Some of the warnings are:
+
+```
+2020-01-22T21:30:08,893 WARN [main] org.apache.druid.java.util.metrics.AllocationMetricCollectors - Cannot initialize org.apache.druid.java.util.metrics.AllocationMetricCollector
+java.lang.reflect.InaccessibleObjectException: Unable to make public long[] com.sun.management.internal.HotSpotThreadImpl.getThreadAllocatedBytes(long[]) accessible: module jdk.management does not "exports com.sun.management.internal" to unnamed module @6955cb39
+```
+
+This warning can be suppressed by adding `--add-exports jdk.management/com.sun.management.internal=ALL-UNNAMED`.
+
+```
+2020-01-22T21:30:08,902 WARN [main] org.apache.druid.java.util.metrics.JvmMonitor - Cannot initialize GC counters. If running JDK11 and above, add --add-exports java.base/jdk.internal.perf=ALL-UNNAMED to the JVM arguments to enable GC counters.
+```
+
+This warning can be suppressed by adding `--add-exports java.base/jdk.internal.perf=ALL-UNNAMED`.
+
+```
+WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by com.google.inject.internal.cglib.core.$ReflectUtils$1 to method java.lang.ClassLoader.defineClass(java.lang.String,byte[],int,int,java.security.ProtectionDomain)
+WARNING: Please consider reporting this to the maintainers of com.google.inject.internal.cglib.core.$ReflectUtils$1
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+```
+
+This warning can be suppressed by adding `--add-opens java.base/java.lang=ALL-UNNAMED`.
+
+https://github.com/apache/druid/pull/7306
+https://github.com/apache/druid/pull/9491
+
+# New Extension
+
+## New Pac4j extension
+
+A new extension is added in 0.18.0 to enable [OpenID Connect](https://openid.net/connect/) based Authentication for Druid Processes. This can be used  with any authentication server that supports same e.g. [Okta](https://developer.okta.com/). This extension should only be used at the router node to enable a group of users in existing authentication server to interact with Druid cluster, using the [Web Console](../../operations/druid-console.html).
+
+https://github.com/apache/druid/pull/8992
+
+# Security Issues
+
+## [CVE-2020-1958] Apache Druid LDAP injection vulnerability
+
+[CVE-2020-1958](https://nvd.nist.gov/vuln/detail/CVE-2020-1958) has been reported recently and fixed in 0.18.0 and 0.17.1. When LDAP authentication is enabled, callers of Druid APIs can bypass the credentialsValidator.userSearch filter barrier or retrieve any LDAP attribute values of users that exist on the LDAP server, so long as that information is visible to the Druid server. Please see the description in the link for more details. It is _strongly_ recommended to upgrade to 0.18.0 or 0.17.1 if you are using LDAP authentication with Druid.
+
+https://github.com/apache/druid/pull/9600
+
+## Updating Kafka client to 2.2.2
+
+Kafka client library has been updated to 2.2.2, in which [CVE-2019-12399](https://nvd.nist.gov/vuln/detail/CVE-2019-12399) is fixed.
+
+https://github.com/apache/druid/pull/9259
+
+# Bug fixes
+
+Druid 0.18.0 includes 40 bug fixes. Please see https://github.com/apache/druid/pulls?page=1&q=is%3Apr+milestone%3A0.18.0+is%3Aclosed+label%3ABug for the full list of bug fixes.
+
+- Fix superbatch merge last partition boundaries (https://github.com/apache/druid/pull/9448)
+- Reuse transformer in stream indexing (https://github.com/apache/druid/pull/9625)
+- Preserve the null values for numeric type dimensions post-compaction (https://github.com/apache/druid/pull/9622)
+- DruidInputSource can add new dimensions during re-ingestion (https://github.com/apache/druid/pull/9590)
+- Error on value counter overflow instead of writing bad segments (https://github.com/apache/druid/pull/9559)
+- Fix some issues with filters on numeric columns with nulls (https://github.com/apache/druid/pull/9251)
+- Fix timestamp_format expr outside UTC time zone (https://github.com/apache/druid/pull/9282)
+- KIS task fail when setting segmentGranularity with time zone (https://github.com/apache/druid/issues/8690)
+- Fix issue with group by limit pushdown for extractionFn, expressions, joins, etc (https://github.com/apache/druid/pull/9662)
+
+# Upgrading to Druid 0.18.0
+
+Be aware of the following changes between 0.17.1 and 0.18.0 that you should be aware of before upgrading. If you're updating from an earlier version than 0.17.1, please see the release notes of the relevant intermediate versions.
+
+## S3 extension
+
+The S3 storage extension now supports cleanup of stale task logs and segments. When deploying 0.18.0, please ensure that your `extensions` directory does not have any older versions of `druid-s3-extensions` extension.
+
+https://github.com/apache/druid/pull/9459
+
+## Core extension for Azure
+
+The Azure storage extension has been promoted to a core extension. It also supports cleanup of stale task logs and segments now. When deploying 0.18.0, please ensure that your `extensions-contrib` directory does not have any older versions of `druid-azure-extensions` extension.
+
+https://github.com/apache/druid/pull/9394
+https://github.com/apache/druid/pull/9523
+
+## Google Storage extension
+
+The Google storage extension now supports cleanup of stale task logs and segments. When deploying 0.18.0, please ensure that your `extensions` directory does not have any older versions of `druid-google-extensions` extension.
+
+https://github.com/apache/druid/pull/9519
+
+## Hadoop AWS library included in binary distribution
+
+Hadoop AWS library is now included in the binary distribution for better out-of-box experience. When deploying 0.18.0, please ensure that your `hadoop-dependencies` directory or any other directories in the classpath does not have duplicate libraries.
+
+## PostgreSQL JDBC driver for Lookups included in binary distribution
+
+PostgreSQL JDBC driver for Lookups is now included in the binary distribution for better out-of-box experience. When deploying 0.18.0, please ensure that your `extensions/druid-lookups-cached-single` directory or any other directories in the classpath does not have duplicate JDBC drivers.
+
+https://github.com/apache/druid/pull/9399
+
+# Known Issues
+
+## Query failure with `topN` or `groupBy` on `scan` with multi-valued columns 
+
+Query inlining in Brokers is newly introduced in 0.18.0 but has a bug that queries with `topN` or `groupBy` on top of `scan` fail if the scan query selects multi-valued dimensions. See https://github.com/apache/druid/issues/9697 for more details.
+
+## Misleading `segment/unavailable/count` metric during handoff
+
+This metric is supposed to take the number of segments served by realtime tasks into consideration as well, but it isn't now. As a result, it appears that unavailability spikes up before the new segments are loaded by historicals, even if all segments actually are continuously available on some combination of realtime tasks and historicals.
+
+https://github.com/apache/druid/issues/9677
+
+## Slight difference between the result of `explain plan for` query and the actual execution plan
+
+The result of `explain plan for` can be slightly different from what Druid actually executes when the query includes joins or subqueries. The difference can be found in that each part of the query plan would be represented as if it was its own native query in the result of `explain plan for`. For example, for a join of a datasource `d1` and a groupBy subquery on datasource `d2`, the `explain plan for` could return a plan like below
+
+```
+     join
+    /    \
+scan    groupBy
+ |        |
+d1       d2
+```
+
+whereas the actual query plan Druid would execute is
+
+```
+     join
+    /    \
+  d1    groupBy
+          |
+         d2
+```
+
+## Other known issues
+
+For a full list of open issues, please see https://github.com/apache/druid/labels/Bug.
+
+# Credits
+
+Thanks to everyone who contributed to this release!
+
+@a2l007
+@abhishekrb19
+@aditya-r-m
+@AlexanderSaydakov
+@als-sdin
+@aP0StAl
+@asdf2014
+@benhopp
+@bjozet
+@capistrant
+@Caroline1000
+@ccaominh
+@clintropolis
+@dampcake
+@fjy
+@Fokko
+@frnidito
+@gianm
+@himanshug
+@JaeGeunBang
+@jihoonson
+@jon-wei
+@JulianJaffePinterest
+@kou64yama
+@lamber-ken
+@leventov
+@liutang123
+@maytasm
+@mcbrewster
+@mgill25
+@mitchlloyd
+@mrsrinivas
+@nvolungis
+@prabcs
+@samarthjain
+@sthetland
+@suneet-s
+@themaric
+@vogievetsky
+@xvrl
+@zachjsh
+@zhenxiao

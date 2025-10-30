@@ -1,0 +1,41 @@
+"Can't update cluster state" error often occurs when using AWS Elasticache.
+using the lock function, which is the biggest strength of redisson.
+
+As suggested, netty is using the latest version (4.1.75.Final).
+
+![스크린샷 2022-04-11 14 04 16](https://user-images.githubusercontent.com/20950994/162668362-304c38bb-f74b-4b3a-9f57-2768d84f0bc4.png)
+
+**In addition, netty-all is included.**
+
+![스크린샷 2022-04-11 14 05 17](https://user-images.githubusercontent.com/20950994/162668426-d099ec51-81eb-425a-8f47-2f5241323f2f.png)
+
+**The settings are as follows:**
+
+Config config = new Config().setCodec(StringCodec.INSTANCE);
+config.setCheckLockSyncedSlaves(false);
+config.setAddressResolverGroupFactory(new DnsAddressResolverGroupFactory());
+
+ClusterServersConfig clusterServersConfig = config.useClusterServers();
+clusterServersConfig.setConnectTimeout(3000);
+clusterServersConfig.setTimeout(10000);
+clusterServersConfig.setIdleConnectionTimeout(3000);
+clusterServersConfig.setPingConnectionInterval(3000);
+clusterServersConfig.setDnsMonitoringInterval(1000);
+clusterServersConfig.setScanInterval(1000);
+        clusterServersConfig.setNodeAddresses(Collections.singletonList("redis://"+redisProperty.getElasticache().getHost()+":"+redisProperty.getElasticache().getPort()));
+return Redisson.create(config);
+
+**I also implemented a new DnsAddressResolverGroupFactory and injected it like this:**
+
+![스크린샷 2022-04-12 10 23 42](https://user-images.githubusercontent.com/20950994/162859880-88a25543-1c8a-4d93-b2a0-31a28ad6b38f.png)
+
+Is there something I'm missing out on?
+
+Wouldn't changing dnsMonitoringInterval to -1 as suggested by @mrniko would lead to failover detection and other issues?
+
+Due to the nature of my application, lettuce is also used mixedly, and it is not occurring in lettuce.
+
+**The error content is as follows:**
+
+io.netty.resolver.dns.DnsResolveContext$SearchDomainUnknownHostException: Failed to resolve 'xxxxxxx.gxk3ue.clustercfg.apne1.cache.amazonaws.com' and search domain query for configured domains failed as well: [ap-northeast-1.compute.internal] at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1047) at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1000) at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:418) at io.netty.resolver.dns.DnsResolveContext.access$600(DnsResolveContext.java:66) at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:467) at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:578) at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:571) at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:550) at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:491) at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:616) at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:609) at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:117) at io.netty.resolver.dns.DnsQueryContext.tryFailure(DnsQueryContext.java:240) at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:192) at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:170) at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164) at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:469) at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:503) at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986) at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) at java.lang.Thread.run(Thread.java:748) Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [/10.0.0.2:53] query via UDP timed out after 2000 milliseconds (no stack trace available)
+

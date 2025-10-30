@@ -1,0 +1,129 @@
+Broker throws an exception "Field ordinal 7 is invalid for  type 'RecordType(TIMESTAMP(3) __time, VARCHAR metric, VARCHAR name, VARCHAR source, DOUBLE value)'"
+### Affected Version
+
+Druid version: 0.22.1
+
+### Description
+
+Deployed cluster:
+<img width="674" alt="Screen Shot 2022-04-18 at 2 14 32 PM" src="https://user-images.githubusercontent.com/10060411/163879166-38c9816c-dc0c-437c-bbf9-f753db5b1418.png">
+
+Query which I am using:
+```
+SELECT *
+      FROM (SELECT '4235' AS code, name,
+                   regexp_extract(metric, '(?<=\"production\":\")(.+?)(?=\")', 0) AS production,
+                   regexp_extract(metric, '(?<=\"station\":\")(.+?)(?=\")', 0) AS station,
+                   regexp_extract(metric, '(?<=\"issuer\":\")(.+?)(?=\")', 0) AS issuer,
+                   "value"
+            FROM "FAKE_car-metrics") AS metric
+               JOIN (SELECT
+                         regexp_extract(metric, '(?<=\"code\":\")(.+?)(?=\")', 0) AS code,
+                         regexp_extract(metric, '(?<=\"car\":\")(.+?)(?=\")', 0) AS car,
+                         regexp_extract(metric, '(?<=\"sponsor\":\")(.+?)(?=\")', 0) AS sponsor,
+                         regexp_extract(metric, '(?<=\"model\":\")(.+?)(?=\")', 0) AS model
+                     FROM "FAKE_car-metrics"
+                     WHERE source='ikig' AND name='relation'
+                     LIMIT 1) AS relation ON relation.code = metric.code
+```
+
+This query produces the following error:
+```
+2022-04-18T21:05:59,250 WARN [qtp1200391338-127] org.eclipse.jetty.server.HttpChannel - /druid/v2/sql
+javax.servlet.ServletException: java.lang.AssertionError: Field ordinal 7 is invalid for  type 'RecordType(TIMESTAMP(3) __time, VARCHAR metric, VARCHAR name, VARCHAR source, DOUBLE value)'
+    at com.sun.jersey.spi.container.servlet.WebComponent.service(WebComponent.java:420) ~[jersey-servlet-1.19.3.jar:1.19.3]
+    at com.sun.jersey.spi.container.servlet.ServletContainer.service(ServletContainer.java:558) ~[jersey-servlet-1.19.3.jar:1.19.3]
+    at com.sun.jersey.spi.container.servlet.ServletContainer.service(ServletContainer.java:733) ~[jersey-servlet-1.19.3.jar:1.19.3]
+    at javax.servlet.http.HttpServlet.service(HttpServlet.java:790) ~[javax.servlet-api-3.1.0.jar:3.1.0]
+    at com.google.inject.servlet.ServletDefinition.doServiceImpl(ServletDefinition.java:286) ~[guice-servlet-4.1.0.jar:?]
+    at com.google.inject.servlet.ServletDefinition.doService(ServletDefinition.java:276) ~[guice-servlet-4.1.0.jar:?]
+    at com.google.inject.servlet.ServletDefinition.service(ServletDefinition.java:181) ~[guice-servlet-4.1.0.jar:?]
+    at com.google.inject.servlet.ManagedServletPipeline.service(ManagedServletPipeline.java:91) ~[guice-servlet-4.1.0.jar:?]
+    at com.google.inject.servlet.ManagedFilterPipeline.dispatch(ManagedFilterPipeline.java:120) ~[guice-servlet-4.1.0.jar:?]
+    at com.google.inject.servlet.GuiceFilter.doFilter(GuiceFilter.java:135) ~[guice-servlet-4.1.0.jar:?]
+    at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.apache.druid.server.security.PreResponseAuthorizationCheckFilter.doFilter(PreResponseAuthorizationCheckFilter.java:82) ~[druid-server-0.22.1.jar:0.22.1]
+    at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.apache.druid.server.security.AllowHttpMethodsResourceFilter.doFilter(AllowHttpMethodsResourceFilter.java:78) ~[druid-server-0.22.1.jar:0.22.1]
+    at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.apache.druid.server.security.AllowOptionsResourceFilter.doFilter(AllowOptionsResourceFilter.java:75) ~[druid-server-0.22.1.jar:0.22.1]
+    at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.apache.druid.security.basic.authentication.BasicHTTPAuthenticator$BasicHTTPAuthenticationFilter.doFilter(BasicHTTPAuthenticator.java:208) ~[druid-basic-security-0.22.1.jar:0.22.1]
+    at org.apache.druid.server.security.AuthenticationWrappingFilter.doFilter(AuthenticationWrappingFilter.java:59) ~[druid-server-0.22.1.jar:0.22.1]
+    at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.apache.druid.server.security.SecuritySanityCheckFilter.doFilter(SecuritySanityCheckFilter.java:77) ~[druid-server-0.22.1.jar:0.22.1]
+    at org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1435) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501) ~[jetty-servlet-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1350) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:763) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.HandlerList.handle(HandlerList.java:59) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.StatisticsHandler.handle(StatisticsHandler.java:179) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.Server.handle(Server.java:516) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.HttpChannel.lambda$handle$1(HttpChannel.java:388) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.HttpChannel.dispatch(HttpChannel.java:633) ~[jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:380) [jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:277) [jetty-server-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:311) [jetty-io-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105) [jetty-io-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.io.ChannelEndPoint$1.run(ChannelEndPoint.java:104) [jetty-io-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.runTask(EatWhatYouKill.java:336) [jetty-util-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.doProduce(EatWhatYouKill.java:313) [jetty-util-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.tryProduce(EatWhatYouKill.java:171) [jetty-util-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.run(EatWhatYouKill.java:129) [jetty-util-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:383) [jetty-util-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:882) [jetty-util-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1036) [jetty-util-9.4.40.v20210413.jar:9.4.40.v20210413]
+    at java.lang.Thread.run(Thread.java:829) [?:?]
+Caused by: java.lang.AssertionError: Field ordinal 7 is invalid for  type 'RecordType(TIMESTAMP(3) __time, VARCHAR metric, VARCHAR name, VARCHAR source, DOUBLE value)'
+    at org.apache.calcite.rex.RexBuilder.makeFieldAccess(RexBuilder.java:197) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter.convertIdentifier(SqlToRelConverter.java:3725) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter.access$2200(SqlToRelConverter.java:217) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter$Blackboard.visit(SqlToRelConverter.java:4796) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter$Blackboard.visit(SqlToRelConverter.java:4092) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql.SqlIdentifier.accept(SqlIdentifier.java:317) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter$Blackboard.convertExpression(SqlToRelConverter.java:4656) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter.convertSelectList(SqlToRelConverter.java:3939) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter.convertSelectImpl(SqlToRelConverter.java:670) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter.convertSelect(SqlToRelConverter.java:627) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter.convertQueryRecursive(SqlToRelConverter.java:3181) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.sql2rel.SqlToRelConverter.convertQuery(SqlToRelConverter.java:563) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.calcite.prepare.PlannerImpl.rel(PlannerImpl.java:254) ~[calcite-core-1.21.0.jar:1.21.0]
+    at org.apache.druid.sql.calcite.planner.DruidPlanner.plan(DruidPlanner.java:183) ~[druid-sql-0.22.1.jar:0.22.1]
+    at org.apache.druid.sql.SqlLifecycle.plan(SqlLifecycle.java:313) ~[druid-sql-0.22.1.jar:0.22.1]
+    at org.apache.druid.sql.http.SqlResource.doPost(SqlResource.java:101) ~[druid-sql-0.22.1.jar:0.22.1]
+    at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+    at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+    at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+    at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+    at com.sun.jersey.spi.container.JavaMethodInvokerFactory$1.invoke(JavaMethodInvokerFactory.java:60) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.model.method.dispatch.AbstractResourceMethodDispatchProvider$ResponseOutInvoker._dispatch(AbstractResourceMethodDispatchProvider.java:205) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.model.method.dispatch.ResourceJavaMethodDispatcher.dispatch(ResourceJavaMethodDispatcher.java:75) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.uri.rules.HttpMethodRule.accept(HttpMethodRule.java:302) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.uri.rules.ResourceClassRule.accept(ResourceClassRule.java:108) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.uri.rules.RightHandPathRule.accept(RightHandPathRule.java:147) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.uri.rules.RootResourceClassesRule.accept(RootResourceClassesRule.java:84) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.application.WebApplicationImpl._handleRequest(WebApplicationImpl.java:1542) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.application.WebApplicationImpl._handleRequest(WebApplicationImpl.java:1473) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.application.WebApplicationImpl.handleRequest(WebApplicationImpl.java:1419) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.server.impl.application.WebApplicationImpl.handleRequest(WebApplicationImpl.java:1409) ~[jersey-server-1.19.3.jar:1.19.3]
+    at com.sun.jersey.spi.container.servlet.WebComponent.service(WebComponent.java:409) ~[jersey-servlet-1.19.3.jar:1.19.3]
+    ... 58 more
+```
+
+Sometimes the number changes to `Field ordinal 5 is invalid...`.

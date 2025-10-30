@@ -1,0 +1,127 @@
+Low intermediate persist disk space may cause segments view to be inconsistent
+# Affected Version
+
+The Druid version where the problem was encountered.
+
+### 0.20.0
+
+# Description
+
+I'm currently running Druid with the following deployment:
+
+- Druid on Kubernetes
+- PSQL v13.3 as metadata database (MDDB)
+- S3 as deep storage (DS)
+- NFS for segment cache
+- GlusterFS for other volumes, such as `baseTaskDir`
+
+This bug was found when ingesting batch data using `index_parallel` task with `"segmentGranularity": "DAY"`.
+
+## The problem
+
+**The problem occurs when running this kind of ingestion within more than 1 month of data (in my case). I have noticed that not all the expected days were showing up when querying at the UI / Broker API, even with the datasource labeled as fully available at the UI and all segments shown at the DS, segment cache and MDDB.**
+
+## Possible root cause
+
+The root cause may be the low amount of disk given to `baseTaskDir` volume, of which leads ingestion tasks to fail.
+
+I also noticed that the same intervals highlighted at the failed tasks were retried afterwards, which caused them to be marked as succeeded.
+
+The space exception can be seen at Middle Manager logs, which highlights intervals that are not shown by the broker process when querying:
+
+![middlemanager](https://user-images.githubusercontent.com/37592752/144862549-d9708482-acf8-487a-9af8-3cbac63cf4f1.png)
+
+## What I expect
+
+I expect that if in fact the failed ingestion task causes segments to be corrupted because of intermediate persist disk space, the segment's intervals should not be loaded to S3, neither segment cache or MDDB, otherwise different services are showing different views of available (queryable) segments.
+
+Otherwise, if the failed ingestion task doesn't causes segments to be corrupted, then all data points inside the consulted interval should be returned.
+
+## Debug info
+
+To illustrate this problem I'll provide some query results for the month of may:
+
+### Querying at the broker process to return all days of specific interval (month of may):
+
+![broker](https://user-images.githubusercontent.com/37592752/144854627-d27df5b8-d563-4131-953d-83637958f606.png)
+
+### Querying `sys.segments` table at the UI:
+
+![sys-segments](https://user-images.githubusercontent.com/37592752/144866362-b55f5147-299b-4016-b6b6-f17123c1783d.png)
+
+### Querying `druid_segments` at PSQL:
+
+![psql](https://user-images.githubusercontent.com/37592752/144856147-d170d87c-a9ab-4420-b9bc-ffbfafd86385.png)
+
+### Querying at S3:
+
+![s3](https://user-images.githubusercontent.com/37592752/144854904-2e6703ef-0939-49be-97f7-ebaf034bfb5e.png)
+
+### Ingestion Spec
+
+I'll also provide the ingestion spec I used to load this datasource:
+
+```json
+{
+  "type": "index_parallel",
+  "spec": {
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "hdfs",
+        "paths": [
+          "hdfs://.../year=2021/month=1/*/*.gz",
+          "hdfs://.../year=2021/month=2/*/*.gz",
+          "hdfs://.../year=2021/month=3/*/*.gz"
+        ]
+      },
+      "inputFormat": {
+        "type": "json",
+        "flattenSpec": {
+          "fields": [
+            {
+              "name": "timestamp",
+              "type": "path",
+              "expr": "$.message.timestamp"
+            },
+            ...
+          ]
+        }
+      }
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "maxNumConcurrentSubTasks": 27,
+      "partitionsSpec": {
+        "type": "dynamic"
+      }
+    },
+    "dataSchema": {
+      "dataSource": "<DATASOURCE_NAME>",
+      "granularitySpec": {
+        "type": "uniform",
+        "queryGranularity": "HOUR",
+        "segmentGranularity": "DAY",
+        "rollup": true
+      },
+      "timestampSpec": {
+        "column": "timestamp",
+        "format": "iso"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          ...
+        ]
+      },
+      "metricsSpec": [
+        {
+          "name": "count_of_rows",
+          "type": "count"
+        },
+        ...
+      ]
+    }
+  }
+}
+```
+

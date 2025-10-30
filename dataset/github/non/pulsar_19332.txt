@@ -1,0 +1,69 @@
+Simplify authentication state management in Broker's ServerCnx class when networking with proxy
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+The current management is confusing and is not working correctly. We should improve it.
+
+TL;DR: The values for `authState` and `authenticationData` are ambiguous and can have different meanings depending on configuration and the lifecycle of the connection.
+
+## Current State of Client/Proxy/Broker Protocol Interaction
+
+Here are the current cases based on proxy configuration:
+
+A. Proxy sends connect command with only `originalPrincipal` (Update: this type of connection is not eligible for refreshing authentication data)
+B. Proxy sends connect command with `originalPrincipal` and `originalAuthData`
+
+Here are the two kinds of connections a proxy opens with the broker:
+
+1. `ProxyLookupRequests` - proxy handles lookup requests.
+2. `ProxyConnectionToBroker` - proxy handles all of other requests.
+
+In both states, the proxy first connects with the above connect command. 
+
+In case 1, the proxy always translates requests, and as such, `AuthChallenge` commands sent from broker to proxy are handled by the proxy. In case A, the proxy replies with its own `AuthData`. In case B, the proxy forwards the `AuthChallenge` to the client, gets the response, and forwards it to the broker.
+
+In case 2, after the initial connection is established (and authenticated), the proxy forwards bytes between client and broker without inspection. As such, for both cases A and B, all `AuthChallenge` commands are sent to the client.
+
+## The problem
+
+The broker's `ServerCnx` class has the following variables:
+
+In case A, the broker tracks variables named `authState`, `authRole`, `authenticationData`, and `originalPrincipal`. The only role that is meant for the client is the `originalPrincipal`. However, that is not how it actually works. In case 1, `authState`, `authRole`, `authenticationData` are all proxy values for the lifetime of the handler. In case 2, `authState`, `authRole`, `authenticationData` start out as proxy values but upon auth refresh, the values are updated to use the client's values. In order to get around some of the potential issues, we have the following code:
+
+https://github.com/apache/pulsar/blob/b3432f4ed9c9c19eef4ed696253eb2c18ebbf59d/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/ServerCnx.java#L718-L720
+
+However, this makes it hard to reason about the actual state because we're somewhat dependent on whether or not a refresh has taken place yet.
+
+In case B, it is slightly more confusing. Case B2 is the same as case A2. ~However, case 1A started out with the proxy not forwarding auth data, but when the broker refreshes the auth data, the `AuthChallenge` is sent to the client, so now the auth data is sent to the broker anyway.~ That condition isn't possible. Note that B1 is handled by the proxy forwarding the auth challenge to the client.
+
+## Consequences
+
+The primary issues present come though when doing authorization.
+
+## Other problems
+
+The `AuthResponse` command does not indicate which entity supplied the auth data. As such, we don't actually know if we should update the "original" auth data or the proxy's auth data.
+
+The current design does not allow for multistage authentication in certain cases.
+
+### Solution
+
+My proposed solution is to remove the `originalAuthState` and `originalAuthData` variables. We can still authenticate both the client's and the proxy's auth data, but we don't need to make it look like we're actively tracking the state for both the proxy and the client.
+
+As a result, we'll be able to simplify the authorization logic.
+
+### Alternatives
+
+Update the protocol to let make it clearer who's `AuthData` we're receiving.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,39 @@
+Officially support file based hive metastore
+We have an undocumented `hive.metastore = file` feature that allows us to use a local file as the hive metastore.
+We currently use this for testing. However, this can be very useful for Presto developers as it allows querying local
+files and also avoids launching a metadata service.
+
+The following config in `hive.properties` allows using a local file as the metastore.
+
+```
+connector.name=hive-hadoop2
+hive.metastore=file
+hive.metastore.catalog.dir=file:/data/hive_data/
+```
+
+Create a schema
+```
+ CREATE SCHEMA hive.warehouse;
+```
+The above query will create a folder as `/data/hive_data/warehouse`
+
+Create a table with any hive connector supported file formats
+```
+CREATE TABLE hive.warehouse.orders_csv("order_name" varchar, "quantity" varchar) WITH (format = 'CSV');
+CREATE TABLE hive.warehouse.orders_parquet("order_name" varchar, "quantity" int) WITH (format = 'PARQUET');
+```
+The above queries will create folders as 
+`/data/hive_data/warehouse/orders_csv`, `/data/hive_data/warehouse/orders_parquet`
+Users can now insert and query from these tables.
+
+The challenge to reading existing data files is that the metastore needs to know the file schema.
+We can automate this step for file-formats such as Parquet that contain the schema. 
+For other file-formats such as CSV, the user must manually specify the schema as above or provide 
+`.prestoSchema` and `.prestoPermissions` files.
+Once the table is created with the required schema, users can move existing data files to the table folder.
+Example, a CSV file say `orders.csv` with contents `books, 100` can be moved to `/data/hive_data/warehouse/orders_csv`
+and can be queried via Presto.
+
+Note that the `hive.metastore.catalog.dir` location can be on non-local file systems as well such as S3.
+
+This was discussed and approved by the TSC on https://github.com/prestodb/tsc/blob/master/meetings/2022-10-04.md

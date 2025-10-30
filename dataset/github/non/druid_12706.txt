@@ -1,0 +1,72 @@
+GC Counter is not enabled on JDK 11 and JDK 17
+### Affected Version
+
+Druid 0.22.1 and 0.23.0
+
+### Description
+
+I got this `WARN` message on JDK 11 and JDK 17.
+
+```bash
+2022-06-25T16:41:52,529 WARN [main] org.apache.druid.java.util.metrics.JvmMonitor - Cannot initialize GC counters. If running JDK11 and above, add --add-exports java.base/jdk.internal.perf=ALL-UNNAMED to the JVM arguments to enable GC counters.
+```
+But even after I added that, the `WARN` persist.
+
+So, I printed out the stacktrace:
+
+```bash
+java.lang.RuntimeException: Cannot perf data for process 61 - java.lang.IllegalAccessError: class org.gridkit.lab.jvm.perfdata.JStatData$PerfIntr (in unnamed module @0x4f209819) cannot access class sun.management.counter.Units (in module java.management) because module java.management does not export sun.management.counter to unnamed module @0x4f209819
+        at org.gridkit.lab.jvm.perfdata.JStatData.connect(JStatData.java:49) ~[jvm-attach-api-1.5.jar:?]
+        at org.apache.druid.java.util.metrics.JvmMonitor$GcCounters.<init>(JvmMonitor.java:191) ~[druid-core-0.23.0.jar:0.23.0]
+        at org.apache.druid.java.util.metrics.JvmMonitor.tryCreateGcCounters(JvmMonitor.java:167) [druid-core-0.23.0.jar:0.23.0]
+        at org.apache.druid.java.util.metrics.JvmMonitor.<init>(JvmMonitor.java:80) [druid-core-0.23.0.jar:0.23.0]
+        at org.apache.druid.java.util.metrics.JvmMonitor.<init>(JvmMonitor.java:70) [druid-core-0.23.0.jar:0.23.0]
+        at org.apache.druid.java.util.metrics.JvmMonitor.<init>(JvmMonitor.java:65) [druid-core-0.23.0.jar:0.23.0]
+        at org.apache.druid.server.metrics.MetricsModule.getJvmMonitor(MetricsModule.java:143) [druid-server-0.23.0.jar:0.23.0]
+        at org.apache.druid.server.metrics.MetricsModule$$FastClassByGuice$$99ddce1b.invoke(<generated>) [druid-server-0.23.0.jar:0.23.0]
+        at com.google.inject.internal.ProviderMethod$FastClassProviderMethod.doProvision(ProviderMethod.java:264) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderMethod$Factory.provision(ProviderMethod.java:401) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderMethod$Factory.get(ProviderMethod.java:376) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderToInternalFactoryAdapter$1.call(ProviderToInternalFactoryAdapter.java:46) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl.callInContext(InjectorImpl.java:1092) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderToInternalFactoryAdapter.get(ProviderToInternalFactoryAdapter.java:40) [guice-4.1.0.jar:?]
+        at org.apache.druid.guice.LifecycleScope$1.get(LifecycleScope.java:68) [druid-core-0.23.0.jar:0.23.0]
+        at com.google.inject.internal.InternalFactoryToProviderAdapter.get(InternalFactoryToProviderAdapter.java:41) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl$2$1.call(InjectorImpl.java:1019) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl.callInContext(InjectorImpl.java:1092) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl$2.get(InjectorImpl.java:1015) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl.getInstance(InjectorImpl.java:1054) [guice-4.1.0.jar:?]
+        at org.apache.druid.server.metrics.MetricsModule.getMonitorScheduler(MetricsModule.java:102) [druid-server-0.23.0.jar:0.23.0]
+        at org.apache.druid.server.metrics.MetricsModule$$FastClassByGuice$$99ddce1b.invoke(<generated>) [druid-server-0.23.0.jar:0.23.0]
+        at com.google.inject.internal.ProviderMethod$FastClassProviderMethod.doProvision(ProviderMethod.java:264) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderMethod$Factory.provision(ProviderMethod.java:401) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderMethod$Factory.get(ProviderMethod.java:376) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderToInternalFactoryAdapter$1.call(ProviderToInternalFactoryAdapter.java:46) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl.callInContext(InjectorImpl.java:1092) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderToInternalFactoryAdapter.get(ProviderToInternalFactoryAdapter.java:40) [guice-4.1.0.jar:?]
+        at org.apache.druid.guice.LifecycleScope$1.get(LifecycleScope.java:68) [druid-core-0.23.0.jar:0.23.0]
+        at com.google.inject.internal.InternalFactoryToProviderAdapter.get(InternalFactoryToProviderAdapter.java:41) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.FactoryProxy.get(FactoryProxy.java:56) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderToInternalFactoryAdapter$1.call(ProviderToInternalFactoryAdapter.java:46) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl.callInContext(InjectorImpl.java:1092) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.ProviderToInternalFactoryAdapter.get(ProviderToInternalFactoryAdapter.java:40) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.SingletonScope$1.get(SingletonScope.java:194) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InternalFactoryToProviderAdapter.get(InternalFactoryToProviderAdapter.java:41) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InternalInjectorCreator$1.call(InternalInjectorCreator.java:205) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InternalInjectorCreator$1.call(InternalInjectorCreator.java:199) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InjectorImpl.callInContext(InjectorImpl.java:1085) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InternalInjectorCreator.loadEagerSingletons(InternalInjectorCreator.java:199) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InternalInjectorCreator.injectDynamically(InternalInjectorCreator.java:180) [guice-4.1.0.jar:?]
+        at com.google.inject.internal.InternalInjectorCreator.build(InternalInjectorCreator.java:110) [guice-4.1.0.jar:?]
+        at com.google.inject.Guice.createInjector(Guice.java:99) [guice-4.1.0.jar:?]
+        at com.google.inject.Guice.createInjector(Guice.java:73) [guice-4.1.0.jar:?]
+        at com.google.inject.Guice.createInjector(Guice.java:62) [guice-4.1.0.jar:?]
+        at org.apache.druid.initialization.Initialization.makeInjectorWithModules(Initialization.java:449) [druid-server-0.23.0.jar:0.23.0]
+        at org.apache.druid.cli.GuiceRunnable.makeInjector(GuiceRunnable.java:93) [druid-services-0.23.0.jar:0.23.0]
+        at org.apache.druid.cli.ServerRunnable.run(ServerRunnable.java:62) [druid-services-0.23.0.jar:0.23.0]
+        at org.apache.druid.cli.Main.main(Main.java:114) [druid-services-0.23.0.jar:0.23.0]
+```
+
+It looks like `java.management/sun.management=ALL-UNNAMED` is needed.
+
+But unfortunately, even after I added it as either `--add-exports` or `--add-opens`, the problem persists. Anyone else got other ideas?

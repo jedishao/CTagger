@@ -1,0 +1,59 @@
+Remove eager loading and on-heap caching of "internalFiles" map in SmooshedFileMapper
+This is a not-so-straightforward follow-up to https://github.com/apache/druid/pull/10295
+
+### Motivation
+
+For each segment loaded, there is one instance of `SmooshedFileMapper` which contains a `Map<String, Metadata>` where each entry typically is for one column (in certain cases there could be more per column but that is not important for the discussion here). Depending upon number of segments loaded and number of columns, this wastes heap and there is no real reason to keep that map around in the heap during the full lifetime of Druid process.
+
+### Proposed changes
+
+Remove `private final Map<String, Metadata> internalFiles` from `SmooshedFileMapper` and have something like following instead...
+
+```
+  private final File segmentBaseDir;
+  private static final ThreadLocal<InternalFilesObj> internalFileObjRef;
+
+  private static class InternalFilesObj
+  {
+    private final File segmentBaseDir;
+    private final Map<String, Metadata> internalFiles;
+
+    public InternalFilesObj(
+        File segmentBaseDir,
+        Map<String, Metadata> internalFiles
+    )
+    {
+      this.segmentBaseDir = segmentBaseDir;
+      this.internalFiles = internalFiles;
+    }
+  }
+
+  private Map<String, Metadata> getInternalFiles()
+  {
+    InternalFilesObj obj =  internalFileObjRef.get();
+    if (obj != null && obj.segmentBaseDir.equals(segmentBaseDir)) {
+      return obj.internalFiles;
+    } else {
+      Map<String, Metadata> internalFilesMap = loadInternalFilesMap();
+      obj = new InternalFilesObj(segmentBaseDir, internalFilesMap);
+      internalFileObjRef.set(obj);
+      return obj;
+    }
+  }
+```
+
+That leads to one map cached per thread rather than per loaded segment on the Druid node.
+
+### Rationale
+
+Another approach considered was to store that metadata information as a sorted set of columns names , and an array of `Metadata` objects in the metadata file (both created/stored using `GenericIndexedWriter`). With that, we can read the information from file directly without ever building an on-heap map object. Lookup would be O(lg N) but everything will be lazy and totally off-heap.
+However, current textual format of metadata.drd file is helpful while debugging and it is useful to be able to do `cat metadata.drd` and this alternative approach would make the format binary, Also a little more complex than the changes proposed above.
+
+### Operational impact
+
+None
+
+### Test plan (optional)
+
+Existing tests would cover the changes introduced.
+

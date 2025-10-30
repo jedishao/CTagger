@@ -1,0 +1,38 @@
+JsonParser: endHandler called before exceptionHandler
+### Version
+
+Vert.x 4.3.8
+
+### Context
+
+JsonParser  may now report errors with a call to exceptionHandler after endHandler is called.
+
+In 4.3.7 and earlier releases endHandler was guaranteed to be last callback if the document was valid.
+
+With new behavior it is impossible to determine if a document is valid unless just waiting for events to propagate.
+
+Related:
+
+#4596 
+#4597 
+
+### Do you have a reproducer?
+
+```java
+@Test
+  // 4.3.8 [end][exception]
+  // 4.3.7 [exception]
+  public void testErrorDoc(TestContext context) {
+    var async = context.async();
+    StringBuilder s = new StringBuilder();
+    JsonParser jsonParser = JsonParser.newParser();
+    jsonParser.endHandler(x -> s.append("[end]"));
+    jsonParser.exceptionHandler(x -> s.append("[exception]"));
+    jsonParser.write(Buffer.buffer("{"));
+    jsonParser.end();
+    Vertx.vertx().setTimer(10, x -> {
+      context.assertEquals("[end][exception]", s.toString());
+      async.complete();
+    });
+  }
+```

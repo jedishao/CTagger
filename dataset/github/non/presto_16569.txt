@@ -1,0 +1,10 @@
+Missing credentials are causing a different exception now
+In Apache Flink we are using PrestoS3FileSystem. We recently updated from presto-hive 0.187 to 0.257. This brought in a change of behavior in case credentials were missing. In our testcase, we intentionally provide no credentials and then check that `#exists()` on a path fails. We specifically asserted on an `IOException` here.
+
+Somewhere between 0.187 and 0.257, `PrestoS3FileSystem#initialize` was changed to call `createAwsCredentialsProvider`. Now if credentials are missing, this already fails and throws an `SdkClientException` instead.
+
+I'm not sure whether you consider this correct or not, but since presto uses `IOException` in many places and this has now changed I wanted to report it in case you consider this an unintended change in behavior.
+
+References:
+* https://issues.apache.org/jira/browse/FLINK-23635
+* https://github.com/apache/flink/pull/16717

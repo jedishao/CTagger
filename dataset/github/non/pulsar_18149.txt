@@ -1,0 +1,47 @@
+[Bug] Partitioned DLQ topic with topic name contains -partition- may cause broker crash
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Version: Pulsar 2.9.3
+
+### Minimal reproduce step
+
+broker set config as follow:
+```
+{
+    allowAutoTopicCreation: true,
+    allowAutoTopicCreationType: "partitioned",
+    defaultNumPartitions: 1
+}
+```
+Client consume a partitioned topic with default DLQ policy.
+When client trigger DLQ topic auto creation, a topic with name like `persistent://public/default/test-partition-0-sub-DLQ` will be created.
+
+Call admin api to get subscriptions or create subsction for this DLQ topic.
+
+
+### What did you expect to see?
+
+Broker works fine.
+
+### What did you see instead?
+
+Owner broker of the DLQ topic will hande the get subscriptions request. Broker send another nested get subscriptions request to itself in a very high frequency.
+![image](https://user-images.githubusercontent.com/65590138/197104645-f25360f2-deae-410a-9f98-57b63b39d994.png)
+Broker become very slow to handle other request, and after about 1 or 2 hours broker disconnected from zookeeper and restart. 
+The DLQ topic will unload to another broker and cause another broker meet same problem.
+
+### Anything else?
+
+For the partitioned DLQ topic with topic name contains `-partition-`, in `internalGetSubscriptions` https://github.com/apache/pulsar/blob/639393d43e36bd26112866a00b0cff98fae9d0ac/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/PersistentTopicsBase.java#L1140
+Since partitions = 1, another getSubscriptions request with same topic name will send to the broker itself. https://github.com/apache/pulsar/blob/639393d43e36bd26112866a00b0cff98fae9d0ac/pulsar-broker/src/main/java/org/apache/pulsar/broker/admin/impl/PersistentTopicsBase.java#L1166
+
+https://github.com/apache/pulsar/pull/14920 Reject auto create partitioned topic when topic name contains `-partition-`, but https://github.com/apache/pulsar/pull/16066 revert this change.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

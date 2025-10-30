@@ -1,0 +1,47 @@
+VertxImpl init order for logger that reads Context
+### Version
+
+All since 4.3.2
+
+### Context
+
+https://github.com/eclipse-vertx/vert.x/blob/4.3.8/src/main/java/io/vertx/core/impl/VertxImpl.java
+has this code:
+
+```
+public class VertxImpl implements VertxInternal, MetricsProvider {
+  private static final Logger log = LoggerFactory.getLogger(VertxImpl.class);
+  ...
+  static final ThreadLocal<ContextDispatch> nonVertxContextDispatch = new ThreadLocal<>();
+  ...
+}
+```
+
+The getLogger method creates a debug log message.
+
+Log4j loggers can be configured to access the Vert.x Context to call getLocal.
+
+This tries to read nonVertxContextDispatch that is still null when getLogger is called.
+
+To fix it the order should be swapped:
+
+```
+public class VertxImpl implements VertxInternal, MetricsProvider {
+  static final ThreadLocal<ContextDispatch> nonVertxContextDispatch = new ThreadLocal<>();
+  private static final Logger log = LoggerFactory.getLogger(VertxImpl.class);
+  ...
+}
+```
+
+Example of an affected logger:
+
+https://github.com/folio-org/okapi/blob/v5.0.0/okapi-common/src/main/java/org/folio/okapi/common/logging/FolioLoggingContext.java
+
+```
+Resolver failed to lookup FolioLoggingContext:requestid java.lang.NullPointerException: Cannot invoke "java.lang.ThreadLocal.get()" because "io.vertx.core.impl.VertxImpl.nonVertxContextDispatch" is null
+	at io.vertx.core.impl.ContextInternal.current(ContextInternal.java:46)
+	at io.vertx.core.Vertx.currentContext(Vertx.java:117)
+	at org.folio.okapi.common.logging.FolioLoggingContext.lookup(FolioLoggingContext.java:67)
+	at org.apache.logging.log4j.core.lookup.StrLookup.evaluate(StrLookup.java:119)
+	at org.apache.logging.log4j.core.lookup.Interpolator.evaluate(Interpolator.java:198)
+```

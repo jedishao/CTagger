@@ -1,0 +1,17 @@
+Presto is not rounding decimals correctly.
+We are currently moving from Hive EMR to Athena Presto. During testing and validation, we noticed penny variances on transactions. Root cause analysis shows that Presto is not rounding correctly beyond 14 digits of decimal precision.
+
+Attempts to resolve these variances only increase the total number of variances by causing **more** penny variances on other records. So, we solve one record's value, but create `[1 + n]`  more problems elsewhere. Is there any way to correct for this other than moving these calculations into an ETL engine and handling it there?
+
+Note: the input values to the ROUND() function are, themselves, errors on floating point operations while we are multiplying two decimal columns together on-the-fly in a SELECT statement.
+
+Expected result from below sample calculation: 6.98
+
+```
+-- 15 digits of decimal precision.
+SELECT ROUND(6.984999999999999, 2)  -- Hive (EMR):       6.98
+SELECT ROUND(6.984999999999999, 2)  -- Presto (Athena):  6.99
+
+-- Remove one level of precision (i.e., 14).
+SELECT ROUND(6.98499999999999, 2)   -- Presto (Athena):  6.98
+```

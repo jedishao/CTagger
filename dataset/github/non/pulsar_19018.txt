@@ -1,0 +1,51 @@
+[Doc] [Admin REST API] Missing examples for registering sinks, sources, functions
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### What issue do you find in Pulsar docs?
+
+In the Admin REST API docs, there is no real good example of how to register a sink by encoding data as `multipart/form-data`.
+
+This affects the following methods:
+https://pulsar.apache.org/sink-rest-api/?version=master#operation/registerSink
+https://pulsar.apache.org/functions-rest-api/?version=master#operation/registerFunction
+https://pulsar.apache.org/source-rest-api/?version=master#operation/registerSource
+
+If you click on the request samples `text/plain` tab we see the following description:
+```
+Examples
+1. Create a JSON object
+ {
+   "inputs": "persistent://public/default/input-topic",
+   "parallelism": "4",
+   "output": "persistent://public/default/output-topic",
+   "log-topic": "persistent://public/default/log-topic",
+   "classname": "org.example.test.ExclamationFunction",
+   "jar": "java-function-1.0-SNAPSHOT.jar"
+ }
+2. Encapsulate the JSON object to a multipart object (in Python)
+from requests_toolbelt.multipart.encoder import MultipartEncoders
+mp_encoder = MultipartEncoder([('functionConfig',(None, json.dumps(config), 'application/json'))])
+```
+
+### What is your suggestion?
+
+We want to suggest replacing the existing description that uses python with a simple example using curl (a tool that is already  on most systems by default). An example for `registerSink` would look like this:
+
+```
+curl -X "POST" "https://<PULSAR-ADMIN-ENDPOINT>/admin/v3/sinks/<TENANT>/<NAMESPACE>/<SINK-NAME>" \
+    -H "Accept: application/json" \
+    -H "Authorization: Bearer <REDACTED>" \
+    -H 'Content-Type: multipart/form-data; charset=utf-8; boundary=__X_PAW_BOUNDARY__' \
+    -F "sinkConfig={\"className\":\"org.example.MySinkTest",\"inputs\":[\"persistent://public/default/sink-input\"],\"configs\":{\"sinkConfigKey\":\"myExampleValue\"}};type=application/json" 
+```
+
+### Any reference?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

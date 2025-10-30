@@ -1,0 +1,32 @@
+Upgrade calcite in druid
+### Motivation
+
+We are currently stuck on an older version of calcite. This is because of old guava dependencies coming from Hadoop 2. Till we get rid of hadoop 2, we cannot upgrade calcite. 
+
+The upgrade will be very helpful because 
+ - There are bug fixes in recent version of Calcite. We have seen some queries fail in calcite layer. We tried these queries with a [test patch](https://github.com/apache/druid/pull/12258) that has newer calcite. We didn't see the failures with newer calcite version.
+ - Extending calcite is easier in later version. We had to copy a bunch of boilerplate code to add custom syntax. This boilerplate code can be removed.
+ - Calcite provides hints that druid developers want to use. However these are not available in the current version we use. 
+ - We want to be able to upgrade a calcite dependency quickly in case a security vuln is discovered. 
+ - There is significant drift already between the version we use and the latest calcite version. Between these versions, some API has been deprecated and then removed. The more we delay, the higher the drift is and more work in upgrading.
+
+### Proposed Solutions
+
+The major blocker for the upgrade is old guava dependencies. 
+
+#### Removing Hadoop 2 entirely
+
+We can remove Hadoop 2 entirely and thus rid ourselves of its transitive dependencies. We have a Hadoop 3 distribution profile and will be shipping a Hadoop 3 compatible druid distribution bundle with 25.0. There is some discussion about it here https://lists.apache.org/thread/1j5w9dmt1gp8hx31tvrmyomcko4mlp03
+
+However, there are concerns in the community about Hadoop 3 not being a viable alternative. We have now classic batch ingestion and also SQL-based batch ingestion. We have also added MM-less ingestion on Kubernetes. With this, users now have the ability to use a common/shared infra to run druid ingestion jobs. However, MM-less ingestion is still experimental.
+
+
+#### Calcite shading
+
+The other option is to shade the calcite jars. Calcite dev team is not going to do [this](https://lists.apache.org/thread/dptbzqzyt690xg2ggxv54f35ycmt140w). Instead, we can shade the jars ourselves. There is a prototype [here](https://github.com/apache/druid/pull/12258) and it works. I ran into a problem with tests however it was fixed in calcite 1.30.0 
+
+
+### Next steps
+
+To proceed with the upgrade, we can go with the shading approach. There is a prototype that already works. We need to figure out where we want to host these shaded jars. Once done, we also need to test the SQL thoroughly to avoid regressions. 
+

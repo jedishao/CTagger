@@ -1,0 +1,127 @@
+Batch ingestion using SQL INSERT
+Everyone likes doing things with SQL, so let's make it so people can do batch ingestion using SQL INSERT! I'd like to make it possible to write an [INSERT INTO .... SELECT](https://support.microsoft.com/en-us/office/insert-into-statement-e12fd58b-33b1-479c-8221-e9f245ab8d24) query that maps onto Druid's existing batch ingestion capabilities.
+
+An example query:
+
+```sql
+INSERT INTO tbl
+SELECT
+  TIME_PARSE("timestamp") AS __time,
+  channel,
+  cityName,
+  countryName
+FROM TABLE(
+    EXTERN(
+      '{"type": "s3", "uris": ["s3://bucket/file"]}',
+      '{"type": "json"}',
+      '[{"name": "channel", "type": "string"}, {"name": "cityName", "type": "string"}, {"name": "countryName", "type": "string"}, {"name": "timestamp", "type": "string"}]'
+    )
+  )
+PARTITION BY FLOOR(__time TO DAY) -- was BUCKET BY in an earlier version of the proposal
+CLUSTER BY channel -- was ORDER BY in an earlier version of the proposal
+```
+
+Since this work may take some time to execute, there will need to be some sort of asynchronous results API. I'm thinking a good choice would be to return an ingestion task ID immediately, so the standard Druid task APIs can be used to check its status. So the response would look like this (with object result format):
+
+```json
+[{"taskId": "xyzzy"}]
+```
+
+Some thoughts about pieces of that query.
+
+```
+INSERT INTO tbl
+```
+
+In Druid there is not really a "create datasource" concept, or a datasource-wide schema. Datasources exist when they have data, and their schema is whatever data happened to get loaded. Creating a new datasource and loading more data into an existing one are the same API. So I suggest we carry those semantics over to SQL, and do ingestions (both new-table and existing-table) with the "INSERT" command.
+
+It's possible that at some point we'll want to introduce a datasource-wide schema (or partial schema), or add the ability to create empty datasources. At that point it would make sense to also add a "CREATE TABLE" command to SQL. But I suggest we start with a versatile "INSERT".
+
+---
+
+```
+SELECT
+  TIME_PARSE("timestamp") AS __time,
+  channel,
+  cityName,
+  countryName
+```
+
+The SELECT column list would become the columns that get ingested.
+
+---
+
+```
+FROM TABLE(
+    EXTERN(
+      '{"type": "s3", "uris": ["s3://bucket/file"]}',
+      '{"type": "json"}',
+      '[{"name": "channel", "type": "string"}, {"name": "cityName", "type": "string"}, {"name": "countryName", "type": "string"}, {"name": "timestamp", "type": "string"}]'
+    )
+  )
+```
+
+We need some way to reference external data. I suggest we start with a table function that accepts an [input source](https://druid.apache.org/docs/latest/ingestion/native-batch.html#input-sources) and [input format](https://druid.apache.org/docs/latest/ingestion/data-formats.html#input-format). This example uses an S3 input source and JSON input format.
+
+The "EXTERN" function in this example also accepts a row signature. That's because the SQL planner will need column name and type information in order to validate and plan a query. I think this is OK at first, but at some point I'd like to make it possible to discover this stuff at runtime.
+
+At some point it'd be nice to have the syntax here be more SQL-y (instead of having this embedded JSON). I think it'd be possible to do that by adding a bunch of new table functions alongside the existing input sources and formats. But I thought it'd be good to start with this generic one.
+
+---
+
+```
+PARTITION BY FLOOR(__time TO DAY)
+```
+
+(Was BUCKET BY in an earlier version of the proposal.)
+
+We need some way to specify segment granularity. This concept splits the dataset into subsets, where each subset has a single time bucket. It's common for this concept to be called "PARTITION BY".
+
+---
+
+```
+CLUSTER BY channel
+```
+
+(Was ORDER BY in an earlier version of the proposal.)
+
+We need some way to specify how segments are partitioned, and how rows are ordered within segments. CLUSTER BY seems to be a de-facto-standard way to declare how you want to colocate data with same or similar values of a key.
+
+In my experience, it's a good idea to partition and order-within-partitions using the same key, so I think it's OK to have both controlled by CLUSTER BY. But if we needed to support them using different keys, I could imagine introducing an ORDER BY in addition to CLUSTER BY.
+
+---
+
+### Proposed changes
+
+Specific proposed changes:
+
+1) Add parser and validator support for INSERT, including ability to authorize using WRITE DATASOURCE permissions.
+
+2) Add an EXTERN table function and an "external" DataSource type that represents external data. The "external" DataSource would be used by the SQL layer to represent ingestion sources, and would be used to help generate ingestion tasks, but it would not understood by the native query execution system.
+
+3) Structure planning such that only Scan and GroupBy are used as the native query types for INSERT. (Scan represents ingestion without rollup, GroupBy represents ingestion with rollup.)
+
+4) Add an "orderBy" parameter to the Scan query to encapsulate the "ORDER BY" SQL clause.
+
+5) Split QueryMaker into an interface so there can be one implementation that executes SELECT queries and one implementation that executes INSERT queries.
+
+6) Add an INSERT-oriented QueryMaker that runs Scan and GroupBy queries as batch ingestion tasks. Virtual columns are like [transformSpec](https://druid.apache.org/docs/latest/ingestion/ingestion-spec.html#transformspec), aggregation functions are like [metricsSpec](https://druid.apache.org/docs/latest/ingestion/ingestion-spec.html#metricsspec), GROUP BY is like [dimensionsSpec](https://druid.apache.org/docs/latest/ingestion/ingestion-spec.html#dimensionsspec) with rollup, BUCKET BY is like [segmentGranularity](https://druid.apache.org/docs/latest/ingestion/ingestion-spec.html#granularityspec), etc.
+
+PRs.
+
+- 4: #11930
+- 1–3, 5: #11959
+
+### Whatabouts
+
+*What about UPDATE, DELETE, and ALTER TABLE?*
+
+Those would be cool too. I think they would be great as future work. UPDATE would be a good way to trigger reindexing jobs that modify actual row values, and ALTER TABLE would be a good way to trigger reindexing jobs that modify partitioning or column types. DELETE, if we're clever, could either trigger reindexing jobs or do some metadata-only thing depending on the parameters of the DELETE.
+
+*What about streaming?*
+
+Calcite (our SQL parser and planning engine) has a bunch of extensions that support streaming SQL: https://calcite.apache.org/docs/stream.html. I haven't studied these yet, but we may be able to use this to extend SQL to support manipulation of streaming supervisors.
+
+*What about query functionality that the ingestion layer does not support, like subqueries, joins, limits, etc?*
+
+I am interested in the idea of running ingestion through a system that is capable of doing all the query functionality we know and love, which opens up the door to cool things like CREATE TABLE AS SELECT and materialized views. But this proposal isn't really about that; it's about adding SQL INSERT syntax for the existing ingestion capabilities. Consider it a first step.

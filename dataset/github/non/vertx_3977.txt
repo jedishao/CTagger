@@ -1,0 +1,65 @@
+Let VertxInternal#sharedTCPServers  allow other server to be used
+#### purpose
+Write netty code directly in vert.x  Reuse both vert.x threading model and vert.x components
+
+because 
+```java
+public <S extends TCPServerBase> Map<ServerID, S> sharedTCPServers(Class<S> type) {
+    if (NetServerImpl.class.isAssignableFrom(type)) {
+      return (Map<ServerID, S>) sharedNetServers;
+    } else if (HttpServerImpl.class.isAssignableFrom(type)) {
+      return (Map<ServerID, S>) sharedHttpServers;
+    } else {
+      throw new IllegalStateException();
+    }
+  }
+```
+So you can't do it
+```java
+public class DemoServer extends TCPServerBase {
+  
+  public DemoServer(VertxInternal vertx, NetServerOptions options) {
+    super(vertx, options);
+  }
+
+  @Override
+  public Future<Void> close() {
+    return null;
+  }
+}
+```
+
+#### Describe the feature
+
+VertxInternal#sharedTCPServers(Class type) implement allow other server class to be used
+
+
+#### Use cases
+
+```java
+public class DemoServer extends TCPServerBase {
+  
+  public DemoServer(VertxInternal vertx, NetServerOptions options) {
+    super(vertx, options);
+  }
+
+  @Override
+  public Future<Void> close() {
+    return null;
+  }
+}
+
+
+public class SomeVerticle extends AbstractVerticle {
+  @Override
+  public void start() throws Exception {
+    DemoServer server = DemoServer.create(vertx, options);
+    // netty codec,decode, handle
+   server.listen(port);
+  }
+
+```
+
+
+#### Contribution
+I can contribute this feature

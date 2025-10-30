@@ -1,0 +1,22 @@
+Batch ingestion fails for CSV's embedded newline characters
+When CSV files contains new line characters (wrapped in quotes), Druid is not able to handle it properly and the ingestion fails, this issue is similar to https://github.com/apache/druid/issues/3376
+
+### Affected Version
+
+0.19.0
+
+### Description
+We ingest several CSVs into Druid and often these CSVs have new line in the row values e.g.
+
+```
+__time,first_name,last_name
+2020-01-01,"shah","nee
+raj"
+```
+While all CSV parsers (Jackson for example) and Spreadsheet tools (Excel) are able to parse it correctly, Druid treats it as two rows which leads to inconsistent state. If `fail on parse` is enabled then Druid throws an exception similar to shown below
+```
+org.apache.druid.java.util.common.parsers.ParseException: Unparseable timestamp found! Event: 
+{__time=raj, first_name=null, last_name=null}
+```
+
+cc: @bharadwajrembar

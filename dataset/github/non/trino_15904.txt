@@ -1,0 +1,96 @@
+Hive Cache Read Timeout Errors
+I'm testing out the HIve Cache feature as an option to reduce some throttling issues we're having in our cloud provider. I have a performance cluster I'm testing some queries out on and I get this error a lot when running a simple `select * from table limit 10`. The table in question *is* 16B rows but my cluster is pretty beefy: AKS, 5 E96s Workers + E96s Coordinator (96 cores/~600GB memory each), 5*2TB cache drives on Standard SSDs. Our cluster is also inside an Isito Mesh so there's sidecars on each pod, but they have their own resource limits. 
+
+These errors just cause the workers to fall back to direct reads, but I can see these frequently on some queries we'd *really* want the caching to work in. Are there some configurations we can tweak on timeouts or would more drives/workers help with this? 
+
+I've attached the stack traces below:
+
+```
+trino-worker 2023-01-31T03:05:32.136Z    WARN    20230131_030516_00010_u3ed2.3.130.0-11-167    com.qubole.rubix.core.NonLocalReadRequestCh
+ain    Error in reading..closing socket channel: java.nio.channels.SocketChannel[connected local=/10.244.103.8:60292 remote=/10.244.162.14
+:9989]
+trino-worker java.net.SocketTimeoutException: Read timed out
+trino-worker     at java.base/sun.nio.ch.SocketChannelImpl.timedRead(SocketChannelImpl.java:1231)
+trino-worker     at java.base/sun.nio.ch.SocketChannelImpl.blockingRead(SocketChannelImpl.java:1278)
+trino-worker     at java.base/sun.nio.ch.SocketAdaptor$1.read(SocketAdaptor.java:192)
+trino-worker     at java.base/java.nio.channels.Channels$ReadableByteChannelImpl.read(Channels.java:387)
+trino-worker     at com.qubole.rubix.core.NonLocalReadRequestChain.call(NonLocalReadRequestChain.java:130)
+trino-worker     at com.qubole.rubix.core.NonLocalRequestChain.call(NonLocalRequestChain.java:144)
+trino-worker     at com.qubole.rubix.core.NonLocalRequestChain.call(NonLocalRequestChain.java:32)
+trino-worker     at com.google.shaded.shaded.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterrup
+tibly(TrustedListenableFutureTask.java:125)
+trino-worker     at com.google.shaded.shaded.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:57)
+trino-worker     at com.google.shaded.shaded.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:78)
+trino-worker     at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+trino-worker     at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+trino-worker     at java.base/java.lang.Thread.run(Thread.java:833)
+trino-worker
+trino-worker
+trino-worker 2023-01-31T03:05:32.136Z    WARN    20230131_030516_00010_u3ed2.3.130.0-11-167    com.qubole.rubix.core.NonLocalReadRequestCh
+ain    Error in reading from node: 10.244.162.14 Using direct reads
+trino-worker java.net.SocketTimeoutException: Read timed out
+trino-worker     at java.base/sun.nio.ch.SocketChannelImpl.timedRead(SocketChannelImpl.java:1231)
+trino-worker     at java.base/sun.nio.ch.SocketChannelImpl.blockingRead(SocketChannelImpl.java:1278)
+trino-worker     at java.base/sun.nio.ch.SocketAdaptor$1.read(SocketAdaptor.java:192)
+trino-worker     at java.base/java.nio.channels.Channels$ReadableByteChannelImpl.read(Channels.java:387)
+trino-worker     at com.qubole.rubix.core.NonLocalReadRequestChain.call(NonLocalReadRequestChain.java:130)
+trino-worker     at com.qubole.rubix.core.NonLocalRequestChain.call(NonLocalRequestChain.java:144)
+trino-worker     at com.qubole.rubix.core.NonLocalRequestChain.call(NonLocalRequestChain.java:32)
+trino-worker     at com.google.shaded.shaded.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterrup
+tibly(TrustedListenableFutureTask.java:125)
+trino-worker     at com.google.shaded.shaded.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:57)
+trino-worker     at com.google.shaded.shaded.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:78)
+trino-worker     at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+trino-worker     at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+trino-worker     at java.base/java.lang.Thread.run(Thread.java:833)
+```
+
+```log
+trino-worker 2023-01-31T02:55:52.187Z    ERROR    20230131_025546_00006_u3ed2.1.20.0-21-110    com.qubole.rubix.core.NonLocalRequestChain
+trino-worker java.lang.RuntimeException: java.lang.InterruptedException
+trino-worker     at com.qubole.rubix.spi.fop.ObjectPoolPartition.getObject(ObjectPoolPartition.java:111)
+trino-worker     at com.qubole.rubix.spi.fop.ObjectPool.getObject(ObjectPool.java:95)
+trino-worker     at com.qubole.rubix.spi.fop.ObjectPool.borrowObject(ObjectPool.java:81)
+trino-worker     at com.qubole.rubix.spi.BookKeeperFactory.createBookKeeperClient(BookKeeperFactory.java:75)
+trino-worker     at com.qubole.rubix.core.NonLocalRequestChain.<init>(NonLocalRequestChain.java:75)
+trino-worker     at com.qubole.rubix.core.CachingInputStream.setupReadRequestChains(CachingInputStream.java:404)
+trino-worker     at com.qubole.rubix.core.CachingInputStream.readInternal(CachingInputStream.java:254)
+trino-worker     at com.qubole.rubix.core.CachingInputStream.read(CachingInputStream.java:183)
+trino-worker     at java.base/java.io.BufferedInputStream.fill(BufferedInputStream.java:244)
+trino-worker     at java.base/java.io.BufferedInputStream.read1(BufferedInputStream.java:284)
+trino-worker     at java.base/java.io.BufferedInputStream.read(BufferedInputStream.java:343)
+trino-worker     at java.base/java.io.DataInputStream.read(DataInputStream.java:151)
+trino-worker     at java.base/java.io.DataInputStream.read(DataInputStream.java:151)
+trino-worker     at io.trino.hdfs.FSDataInputStreamTail.readTail(FSDataInputStreamTail.java:59)
+trino-worker     at io.trino.plugin.hive.orc.HdfsOrcDataSource.readTailInternal(HdfsOrcDataSource.java:65)
+trino-worker     at io.trino.orc.AbstractOrcDataSource.readTail(AbstractOrcDataSource.java:93)
+trino-worker     at io.trino.orc.OrcReader.createOrcReader(OrcReader.java:112)
+trino-worker     at io.trino.orc.OrcReader.createOrcReader(OrcReader.java:94)
+trino-worker     at io.trino.plugin.hive.orc.OrcPageSourceFactory.createOrcPageSource(OrcPageSourceFactory.java:274)
+trino-worker     at io.trino.plugin.hive.orc.OrcPageSourceFactory.createPageSource(OrcPageSourceFactory.java:193)
+trino-worker     at io.trino.plugin.hive.HivePageSourceProvider.createHivePageSource(HivePageSourceProvider.java:291)
+trino-worker     at io.trino.plugin.hive.HivePageSourceProvider.createPageSource(HivePageSourceProvider.java:196)
+trino-worker     at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorPageSourceProvider.createPageSource(ClassLoaderSafeConnectorP
+trino-worker     at io.trino.split.PageSourceManager.createPageSource(PageSourceManager.java:62)
+trino-worker     at io.trino.operator.TableScanOperator.getOutput(TableScanOperator.java:308)
+trino-worker     at io.trino.operator.Driver.processInternal(Driver.java:411)
+trino-worker     at io.trino.operator.Driver.lambda$process$10(Driver.java:314)
+trino-worker     at io.trino.operator.Driver.tryWithLock(Driver.java:706)
+trino-worker     at io.trino.operator.Driver.process(Driver.java:306)
+trino-worker     at io.trino.operator.Driver.processForDuration(Driver.java:277)
+trino-worker     at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:736)
+trino-worker     at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:164)
+trino-worker     at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:515)
+trino-worker     at io.trino.$gen.Trino_398____20230131_025004_2.run(Unknown Source)
+trino-worker     at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+trino-worker     at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+trino-worker     at java.base/java.lang.Thread.run(Thread.java:833)
+trino-worker Caused by: java.lang.InterruptedException
+trino-worker     at java.base/java.util.concurrent.locks.ReentrantLock$Sync.lockInterruptibly(ReentrantLock.java:159)
+trino-worker     at java.base/java.util.concurrent.locks.ReentrantLock.lockInterruptibly(ReentrantLock.java:372)
+trino-worker     at java.base/java.util.concurrent.ArrayBlockingQueue.poll(ArrayBlockingQueue.java:430)
+trino-worker     at com.qubole.rubix.spi.fop.ObjectPoolPartition.getObject(ObjectPoolPartition.java:104)
+trino-worker     ... 36 more
+trino-worker
+trino-worker
+```

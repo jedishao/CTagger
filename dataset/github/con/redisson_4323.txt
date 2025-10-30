@@ -1,0 +1,14 @@
+redisson_lock_queue & redisson_lock_timeout deletion failure
+We are using Fair Locks in our application to manage requests and we initially encountered the problem of "Failing to Acquire a Lock". So, we implemented a retry mechanism to compensate for not getting a lock. However, whenever a lock failure occurs, as you know redisson_lock_queue and redisson_lock_timeout deques are set by Redisson and subsequent requests which don't acquire a lock also end up in the these queues until, they are able to acquire a lock. However, in our case, these queues don't clear up quick enough or stuck for a long time. As a work around, we implemented a counter so, that if the number of lock acquisition failure cross a certain threshold we delete the redisson_lock_queue and redisson_lock_timeout. But, we encountered a situation where the queues won't get deleted when, there is too many requests. I'm not sure, why queue deletion is not happening.
+
+**Redis Version:**
+Amazon ElasticCache Redis 6.2
+
+**Redis Client:**
+Redisson 3.17.0
+
+Screenshots:
+![Selection_510](https://user-images.githubusercontent.com/90621493/170815253-539cde30-a219-45d4-ba97-7990e4dbb25c.png)
+![Selection_508](https://user-images.githubusercontent.com/90621493/170815266-cc51ba42-8d2a-4112-a3c4-78b8a6edba25.png)
+
+

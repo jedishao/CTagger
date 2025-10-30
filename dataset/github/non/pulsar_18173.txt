@@ -1,0 +1,113 @@
+PIP-217: LoadShedding Strategy Improment
+### Motivation
+
+We usually need to do shedding many times util the load balancing is complete.
+
+#### incorrect shedding due to `historical scoring algorithm`
+  ThresholdShedder implement a historical scoring algorithm when calculating scores for every broker to handle with the performance fluctuations,that is  
+```historyScore = historyScore == null ? currentScore : historyScore * historyPercentage + (1 - historyPercentage) * currentScore;```   
+But this algorithm will causing incorrect shedding bundles, and resulting into doing shedding many times until achieving stable state.  
+For example, say that there is only one broker `broker1` in the cluster, with cpu usage rate 90%. To reduce the burden of this solo broker, we add a new broker `broker2` into the cluster with initial cpu usage rate 10%. So the score of  `broker1` is 90, and the score of  `broker2` is 10.
+Assuming that the shedding algorithm will shedding bundles to make the load of these two brokers equal.  
+- So in the first round of load balancing, `broker1` shedding bundles corresponding to 40% cpu usage to `broker2`, and both of two brokers's cpu usage rate become 50%, which is good enough.   
+- But in the second round of shedding checking, the scores of `broker1` is `0.9*90+0.1*50=86` (the default historyPercentage is 0.9), and the scores of `broker2` is `10*0.9+50*0.1=14`. and `avg=(86+14)/2=50, 86>avg+10` (default value of loadBalancerBrokerThresholdShedderPercentage is 10), **so the algorithm will think that broker1 is overloaded**. Then `broker1` shedding bundles corresponding to `(86-14)/2=36` cpu usage to `broker2`, the cpu usage rate of `broker1` become `50-36=14`, the cpu usage rate of `broker2` become `50+36=86`.
+- In the third round of shedding checking, the scores of `broker1` is `86*0.9+14*0.1=78.8`, and the scores of `broker2` is `14*0.9+86*0.1=21.2`, and `avg=(78.8+21.2)/2=50, 78.8>avg+10`. **so the algorithm will think that broker1 need to shedding bundles to broker2 Again**. Then `broker1` shedding bundles corresponding to `(78.8-21.2)/2=28.8` cpu usage to `broker2`, that is no bundles loaded on `broker1` anymore! 
+- ......
+- After many rounds of load balancing, we finally achieve stable state.
+
+In fact, we just need only one round of shedding. But the algorithm think that the load between these two brokers is not even incorrectly due to `historical scoring algorithm`. 
+the downside of `historical scoring algorithm` is so huge that we design a new proposal to handle with the performance fluctuations, and disable the `historical scoring algorithm`. Introduced in the next section `Multi Hit Algorithm`.
+
+#### incorrect shedding due to incorrect load data
+By default, the time interval for executing the shedding task is 1 minute, 
+and the time interval for collecting resource usage is also 1 minute. 
+
+The following situations may occur:
+- At `00:00`, broker executes the shedding task. 
+- After 5 seconds, that is at `00:05`, we collect the resource usage. 
+At this time, the load of the broker receiving bundles has not been increased, so the collected resource usage is still before the shedding takes effect. 
+- Then at `01:00`, we execute shedding task for the second time, and the resource usage is the data collected at `00:05`, which is wrong. 
+- **Wrong data will lead to wrong decisions!**
+
+we will handle these two problems above with `Multi Hit Algorithm`, which will be described later. 
+
+#### Small randomization pool problem
+Currently, there are two kind of placement strategy - `LeastLongTermMessageRate` and `LeastResourceUsageWithWeight`. `LeastResourceUsageWithWeight` select the broker with least resource usage,and `LeastLongTermMessageRate` select the broker with least LongTerm MessageRate.   
+One defect of LeastLongTermMessageRate is that only the broker with **the Least** LongTermMessageRate can be candidate, so **there is always only one broker can be candidate.**  
+In consideration of the latency of resource usage rate changing, broker with **the Least** LongTermMessageRate **may be overloaded** after doing shedding. For example, say that there are 4 brokers,the cpu usage rate as follows: `broker1:90,broker2:90,broker3:20,broker4:30`.Executing the `LeastLongTermMessageRate` Algorithm, all bundles unloaded from the `broker1` and `broker2` will be load on `broker3`, which will make underloaded `broker3` become overloaded.  
+LeastResourceUsageWithWeight algorithm also try to deal with such problem, but not work well. Instead of selecting the broker based on the lowest score, LeastResourceUsageWithWeight determine brokers whose cpu usage are lower than a certain threshold of avgUsage as candidate, and then randomly selected from the candidate broker list. In this way, we could enlarge the randomization pool.  
+**But how to determine such a threshold?** The candidate broker list may be empty due to large threshold, and the candidate broker list may contain overloaded brokers due to small or minus threshold. The appropriate threshold is strongly determined by the cluster status, which vary widely. Worse the appropriate threshold is dynamic because the throughput of cluster is not static. 
+So we need to find a new way to handle with such situation. 
+
+#### Bind the placement strategy and the shedding strategy together
+The root reason of `Small randomization pool problem` is that there is no relation between placement strategy and the shedding strategy, no info is delivered from shedding strategy to placement strategy.  
+If we determine the owner broker of the unloaded bundles in shedding process, we can ensure that loading new bundles on broker will not make it overloaded.  
+So we need to **provide a way for implementing new strategy that is the binding of the placement strategy and the shedding strategy**.  
+
+
+### Goal
+- disable the `historical scoring algorithm`,  and introduce a new algorithm to handle with the performance fluctuations. 
+- provide a way for implementing new strategy that is the binding of the placement strategy and the shedding strategy
+
+### API Changes
+
+_No response_
+
+### Implementation
+
+#### Multi Hit Algorithm
+The performance fluctuations is usual. For example, the cpu usage rate could increase by 20% suddenly, then it will fall back soon.  
+So we do not shedding bundles once there is any broker is judged to be overloaded, instead we count the number of **consecutive hits** of each broker. When the hit count of any broker is greater than configuration `HitCountThreshold`, we do shedding and reset the hit count to 0.  
+The default frequency of doing shedding is once per minutes. Say that we set `HitCountThreshold` to be 5, then we can deal with performance fluctuations lasting for 5 minutes.  
+But this will prolong the waiting time of load balancing when adding new brokers, that is we have to wait for 5 minutes to trigger load balancing when adding new brokers.   
+The solution is that, we could set two kind of `HitCountThreshold` - `HitCountThresholdForHigh` and `HitCountThresholdForLow`, and set two kind of `loadBalancerBrokerThresholdShedderPercentage` - `PercentageForHigh` and `PercentageForLow`.
+If the cpu usage of any broker exceeds the average cpu usage `PercentageForHigh` `HitCountThresholdForHigh` times, we will do shedding, similarly if the cpu usage of any broker exceeds the average cpu usage `PercentageForLow` `HitCountThresholdForLow` times, we also do shedding.  
+We can set `HitCountThresholdForHigh` to be 1, `PercentageForHigh` to be 40, `PercentageForLow` to be 10, `HitCountThresholdForLow` to be 5, so we can trigger the load balancing in the first round of shedding because the cpu usage of new broker is usually lower pretty much than the avg.
+
+#### AvgShedder
+we design a new strategy AvgShedder, which implements both two interface `LoadSheddingStrategy`,`ModularLoadManagerStrategy`.
+```java
+public class AvgShedder implements LoadSheddingStrategy, ModularLoadManagerStrategy {
+```
+The main ideas of this strategy is that load balancing between two brokers. As any Shedder, we score brokers and rank them.  
+Instead of scoring brokers with `historical scoring algorithm`, we adopt `Multi Hit Algorithm`  to handle with performance fluctuations.  
+So we calculate scores of brokers base on following formulas:  
+```
+    usage =
+        max (
+        %cpu * cpuWeight
+        %memory * memoryWeight,
+        %bandwidthIn * bandwidthInWeight,
+        %bandwidthOut * bandwidthOutWeight) / 100;
+        
+    avgUsage = sum(usage) / numBrokers、
+```
+After sorting brokers according to scores, we **perform comparison between the first and last broker, the second and the penultimate broker, and so on**. If the load difference between two brokers is greater than `PercentageForHigh` `HitCountThresholdForHigh` times, or greater than `PercentageForLow` `HitCountThresholdForLow` times, we will sheddding bundles from the overloaded broker to another broker of the broker pair, making their scores equal. 
+
+advantage:
+- This method will not encounter the problem that the traffic of the restart broker will not be switched to the new broker, that is, there is no ultra-low load broker
+- It will not overload the broker receiving bundles.
+- When the overall load of the cluster is very high, it will not do meaningless load balancing like OverLoadShedder.
+- As long as an appropriate threshold value is set, the frequency of shedding is very low.
+- We can ensure that no more than 5 times of shedding to get stable state when adding a new broker into the cluster. (We found in practice that it takes up to three times)
+- Moreover, the significance of the threshold is very clear. Unlike other algorithms, the threshold configuration is too ambiguous to set, and can only be based on experience.
+
+Above, we only introduced the bundle placement strategy for load balancing, that is, load balancing between two brokers. However, the placement strategy will also be used when the cluster is initializing or any broker is down.  
+To keep the simplicity of the algorithm, we use a random placement strategy.  
+To sum up, in the implementation of `AvgShedder`, we maintain a Map<bundle, broker>, record the bundles to be unloaded into the Map when executing Shedding, and value is the new broker to load on. When selecting a broker for bundle, you can directly select a broker based on the map (which also saves repeated and meaningless calculations). If there is no such an entry in the map whose key is the bundle to be loaded, or the value of entry is offline, we select broker randomly. 
+
+
+#### Effect of the AvgShedder
+We set `HitCountThresholdForHigh` to be 2, `AvgThresholdForHigh` to be 40, `HitCountThresholdForLow` to be 8, `AvgThresholdForLow` to be 15.  
+We can ensure that, most of the time, the maximum load difference of the brokers in the cluster does not exceed 15. sometimes the maximum load difference will reach to 20 due to performance fluctuations, which do not need to handle with.  
+In addition to adding a new broker or any broker is down, the shedding is rarely triggered, which provides a stable service to the client.  
+
+
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_

@@ -1,0 +1,8 @@
+Investigate ListenableFuture usages and replace it with CompletableFuture if possible
+### Description
+
+`CompletableFuture` provided since Java 8 can cover many use cases of `ListenableFuture`. The purpose of this issue is to investigate how we are using `ListenableFuture` and replace it with `CompletableFuture` if possible. This issue may include modifying `PrioritizedExecutorService` or adding a new one to replace it to support query priority with `CompletableFuture`.
+
+### Motivation
+
+Druid uses `ListenableFuture` in many places. One of the popular use cases is to handle multiple futures which should be done all together in time out. However, as reported in https://github.com/apache/druid/pull/10027, `ListenableFuture` doesn't cancel underlying futures on cancel() which leads to potential resource leak. https://github.com/apache/druid/pull/10027 addresses this problem by adding a util method which cancels all futures which is duplicate but in a less structured way with what `CompletableFuture` does.

@@ -1,0 +1,91 @@
+Unfreeze failed with redis in kubernetes
+**Actual behavior**
+
+We run our redis sentinel cluster in kubernetes with bitnami redis helm chart. 
+After the slave redis pod deleted/recreated by Kubernetes, the pod ip of the new slave changed, but the pod hostname remain same. Redisson try to call slaveUp with old ip addr for the new slave pod, and we can see exception in the log as below :
+```
+13:04:02.760 [redisson-netty-2-17] ERROR org.redisson.connection.balancer.LoadBalancerManager - Unable to unfreeze entry: [freeSubscribeConnectionsAmount=0, freeSubscribeConnectionsCounter=value:64:queue:0, freeConnectionsAmount=0, freeConnectionsCounter=value:92:queue:0, freezeReason=SYSTEM, client=[addr=redis://<old.pod.ip.here>:6379], nodeType=SLAVE, firstFail=1654880642760]
+java.util.concurrent.CompletionException: org.redisson.client.RedisConnectionException: Unable to connect to Redis server: <old.pod.ip.here>/<old.pod.ip.here>:6379
+	at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:292) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:308) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.biRelay(CompletableFuture.java:1284) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture$BiRelay.tryFire(CompletableFuture.java:1270) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:474) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:1977) ~[?:1.8.0_191]
+	at org.redisson.connection.pool.ConnectionPool.lambda$createConnection$1(ConnectionPool.java:151) ~[redisson-3.17.3.jar:3.17.3]
+	at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:760) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:736) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:474) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:1977) ~[?:1.8.0_191]
+	at org.redisson.connection.pool.ConnectionPool.promiseFailure(ConnectionPool.java:307) ~[redisson-3.17.3.jar:3.17.3]
+	at org.redisson.connection.pool.ConnectionPool.lambda$createConnection$6(ConnectionPool.java:273) ~[redisson-3.17.3.jar:3.17.3]
+	at java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:760) [?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:736) [?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:474) [?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:1977) [?:1.8.0_191]
+	at org.redisson.client.RedisClient$1$2.run(RedisClient.java:235) [redisson-3.17.3.jar:3.17.3]
+	at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:174) [netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:167) [netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:470) [netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:503) [netty-transport-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:995) [netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) [netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_191]
+Caused by: org.redisson.client.RedisConnectionException: Unable to connect to Redis server: <old.pod.ip.here>/<old.pod.ip.here>:6379
+	at org.redisson.connection.pool.ConnectionPool.lambda$createConnection$1(ConnectionPool.java:150) ~[redisson-3.17.3.jar:3.17.3]
+	... 19 more
+Caused by: java.util.concurrent.CompletionException: io.netty.channel.ConnectTimeoutException: connection timed out: <old.pod.ip.here>/<old.pod.ip.here>:6379
+	at java.util.concurrent.CompletableFuture.encodeRelay(CompletableFuture.java:326) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.completeRelay(CompletableFuture.java:338) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture.uniRelay(CompletableFuture.java:911) ~[?:1.8.0_191]
+	at java.util.concurrent.CompletableFuture$UniRelay.tryFire(CompletableFuture.java:899) ~[?:1.8.0_191]
+	... 11 more
+Caused by: io.netty.channel.ConnectTimeoutException: connection timed out: <old.pod.ip.here>/<old.pod.ip.here>:6379
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe$1.run(AbstractNioChannel.java:261) ~[netty-transport-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.77.Final.jar:4.1.77.Final]
+	at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:170) ~[netty-common-4.1.77.Final.jar:4.1.77.Final]
+	... 8 more
+```
+
+
+**Expected behavior**
+No error message, slave up success with new pod ip
+
+
+**Steps to reproduce or test case**
+create redis sentinel cluster in kubernetes with statefulset, connect java client to cluster, delete one redis slave pod in kubernetes, wait kubernetes recreate pod. see redisson client log for error message
+
+**Redis version**
+6.2.7
+
+**Redisson version**
+3.17.3
+
+**Redisson configuration**
+```
+
+ Config config = new Config();
+        try {
+            SentinelServersConfig sentinelServersConfig = config.useSentinelServers()
+                    .setMasterName("mymaster")
+                    .addSentinelAddress("redis://" + redisURIList)
+                    .setCheckSentinelsList(false)
+                    .setFailedSlaveReconnectionInterval(90)
+                    .setFailedSlaveCheckInterval(60)
+                    .setConnectTimeout(connectionTimeout)
+                    .setMasterConnectionMinimumIdleSize(connectionIdleSize)
+                    .setMasterConnectionPoolSize(connectionPoolSize);
+            if(userName != null && !userName.isEmpty()) {
+                sentinelServersConfig.setUsername(userName);
+                sentinelServersConfig.setSentinelUsername(userName);
+            }
+            if(password != null && !password.isEmpty()) {
+                sentinelServersConfig.setPassword(new DefaultPasswordDecoder().decode(password));
+                sentinelServersConfig.setSentinelPassword(new DefaultPasswordDecoder().decode(password));
+            }
+            return Redisson.create(config);
+        } catch (Exception ex) {
+            log.error("Exception while connecting to Redis ", ex);
+        }
+```

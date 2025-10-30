@@ -1,0 +1,108 @@
+Unable to establish client connection to server from the docker container since version 1.47.0
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+- gRPC version used
+```
+<dependencies>
+    <dependency>
+    <groupId>io.grpc</groupId>
+    <artifactId>grpc-netty</artifactId>
+    <version>1.52.0</version>
+</dependency>
+<dependency>
+    <groupId>io.grpc</groupId>
+    <artifactId>grpc-protobuf</artifactId>
+    <version>1.52.0</version>
+</dependency>
+<dependency>
+    <groupId>io.grpc</groupId>
+    <artifactId>grpc-stub</artifactId>
+    <version>1.52.0</version>
+</dependency>
+```
+### What is your environment?
+- Java application running in docker container.
+```
+bpilka@bpilka-frequentis:~$ docker -v
+Docker version 20.10.18, build b40c2f6
+```
+- Java version
+```
+[nb_collector@0c1839839412 ~]$ java -version
+openjdk version "11.0.16.1" 2022-07-19 LTS
+OpenJDK Runtime Environment Zulu11.58+24-SA (build 11.0.16.1+1-LTS)
+OpenJDK 64-Bit Server VM Zulu11.58+24-SA (build 11.0.16.1+1-LTS, mixed
+```
+- Ubuntu 20.04.2
+```
+bpilka@bpilka-frequentis:~$ uname -a
+Linux bpilka-frequentis 5.4.0-72-generic #80-Ubuntu SMP Mon Apr 12 17:35:00 UTC 2021 x86_64 x86_64 x86_64 GNU/Linux
+```
+
+### What did you do?
+- Simple client application (sources attached) running in docker container connecting to server running on host
+
+### What did you expect to see?
+- seeing established (READY) connection between client in docker and server on host
+
+
+### What did you see instead?
+- connection not established
+- no error or exception in the logs
+- no attempt (TCP packets) destined to the host (verified via tcpdump)
+- same code works up to version 1.46.1, where both the TCP packets are visible and connection to the server is established
+
+#####  grpc 1.52.0 logs
+- application output
+```
+[grpc-client@0c1839839412 ~]$ java -jar grpc-client-1.52.0.jar
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:IDLE
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:CONNECTING
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:CONNECTING
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:CONNECTING
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:CONNECTING
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:CONNECTING
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:CONNECTING
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:CONNECTING
+```
+- tcpdump output (no packets captured)
+```
+[root@0c1839839412 lib]# tcpdump -ni any port 4567
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on any, link-type LINUX_SLL (Linux cooked), capture size 262144 bytes
+```
+##### grpc 1.46.0 logs
+- application output
+```
+[grpc-client@0c1839839412 ~]$ java -jar grpc-client-1.46.1.jar
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:IDLE
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:READY
+ManagedChannelOrphanWrapper{delegate=ManagedChannelImpl{logId=1, target=10.0.2.15:4567}}:READY
+```
+- tcpdump output
+```
+[root@0c1839839412 lib]# tcpdump -ni any port 4567
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on any, link-type LINUX_SLL (Linux cooked), capture size 262144 bytes
+10:55:40.514475 IP 20.10.0.200.40970 > 10.0.2.15.tram: Flags [S], seq 1333561867, win 64240, options [mss 1460,sackOK,TS val 3273260749 ecr 0,nop,wscale 7], length 0
+10:55:40.514791 IP 10.0.2.15.tram > 20.10.0.200.40970: Flags [S.], seq 99754608, ack 1333561868, win 65160, options [mss 1460,sackOK,TS val 3160480863 ecr 3273260749,nop,wscale 7], length 0
+10:55:40.514937 IP 20.10.0.200.40970 > 10.0.2.15.tram: Flags [.], ack 1, win 502, options [nop,nop,TS val 3273260750 ecr 3160480863], length 0
+10:55:40.517690 IP 10.0.2.15.tram > 20.10.0.200.40970: Flags [P.], seq 1:41, ack 1, win 510, options [nop,nop,TS val 160480866 ecr 3273260750], length 40
+10:55:40.517706 IP 20.10.0.200.40970 > 10.0.2.15.tram: Flags [.], ack 41, win 502,options [nop,nop,TS val 3273260752 ecr 3160480866], length 0
+10:55:40.560494 IP 20.10.0.200.40970 > 10.0.2.15.tram: Flags [P.], seq 1:71, ack 41, win 502, options [nop,nop,TS val 3273260795 ecr 3160480866], length 70
+10:55:40.560969 IP 10.0.2.15.tram > 20.10.0.200.40970: Flags [.], ack 71, win 510, options [nop,nop,TS val 3160480910 ecr 3273260795], length 0
+10:55:40.563503 IP 10.0.2.15.tram > 20.10.0.200.40970: Flags [P.], seq 41:50, ack 71, win 510, options [nop,nop,TS val 3160480912 ecr 3273260795], length 9
+10:55:40.563520 IP 20.10.0.200.40970 > 10.0.2.15.tram: Flags [.], ack 50, win 502, options [nop,nop,TS val 3273260798 ecr 3160480912], length 0
+10:55:40.581741 IP 20.10.0.200.40970 > 10.0.2.15.tram: Flags [P.], seq 71:80, ack 50, win 502, options [nop,nop,TS val 3273260816 ecr 3160480912], length 9
+```
+
+### Anything else we should know about your project / environment?
+- behaves the same way also on RHEL 7.9
+- tried with OpenJDK as well, same behaviour
+
+### Steps to reproduce the bug
+- compile attached code and run it in the docker container
+ - server does not need to be running, it is sufficient to see that client is trying to establish the connection on the TCP layer (tcpdump)
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->

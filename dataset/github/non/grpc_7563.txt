@@ -1,0 +1,43 @@
+gRPC server instantly resets stream for requests to one API after some time
+Hi all. We are using java-grpc version 1.23.0 (EDIT: have noticed the same behavior in 1.32.2) and we are seeing some unusual behavior. After some amount of time of responding to requests normally our gRPC server will start sending `OUTBOUND RST_STREAM` in response to requests to only one of our APIs. The requests seems to make it to the Netty layer but never make it to our API implementation. Does anyone have an idea why this might be happening?
+
+Some observations
+* This only happens to one of our microservices (in a mesh of many)
+* This only happens to a single API call on the server  
+
+In the logs I see error codes 5 and 8 I believe are HTTP 2 error codes for stream closed and cancel.
+
+
+Logs below following streamId=279535 (newer messages first FYI)
+```
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] OUTBOUND RST_STREAM: streamId=279535 errorCode=8
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] OUTBOUND RST_STREAM: streamId=279535 errorCode=5
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=3936313438...
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=6e655f6964...
+  
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] OUTBOUND RST_STREAM: streamId=279535 errorCode=5
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] OUTBOUND RST_STREAM: streamId=279535 errorCode=5
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=756465223a...
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=7b226c616e...
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=3a34302e34...
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=7469747564...
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=3a2d37392e...
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=5b5d2c2270...
+
+  | Oct 27, 2020 @ 16:50:10.396 | 23:50:10.396 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] OUTBOUND RST_STREAM: streamId=279535 errorCode=5
+
+  | Oct 27, 2020 @ 16:50:10.395 | 23:50:10.395 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND DATA: streamId=279535 padding=0 endStream=false length=16384 bytes=223a5b5d7d...
+
+  | Oct 27, 2020 @ 16:50:10.395 | 23:50:10.395 [grpc-default-worker-ELG-1-5-] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler - [id: 0x7d76ec40, <REDACTED>] INBOUND HEADERS: streamId=279535 headers=GrpcHttp2RequestHeaders[:path: /<redacted>, :authority: <redacted>, :method: POST, :scheme: http, te: trailers, content-type: application/grpc, user-agent: grpc-java-netty/1.23.0, grpc-accept-encoding: gzip, grpc-timeout: 9999m, x-forwarded-proto: http, x-request-id: 82adf366-4b45-498e-b045-6e2966229aba, x-envoy-expected-rq-timeout-ms: 9999, x-b3-traceid: 849550ef8ae3ed3ea4d053bc28cb210d, x-b3-spanid: 5c805424f4592f87, x-b3-parentspanid: a4d053bc28cb210d, x-b3-sampled: 0] padding=0 endStream=false
+```

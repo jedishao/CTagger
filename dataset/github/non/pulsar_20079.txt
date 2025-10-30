@@ -1,0 +1,33 @@
+Support uploading and store the tls certs on the createCluster API
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Motivation
+
+When configuring the geo-replication for clusters with self-signed tls certs, I find it quite hard to create and maintain the destination cluster connection through the current [createCluster](https://pulsar.apache.org/admin-rest-api/?version=2.11.0#operation/createCluster) API because it needs steps as below:
+1. Copy the destination cluster trusted TLS certificate file to the local cluster for each broker. 
+2. Configure trusted TLS certificate file location with the parameter `brokerClientTrustCertsFilePath` when using the Cluster API. 
+
+The pain points in the above steps are: 
+* Needs to copy and deploy the destination cluster trusted TLS certificate file to the local cluster for each broker, and for some users, this requires some manual effort. Also, users need to make sure the destination cluster trusted TLS certificate file location is consistent with each broker. 
+* SRE team should maintain and acknowledge the destination cluster trusted TLS certificate file path on brokers, cleaning this location will impact the geo-replication. 
+
+### Solution
+
+So, I am wondering whether it is possible to support uploading the tls certs on the createCluster API and the broker can store the destination cluster trusted TLS certificate file in ZooKeeper or BookKeeper since they are existing data storage systems. 
+
+When the local cluster needs to connect to the destination cluster, local cluster brokers can extract the trusted TLS certificate file from ZooKeeper or BookKeeper and setup the connection to the destination cluster. 
+
+### Alternatives
+
+_No response_
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

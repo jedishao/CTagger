@@ -1,0 +1,54 @@
+[Bug] [broker] partitionIndex judge fail when namespace has -partition-
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+master
+
+### Minimal reproduce step
+
+just create a topic tenant/ns-partition-test/topic
+
+add you will create success。
+<img width="892" alt="image" src="https://user-images.githubusercontent.com/2684384/200992035-b66ef179-8d82-4809-aab0-556fa75ea17a.png">
+
+because when create , it only check the localName
+
+but you continue to create createSubscription
+
+<img width="1081" alt="image" src="https://user-images.githubusercontent.com/2684384/200992149-40f3ade4-2ed0-47ba-b8e7-319ac23c2a26.png">
+
+
+you will get a loop.
+
+<img width="1009" alt="image" src="https://user-images.githubusercontent.com/2684384/200992483-0da03641-e119-4f44-9b01-363e5128570d.png">
+
+topicName.isPartitioned() will be false,but it should be true
+
+
+because 
+<img width="1009" alt="image" src="https://user-images.githubusercontent.com/2684384/200992219-c17235e1-b94e-46ca-b07b-483804970121.png">
+
+
+here use a complete topic name
+
+### What did you expect to see?
+
+invoke                 this.partitionIndex = getPartitionIndex(completeTopicName);
+
+with localName
+
+### What did you see instead?
+
+loop
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

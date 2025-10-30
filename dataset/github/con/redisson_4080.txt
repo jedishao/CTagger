@@ -1,0 +1,64 @@
+Redisson : Issue while unlock lock for a key ,  attempt to unlock lock, not locked by current thread 
+Hi, I am getting below errors in my logs.
+
+java.lang.IllegalMonitorStateException: attempt to unlock lock, not locked by current thread by node id: 8c8ffe61-5bd3-4d78-a5c0-2d2386af488e thread-id: 76
+
+	at org.redisson.RedissonLock.lambda$unlockAsync$3(RedissonLock.java:581)
+
+I am using below dependency for redisson:
+`<dependency>
+			<groupId>org.redisson</groupId>
+			<artifactId>redisson-spring-boot-starter</artifactId>
+			<version>3.12.4</version>
+			<exclusions>
+				<exclusion>
+			 		<groupId>com.fasterxml.jackson.datatype</groupId>
+  					<artifactId>jackson-datatype-jsr310</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>`
+And I've implemented a wrapper that will acquire and release the lock:
+`public <T> T lock(final String key, final CustomSupplier<T> task) throws BaseException {
+
+		try {
+			RLock lock = redissonClient.getLock(key);
+			boolean res = lock.tryLock(WAIT_TIME, LEASE_TIME, TimeUnit.SECONDS);
+			if (res) {
+				log.info("Acquired lock for key {}", key);
+				try {
+					final T response = task.get();
+					return response;
+				} catch (Exception e) {
+					log.error("Error occured while executing task",e);
+					throw e;
+				} finally {
+					if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+						log.info("Unlocking lock for key {}", key);
+						lock.unlock();
+						log.info("Released lock for key {}", key);
+
+					}
+				}
+			} else {
+				log.info("Failed to acquire lock for key {} as lock for this key is already held", key);
+				throw new BaseException("Failed to acquire lock for key" + key, ErrorCodes.LOCK_ACQUIRE_FAILURE,
+						HttpStatus.INTERNAL_SERVER_ERROR);
+			}
+		} catch (InterruptedException e) {
+			throw new BaseException("Failed to acquire lock for key" + key, ErrorCodes.LOCK_ACQUIRE_FAILURE,
+					HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+
+	}`
+But the log "Released lock for key" is logged rarely. The task after acquiring the lock gets finished within 1 or 2 seconds and the wait and lease time are 5 and 15 secs respectively.
+
+RedisConfig is :
+`	@Bean(destroyMethod = "shutdown")
+	public RedissonClient redissonClient() throws IOException {
+		Config config = new Config();
+		config.useSingleServer().setAddress(redisAddress);
+		return Redisson.create(config);
+	}`
+We have redis server in Kubernetes cluster with 2 pod instances both as master. 
+
+Would appreciate any suggestions?

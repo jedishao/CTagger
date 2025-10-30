@@ -1,0 +1,21 @@
+NPE when reading structs with a newly added subfield
+In case of a schema change where a new field is added to a struct there will be a missing stream when reading from older files. We need to create a MissingFieldsStreamReader to return an empty block.
+This was handled for the case where the field was in the output. The same should be added when its pruned.
+
+```
+Caused by: java.lang.NullPointerException: streamDescriptor is null
+	at java.base/java.util.Objects.requireNonNull(Objects.java:246)
+	at com.facebook.presto.orc.reader.StructSelectiveStreamReader$PruningStreamReader.<init>(StructSelectiveStreamReader.java:703)
+	at com.facebook.presto.orc.reader.StructSelectiveStreamReader$PruningStreamReader.<init>(StructSelectiveStreamReader.java:690)
+	at com.facebook.presto.orc.reader.StructSelectiveStreamReader.<init>(StructSelectiveStreamReader.java:191)
+	at com.facebook.presto.orc.reader.SelectiveStreamReaders.createStreamReader(SelectiveStreamReaders.java:85)
+	at com.facebook.presto.orc.reader.StructSelectiveStreamReader.<init>(StructSelectiveStreamReader.java:176)
+	at com.facebook.presto.orc.reader.SelectiveStreamReaders.createStreamReader(SelectiveStreamReaders.java:85)
+	at com.facebook.presto.orc.OrcSelectiveRecordReader.createStreamReaders(OrcSelectiveRecordReader.java:587)
+	at com.facebook.presto.orc.OrcSelectiveRecordReader.<init>(OrcSelectiveRecordReader.java:179)
+	at com.facebook.presto.orc.OrcReader.createSelectiveRecordReader(OrcReader.java:253)
+	at com.facebook.presto.hive.orc.OrcSelectivePageSourceFactory.createOrcPageSource(OrcSelectivePageSourceFactory.java:371)
+	... 17 more
+```
+
+cc: @mbasmanova  @sujay-jain  @jbroll  @oerling 

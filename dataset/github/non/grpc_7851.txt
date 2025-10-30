@@ -1,0 +1,55 @@
+Encountering UNAVAILABLE: Network closed for unknown reason after making successful requests
+### What version of gRPC-Java are you using?
+1.24.1 (I can reproduce the issue with 1.35.0 though)
+
+### What is your environment?
+OpenJDK 11 running on AWS EKS 1.17 with Istio 1.6.5
+
+### What did you expect to see?
+
+Ideally I would like my outgoing requests to work 😄 . Realistically it would be helpful if the exception thrown by the gRPC layer was more actionable/debuggable. All I have to work with is `UNAVAILABLE: Network closed for unknown reason`.
+
+### What did you see instead?
+
+We have a service which runs and periodically makes requests to other services to ensure they are working correctly. When the service boots up it generates a bunch of gRPC channels and GRPC client wrapper objects. During the initial test run the gRPC requests work completely normally. After roughly 15 minutes the second run begins and we start to see issues on some of the gRPC channels which are using mTLS and going through an AWS NLB. 
+
+With debug logging enabled I see every attempted request write OUTBOUND HEADERS followed by OUTBOUND DATA. Immediately afterwards the request throws an UNAVAILABLE gRPC status runtime exception with no additional cause. It seems that requests continue with the same `streamId` and exhibit the same failing behavior. 
+
+We see the following exception which is not very helpful.
+```
+io.grpc.StatusRuntimeException: UNAVAILABLE: Network closed for unknown reason
+	at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:235)
+	at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:216)
+	at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:141)
+	at <redacted>APIBlockingStub.<redacted>
+	at <redacted>
+	at <redacted>
+	at <redacted>
+	at io.kotlintest.runner.jvm.TestCaseExecutor$executeTest$supervisorJob$1$invokeSuspend$$inlined$map$lambda$1.invokeSuspend(TestCaseExecutor.kt:133)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:106)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+	at java.base/java.lang.Thread.run(Unknown Source)
+```
+
+After enabling DEBUG level logging I discovered that I only see outgoing outbound traffic and the code almost immediately throws an exception. 
+
+> {"@timestamp":"2021-01-28T05:31:19.534Z","log.level":"DEBUG","log.logger":"io.grpc.netty.shaded.io.grpc.netty.NettyClientHandler","message":"[id: 0x90347537, L:/<redacted> - R:<redacted>] INBOUND DATA: streamId=9 padding=0 endStream=false length=6450 bytes=<redacted>","process.thread.name":"grpc-default-worker-ELG-1-13"}
+
+10 minutes later the second run starts after successfully receiving data...
+
+> {"@timestamp":"2021-01-28T05:42:55.774Z","log.level":"DEBUG","log.logger":"io.grpc.netty.shaded.io.grpc.netty.NettyClientHandler","message":"[id: 0x418af442, L:/<redacted> - R:<redacted>] OUTBOUND HEADERS: streamId=9 headers=GrpcHttp2OutboundHeaders[:authority: <redacted>, :path: <redacted>, :method: POST, :scheme: https, content-type: application/grpc, te: trailers, user-agent: grpc-java-netty/1.24.1, grpc-accept-encoding: gzip] streamDependency=0 weight=16 exclusive=false padding=0 endStream=false","process.thread.name":"grpc-default-worker-ELG-1-11"}
+> {"@timestamp":"2021-01-28T05:42:55.774Z","log.level":"DEBUG","log.logger":"io.grpc.netty.shaded.io.grpc.netty.NettyClientHandler","message":"[id: 0x418af442, L:/<redacted> - R:<redacted>] OUTBOUND DATA: streamId=9 padding=0 endStream=true length=8 bytes=<redacted>","process.thread.name":"grpc-default-worker-ELG-1-11"}
+
+Outgoing data continues to be sent for other requests and exceptions continue for each respective request
+> {"@timestamp":"2021-01-28T05:42:55.817Z","log.level":"DEBUG","log.logger":"io.grpc.netty.shaded.io.grpc.netty.NettyClientHandler","message":"[id: 0x1c72dc4b, L:/<redacted> - R:<redacted>] OUTBOUND HEADERS: streamId=9 headers=GrpcHttp2OutboundHeaders[:authority: <redacted>, :path: <redacted>, :method: POST, :scheme: https, content-type: application/grpc, te: trailers, user-agent: grpc-java-netty/1.24.1, grpc-accept-encoding: gzip] streamDependency=0 weight=16 exclusive=false padding=0 endStream=false","process.thread.name":"grpc-default-worker-ELG-1-12"}
+
+### Steps to reproduce the bug
+
+It is not immediately obvious how to reproduce the bug. The issue started happening to us recently.
+
+From my observations the issue only occurs with mTLS connections and they must be idle or alive for a certain amount of time before they start exhibiting issues. We have non mTLS, TLS connections where this issue does not occur at all. I simply find it very frustrating to debug this issue given the exception is thrown from `grpc-java`. 
+
+Thank you for your time! 
+

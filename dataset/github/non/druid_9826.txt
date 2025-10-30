@@ -1,0 +1,52 @@
+Can not plan left join query on 2 inline datasources
+### Affected Version
+
+0.19.0
+
+### Description
+
+Found while investigating #9792 
+
+```
+with abc as
+(
+  SELECT cityName, "__time", sum_added from wikipedia WHERE "cityName" = 'Buenos Aires'
+)
+SELECT t1.cityName, t1."__time" from abc as t1 LEFT join abc as t2 on t1.cityName = t2.cityName WHERE t1.cityName = 'Buenos Aires'
+```
+
+This fails with the error
+
+```
+org.apache.calcite.plan.RelOptPlanner$CannotPlanException: There are not enough rules to produce a node with desired properties: convention=DRUID, sort=[].
+Missing conversion is LogicalSort[convention: NONE -> DRUID]
+There is 1 empty subset: rel#10934:Subset#8.DRUID.[], the relevant part of the original plan is as follows
+10932:LogicalSort(fetch=[100])
+  10930:LogicalProject(subset=[rel#10931:Subset#7.NONE.[]], cityName=[CAST('Buenos Aires':VARCHAR):VARCHAR], __time=[$1])
+    10928:LogicalJoin(subset=[rel#10929:Subset#6.NONE.[]], condition=[=($0, 'Buenos Aires')], joinType=[left])
+      10922:LogicalProject(subset=[rel#10923:Subset#3.NONE.[]], cityName=[CAST('Buenos Aires':VARCHAR):VARCHAR], __time=[$0])
+        10920:LogicalFilter(subset=[rel#10921:Subset#2.NONE.[]], condition=[=($1, 'Buenos Aires')])
+          10918:LogicalProject(subset=[rel#10919:Subset#1.NONE.[]], __time=[$0], cityName=[$2])
+            10859:LogicalTableScan(subset=[rel#10917:Subset#0.NONE.[]], table=[[druid, wikipedia]])
+      10926:LogicalFilter(subset=[rel#10927:Subset#5.NONE.[]], condition=[=($0, 'Buenos Aires')])
+        10924:LogicalProject(subset=[rel#10925:Subset#4.NONE.[]], cityName=[$2])
+          10859:LogicalTableScan(subset=[rel#10917:Subset#0.NONE.[]], table=[[druid, wikipedia]])
+```
+
+However, the same query as an inner join works
+```
+with abc as
+(
+  SELECT cityName, "__time", sum_added from wikipedia WHERE "cityName" = 'Buenos Aires'
+)
+SELECT t1.cityName, t1."__time" from abc as t1 inner join abc as t2 on t1.cityName = t2.cityName WHERE t1.cityName = 'Buenos Aires'
+```
+
+The query also works if a time filter is added
+```
+with abc as
+(
+  SELECT cityName, "__time", sum_added from wikipedia WHERE "cityName" = 'Buenos Aires' and "__time" > '2016'
+)
+SELECT t1.cityName, t1."__time" from abc as t1 left join abc as t2 on t1.cityName = t2.cityName WHERE t1.cityName = 'Buenos Aires'
+```

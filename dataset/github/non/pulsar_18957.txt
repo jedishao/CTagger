@@ -1,0 +1,86 @@
+PIP-230: Throw exception when MessageIdImpl and BatchMessageIdImpl compare with each other
+### Motivation
+
+now when `BatchMessageIdImpl` and `MessageIdImpl` with the same`LedgerId` and `EntryId`, one of it compared with the other, the`BatchMessageIdImpl` will always be greater than MessageIdImpl.
+
+**Example:**
+batchMessageId = `BatchMessageIdImpl(ledgerId = 1, entryId = 1, batchIndex = 10)`
+messageId = `MessageId(ledgerId = 1, entryId = 1)`
+batchMessageId.compareTo(messageId) > 0 forever
+messageId.compareTo(batchMessageId) < 0 forever
+**Compare logic see : **
+https://github.com/apache/pulsar/blob/a35670d83b0b3f2fb63d11e4fb222d7f24099c9a/pulsar-client/src/main/java/org/apache/pulsar/client/impl/BatchMessageIdImpl.java#L29
+https://github.com/apache/pulsar/blob/a35670d83b0b3f2fb63d11e4fb222d7f24099c9a/pulsar-client/src/main/java/org/apache/pulsar/client/impl/BatchMessageIdImpl.java#L74-L75
+
+https://github.com/apache/pulsar/blob/a35670d83b0b3f2fb63d11e4fb222d7f24099c9a/pulsar-client/src/main/java/org/apache/pulsar/client/impl/MessageIdImpl.java#L206-L208
+
+`MessageIdImpl` add this logic: https://github.com/apache/pulsar/pull/6621
+`BatchMessageIdImpl` add this logic: https://github.com/apache/pulsar/pull/1285
+
+MessageID is mainly used for seek, rest cursor, Individual ack, and cumulative ack.
+now cumulative ack independently fixed this issue: https://github.com/apache/pulsar/blob/a35670d83b0b3f2fb63d11e4fb222d7f24099c9a/pulsar-client/src/main/java/org/apache/pulsar/client/impl/PersistentAcknowledgmentsGroupingTracker.java#L665-L681
+
+if MessageIdImpl(messageId) and BatchMessageIdImpl(batchMessageId) with the same ledgerId and entryId then **batchMessageId⊆messageId**.  Therefore, they belong to the inclusion relationship, and they are not of the same type and can be compared. Regardless of the result of the comparison, there is ambiguity and the boundaries are not clear
+
+### Goal
+
+Forbid the comparison between `MessageId` and `BatchMessageId` to make the boundary of `compareTo()` clearer to prevent the wrong usage
+### API Changes
+
+https://github.com/apache/pulsar/blob/a35670d83b0b3f2fb63d11e4fb222d7f24099c9a/pulsar-client/src/main/java/org/apache/pulsar/client/impl/BatchMessageIdImpl.java#L74-L75
+
+https://github.com/apache/pulsar/blob/a35670d83b0b3f2fb63d11e4fb222d7f24099c9a/pulsar-client/src/main/java/org/apache/pulsar/client/impl/MessageIdImpl.java#L206-L208
+
+### Implementation
+when `MessageIdImpl.compareTo(BatchMessageIdImpl)`, throw `java.lang.UnsupportedOperationException`
+when `BatchMessageIdImpl.compareTo(MessageIdImpl)`, throw `java.lang.UnsupportedOperationException`
+
+MessageIdImpl compareTo() :
+```
+    @Override
+    public int compareTo(@Nonnull MessageId o) {
+        if (o instanceof MessageIdImpl) {
+            if (o instanceof BatchMessageIdImpl) {
+                throw new UnsupportedOperationException(MessageIdImpl.class.getName()
+                        + " can't compare with " + BatchMessageIdImpl.class.getName());
+            }
+            MessageIdImpl other = (MessageIdImpl) o;
+            return messageIdCompare(
+                this.ledgerId, this.entryId, this.partitionIndex, other.ledgerId, other.entryId, other.partitionIndex
+            );
+        } else if (o instanceof TopicMessageIdImpl) {
+            return compareTo(((TopicMessageIdImpl) o).getInnerMessageId());
+        } else {
+            throw new UnsupportedOperationException("Unknown MessageId type: " + o.getClass().getName());
+        }
+    }
+```
+
+BatchMessageIdImpl compareTo() :
+```
+    @Override
+    public int compareTo(@Nonnull MessageId o) {
+        if (o instanceof MessageIdImpl) {
+            if (!(o instanceof BatchMessageIdImpl)) {
+                throw new UnsupportedOperationException(BatchMessageIdImpl.class.getName()
+                        + " can't compare with " + MessageIdImpl.class.getName());
+            }
+            MessageIdImpl other = (MessageIdImpl) o;
+            return messageIdCompare(
+                this.ledgerId, this.entryId, this.partitionIndex, this.batchIndex,
+                other.ledgerId, other.entryId, other.partitionIndex, ((BatchMessageIdImpl) o).batchIndex
+            );
+        } else if (o instanceof TopicMessageIdImpl) {
+            return compareTo(((TopicMessageIdImpl) o).getInnerMessageId());
+        } else {
+            throw new UnsupportedOperationException("Unknown MessageId type: " + o.getClass().getName());
+        }
+    }
+
+```
+### Alternatives
+ when `BatchMessageIdImpl` and `MessageIdImpl` with the same`LedgerId` and `EntryId`, `MessageIdImpl` always bigger than `BatchMessageIdImpl`. if use this method, there is still ambiguity, the boundary is not clear
+
+### Anything else?
+
+_No response_

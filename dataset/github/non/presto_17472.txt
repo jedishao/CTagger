@@ -1,0 +1,27 @@
+Timely invalidation of file/stripe footer cache for ORC and Parquet hive files in RaptorX
+First thanks to our community and all contributors, we are using file/stripe footer cache for ORC and Parquet files mentioned in this issue: https://github.com/prestodb/presto/issues/13205  
+
+However I realized that the cache value may be dirty and not correct in some conditions. For example,  let's set the parameters in the `hive.properties` of worker nodes like this:  
+
+```
+hive.orc.file-tail-cache-enabled=true  
+hive.orc.file-tail-cache-size=100MB  
+hive.orc.file-tail-cache-ttl-since-last-access=6h  
+hive.orc.stripe-metadata-cache-enabled=true  
+hive.orc.stripe-footer-cache-size=100MB  
+hive.orc.stripe-footer-cache-ttl-since-last-access=6h  
+hive.orc.stripe-stream-cache-size=300MB  
+hive.orc.stripe-stream-cache-ttl-since-last-access=6h  
+hive.parquet.metadata-cache-enabled=true  
+hive.parquet.metadata-cache-size=100MB  
+hive.parquet.metadata-cache-ttl-since-last-access=6h
+```  
+Then, I submit the same query multi times, of course the metadata cache of ORC or Parquet will have the cache values about relevent hive files.  
+Unluckily, 10 minutes later, a daily scheduled ETL job(such as hive or spark insertion job) renewed some partitions of relevent hive tables, then the cache value in our PrestoDB workers will be dirty even incorrect now, but the existing mechanism won't feel the change and invalidate the cache immediately.
+
+We are glad to discuss to anyone interest in this, and if necessary, we can try to contribute our codes to improve this.  
+
+One of the solutions to this condition is that the worker nodes also cache the `file modification time` in hive splits received from the coordinator in the first time, then compare this modification time in the cache, with the modification time from the Coordinator again, if it is not equal, then the cache is dirty.  
+
+Thank you all again.
+

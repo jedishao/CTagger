@@ -1,0 +1,29 @@
+Integration test scripts obtain multiple ip addresses leading to a config file error when using a VPN
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+
+### Affected Version
+
+Druid-0.21.1
+
+### Description
+
+I am a rookie of Druid and I am trying to follow the README in the integration tests module and run the tests on Docker as a starting point. I managed to run it smoothly in the company, but when I am back home and using the VPN of the company to continue, a weird thing happened: the key generating scripts  says I have an error in the auto-generated config file **expired_csr.conf**. I dig into it and found the following:
+
+```
+IP.1 = 192.XXX.X.XXX
+10.XXX.X.XX
+IP.2 = 127.0.0.1
+IP.3 = 172.172.172.1
+IP.4 = 127.0.0.1
+```
+
+The template for generating it was in **generate-expired-client-cert.sh**:
+
+```
+IP.1 = ${DOCKER_HOST_IP}
+IP.2 = 127.0.0.1
+IP.3 = 172.172.172.1
+IP.4 = ${DOCKER_MACHINE_IP:=127.0.0.1}
+```
+
+It seems that cause I was using a VPN, I've got 2 IP addresses and introduced an error! Interesting though XD 

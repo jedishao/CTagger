@@ -1,0 +1,24 @@
+Query planning fails for metadata query with ARRAY_AGG
+Below query for grouping all Druid datasources column names in array fails in calcite planning. 
+
+```
+SELECT TABLE_NAME, ARRAY_AGG(COLUMN_NAME) from INFORMATION_SCHEMA.COLUMNS GROUP BY TABLE_NAME
+```
+Exception -
+```
+2022-09-02T12:37:06,748 WARN [sql[fd61bf40-b133-4127-b2d2-cd9a109e2f9d]] org.apache.druid.sql.calcite.planner.DruidPlanner - Cannot build plan for query. Please check Broker logs for more details. (org.apache.calcite.plan.RelOptPlanner$CannotPlanException: There are not enough rules to produce a node with desired properties: convention=BINDABLE, sort=[]. All the inputs have relevant nodes, however the cost is still infinite.
+Root: rel#989:Subset#2.BINDABLE.[]
+Original rel:
+LogicalAggregate(subset=[rel#989:Subset#2.BINDABLE.[]], group=[{0}], EXPR$1=[ARRAY_AGG($1)]): rowcount = 10.0, cumulative cost = {11.25 rows, 0.0 cpu, 0.0 io}, id = 987
+  LogicalProject(subset=[rel#986:Subset#1.NONE.[]], TABLE_NAME=[$2], COLUMN_NAME=[$3]): rowcount = 100.0, cumulative cost = {100.0 rows, 200.0 cpu, 0.0 io}, id = 985
+    LogicalTableScan(subset=[rel#984:Subset#0.NONE.[]], table=[[INFORMATION_SCHEMA, COLUMNS]]): rowcount = 100.0, cumulative cost = {100.0 rows, 101.0 cpu, 0.0 io}, id = 968
+)
+```
+
+### Affected Version
+
+All
+
+### Steps to reproduce
+
+Run the query in the console and you will get the error in broker log.

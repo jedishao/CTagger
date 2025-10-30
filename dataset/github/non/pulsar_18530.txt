@@ -1,0 +1,58 @@
+[Bug] bin/pulsar-client NoClassDefFoundError: io/netty/incubator/channel/uring/IOUringEventLoopGroup
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+I built `bin/pulsar-client` using a recent version of master. Here is the commit sha 080213bdf7a00dda8f8e7c5927d83d7e6a9c5c6a.
+
+### Minimal reproduce step
+
+Build the pulsar project's `master` branch using `mvn -Pcore-modules,-main -T 1C clean install -DskipTests -Dspotbugs.skip=true`. I was at 080213bdf7a00dda8f8e7c5927d83d7e6a9c5c6a. I used:
+
+```
+$ java -version
+openjdk version "17.0.4.1" 2022-08-12
+OpenJDK Runtime Environment Temurin-17.0.4.1+1 (build 17.0.4.1+1)
+OpenJDK 64-Bit Server VM Temurin-17.0.4.1+1 (build 17.0.4.1+1, mixed mode, sharing)
+```
+
+```
+$ bin/pulsar-client produce -m test test
+2022-11-17T22:30:47,216-0600 [main] INFO  org.apache.pulsar.client.cli.PulsarClientTool - 0 messages successfully produced
+Exception in thread "main" java.lang.NoClassDefFoundError: io/netty/incubator/channel/uring/IOUringEventLoopGroup
+        at org.apache.pulsar.common.util.netty.EventLoopUtil.getClientSocketChannelClass(EventLoopUtil.java:106)
+        at org.apache.pulsar.client.impl.ConnectionPool.<init>(ConnectionPool.java:111)
+        at org.apache.pulsar.client.impl.ConnectionPool.<init>(ConnectionPool.java:95)
+        at org.apache.pulsar.client.impl.ConnectionPool.<init>(ConnectionPool.java:90)
+        at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:197)
+        at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:153)
+        at org.apache.pulsar.client.impl.ClientBuilderImpl.build(ClientBuilderImpl.java:63)
+        at org.apache.pulsar.client.cli.CmdProduce.publish(CmdProduce.java:247)
+        at org.apache.pulsar.client.cli.CmdProduce.run(CmdProduce.java:239)
+        at org.apache.pulsar.client.cli.PulsarClientTool.run(PulsarClientTool.java:231)
+        at org.apache.pulsar.client.cli.PulsarClientTool.main(PulsarClientTool.java:271)
+Caused by: java.lang.ClassNotFoundException: io.netty.incubator.channel.uring.IOUringEventLoopGroup
+        at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+        at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+        at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:520)
+        ... 11 more
+```
+
+### What did you expect to see?
+
+It should not have failed.
+
+### What did you see instead?
+
+A missing class.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

@@ -1,0 +1,31 @@
+cpu usage high when execute evalsha
+The method(evalSha) of RedissonConnection doesn't check key of lua script, it always pass the first param 'key' by null to method 'write', then evalsha will always redirect by onlye 1 Redis instance which manages slot 0.
+Error Code:
+    @Override
+    public <T> T evalSha(String scriptSha, ReturnType returnType, int numKeys, byte[]... keysAndArgs) {
+        if (isQueueing()) {
+            throw new UnsupportedOperationException();
+        }
+        if (isPipelined()) {
+            throw new UnsupportedOperationException();
+        }
+
+        RedisCommand<?> c = toCommand(returnType, "EVALSHA");
+        List<Object> params = new ArrayList<Object>();
+        params.add(scriptSha);
+        params.add(numKeys);
+        params.addAll(Arrays.asList(keysAndArgs));
+        **// problem is here, the first param always be null**
+        return write(null, ByteArrayCodec.INSTANCE, c, params.toArray());
+    }
+
+    @Override
+    public <T> T evalSha(byte[] scriptSha, ReturnType returnType, int numKeys, byte[]... keysAndArgs) {
+        RedisCommand<?> c = toCommand(returnType, "EVALSHA");
+        List<Object> params = new ArrayList<Object>();
+        params.add(scriptSha);
+        params.add(numKeys);
+        params.addAll(Arrays.asList(keysAndArgs));
+        **// problem is here, the first param always be null**
+        return write(null, ByteArrayCodec.INSTANCE, c, params.toArray());
+    }

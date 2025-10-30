@@ -1,0 +1,65 @@
+[Bug] when deploy in ipv6,HeartbeatNamespace will failed when check
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.7 and master
+
+### Minimal reproduce step
+
+just run in ipv6
+
+### What did you expect to see?
+
+start ok
+
+### What did you see instead?
+
+failed
+
+```
+16:42:01.444 [main] ERROR org.apache.pulsar.PulsarBrokerStarter - Failed to start pulsar service.
+org.apache.pulsar.broker.PulsarServerException: org.apache.pulsar.broker.PulsarServerException: java.lang.IllegalArgumentException: Invalid named entity: [fe80::5054:ff:fe69:741c]:8080
+at org.apache.pulsar.broker.PulsarService.start(PulsarService.java:651) ~[pulsar-broker.jar:2.7.2]
+at org.apache.pulsar.PulsarBrokerStarter$BrokerStarter.start(PulsarBrokerStarter.java:281) ~[pulsar-broker.jar:2.7.2]
+at org.apache.pulsar.PulsarBrokerStarter.main(PulsarBrokerStarter.java:350) [pulsar-broker.jar:2.7.2]
+Caused by: org.apache.pulsar.broker.PulsarServerException: java.lang.IllegalArgumentException: Invalid named entity: [fe80::5054:ff:fe69:741c]:8080
+at org.apache.pulsar.broker.namespace.NamespaceService.registerNamespace(NamespaceService.java:361) ~[pulsar-broker.jar:2.7.2]
+at org.apache.pulsar.broker.namespace.NamespaceService.registerBootstrapNamespaces(NamespaceService.java:303) ~[pulsar-broker.jar:2.7.2]
+at org.apache.pulsar.broker.PulsarService.start(PulsarService.java:602) ~[pulsar-broker.jar:2.7.2]
+... 2 more
+Caused by: java.lang.IllegalArgumentException: Invalid named entity: [fe80::5054:ff:fe69:741c]:8080
+at org.apache.pulsar.common.naming.NamedEntity.checkName(NamedEntity.java:39) ~[org.apache.pulsar-pulsar-common-2.7.2.jar:2.7.2]
+at org.apache.pulsar.common.naming.NamespaceName.validateNamespaceName(NamespaceName.java:197) ~[org.apache.pulsar-pulsar-common-2.7.2.jar:2.7.2]
+at org.apache.pulsar.common.naming.NamespaceName.<init>(NamespaceName.java:98) ~[org.apache.pulsar-pulsar-common-2.7.2.jar:2.7.2]
+at org.apache.pulsar.common.naming.NamespaceName.<init>(NamespaceName.java:34) ~[org.apache.pulsar-pulsar-common-2.7.2.jar:2.7.2]
+at org.apache.pulsar.common.naming.NamespaceName$1.load(NamespaceName.java:46) ~[org.apache.pulsar-pulsar-common-2.7.2.jar:2.7.2]
+at org.apache.pulsar.common.naming.NamespaceName$1.load(NamespaceName.java:43) ~[org.apache.pulsar-pulsar-common-2.7.2.jar:2.7.2]
+at com.google.common.cache.LocalCache$LoadingValueReference.loadFuture(LocalCache.java:3529) ~[com.google.guava-guava-30.1-jre.jar:?]
+at com.google.common.cache.LocalCache$Segment.loadSync(LocalCache.java:2278) ~[com.google.guava-guava-30.1-jre.jar:?]
+at com.google.common.cache.LocalCache$Segment.lockedGetOrLoad(LocalCache.java:2155) ~[com.google.guava-guava-30.1-jre.jar:?]
+at com.google.common.cache.LocalCache$Segment.get(LocalCache.java:2045) ~[com.google.guava-guava-30.1-jre.jar:?]
+at com.google.common.cache.LocalCache.get(LocalCache.java:3951) ~[com.google.guava-guava-30.1-jre.jar:?]
+at com.google.common.cache.LocalCache.getOrLoad(LocalCache.java:3974) ~[com.google.guava-guava-30.1-jre.jar:?]
+at com.google.common.cache.LocalCache$LocalLoadingCache.get(LocalCache.java:4935) ~[com.google.guava-guava-30.1-jre.jar:?]
+at org.apache.pulsar.common.naming.NamespaceName.get(NamespaceName.java:69) ~[org.apache.pulsar-pulsar-common-2.7.2.jar:2.7.2]
+at org.apache.pulsar.broker.namespace.NamespaceService.registerNamespace(NamespaceService.java:330) ~[pulsar-broker.jar:2.7.2]
+at org.apache.pulsar.broker.namespace.NamespaceService.registerBootstrapNamespaces(NamespaceService.java:303) ~[pulsar-broker.jar:2.7.2]
+at org.apache.pulsar.broker.PulsarService.start(PulsarService.java:602) ~[pulsar-broker.jar:2.7.2]
+... 2 more
+
+
+```
+
+### Anything else?
+
+because we use host as namespace ,but host has "[]" in ipv6 ,will fail when check in NamedEntity
+
+
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

@@ -1,0 +1,197 @@
+Is not possible to redeploy a shared MailClient Verticle
+I'm trying to redeploy a Verticle with Mail Client, trying to change the configuration of the client without restarting the application.
+
+I'm getting this error:
+
+java.lang.IllegalStateException: Client is closed
+	at io.vertx.core.net.impl.NetClientImpl.checkClosed(NetClientImpl.java:176)
+	at io.vertx.core.net.impl.NetClientImpl.connectInternal(NetClientImpl.java:220)
+	at io.vertx.core.net.impl.NetClientImpl.connect(NetClientImpl.java:207)
+	at io.vertx.core.net.impl.NetClientImpl.connect(NetClientImpl.java:122)
+	at io.vertx.core.net.impl.NetClientImpl.connect(NetClientImpl.java:117)
+	at io.vertx.core.net.impl.NetClientImpl.connect(NetClientImpl.java:107)
+	at io.vertx.core.net.impl.NetClientImpl.connect(NetClientImpl.java:102)
+	at io.vertx.ext.mail.impl.SMTPEndPoint.connect(SMTPEndPoint.java:70)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool.connect(SimpleConnectionPool.java:263)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool$Acquire$3.run(SimpleConnectionPool.java:591)
+	at io.vertx.core.net.impl.pool.CombinerExecutor.submit(CombinerExecutor.java:50)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool.execute(SimpleConnectionPool.java:254)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool.acquire(SimpleConnectionPool.java:634)
+	at io.vertx.core.net.impl.pool.SimpleConnectionPool.acquire(SimpleConnectionPool.java:638)
+	at io.vertx.ext.mail.impl.SMTPEndPoint.requestConnection(SMTPEndPoint.java:61)
+	at io.vertx.core.net.impl.pool.Endpoint.getConnection(Endpoint.java:41)
+	at io.vertx.ext.mail.impl.SMTPConnectionPool.getConnection0(SMTPConnectionPool.java:155)
+	at io.vertx.ext.mail.impl.SMTPConnectionPool.getConnection(SMTPConnectionPool.java:102)
+	at io.vertx.ext.mail.impl.MailClientImpl.getConnection(MailClientImpl.java:119)
+	at io.vertx.ext.mail.impl.MailClientImpl.lambda$sendMail$2(MailClientImpl.java:103)
+	at io.vertx.core.impl.future.FutureImpl$3.onSuccess(FutureImpl.java:141)
+	at io.vertx.core.impl.future.FutureBase.lambda$emitSuccess$0(FutureBase.java:54)
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:469)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:500)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:832)
+
+
+This is the code:
+
+```
+import io.vertx.config.ConfigRetriever;
+import io.vertx.config.ConfigRetrieverOptions;
+import io.vertx.config.ConfigStoreOptions;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.Message;
+import io.vertx.core.impl.ConcurrentHashSet;
+import io.vertx.core.impl.cpu.CpuCoreSensor;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.mail.MailClient;
+import io.vertx.ext.mail.MailConfig;
+import io.vertx.ext.mail.MailMessage;
+
+public class MailRedeployTest {
+
+    public static void main(String[] args) {
+
+        final var availableProcessors = CpuCoreSensor.availableProcessors();
+        final var vertx = Vertx.vertx();
+
+        final var fileStore = new ConfigStoreOptions()
+                .setType("file")
+                .setFormat("yaml")
+                .setConfig(new JsonObject()
+                        .put("path", "mail_config.yaml")
+                );
+        final var configRetrieverOptions = new ConfigRetrieverOptions().addStore(fileStore).setScanPeriod(5000);
+        final var retriever = ConfigRetriever.create(vertx, configRetrieverOptions);
+
+        final var set = new ConcurrentHashSet<String>();
+
+        retriever.getConfig()
+                .map(json -> new DeploymentOptions().setConfig(json).setInstances(availableProcessors))
+                .flatMap(deploymentOptions -> vertx.deployVerticle(MailVerticle::new, deploymentOptions))
+                .onSuccess(set::add)
+                .onComplete(ar -> {
+
+                    if (ar.failed()) {
+                        System.out.println("ERROR");
+                        ar.cause().printStackTrace();
+                        System.exit(1);
+                    } else {
+                        System.out.println("STARTED");
+                    }
+
+                    vertx.setPeriodic(10000, l -> {
+                        final var mailMessage = new MailMessage()
+                                .setSubject("TEST")
+                                .setText("TEST")
+                                .setTo("test@gmail.com")
+                                .toJson();
+
+                        vertx.eventBus().sender(MailVerticle.ADDRESS).write(mailMessage);
+                    });
+                });
+
+        retriever.listen(configChange -> {
+            System.out.println("CONFIG_CHANGE");
+            final var deploymentOptions = new DeploymentOptions().setConfig(configChange.getNewConfiguration()).setInstances(availableProcessors);
+            vertx.deployVerticle(MailVerticle::new, deploymentOptions);
+
+            set.forEach(str -> {
+                vertx.undeploy(str)
+                        .onComplete(ar -> {
+                            set.remove(str);
+
+                            if (ar.failed()) {
+                                System.out.println("FAILED_TO_UNDEPLOY");
+                                ar.cause().printStackTrace();
+                            }
+                        });
+            });
+        });
+
+
+    }
+
+
+    public static final class MailVerticle extends AbstractVerticle {
+        public static final String ADDRESS = "send-mail";
+        private MailClient mailClient;
+
+
+        @Override
+        public void start() throws Exception {
+            System.out.println("STARTING");
+            final var mailConfig = new MailConfig(config());
+            mailClient = MailClient.createShared(vertx, mailConfig);
+            vertx.eventBus().consumer(ADDRESS, this::sendMail);
+        }
+
+        @Override
+        public void stop(Promise<Void> promise) throws Exception {
+            try {
+                System.out.println("STOPPING");
+                mailClient.close();
+            } catch (Exception e) {
+                System.out.println("ERROR_CLOSING_CLIENT");
+                e.printStackTrace();
+            }
+
+            mailClient = null;
+            promise.complete();
+        }
+
+        private void sendMail(Message<JsonObject> message) {
+
+            final var mailMessage = new MailMessage(message.body());
+
+            mailMessage.setFrom(config().getString("from"));
+
+            mailClient.sendMail(mailMessage, ar -> {
+                if (ar.failed()) {
+
+                    System.out.println("ERROR_SENDING_MESSAGE");
+                    ar.cause().printStackTrace();
+
+                } else {
+                    System.out.println("MESSAGE_SENT");
+                }
+
+            });
+        }
+
+
+    }
+}
+```
+
+this is mail_config.yaml:
+
+```
+from: "test1@gmail.com>"
+mail_pool: MAIL_POOL
+hostname: {hostname}
+port: 25
+starttls: REQUIRED
+login: REQUIRED
+username: {username}
+password: {password}
+keepAlive: true
+trustAll: false
+metricsName: MAIL_CLIENT
+ssl: false
+tcpKeepAlive: true
+useAlpn: true
+logActivity: false
+```
+
+I'm using version 4.1.5
+
+
+What would be the correct way to close a shared MailClient and open a new one?
+
+I tried with creating an individual client (not shared), and works perfectly

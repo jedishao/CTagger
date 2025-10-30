@@ -1,0 +1,44 @@
+Implement JDBC's PreparedStatement.setArray() and setObject() for array types
+I'm connecting to Trino using JDBC.
+
+The following code works for fetching array values:
+
+```java
+try (PreparedStatement s = connection.prepareStatement("""
+    select array[1, 2]
+    """)
+) {
+    try (ResultSet rs = s.executeQuery()) {
+        while (rs.next())
+            println(rs.getArray(1));
+    }
+}
+```
+
+But it seems there's currently no way to pass a bind variable of an array type to the `PreparedStatement`, other than inlining it like above. E.g. this doesn't work:
+
+```java
+try (PreparedStatement s = connection.prepareStatement("""
+    select cast(? as array(int))
+    """)
+) {
+    s.setObject(1, new Integer[] { 1 });
+
+    try (ResultSet rs = s.executeQuery()) {
+        while (rs.next())
+            println(rs.getObject(1));
+    }
+}
+```
+
+The error being:
+
+```
+Exception in thread "main" java.sql.SQLException: Unsupported object type: [Ljava.lang.Object;
+	at io.trino.jdbc.TrinoPreparedStatement.setObject(TrinoPreparedStatement.java:608)
+	at org.jooq.testscripts.JDBC.main(JDBC.java:57)
+```
+
+Nor is it possible to call the `PreparedStatement.setArray()` method. This isn't a bug, just a missing feature, I suspect.
+
+Are there any other workarounds to pass array bind variables, other than inlining the array, e.g. `ARRAY[1, 2]` or `ARRAY[?, ?]`?

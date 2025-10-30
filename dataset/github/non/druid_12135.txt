@@ -1,0 +1,45 @@
+High querytime for topN queries with injective=false namespace after upgrade to druid 0.22
+After upgrade to 0.22.0 version, we started observing significantly higher query and cpu times for namespaces with injective=false compared to 0.18.1. No config change was made from our end and we ensured that data remains the same.
+
+For v18, the querytime was around 450ms.  
+For v22, the querytime was around 80,000ms
+
+The time difference was at historical service. Downgrading only the historicals fixed the issue.
+
+Datasource1 details (For 1 day of data)-> Total size is around 270G  
+Segment count is around 550  
+Rows per segment = 802,500  
+Dimension1 cardinality is around 1000
+
+Namespace1 details ->  
+Count = 294,101  
+Injective = false
+
+Query ->
+
+`{"dimension": {"type": "lookup","dimension": "dimension1","outputName": "Result","name": "namespace1","injective": false,"retainMissingValue": true},"threshold": 50,"metric": {"type": "numeric","metric": "metric1"},"context": {"queryId": "queryID123","useCache":false,"vectorize":false,"debug":true,"timeout":200000},"queryType": "topN","dataSource": "datSource1","granularity": "All","filter": {"type": "and","fields": [{"type": "or","fields": [{"type": "in","dimension": "dimension1","extractionFn": {"type": "registeredLookup","lookup": "namespace1","retainMissingValue": true},"values": ["123 - test string ","234 - test string ",null]}]}]},"intervals": ["2021-12-05T00:00:00Z/2021-12-06T00:00:00Z"],"aggregations": [{"type": "filtered","aggregator": {"type": "longSum","name": "metric1","fieldName": "Views"},"filter": {"type": "and","fields": [{"type": "and","fields": [{"type": "not","field": {"type": "selector","dimension": "dimension2","value": "0"}}]}]}}],"postAggregations": []}`
+
+Below are the flame graphs for druid historical service when only the query in question was running.
+
+[flame_graph.zip](https://github.com/apache/druid/files/7838014/flame_graph.zip)
+
+
+In the flamegraphs, we noticied a major portion was spent in query processing in v0.22.0.  
+If we follow the topN_datasource_1 stack to the top , we notice that the classes used for string aggregation are different across versions.  
+In v0.22.0 -
+
+> Lorg/apache/druid/query/topn/types/StringTopNColumnAggregatesProcessor:::scanAndAggregateWithCardinalityUnknown
+
+In v0.18.1 -
+
+> Lorg/apache/druid/query/topn/types/StringTopNColumnAggregatesProcessor:::scanAndAggregateWithCardinalityKnown
+
+Also in v18 , there is usage of class
+
+> Lorg/apache/druid/query/topn/HeapBasedTopNAlgorithm:::scanAndAggregate
+
+which is missing in v22.
+
+There was no change in underlying data between the tests.
+
+Can anyone please have a look and see if this is a genuine issue with druid.

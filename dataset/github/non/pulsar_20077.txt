@@ -1,0 +1,74 @@
+Pulsar client with Authentication using OAuth 2.0 fails to successfully establish connection with the Pulsar instance
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Java Client(Tried with 2.10.2 as well as 2.11.0)-->broker(2.11.0)
+Broker instance OS: Amazon Linux 2023
+Java App running OS : Windows 10
+
+### Minimal reproduce step
+
+1. Configure the pulsar instance to authenticate using OAuth 2.0 as mentioned in this pulsar [doc](https://pulsar.apache.org/docs/next/security-oauth2/)
+2. Then use one of the following approaches to create the Pulsar Client.
+**Approach 1:**
+```
+`URL issuerUrl = new URL("https://dev-kt-aa9ne.us.auth0.com");
+URL credentialsUrl = new URL("file:///path/to/Credentials.json");
+String audience = "https://dev-kt-aa9ne.us.auth0.com/api/v2/";
+
+PulsarClient client = PulsarClient.builder()
+    .serviceUrl("pulsar://broker.example.com:6650/")
+    .authentication(
+        AuthenticationFactoryOAuth2.clientCredentials(issuerUrl, credentialsUrl, audience))
+    .build();
+    Producer producer = client.newProducer()
+			        .topic("test-topic")
+			        .create();`
+```
+Attached our sample credentialsjson file here:
+[credentialsjson.txt](https://github.com/apache/pulsar/files/11211149/credentialsjson.txt)
+
+**Approach 2 :**
+```
+`Authentication auth = AuthenticationFactory
+    .create(AuthenticationOAuth2.class.getName(), "{"type":"client_credentials","privateKey":"./key/path/..","issuerUrl":"...","audience":"..."}");
+PulsarClient client = PulsarClient.builder()
+    .serviceUrl("pulsar://broker.example.com:6650/")
+    .authentication(auth)
+    .build();`
+```
+**Approach 3**
+```
+`PulsarClient client = PulsarClient.builder().serviceUrl("pulsar://broker.example.com:6650/")				       
+				        .authentication(AuthenticationFactory.token(<accesstoken>))
+				        .build();`
+```
+3.None of these approaches has created the Producer object and fails with Connection refused exception.
+
+4. Besides we want to highlight that we had successfully connected using pulsar admin client using the OAuth credentials. 
+We were not able to figure out what we are missing here despite providing all the necessary details.
+ 
+			       			       
+
+### What did you expect to see?
+
+Successfully establish the connection to the Pulsar instance.
+
+### What did you see instead?
+
+We encounter this exception which doesn't have any helpful information to debug the issue.
+
+> org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.ExecutionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650{"previous":[{"attempt":0,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":1,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":2,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":3,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":4,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":5,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":6,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"}]}{"previous":[{"attempt":0,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":1,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":2,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":3,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":4,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":5,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"},{"attempt":6,"error":"java.util.concurrent.CompletionException: org.apache.pulsar.client.api.PulsarClientException: java.util.concurrent.CompletionException: org.apache.pulsar.shade.io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: no further information: ec2-3-108-59-79.ap-south-1.compute.amazonaws.com/3.108.59.79:6650"}]}
+
+### Anything else?
+
+We have been investigating this issue for a very long time now and couldn't find any helpful articles to debug the issue. We had tried all the available code snippets in the Pulsar documentation as well as several other blogs but hadn't been successful yet. As a last resort we are reaching out to you for help as our product release timelines were severely impacted because of this issue.
+Hence we urge you to look into this on high priority and provide us any suggestions.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

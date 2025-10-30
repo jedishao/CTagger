@@ -1,0 +1,37 @@
+java.lang.NullPointerException: Cannot invoke "io.vertx.core.http.impl.HttpClientConnection.createStream(io.vertx.core.impl.ContextInternal, io.vertx.core.Handler)" because "conn" is null
+### Version
+
+4.2.3
+
+### Context
+
+It seems to happen randomly on very busy server inside docker container (I don't know if this is relevant). There is a timer (actually vertx.setTimer which sets up another setTimer when completes) which triggers every minute and performs two HTTP requests one by one using WebClient.
+
+```
+[2022-02-21 13:00.01.315] [vert.x-eventloop-thread-0] [io.vertx.core.impl.ContextImpl] [ERROR] - Unhandled exception
+java.lang.NullPointerException: Cannot invoke "io.vertx.core.http.impl.HttpClientConnection.createStream(io.vertx.core.impl.ContextInternal, io.vertx.core.Handler)" because "conn" is null
+        at io.vertx.core.http.impl.HttpClientImpl.lambda$doRequest$8(HttpClientImpl.java:631) ~[pdf-service.jar:?]
+        at io.vertx.core.net.impl.pool.Endpoint.lambda$getConnection$0(Endpoint.java:52) ~[pdf-service.jar:?]
+        at io.vertx.core.http.impl.ClientHttpEndpointBase.lambda$requestConnection$0(ClientHttpEndpointBase.java:46) ~[pdf-service.jar:?]
+        at io.vertx.core.http.impl.SharedClientHttpStreamEndpoint$Request.handle(SharedClientHttpStreamEndpoint.java:162) ~[pdf-service.jar:?]
+        at io.vertx.core.http.impl.SharedClientHttpStreamEndpoint$Request.handle(SharedClientHttpStreamEndpoint.java:123) ~[pdf-service.jar:?]
+        at io.vertx.core.impl.EventLoopContext.emit(EventLoopContext.java:50) ~[pdf-service.jar:?]
+        at io.vertx.core.impl.EventLoopContext.lambda$emit$1(EventLoopContext.java:57) ~[pdf-service.jar:?]
+        at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164) [pdf-service.jar:?]
+        at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:469) [pdf-service.jar:?]
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:503) [pdf-service.jar:?]
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986) [pdf-service.jar:?]
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) [pdf-service.jar:?]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [pdf-service.jar:?]
+        at java.lang.Thread.run(Thread.java:833) [?:?]
+```
+
+The CompletionStage with HTTP request is neither resolved nor rejected. The timer seems to be stopped after that (I guess setTimer never completes so it cannot set up the next execution 1 minute later). We normally handle errors in timers using whenComplete/onFailure/onComplete to set up next execution anyway, but this time it seems not to reach that point.
+
+### Do you have a reproducer?
+
+Unfortunately, I don't have a reproducer. It occurs randomly after some time (hours), usually when server is under heavy load. The same code runs totally fine on production (much stronger) server. If this description alone doesn't click I may try to construct simplified code which could at least show the approach we are taking.
+
+### Extra
+
+JDK 17

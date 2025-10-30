@@ -1,0 +1,107 @@
+Compaction metrics are not being emitted correctly
+### Affected Version
+
+Apache Druid v0.22.1.
+
+### Description
+
+Hey Druids!
+
+I'm currently using Apache Druid 0.22.1 deployed on Kubernetes (v1.18) using [druid-operator](https://github.com/druid-io/druid-operator).
+
+Aiming to create Grafana dashboards over auto-compaction behavior, I have selected the following metrics [from the docs](https://druid.apache.org/docs/latest/operations/metrics.html#coordination):
+
+- `compact/task/count`
+- `compactTask/availableSlot/count`
+
+After setting auto-compaction on my data sources and configuring [prometheus-emitter](https://druid.apache.org/docs/latest/development/extensions-contrib/prometheus.html) extension I was able to capture metrics about ingestion, memory and others, but those referring to compaction tasks (listed above)  were always returning the value `0`.
+
+The following print screen shows this strange behavior for `compactTask/availableSlot/count`. The same occurs for `compact/task/count` even when there are compaction tasks running.
+
+![image](https://user-images.githubusercontent.com/37592752/169321313-d58695c8-c1f0-485c-84e2-5bfb7eef2b4f.png)
+
+To isolate the problem I have set `druid.emitter=logging`, but the same situation was found (logs from coordinator):
+
+![image](https://user-images.githubusercontent.com/37592752/169323824-a7d628ef-f06a-44a4-a5db-8119a6c285be.png)
+
+Taking a quick glance at the code I found out where those compaction metrics are included at coordinator status (at `src/main/java/org/apache/druid/server/coordinator/duty/CompactSegments.java`):
+
+![image](https://user-images.githubusercontent.com/37592752/169326197-c2e8cdb8-7cbe-41d7-90a2-c900f9acfed2.png)
+
+Later, those variables are emitted by a `ServiceEmitter` (at `src/main/java/org/apache/druid/server/coordinator/duty/EmitClusterStatsAndMetrics.java`):
+
+![image](https://user-images.githubusercontent.com/37592752/169332623-5525215b-81e9-4303-8c7a-9eff73bcd76c.png)
+
+Grepping the log right above the `globalStat` at `CompactSegments.java` I could get the value set for `numAvailableCompactionTaskSlots` and `compactionTaskCapacity` variables (logs from coordinator):
+
+![image](https://user-images.githubusercontent.com/37592752/169328931-fbf40feb-0631-4518-8e4b-8240d8435bdb.png)
+
+**Given this scenario, am I missing some configuration or this version is running into a race condition at coordinator's duties?** 
+
+### Appendix
+
+Leaving some additional info here to help debugging.
+
+#### 1. Auto-compaction config
+
+The auto-compaction config submitted to coordinators:
+
+```json
+{
+  "dataSource": "TEST",
+  "taskPriority": 25,
+  "inputSegmentSizeBytes": 524288000,
+  "maxRowsPerSegment": null,
+  "skipOffsetFromLatest": "P1D",
+  "tuningConfig": {
+    "maxRowsInMemory": null,
+    "maxBytesInMemory": null,
+    "maxTotalRows": null,
+    "splitHintSpec": null,
+    "partitionsSpec": {
+      "type": "single_dim",
+      "targetRowsPerSegment": 5000000,
+      "maxRowsPerSegment": null,
+      "partitionDimension": "nice_dimension",
+      "assumeGrouped": false
+    },
+    "indexSpec": null,
+    "indexSpecForIntermediatePersists": null,
+    "maxPendingPersists": null,
+    "pushTimeout": null,
+    "segmentWriteOutMediumFactory": null,
+    "maxNumConcurrentSubTasks": 2,
+    "maxRetry": null,
+    "taskStatusCheckPeriodMs": null,
+    "chatHandlerTimeout": null,
+    "chatHandlerNumRetries": null,
+    "maxNumSegmentsToMerge": null,
+    "totalNumMergeTasks": 1,
+    "forceGuaranteedRollup": true,
+    "type": "index_parallel"
+  },
+  "granularitySpec": null,
+  "ioConfig": null,
+  "taskContext": null
+}
+```
+
+#### 2. Compaction config returned by the coordinator
+
+Using route `/druid/coordinator/v1/config/compaction`, the coordinators have returned the following `maxCompactionSlots`:
+
+```json
+{
+  "compactionConfigs": [
+    {
+      "dataSource": "TEST",
+      ...
+    }
+  ],
+  "compactionTaskSlotRatio": 0.5,
+  "maxCompactionTaskSlots": 10
+}
+```
+
+
+

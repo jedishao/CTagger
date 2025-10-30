@@ -1,0 +1,72 @@
+[Bug] [Transaction] Client requires lookup permission for a system topic (transaction_coordinator_assign)
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.11.0
+
+### Minimal reproduce step
+
+Starts Pulsar standalone with authorization and transactions enabled. 
+Generate a token or similar for the client that spans only over a specific tenant. (like in a multi tenant env)
+Use pulsar-perf to produce messages within a transaction
+The client gets the permission error
+>2022-12-02T09:22:04,081+0000 [main-EventThread] WARN  org.apache.pulsar.broker.service.ServerCnx - Role test-user is not authorized to perform operation LOOKUP on topic persistent://pulsar/system/transaction_coordinator_assign
+
+1.
+```
+
+ 
+ docker run --rm --name pulsar -p 8080:8080 -p 6650:6650 5a46bfd0ce5a bash \
+  -c "bin/pulsar tokens create-secret-key --output  /pulsar/my-secret.key --base64  \
+  && bin/pulsar tokens create --secret-key file:///pulsar/my-secret.key --subject super1 > /pulsar/super-user.jwt \
+  && export PULSAR_PREFIX_superUserRoles=super1 \
+  && export PULSAR_PREFIX_transactionCoordinatorEnabled=true \
+  && export PULSAR_PREFIX_authenticationEnabled=true \
+  && export PULSAR_PREFIX_authorizationEnabled=true \
+  && export PULSAR_PREFIX_authenticationProviders=org.apache.pulsar.broker.authentication.AuthenticationProviderToken \
+  && export PULSAR_PREFIX_authenticateOriginalAuthData=true \
+  && export PULSAR_PREFIX_brokerClientAuthenticationPlugin=org.apache.pulsar.client.impl.auth.AuthenticationToken \
+  && export PULSAR_PREFIX_brokerClientAuthenticationParameters=file:///pulsar/super-user.jwt \
+  && export PULSAR_PREFIX_tokenSecretKey=file:///pulsar/my-secret.key \
+  && /pulsar/bin/apply-config-from-env.py /pulsar/conf/standalone.conf && ./bin/pulsar standalone --wipe-data -nss -nfw"
+
+```
+2.
+
+```
+docker exec -it pulsar bash -c \
+    "bin/pulsar tokens create --secret-key file:///pulsar/my-secret.key --subject test-user > /pulsar/user.jwt \
+    && export PULSAR_PREFIX_authPlugin=org.apache.pulsar.client.impl.auth.AuthenticationToken \
+    && export PULSAR_PREFIX_authParams=file:///pulsar/super-user.jwt \
+    && /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf \
+    && bin/pulsar-admin namespaces grant-permission public/default --role test-user --actions produce,consume \
+    && export PULSAR_PREFIX_authPlugin=org.apache.pulsar.client.impl.auth.AuthenticationToken \
+    && export PULSAR_PREFIX_authParams=file:///pulsar/user.jwt \
+    && /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf \
+    && /pulsar/bin/pulsar-perf produce -m 10 --exit-on-failure -t 1 consume-topic \
+    && /pulsar/bin/pulsar-perf transaction --topics-c consume-topic --topics-p produce-topic -ss sub -threads 1 -ntxn 5 -nmp 2 -nmc 2 -tto 10
+    "
+```
+
+
+
+### What did you expect to see?
+
+Being multi-tenancy a core feature of Pulsar, I do expect the client just needs the permission to prod/consume on the relevant topic for them.
+The fact Pulsar implements the TC with a system topic is a implementation detail that should be transparent to Pulsar clients.
+
+### What did you see instead?
+
+The client needs LOOKUP permission on a system topic.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

@@ -1,0 +1,79 @@
+API to verify that published segments are loaded and available for a datasource
+### Description
+
+This new API will be use to verify that published segments are loaded and available for a datasource. The new API will be able to do the following:
+
+- new api takes in datasource. This will returns false if any used segment (of the past 2 weeks) of the given datasource are not available to be query (i.e. not loaded onto historical yet). Return true otherwise.
+
+- (same) new api takes in datasource and a time interval (start + end): This will returns false if any used segment (between the given start and given end time) of the given datasource are not available to be query (i.e. not loaded onto historical yet). Return true otherwise.
+
+Note that the above are both the same API. The time interval is an optional parameter. The time interval referred above is the timestamp of the data in the segment (nothing to do with when the segment is ingested). This can be the same time interval as the time interval the user want to query data from. Basically if the user wants to query from x to y then they can call this new api with the datasource and time interval x to y. This will ensure that all segments of the datasource for the timestamp from x to y is ready to be query (loaded onto historical).
+
+Important differences between this API from the existing coordinator loadstatus API:
+- Takes datasource (required) to be able to check faster (iterate smaller number of segments)
+- Takes interval (optional) to be able to check faster (iterate smaller number of segments)
+- _**Important**_. Takes boolean forceMetadataRefresh. If this is true, this will force poll the metadata source to get latest published segment information.
+
+**API Path:** 
+/druid/coordinator/v1/datasources/{dataSourceName}/loadstatus
+
+**Request:**
+```
+  @GET
+  @Path("/{dataSourceName}/loadstatus")
+  @Produces(MediaType.APPLICATION_JSON)
+  @ResourceFilters(DatasourceResourceFilter.class)
+  public Response getDatasourceLoadstatus(
+      @PathParam("dataSourceName") String dataSourceName,
+      @QueryParam("interval") @Nullable final String interval,
+      @QueryParam("forceMetadataRefresh") @Nullable final Boolean forceMetadataRefresh
+      @QueryParam("simple") @Nullabl final String simple,
+      @QueryParam("full") @Nullabl final String full
+  )
+
+```
+Response:
+**Default (No simple/full given):**
+Returns the percentage of segments actually loaded in the cluster versus segments that should be loaded in the cluster for the given datasource over the given interval (or last 2 weeks if not given).
+value in response is percentage (% )
+```
+{
+  <GIVEN_DATASOURCE>:95.0
+}
+```
+
+**Simple:**
+Returns the number of segments left to load until segments that should be loaded in the cluster are available for queries. This does not include replication.
+value in response is number of segments (# )
+```
+{
+  <GIVEN_DATASOURCE>:5
+}
+```
+
+**full:**
+Returns the number of segments left to load in each tier until segments that should be loaded in the cluster are all available. This includes replication.
+value in response is number of segments (# )
+```
+{
+  "_default_tier":{
+    <GIVEN_DATASOURCE>:1
+  }
+}
+```
+
+`interval` can be null - default to last 2 weeks 
+
+`forceMetadataRefresh` can be null - default to true
+
+### Motivation
+
+This is to address https://github.com/apache/druid/issues/5721
+
+The existing loadstatus API on the Coordinator reads segments from SqlSegmentsMetadataManager of the Coordinator which caches segments in memory and periodically updates them. Hence, there can be a race condition as this API implementation compares segments metadata from the mentioned cache with published segments in historical. Particularly, when there is a new ingestion after the initial load of the datasource, the cache still only contains the metadata of old segments. The API would compares list of old segments with what is published by historical and returns that everything is available when the new segments are not actually available yet.
+
+The workflow will be :
+1. submit ingestion task
+2. poll task api until task succeeded
+3. poll the new api with datasource, interval, and forceMetadataRefresh=true once. If false, go to step 4, otherwise the data is available and user can query.
+4. poll the new api with datasource, interval, and forceMetadataRefresh=false until return true. After true, data is available and user can query.

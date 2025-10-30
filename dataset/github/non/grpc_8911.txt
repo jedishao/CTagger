@@ -1,0 +1,33 @@
+Dynamically apply metadata headers in dependency client calls
+Hi team!
+
+I'm working on authentication between multiple service, basically the logic is:
+user A -> Service B -> Service C -> Service D
+user A calls Service B
+Service B calls Service C
+Service C calls Service D
+
+Both Service C and Service D are GRPC services.
+
+I'm the owner of Service C. I got the auth Context of user A as input parameter from Service B, and I need to verify the permission of User A in service D and act correspondingly (we have a service D client in Service C). The strategy we want to use is to get the credential we want from the auth Context parameter and dynamically assign the credential as a header of request to Service D. For some reason we cannot get this auth Context from Metadata so we're not able to use ClientInterceptor to do this and dynamically apply this header in every client call to Service D is the only way.
+
+Could you help on how we can make it work?
+
+```java
+public class ServiceCOrchestrator {
+    @Inject
+    public ServiceCOrchestrator() {
+        ...
+    }
+
+    // this is API of service C
+    public Item createItem(final AuthContect authContext,
+                                           final Item input) {
+            ...
+            // Call to Service D, where we want to apply the auth header dynamically
+            final Catalog catalog = serviceDClient.getCatalog();
+            ...
+            return item;
+        }
+    }
+```

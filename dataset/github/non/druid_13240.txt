@@ -1,0 +1,155 @@
+Druid query gives timeout 504 and/or org.apache.druid.query.QueryTimeoutException: Cannot acquire enough merge buffers
+### Affected Version
+
+0.22.1
+query 3 on 24.0.0 also gives similar response
+
+### Description
+After upgrading from druid 0.19.0 to 0.22.1
+I am seeing one query failing in our usecase
+
+so I tried the similar type of query on wikipedia data source, seems like its an issue
+
+
+- Cluster size, Configurations in use - ./bin/start-micro-quickstart with apache-druid-0.22.1
+
+Steps to reproduce the problem
+
+- Download and run apache-druid-0.22.1 with ./bin/start-micro-quickstart
+- insert the wikipedia datasource by running this command in druid directory bin/post-index-task --file quickstart/tutorial/wikipedia-index.json --url http://localhost:8081
+- run this query on wikipedia datasource.
+
+
+
+**query 1 - If trying from druid ui remove auto limit**
+SELECT DATE_TRUNC('month',t0.__time),SUM(delta) FROM "wikipedia" t0
+WHERE (comment IN( 'added project') )
+and (comment NOT IN ('added project' )) GROUP BY DATE_TRUNC('month',t0.__time)
+
+**query 2- If trying from druid ui remove auto limit**
+SELECT DATE_TRUNC('month',t0.__time),SUM(delta) FROM "wikipedia" t0
+WHERE (comment IN( 'added project') )
+and (comment NOT IN ('added project' )) GROUP BY DATE_TRUNC('month',t0.__time) LIMIT 1000
+
+both query 1 and query 2 takes 250 to 300 secs(sometimes gives timeout after 5mins also) on wikipedia datasource. In our deployment it times out as we have 1min limit. mostly this is a case of empty result set
+
+**query 3 -  If trying from druid ui remove auto limit**
+SELECT DATE_TRUNC('month',t0.__time),SUM(delta),cityName FROM "wikipedia" t0
+WHERE (comment IN( 'added project') )
+and (comment NOT IN ('added project' )) GROUP BY DATE_TRUNC('month',t0.__time),cityName 
+the above query times out after 5 mins
+
+**query 4 - If trying from druid ui remove auto limit**
+SELECT DATE_TRUNC('month',t0.__time),SUM(delta),cityName FROM "wikipedia" t0
+WHERE (comment IN( 'added project') )
+and (comment NOT IN ('added project' )) GROUP BY DATE_TRUNC('month',t0.__time),cityName LIMIT 1000
+the above query returns with in seconds - only difference from query 3 is added LIMIT
+
+for query 3 i did some debugging the following was the result
+`2022-10-19T11:01:01,754 ERROR [sql[5c65ff62-739a-4202-8076-1fb621989d5f]] org.apache.druid.server.QueryLifecycle - Exception while processing queryId [6666dd8b-07e8-4571-ac93-cad0fee0d886] (org.apache.druid.query.QueryTimeoutException: Cannot acquire enough merge buffers)
+
+2022-10-19T11:01:01,755 INFO [sql[5c65ff62-739a-4202-8076-1fb621989d5f]] org.apache.druid.server.log.LoggingRequestLogger - 2022-10-19T10:56:00.411Z		{"queryType":"groupBy","dataSource":{"type":"inline","columnNames":["__time","cityName","comment","delta"],"columnTypes":["LONG","STRING","STRING","LONG"],"rows":[]},"intervals":{"type":"intervals","intervals":["-146136543-09-08T08:23:32.096Z/146140482-04-24T15:36:27.903Z"]},"virtualColumns":[{"type":"expression","name":"v0","expression":"timestamp_floor(\"__time\",'P1M',null,'UTC')","outputType":"LONG"}],"filter":null,"granularity":{"type":"all"},"dimensions":[{"type":"default","dimension":"v0","outputName":"d0","outputType":"LONG"},{"type":"default","dimension":"cityName","outputName":"d1","outputType":"STRING"}],"aggregations":[{"type":"longSum","name":"a0","fieldName":"delta","expression":null}],"postAggregations":[],"having":null,"limitSpec":{"type":"NoopLimitSpec"},"context":{"queryId":"6666dd8b-07e8-4571-ac93-cad0fee0d886","sqlQueryId":"5c65ff62-739a-4202-8076-1fb621989d5f","timestampResultField":"d0","timestampResultFieldGranularity":"MONTH","timestampResultFieldInOriginalDimensions":0},"descending":false}	{"query/time":301342,"query/bytes":-1,"success":false,"identity":"allowAll","exception":"org.apache.druid.query.QueryTimeoutException: Cannot acquire enough merge buffers","interrupted":true,"reason":"org.apache.druid.query.QueryTimeoutException: Cannot acquire enough merge buffers"}
+
+
+0 = {StackTraceElement@12909} "org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2.getMergeBuffersHolder(GroupByMergingQueryRunnerV2.java:326)"
+1 = {StackTraceElement@12910} "org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2.access$000(GroupByMergingQueryRunnerV2.java:83)"
+2 = {StackTraceElement@12911} "org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2$1.make(GroupByMergingQueryRunnerV2.java:182)"
+3 = {StackTraceElement@12912} "org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2$1.make(GroupByMergingQueryRunnerV2.java:164)"
+4 = {StackTraceElement@12913} "org.apache.druid.java.util.common.guava.BaseSequence.toYielder(BaseSequence.java:66)"
+5 = {StackTraceElement@12914} "org.apache.druid.java.util.common.guava.LazySequence.toYielder(LazySequence.java:46)"
+6 = {StackTraceElement@12915} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:88)"
+7 = {StackTraceElement@12916} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:84)"
+8 = {StackTraceElement@12917} "org.apache.druid.java.util.common.guava.SequenceWrapper.wrap(SequenceWrapper.java:55)"
+9 = {StackTraceElement@12918} "org.apache.druid.java.util.common.guava.WrappingSequence.toYielder(WrappingSequence.java:83)"
+10 = {StackTraceElement@12919} "org.apache.druid.common.guava.CombiningSequence.toYielder(CombiningSequence.java:78)"
+11 = {StackTraceElement@12920} "org.apache.druid.java.util.common.guava.MappedSequence.toYielder(MappedSequence.java:49)"
+12 = {StackTraceElement@12921} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:88)"
+13 = {StackTraceElement@12922} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:84)"
+14 = {StackTraceElement@12923} "org.apache.druid.java.util.common.guava.SequenceWrapper.wrap(SequenceWrapper.java:55)"
+15 = {StackTraceElement@12924} "org.apache.druid.java.util.common.guava.WrappingSequence.toYielder(WrappingSequence.java:83)"
+16 = {StackTraceElement@12925} "org.apache.druid.java.util.common.guava.MappedSequence.toYielder(MappedSequence.java:49)"
+17 = {StackTraceElement@12926} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:88)"
+18 = {StackTraceElement@12927} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:84)"
+19 = {StackTraceElement@12928} "org.apache.druid.query.CPUTimeMetricQueryRunner$1.wrap(CPUTimeMetricQueryRunner.java:78)"
+20 = {StackTraceElement@12929} "org.apache.druid.java.util.common.guava.WrappingSequence.toYielder(WrappingSequence.java:83)"
+21 = {StackTraceElement@12930} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:88)"
+22 = {StackTraceElement@12931} "org.apache.druid.java.util.common.guava.WrappingSequence$2.get(WrappingSequence.java:84)"
+23 = {StackTraceElement@12932} "org.apache.druid.java.util.common.guava.SequenceWrapper.wrap(SequenceWrapper.java:55)"
+24 = {StackTraceElement@12933} "org.apache.druid.java.util.common.guava.WrappingSequence.toYielder(WrappingSequence.java:83)"
+25 = {StackTraceElement@12934} "org.apache.druid.java.util.common.guava.MappedSequence.toYielder(MappedSequence.java:49)"
+26 = {StackTraceElement@12935} "org.apache.druid.java.util.common.guava.MappedSequence.toYielder(MappedSequence.java:49)"
+27 = {StackTraceElement@12936} "org.apache.druid.java.util.common.guava.Yielders.each(Yielders.java:32)"
+28 = {StackTraceElement@12937} "org.apache.druid.sql.http.SqlResource.doPost(SqlResource.java:118)"
+29 = {StackTraceElement@12938} "sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)"
+30 = {StackTraceElement@12939} "sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)"
+31 = {StackTraceElement@12940} "sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)"
+32 = {StackTraceElement@12941} "java.lang.reflect.Method.invoke(Method.java:498)"
+33 = {StackTraceElement@12942} "com.sun.jersey.spi.container.JavaMethodInvokerFactory$1.invoke(JavaMethodInvokerFactory.java:60)"
+34 = {StackTraceElement@12943} "com.sun.jersey.server.impl.model.method.dispatch.AbstractResourceMethodDispatchProvider$ResponseOutInvoker._dispatch(AbstractResourceMethodDispatchProvider.java:205)"
+35 = {StackTraceElement@12944} "com.sun.jersey.server.impl.model.method.dispatch.ResourceJavaMethodDispatcher.dispatch(ResourceJavaMethodDispatcher.java:75)"
+36 = {StackTraceElement@12945} "com.sun.jersey.server.impl.uri.rules.HttpMethodRule.accept(HttpMethodRule.java:302)"
+37 = {StackTraceElement@12946} "com.sun.jersey.server.impl.uri.rules.ResourceClassRule.accept(ResourceClassRule.java:108)"
+38 = {StackTraceElement@12947} "com.sun.jersey.server.impl.uri.rules.RightHandPathRule.accept(RightHandPathRule.java:147)"
+39 = {StackTraceElement@12948} "com.sun.jersey.server.impl.uri.rules.RootResourceClassesRule.accept(RootResourceClassesRule.java:84)"
+40 = {StackTraceElement@12949} "com.sun.jersey.server.impl.application.WebApplicationImpl._handleRequest(WebApplicationImpl.java:1542)"
+41 = {StackTraceElement@12950} "com.sun.jersey.server.impl.application.WebApplicationImpl._handleRequest(WebApplicationImpl.java:1473)"
+42 = {StackTraceElement@12951} "com.sun.jersey.server.impl.application.WebApplicationImpl.handleRequest(WebApplicationImpl.java:1419)"
+43 = {StackTraceElement@12952} "com.sun.jersey.server.impl.application.WebApplicationImpl.handleRequest(WebApplicationImpl.java:1409)"
+44 = {StackTraceElement@12953} "com.sun.jersey.spi.container.servlet.WebComponent.service(WebComponent.java:409)"
+45 = {StackTraceElement@12954} "com.sun.jersey.spi.container.servlet.ServletContainer.service(ServletContainer.java:558)"
+46 = {StackTraceElement@12955} "com.sun.jersey.spi.container.servlet.ServletContainer.service(ServletContainer.java:733)"
+47 = {StackTraceElement@12956} "javax.servlet.http.HttpServlet.service(HttpServlet.java:790)"
+48 = {StackTraceElement@12957} "com.google.inject.servlet.ServletDefinition.doServiceImpl(ServletDefinition.java:286)"
+49 = {StackTraceElement@12958} "com.google.inject.servlet.ServletDefinition.doService(ServletDefinition.java:276)"
+50 = {StackTraceElement@12959} "com.google.inject.servlet.ServletDefinition.service(ServletDefinition.java:181)"
+51 = {StackTraceElement@12960} "com.google.inject.servlet.ManagedServletPipeline.service(ManagedServletPipeline.java:91)"
+52 = {StackTraceElement@12961} "com.google.inject.servlet.FilterChainInvocation.doFilter(FilterChainInvocation.java:85)"
+53 = {StackTraceElement@12962} "com.google.inject.servlet.ManagedFilterPipeline.dispatch(ManagedFilterPipeline.java:120)"
+54 = {StackTraceElement@12963} "com.google.inject.servlet.GuiceFilter.doFilter(GuiceFilter.java:135)"
+55 = {StackTraceElement@12964} "org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)"
+56 = {StackTraceElement@12965} "org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)"
+57 = {StackTraceElement@12966} "org.apache.druid.server.security.PreResponseAuthorizationCheckFilter.doFilter(PreResponseAuthorizationCheckFilter.java:82)"
+58 = {StackTraceElement@12967} "org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)"
+59 = {StackTraceElement@12968} "org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)"
+60 = {StackTraceElement@12969} "org.apache.druid.server.security.AllowHttpMethodsResourceFilter.doFilter(AllowHttpMethodsResourceFilter.java:78)"
+61 = {StackTraceElement@12970} "org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)"
+62 = {StackTraceElement@12971} "org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)"
+63 = {StackTraceElement@12972} "org.apache.druid.server.security.AllowOptionsResourceFilter.doFilter(AllowOptionsResourceFilter.java:75)"
+64 = {StackTraceElement@12973} "org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)"
+65 = {StackTraceElement@12974} "org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)"
+66 = {StackTraceElement@12975} "org.apache.druid.server.security.AllowAllAuthenticator$1.doFilter(AllowAllAuthenticator.java:84)"
+67 = {StackTraceElement@12976} "org.apache.druid.server.security.AuthenticationWrappingFilter.doFilter(AuthenticationWrappingFilter.java:59)"
+68 = {StackTraceElement@12977} "org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)"
+69 = {StackTraceElement@12978} "org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)"
+70 = {StackTraceElement@12979} "org.apache.druid.server.security.SecuritySanityCheckFilter.doFilter(SecuritySanityCheckFilter.java:77)"
+71 = {StackTraceElement@12980} "org.eclipse.jetty.servlet.FilterHolder.doFilter(FilterHolder.java:193)"
+72 = {StackTraceElement@12981} "org.eclipse.jetty.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1601)"
+73 = {StackTraceElement@12982} "org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:548)"
+74 = {StackTraceElement@12983} "org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233)"
+75 = {StackTraceElement@12984} "org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1624)"
+76 = {StackTraceElement@12985} "org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233)"
+77 = {StackTraceElement@12986} "org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1435)"
+78 = {StackTraceElement@12987} "org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188)"
+79 = {StackTraceElement@12988} "org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:501)"
+80 = {StackTraceElement@12989} "org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1594)"
+81 = {StackTraceElement@12990} "org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186)"
+82 = {StackTraceElement@12991} "org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1350)"
+83 = {StackTraceElement@12992} "org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141)"
+84 = {StackTraceElement@12993} "org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:763)"
+85 = {StackTraceElement@12994} "org.eclipse.jetty.server.handler.HandlerList.handle(HandlerList.java:59)"
+86 = {StackTraceElement@12995} "org.eclipse.jetty.server.handler.StatisticsHandler.handle(StatisticsHandler.java:179)"
+87 = {StackTraceElement@12996} "org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127)"
+88 = {StackTraceElement@12997} "org.eclipse.jetty.server.Server.handle(Server.java:516)"
+89 = {StackTraceElement@12998} "org.eclipse.jetty.server.HttpChannel.lambda$handle$1(HttpChannel.java:388)"
+90 = {StackTraceElement@12999} "org.eclipse.jetty.server.HttpChannel.dispatch(HttpChannel.java:633)"
+91 = {StackTraceElement@13000} "org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:380)"
+92 = {StackTraceElement@13001} "org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:277)"
+93 = {StackTraceElement@13002} "org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:311)"
+94 = {StackTraceElement@13003} "org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)"
+95 = {StackTraceElement@13004} "org.eclipse.jetty.io.ChannelEndPoint$1.run(ChannelEndPoint.java:104)"
+96 = {StackTraceElement@13005} "org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:882)"
+97 = {StackTraceElement@13006} "org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1036)"
+98 = {StackTraceElement@13007} "java.lang.Thread.run(Thread.java:750)"
+
+`
+

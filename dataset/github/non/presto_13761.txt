@@ -1,0 +1,21 @@
+SQL function does not respect NULL convention
+SQL function execution does not respect NULL convention. For example:
+
+For function
+```
+CREATE OR REPLACE testing.test.foo(x BIGINT)
+RETURNS BIGINT
+DETERMINISTIC
+RETURNS NULL ON NULL INPUT
+RETURN 2 + COALESCE(x, 0);
+```
+
+It returns 2 rather than null for null input.
+```
+> select testing.test.my_fun2(x) from (values (1), (null)) t(x);
+ _col0
+-------
+     3
+     2
+(2 rows)
+```

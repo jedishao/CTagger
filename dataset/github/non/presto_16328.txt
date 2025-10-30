@@ -1,0 +1,32 @@
+how to submit presto on spark to k8s
+ /opt/spark/bin/spark-submit 
+ --master 
+ --deploy-mode cluster --name prestotest 
+ --class com.facebook.presto.spark.launcher.PrestoSparkLauncher 
+ --conf spark.kubernetes.driverEnv.SPRING_PROFILES_ACTIVE=test   
+ --conf spark.kubernetes.driver.pod.name=prestotest       
+ --conf spark.kubernetes.driverEnv.HADOOP_CONF_DIR=/opt/hadoop/conf/test 
+ --conf spark.executorEnv.HADOOP_CONF_DIR=/opt/hadoop/conf/test 
+ --conf spark.executorEnv.SPRING_PROFILES_ACTIVE=test 
+ --conf spark.kubernetes.namespace=devtest 
+ --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark 
+ --conf spark.kubernetes.container.image=
+ --conf spark.driver.cores=1 --conf spark.driver.memory=3G --conf spark.executor.instances=2 
+ --conf spark.executor.cores=4 --conf spark.executor.memory=4G --conf spark.task.cpus=4 
+ --conf spark.kubernetes.driver.volumes.hostPath.hadoop-conf.mount.path=/opt/hadoop/conf/test 
+ --conf spark.kubernetes.driver.volumes.hostPath.hadoop-conf.options.path=/opt/hadoop/conf/test 
+ --conf spark.kubernetes.driver.volumes.hostPath.hadoop-conf.mount.readOnly=true 
+ --conf spark.kubernetes.executor.volumes.hostPath.hadoop-conf.mount.path=/opt/hadoop/conf/test 
+ --conf spark.kubernetes.executor.volumes.hostPath.hadoop-conf.options.path=/opt/hadoop/conf/test 
+ --conf spark.kubernetes.executor.volumes.hostPath.hadoop-conf.mount.readOnly=true 
+ https://repo1.maven.org/maven2/com/facebook/presto/presto-spark-launcher/0.255/presto-spark-launcher-0.255.jar
+ --package presto-spark-package-0.255.tar.gz 
+ --config config.properties
+ --catalogs catalogs 
+ --catalog hive 
+ --schema dw_t1 
+ --file query.sql 
+
+but exception say presto-spark-package-0.255.tar.gz not exist
+ 21/06/24 18:03:52 INFO KubernetesClusterSchedulerBackend: SchedulerBackend is ready for scheduling beginning after reached minRegisteredResourcesRatio: 0.8
+java.lang.IllegalArgumentException: file does not exist: presto-spark-package-0.255.tar.gz

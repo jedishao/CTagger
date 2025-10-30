@@ -1,0 +1,35 @@
+Casting between QDigest and TDigest VARBINARIES silently passes with bad data
+This is related to #16913.
+
+Currently, it's possible to write a Q/TDigest to VARBINARY and then cast it to a T/QDigest (the opposite of the actual type) without hitting any errors.  The resulting digest type is garbled, and trying to do anything with it fails with various errors:
+
+```
+SELECT
+    VALUE_AT_QUANTILE(
+        TRY_CAST(CAST(QDIGEST_AGG(x) AS VARBINARY) AS Tdigest(DOUBLE)),
+        0.5
+    )
+FROM (
+    VALUES
+        1.0,
+        2.0,
+        3.0
+) AS i (x);
+-- (GENERIC_INTERNAL_ERROR) Invalid type for TDigest; expected '0' (type double)
+
+SELECT
+    VALUE_AT_QUANTILE(
+        TRY_CAST(CAST(TDIGEST_AGG(x) AS VARBINARY) AS Qdigest(DOUBLE)),
+        0.5
+    )
+FROM (
+    VALUES
+        1.0,
+        2.0,
+        3.0
+) AS i (x);
+-- (GENERIC_INTERNAL_ERROR) Invalid format 
+```
+
+In this case, we have an invalid cast argument which I think should throw a TRY catchable error even by the updated docs in #16945.  I think we just need to add some sanity checking to the deserialize step to make sure we end up with a valid digest.  
+

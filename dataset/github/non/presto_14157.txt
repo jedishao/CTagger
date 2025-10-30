@@ -1,0 +1,81 @@
+A lot of Major GC block the query on presto cluster
+Hi All , There are a lot of major GC in our presto, which makes the query slow. This is the configuration of our jvm.config
+```
+-server
+-Xmx40G
+-verbose:gc
+-Xloggc:/opt/soft/log/presto/gc_presto.log
+-XX:+UseG1GC
+-XX:G1ReservePercent=15
+-XX:InitiatingHeapOccupancyPercent=40
+-XX:ConcGCThreads=8
+-XX:G1HeapRegionSize=32M
+-XX:+UseGCOverheadLimit
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:+ExplicitGCInvokesConcurrent
+-XX:OnOutOfMemoryError=kill -9 %p
+-XX:+PrintGCApplicationConcurrentTime
+-XX:+PrintGCApplicationStoppedTime
+-XX:+PrintGCCause
+-XX:+PrintGCDateStamps
+-XX:+PrintGCTimeStamps
+-XX:+PrintGCDetails
+-XX:+PrintReferenceGC
+-XX:+PrintClassHistogramAfterFullGC
+-XX:+PrintClassHistogramBeforeFullGC
+-XX:PrintFLSStatistics=2
+-XX:+PrintAdaptiveSizePolicy
+-XX:+PrintSafepointStatistics
+-XX:PrintSafepointStatisticsCount=1
+```
+
+Some other parameters that may be relevant:
+```
+experimental.reserved-pool-enabled=false
+experimental.spill-enabled=true
+```
+
+We set experimental.reserved-pool-enabled=false to close the reserved pool. so the General Pool have 28G memory.
+
+![image](https://user-images.githubusercontent.com/32193458/75160623-51892300-5755-11ea-9640-5c97105d53cc.png)
+
+When I run queries that require a lot of memory ，a lot of major gc happend on the presto worker node. The log of the worker is like this:
+
+```
+/var/log/presto/server.log:2020-02-24T21:55:10.606+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 5259ms, stopped 15841ms: 40.17GB -> 23.31GB
+/var/log/presto/server.log:2020-02-24T21:55:29.763+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 5806ms, stopped 13410ms: 40.15GB -> 23.55GB
+/var/log/presto/server.log:2020-02-24T21:55:48.521+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 5559ms, stopped 13187ms: 40.17GB -> 23.71GB
+/var/log/presto/server.log:2020-02-24T21:56:06.846+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 4842ms, stopped 13640ms: 40.18GB -> 23.50GB
+/var/log/presto/server.log:2020-02-24T21:56:28.851+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 8224ms, stopped 13667ms: 40.18GB -> 24.91GB
+/var/log/presto/server.log:2020-02-24T21:56:49.753+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 6541ms, stopped 14213ms: 40.16GB -> 25.78GB
+/var/log/presto/server.log:2020-02-24T21:57:19.722+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 21117ms, stopped 9407ms: 40.21GB -> 14.84GB
+/var/log/presto/server.log:2020-02-24T21:57:40.267+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 9620ms, stopped 10953ms: 40.19GB -> 15.40GB
+/var/log/presto/server.log:2020-02-24T21:58:39.875+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 48148ms, stopped 11233ms: 40.20GB -> 17.43GB
+/var/log/presto/server.log:2020-02-24T21:58:59.699+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 8033ms, stopped 11783ms: 40.20GB -> 18.31GB
+/var/log/presto/server.log:2020-02-24T21:59:17.088+0800 INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 7174ms, stopped 10444ms: 40.20GB -> 17.99GB
+```
+
+At the same time, there will be a large number of error logs
+
+```
+2020-02-24T21:59:04.853+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.71.140:8285/v1/info/state has not returned in 20.05s
+2020-02-24T21:59:04.853+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.151.56:8285/v1/info/state has not returned in 19.89s
+2020-02-24T21:59:17.088+0800    INFO    Service Thread  io.airlift.stats.JmxGcMonitor   Major GC: application 7174ms, stopped 10444ms: 40.20GB -> 17.99GB
+2020-02-24T21:59:17.130+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.71.140:8285/v1/info/state has not returned in 32.33s
+2020-02-24T21:59:17.131+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.51.48:8285/v1/info/state has not returned in 17.38s
+2020-02-24T21:59:17.134+0800    WARN    http-client-node-manager-scheduler      io.prestosql.metadata.RemoteNodeState   Error fetching node state from http://10.9.71.140:8285/v1/info/state: java.util.concurrent.TimeoutException: Total timeout 10000 ms elapsed
+2020-02-24T21:59:17.134+0800    WARN    http-client-node-manager-scheduler      io.prestosql.metadata.RemoteNodeState   Error fetching node state from http://10.9.51.48:8285/v1/info/state: java.util.concurrent.TimeoutException: Total timeout 10000 ms elapsed
+2020-02-24T21:59:17.136+0800    ERROR   Announcer-3     io.airlift.discovery.client.Announcer   Expected service announcement after 8000.00ms, but announcement was delayed 17.37s
+2020-02-24T21:59:22.143+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.26.190:8285/v1/info/state has not returned in 17.29s
+2020-02-24T21:59:22.144+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.110.189:8285/v1/info/state has not returned in 17.29s
+2020-02-24T21:59:27.148+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.71.140:8285/v1/info/state has not returned in 10.01s
+2020-02-24T21:59:27.148+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.151.56:8285/v1/info/state has not returned in 10.02s
+2020-02-24T21:59:32.152+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.151.56:8285/v1/info/state has not returned in 15.02s
+2020-02-24T21:59:32.155+0800    WARN    http-client-node-manager-scheduler      io.prestosql.metadata.RemoteNodeState   Error fetching node state from http://10.9.151.56:8285/v1/info/state: java.util.concurrent.TimeoutException: Total timeout 10000 ms elapsed
+2020-02-24T21:59:42.155+0800    WARN    http-client-node-manager-scheduler      io.prestosql.metadata.RemoteNodeState   Error fetching node state from http://10.9.26.190:8285/v1/info/state: java.util.concurrent.TimeoutException: Total timeout 10000 ms elapsed
+2020-02-24T21:59:57.186+0800    WARN    http-client-node-manager-scheduler      io.prestosql.metadata.RemoteNodeState   Error fetching node state from http://10.9.151.56:8285/v1/info/state: java.util.concurrent.TimeoutException: Total timeout 10000 ms elapsed
+2020-02-24T22:00:17.204+0800    WARN    http-client-node-manager-scheduler      io.prestosql.metadata.RemoteNodeState   Error fetching node state from http://10.9.151.56:8285/v1/info/state: java.util.concurrent.TimeoutException: Total timeout 10000 ms elapsed
+2020-02-24T22:00:32.234+0800    WARN    node-state-poller-0     io.prestosql.metadata.RemoteNodeState   Node state update request to http://10.9.26.190:8285/v1/info/state has not returned in 10.01s
+```
+
+Can you help me?

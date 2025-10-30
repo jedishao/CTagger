@@ -1,0 +1,43 @@
+xDS example doesn't work as expected
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+I've tried grpc-java/examples/xds/ and it doesn't work.I'm using a customized control-plane based on [https://github.com/envoyproxy/java-control-plane/tree/main](url) then I run the server and the client.But the server cannot register itself sucessfully.  the error is :
+```
+Exception in thread "main" java.io.IOException: io.grpc.StatusException: UNAVAILABLE: Can only support xDS v3 with listener resource name template
+	at io.grpc.xds.XdsServerWrapper.start(XdsServerWrapper.java:169)
+	at io.grpc.examples.helloworldxds.XdsHelloWorldServer.main(XdsHelloWorldServer.java:72)
+Caused by: io.grpc.StatusException: UNAVAILABLE: Can only support xDS v3 with listener resource name template
+	at io.grpc.Status.asException(Status.java:543)
+	at io.grpc.xds.XdsServerWrapper.internalStart(XdsServerWrapper.java:190)
+	at io.grpc.xds.XdsServerWrapper.access$100(XdsServerWrapper.java:80)
+	at io.grpc.xds.XdsServerWrapper$2.run(XdsServerWrapper.java:158)
+	at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+	at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+	at io.grpc.xds.XdsServerWrapper.start(XdsServerWrapper.java:155)
+	... 1 more
+```
+
+and the bootstrap.json is as follows:
+```
+{
+  "xds_servers": [
+    {
+      "server_uri": "127.0.0.1:12345",
+      "channel_creds": [
+        {
+          "type": "insecure"
+        }
+      ],
+      "server_features": ["xds_v3"]  
+    }
+  ],
+  "node": {
+    "id": "b7f9c818-fb46-43ca-8662-d3bdbcf7ec18~10.0.0.1"
+  }
+}
+```
+Another question that I want to ask is how to configurate the “yourServersName” when operating the command “./build/install/example-xds/bin/xds-hello-world-client "xds world" xds:///yourServersName". As the server doesn't register a name when it is started

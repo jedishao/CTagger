@@ -1,0 +1,16 @@
+vertx.cacheDirBase semantics has changed from vert.x 3.9 to 4.0
+In vert.x 3.x the value set via the `vertx.cacheDirBase` Java system property had been used to create a temporary directory for resolving files from the classpath as follows:
+`"${vertx.cacheDirBase}/file-cache-" + UUID.randomUUID().toString()`
+
+In vert.x 4.x the semantics has changed to now create a directory as:
+`"${vertx.cacheDirBase}-" + UUID.randomUUID().toString()`
+
+With vert.x 3.x it was possible to e.g. provide the vert.x process with write access to `/tmp` and set `-Dvertx.cacheDirBase=/tmp` so that vert.x would create a sub-directory under `/tmp` during startup.
+
+Using the same system property value under vert.x 4 will fail during startup if the vert.x process does not have write access to the root file system (`/`) because vert.x will try to create folder `/tmp-UUID` instead of `/tmp/file-cache-UUID` in this case.
+
+The online documentation regarding this system property and how its value is being used is also wrong for versions 3.9.10, 4.0.3, 4.1.6 and 4.2.1
+
+This (breaking) change also hasn't been documented in the Migration Guide for upgrading to vert.x 4.
+
+I see two ways of dealing with this. Either keep the breaking change in the code base and amend the Migration Guide accordingly or reinstate the vert.x 3 behavior in the vert.x 4 code base. I can provide a pull request for any of these options as you see fit.

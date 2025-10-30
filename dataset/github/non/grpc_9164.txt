@@ -1,0 +1,38 @@
+Exceptions created in onClose() path lack useful context
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+
+1.46.0
+
+### What did you expect to see?
+
+Ideally:
+An exception that is returning from a call's Future should have a stack trace leading to this call and allowing to trace where the call was initiated.
+
+Second option:
+Likely having a stack trace of the original call is impossible or prohibitively expensive here. In that case, additional metadata may be included in the message to at least help identify the rpc method.
+
+### What did you see instead?
+
+When using future stubs:
+
+```
+io.grpc.StatusRuntimeException: DEADLINE_EXCEEDED: deadline exceeded after 9.999773390s. [closed=[], open=[[remote_addr=/127.0.0.1:7233]]]
+	at io.grpc.Status.asRuntimeException(Status.java:535) ~[grpc-api-1.46.0.jar:1.46.0]
+	at io.grpc.stub.ClientCalls$UnaryStreamToFuture.onClose(ClientCalls.java:542) ~[grpc-stub-1.46.0.jar:1.46.0]
+	at io.grpc.PartialForwardingClientCallListener.onClose(PartialForwardingClientCallListener.java:39) ~[grpc-api-1.46.0.jar:1.46.0]
+	at io.grpc.ForwardingClientCallListener.onClose(ForwardingClientCallListener.java:23) ~[grpc-api-1.46.0.jar:1.46.0]
+	at io.grpc.ForwardingClientCallListener$SimpleForwardingClientCallListener.onClose(ForwardingClientCallListener.java:40) ~[grpc-api-1.46.0.jar:1.46.0]
+	at io.grpc.internal.ClientCallImpl.closeObserver(ClientCallImpl.java:562) ~[grpc-core-1.46.0.jar:1.46.0]
+	at io.grpc.internal.ClientCallImpl.access$300(ClientCallImpl.java:70) ~[grpc-core-1.46.0.jar:1.46.0]
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInternal(ClientCallImpl.java:743) ~[grpc-core-1.46.0.jar:1.46.0]
+	at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInContext(ClientCallImpl.java:722) ~[grpc-core-1.46.0.jar:1.46.0]
+	at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37) ~[grpc-core-1.46.0.jar:1.46.0]
+	at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133) ~[grpc-core-1.46.0.jar:1.46.0]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[na:na]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[na:na]
+	at java.base/java.lang.Thread.run(Thread.java:834) ~[na:na]
+```
+
+This exception identifies neither the rpc method that was called nor the stack trace of the execution that led to this call. If this exception is getting logged, it's pretty much useless and untraceable to its source.

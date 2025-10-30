@@ -1,0 +1,77 @@
+Sql blocked when using dynamic filter
+Hi, we are using **presto release241**, we deploy one node . we changed sql logical plan. For example : 
+
+**from presto cli, sql is:** 
+`select level, ip,md5 from opd.ycs.ycs where day = 20200702 and ip = '36.46.162.185';`
+
+**after our change ,sql is:**
+
+` WITH                                                   
+   tmptable5714857148 (ip, md5, level, day) AS (        
+    SELECT                                              
+      ip                                                
+    , md5                                               
+    , level                                             
+    , day                                               
+    FROM                                                
+      (opd.ycs.ycs                                      
+    RIGHT JOIN    SELECT docid                          
+    FROM                                                
+      opd.ycs.idx_ip                                    
+    WHERE ((day = 20200702) AND (ip = '36.46.162.185')) 
+  tmptable5714857148_0 (docid1) ON (docid = docid1))    
+ )                                                      
+ SELECT                                                 
+   level                                                
+ , ip                                                   
+ , md5                                                  
+ FROM                                                   
+   tmptable5714857148                                   
+ WHERE ((day = 20200702) AND (ip = '36.46.162.185'))  `
+
+when we execute the above sql , it is staying in progress 34% ,but not moving forward for several minutes.
+
+**during the moment, from presto admin:**
+
+![sql](https://user-images.githubusercontent.com/24871202/103504298-f73b1180-4e91-11eb-8c72-ea2661dc82c9.png)
+
+**live plan:**
+
+![stage 2](https://user-images.githubusercontent.com/24871202/103504321-0e79ff00-4e92-11eb-95c1-76049d41fe97.png)
+
+![stage 1](https://user-images.githubusercontent.com/24871202/103504332-1a65c100-4e92-11eb-9904-c7de3efff055.png)
+
+![](https://user-images.githubusercontent.com/24871202/103504353-2782b000-4e92-11eb-8715-0d1c409b62fc.png)
+
+our **config.properties** is:
+
+![config](https://user-images.githubusercontent.com/24871202/103504371-349f9f00-4e92-11eb-8a78-84f353a3a6b5.png)
+
+
+our jvm.config is ：
+```
+  -server
+  -Xmx16G
+  -XX:+UseG1GC
+  -XX:G1HeapRegionSize=32M
+  -XX:+UseGCOverheadLimit
+  -XX:+ExplicitGCInvokesConcurrent
+  -XX:+HeapDumpOnOutOfMemoryError
+  -XX:+ExitOnOutOfMemoryError
+  -Xloggc:/var/presto/data/var/log/presto-gc.log
+  -XX:OnOutOfMemoryError=kill -9 %p
+```
+
+after I cancel the query , the server log reminds me:
+
+	query-management-4	com.facebook.presto.memory.ClusterMemoryLeakDetector	Memory leak detected. The following queries are already finished, but they have memory reservations on some worker node(s): {20210104_035719_00001_9spvn=6580, 20210104_035415_00000_9spvn=6580}
+
+ I don't know why the query is blocked, the query result is actually 3000 row data, 
+
+why it use reserved pool memory and stops at 1.33M, but the user memory is still up.
+
+why it blokes at stage 1, is something with dynamic filter?But I have already got all dynamic filter data from `splitContext.getDynamicFilterPredicate().get()` in ConnectorPageSourceProvider....
+
+Could someone help me?Thanks! 
+
+

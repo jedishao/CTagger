@@ -1,0 +1,98 @@
+Historical server fails to load segments in kubernetes
+Please provide a detailed title (e.g. "Broker crashes when using TopN query with Bound filter" instead of just "Broker crashes").
+We installed druid using the incubator helm chart.  It mounts a data volume for historical and middle manager at /opt/druid/var/druid.  The historical server appears unable to access the segments.
+
+
+druid:
+  enabled: true
+  configVars:
+    druid_worker_capacity: '20'
+    druid_extensions_loadList: '["druid-kafka-indexing-service", "druid-histogram", "druid-datasketches", "druid-lookups-cached-global", "postgresql-metadata-storage"]'
+  historical:
+    config:
+      druid_segmentCache_locations: '[{"path":"/opt/druid/var/druid/segment-cache","maxSize":300000000000}]'
+    persistence:
+      size: "12Gi"
+  middleManager:
+    persistence:
+      size: "12Gi"
+    config:
+      druid_segmentCache_locations: '[{"path":"/opt/druid/var/druid/segment-cache","maxSize":300000000000}]'
+      druid_indexer_runner_javaOptsArray: '["-server", "-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=500m", "-Duser.timezone=UTC", "-Dfile.encoding=UTF-8", "-XX:+ExitOnOutOfMemoryError", "-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager"]'
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+
+
+### Affected Version
+Druid 0.19.0 from helm 0.2.13
+
+The Druid version where the problem was encountered.
+
+### Description
+
+Trying to get  stable install to do initial development work with.  Real time queries and access are working, but historical server not able to access segments so they go away when they are published from the middle manager.
+
+Please include as much detailed information about the problem as possible.
+- Cluster size
+- Configurations in use
+- Steps to reproduce the problem
+- The error message or stack traces encountered. Providing more context, such as nearby log messages or even entire logs, can be helpful.
+- Any debugging that you have already done
+
+This is a single node minikube environment.  We are using this for development work.  The segments are using local file persistence.  See values config above.
+
+The following is from the historical pod log.  Note that there are file references trying to use /opt/apache-druid-0.19.0/var/druid even though the segment cache location was overridden to use /opt/druid/var/druid to match the volume mounts.
+
+2020-10-20T23:57:55,979 INFO [ZKCoordinator--0] org.apache.druid.server.coordination.ZkCoordinator - Completed request [LOAD: jobs_1979-01-01T00:00:00.000Z_1980-01-01T00:00:00.000Z_2020-10-20T21:36:46.683Z]
+2020-10-20T23:57:55,979 INFO [ZkCoordinator] org.apache.druid.server.coordination.ZkCoordinator - zNode[/druid/loadQueue/172.17.0.34:8083/jobs_1979-01-01T00:00:00.000Z_1980-01-01T00:00:00.000Z_2020-10-20T21:36:46.683Z] was removed
+2020-10-20T23:57:55,979 INFO [ZKCoordinator--0] org.apache.druid.server.coordination.SegmentLoadDropHandler - Loading segment jobs_1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z_2020-10-20T21:36:50.665Z
+2020-10-20T23:57:55,980 WARN [ZKCoordinator--0] org.apache.druid.server.coordination.BatchDataSegmentAnnouncer - No path to unannounce segment[jobs_1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z_2020-10-20T21:36:50.665Z]
+2020-10-20T23:57:55,980 INFO [ZKCoordinator--0] org.apache.druid.server.SegmentManager - Told to delete a queryable for a dataSource[jobs] that doesn't exist.
+2020-10-20T23:57:55,980 INFO [ZKCoordinator--0] org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager - Deleting directory[/opt/druid/var/druid/segment-cache/jobs/1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z/2020-10-20T21:36:50.665Z/0]
+2020-10-20T23:57:55,980 INFO [ZKCoordinator--0] org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager - Deleting directory[/opt/druid/var/druid/segment-cache/jobs/1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z/2020-10-20T21:36:50.665Z]
+2020-10-20T23:57:55,980 INFO [ZKCoordinator--0] org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager - Deleting directory[/opt/druid/var/druid/segment-cache/jobs/1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z]
+2020-10-20T23:57:55,980 INFO [ZKCoordinator--0] org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager - Deleting directory[/opt/druid/var/druid/segment-cache/jobs]
+2020-10-20T23:57:55,980 WARN [ZKCoordinator--0] org.apache.druid.server.coordination.SegmentLoadDropHandler - Unable to delete segmentInfoCacheFile[/opt/druid/var/druid/segment-cache/info_dir/jobs_1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z_2020-10-20T21:36:50.665Z]
+2020-10-20T23:57:55,980 ERROR [ZKCoordinator--0] org.apache.druid.server.coordination.SegmentLoadDropHandler - Failed to load segment for dataSource: {class=org.apache.druid.server.coordination.SegmentLoadDropHandler, exceptionType=class org.apache.druid.segment.loading.SegmentLoadingException, exceptionMessage=Exception loading segment[jobs_1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z_2020-10-20T21:36:50.665Z], segment=DataSegment{binaryVersion=9, id=jobs_1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z_2020-10-20T21:36:50.665Z, loadSpec={type=>local, path=>/opt/apache-druid-0.19.0/var/druid/segments/jobs/1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z/2020-10-20T21:36:50.665Z/0/d5a5f72d-fccd-47cb-8976-7b187d167c65/index.zip}, dimensions=[finish, person, start, title], metrics=[count], shardSpec=NumberedShardSpec{partitionNum=0, partitions=0}, lastCompactionState=null, size=9315}}
+org.apache.druid.segment.loading.SegmentLoadingException: Exception loading segment[jobs_1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z_2020-10-20T21:36:50.665Z]
+	at org.apache.druid.server.coordination.SegmentLoadDropHandler.loadSegment(SegmentLoadDropHandler.java:269) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.server.coordination.SegmentLoadDropHandler.addSegment(SegmentLoadDropHandler.java:313) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.server.coordination.SegmentChangeRequestLoad.go(SegmentChangeRequestLoad.java:61) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.server.coordination.ZkCoordinator.lambda$childAdded$2(ZkCoordinator.java:147) ~[druid-server-0.19.0.jar:0.19.0]
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) [?:1.8.0_252]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266) [?:1.8.0_252]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_252]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_252]
+	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_252]
+Caused by: java.lang.IllegalArgumentException: Cannot construct instance of `org.apache.druid.segment.loading.LocalLoadSpec`, problem: [/opt/apache-druid-0.19.0/var/druid/segments/jobs/1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z/2020-10-20T21:36:50.665Z/0/d5a5f72d-fccd-47cb-8976-7b187d167c65/index.zip] does not exist
+ at [Source: UNKNOWN; line: -1, column: -1]
+	at com.fasterxml.jackson.databind.ObjectMapper._convert(ObjectMapper.java:3922) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.ObjectMapper.convertValue(ObjectMapper.java:3853) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.loadInLocation(SegmentLoaderLocalCacheManager.java:240) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.loadInLocationWithStartMarker(SegmentLoaderLocalCacheManager.java:229) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.loadSegmentWithRetry(SegmentLoaderLocalCacheManager.java:190) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.getSegmentFiles(SegmentLoaderLocalCacheManager.java:162) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.getSegment(SegmentLoaderLocalCacheManager.java:129) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.server.SegmentManager.getAdapter(SegmentManager.java:218) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.server.SegmentManager.loadSegment(SegmentManager.java:177) ~[druid-server-0.19.0.jar:0.19.0]
+	at org.apache.druid.server.coordination.SegmentLoadDropHandler.loadSegment(SegmentLoadDropHandler.java:265) ~[druid-server-0.19.0.jar:0.19.0]
+	... 8 more
+Caused by: com.fasterxml.jackson.databind.exc.ValueInstantiationException: Cannot construct instance of `org.apache.druid.segment.loading.LocalLoadSpec`, problem: [/opt/apache-druid-0.19.0/var/druid/segments/jobs/1978-01-01T00:00:00.000Z_1979-01-01T00:00:00.000Z/2020-10-20T21:36:50.665Z/0/d5a5f72d-fccd-47cb-8976-7b187d167c65/index.zip] does not exist
+ at [Source: UNKNOWN; line: -1, column: -1]
+	at com.fasterxml.jackson.databind.exc.ValueInstantiationException.from(ValueInstantiationException.java:47) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.DeserializationContext.instantiationException(DeserializationContext.java:1732) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.std.StdValueInstantiator.wrapAsJsonMappingException(StdValueInstantiator.java:491) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.std.StdValueInstantiator.rewrapCtorProblem(StdValueInstantiator.java:514) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.std.StdValueInstantiator.createFromObjectWith(StdValueInstantiator.java:285) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.ValueInstantiator.createFromObjectWith(ValueInstantiator.java:229) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.impl.PropertyBasedCreator.build(PropertyBasedCreator.java:198) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.BeanDeserializer._deserializeUsingPropertyBased(BeanDeserializer.java:488) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.BeanDeserializerBase.deserializeFromObjectUsingNonDefault(BeanDeserializerBase.java:1287) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.BeanDeserializer.deserializeFromObject(BeanDeserializer.java:326) ~[jackson-databind-2.10.2.jar:2.10.2]
+	at com.fasterxml.jackson.databind.deser.BeanDeserializer._deserializeOther(BeanDeserializer.java:194) ~[jackson-databind-2.10.2.jar:2.10.2]

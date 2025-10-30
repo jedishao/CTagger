@@ -1,0 +1,8 @@
+Broker cannot use distributed cache to bypass historical querying for cached segment results
+Found a bug in 0.22 related to caching, which would break the use case where broker can use distributed cache to get segment level cached results populated by historicals and thus bypassing sending query for that segment to the historical. When `druid.broker.cache.useCache` is set to `true` at broker it looks for cached segment results before sending query to the historical.
+
+it was introduced by this PR - https://github.com/apache/druid/pull/10714 where it uses actual min/max time of rows in segment rather than segment interval to compute cache key. The PR changed the cache key calculation at historical side [here](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/client/CachingQueryRunner.java#L97), but same is not done at broker side [here](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/client/CachingClusteredClient.java#L548). In the current state, its not possible to do it at broker side as does not have actual segment and thus cannot read it to get the max/min time.
+
+### Affected Version
+
+0.22.0

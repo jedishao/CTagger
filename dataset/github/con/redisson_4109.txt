@@ -1,0 +1,13 @@
+response timeout in a job lead to deadlock
+redisson version： 3.9.0
+
+action：
+1. creating a thread makes a job every 5 seconds
+2. job acquire fairlock  trylock(10, 10, timeunit.seconds)
+3. redis busy or bad network, response timeout(default 3s)
+4. 5s, this instance will reentrance  lock
+5.  other intance will not acquire lock
+
+
+suggestion:
+ when redis response timeout , should redisson release the lock?

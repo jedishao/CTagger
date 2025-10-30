@@ -1,0 +1,114 @@
+[Functions] python instance cannot process zip file correctly
+**Describe the bug**
+if pass `--py` with a relative zip file with some deps, like [exclamation.zip](https://raw.githubusercontent.com/apache/pulsar/master/tests/docker-images/latest-version-image/python-examples/exclamation.zip), it's failed to start
+
+**To Reproduce**
+Steps to reproduce the behavior:
+
+1. Create a pulsar cluster in k8s with helm
+
+```
+git clone https://github.com/streamnative/charts.git pulsar-charts
+cd pulsar-charts/charts
+helm repo add loki https://grafana.github.io/loki/charts
+helm dependency update pulsar
+helm install testing --set initialize=true --values ./pulsar/values.yaml ./pulsar
+```
+
+2. download [exclamation.zip](https://github.com/apache/pulsar/tree/master/tests/docker-images/latest-version-image/python-examples)
+
+```
+wget https://raw.githubusercontent.com/apache/pulsar/master/tests/docker-images/latest-version-image/python-examples/exclamation.zip
+```
+
+3. start a pulsar pod for test
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pulsar-demo
+spec:
+  selector:
+    matchLabels:
+      role: pulsar-demo
+  serviceName: "pulsar-demo"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        role: pulsar-demo
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: pulsar
+          image: apachepulsar/pulsar:2.9.3
+          command: [ "/bin/bash", "-c", "--" ]
+          args: [ "while true; do sleep 30; done;" ]
+```
+
+4. start the function in a k8s pod
+
+```bash
+kubectl cp exclamation.zip  default/pulsar-demo-0:/pulsar/
+kubectl exec -it pulsar-demo-0 bash
+python /pulsar/instances/python-instance/python_instance_main.py --py exclamation.zip --logging_directory logs/functions --logging_file py-function-download-zip-sample-0 --logging_config_file /pulsar/conf/functions-logging/console_logging_config.ini --instance_id 0 --function_id 0-e549b89d-b816-446c-83bf-f36c57b91ddf --function_version 0 --function_details '{"tenant":"public","namespace":"default","name":"py-function-download-zip-sample","className":"exclamation","logTopic":"persistent://public/default/py-function-logs","secretsMap":"{\"name\":{\"path\":\"test-py-secret\",\"key\":\"username\"},\"pwd\":{\"path\":\"test-py-secret\",\"key\":\"password\"}}","autoAck":true,"parallelism":1,"source":{"typeClassName":"[B","inputSpecs":{"persistent://public/default/input-download-python-zip-topic":{}},"subscriptionPosition":"EARLIEST"},"sink":{"typeClassName":"[B","topic":"persistent://public/default/output-download-python-zip-topic","forwardSourceMessageProperty":true},"resources":{"cpu":1,"ram":"1000000000"},"componentType":"FUNCTION"}' --pulsar_serviceurl pulsar://testing-pulsar-broker.default.svc.cluster.local:6650 --max_buffered_tuples 100 --port 9093 --metrics_port 9094 --expected_healthcheck_interval -1 --cluster_name test --use_tls false --secrets_provider secretsprovider.EnvironmentBasedSecretsProvider
+```
+
+5. See error
+
+```
+[2022-07-20 08:41:34 +0000] [INFO] util.py: Failed to import class exclamation from path
+[2022-07-20 08:41:34 +0000] [INFO] util.py: No module named 'sh'
+Traceback (most recent call last):
+  File "/pulsar/instances/python-instance/util.py", line 41, in import_class
+    return import_class_from_path(from_path, full_class_name)
+  File "/pulsar/instances/python-instance/util.py", line 61, in import_class_from_path
+    mod = importlib.import_module(class_name)
+  File "/usr/lib/python3.8/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 848, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/pulsar/exclamation/src/exclamation.py", line 1, in <module>
+    import sh
+ModuleNotFoundError: No module named 'sh'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/pulsar/instances/python-instance/util.py", line 46, in import_class
+    return import_class_from_path(api_dir, full_class_name)
+  File "/pulsar/instances/python-instance/util.py", line 61, in import_class_from_path
+    mod = importlib.import_module(class_name)
+  File "/usr/lib/python3.8/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 848, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/pulsar/exclamation/src/exclamation.py", line 1, in <module>
+    import sh
+ModuleNotFoundError: No module named 'sh'
+[2022-07-20 08:41:34 +0000] [CRITICAL] python_instance.py: Could not import User Function Module exclamation
+[2022-07-20 08:41:34 +0000] [ERROR] log.py: Traceback (most recent call last):
+[2022-07-20 08:41:34 +0000] [ERROR] log.py:   File "/pulsar/instances/python-instance/python_instance_main.py", line 218, in <module>
+[2022-07-20 08:41:34 +0000] [ERROR] log.py: main()
+[2022-07-20 08:41:34 +0000] [ERROR] log.py:   File "/pulsar/instances/python-instance/python_instance_main.py", line 199, in main
+[2022-07-20 08:41:34 +0000] [ERROR] log.py: pyinstance.run()
+[2022-07-20 08:41:34 +0000] [ERROR] log.py:   File "/pulsar/instances/python-instance/python_instance.py", line 199, in run
+[2022-07-20 08:41:34 +0000] [ERROR] log.py: raise NameError("Could not import User Function Module %s" % self.instance_config.function_details.className)
+[2022-07-20 08:41:34 +0000] [ERROR] log.py: NameError
+[2022-07-20 08:41:34 +0000] [ERROR] log.py: :
+[2022-07-20 08:41:34 +0000] [ERROR] log.py: Could not import User Function Module exclamation
+command terminated with exit code 134
+```
+
+**Expected behavior**
+python instance started successfully
+

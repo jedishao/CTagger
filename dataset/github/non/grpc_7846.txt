@@ -1,0 +1,64 @@
+one grpc server for both unary and bidi stream with netty
+I have a requirement to implement a grpc server in java which is capable of handling both **grpc unary and bidirectional streaming**.It is possible for the service that uses grpc bidi-streaming to send a large number of messages per second.(maybe 2000 messages per second or more)I have two implementations in mind and kind of confused which one suits my requirement most.
+
+**1. Use the same server for both grpc unary and grpc bidirectional.**
+
+When using this approach , since both grpc unary and bidi stream uses the same port, one boss thread will be allocated for both unary and bidi stream. So i'm not sure how well it performs in case of bidi streams receiving large number of messages per second. **(I mean whether the boss thread will get busy for bidi streams and become unavailable for the unary)**
+
+```java
+final EventLoopGroup bossGroup = new NioEventLoopGroup(Runtime.getRuntime().availableProcessors());
+    final EventLoopGroup workerGroup = new NioEventLoopGroup(Runtime.getRuntime().availableProcessors() * 2);
+    int blockingQueueLength = 1000;
+    final BlockingQueue blockingQueue = new LinkedBlockingQueue(blockingQueueLength);
+    final Executor executor = new ThreadPoolExecutor(400, 500, 30, TimeUnit.SECONDS, blockingQueue);
+    Server server = NettyServerBuilder.forPort(PORT).maxConcurrentCallsPerConnection(50)
+            .keepAliveTime(60, TimeUnit.SECONDS).bossEventLoopGroup(bossGroup)
+            .workerEventLoopGroup(workerGroup).addService(new ExtAuthService()).addService(new RateLimitService())
+            .channelType(NioServerSocketChannel.class)
+            .executor(executor).build();
+            
+    try{
+        server.start();
+        server.awaitTermination();
+    }catch(Exception e){
+        Logger.Error("Execption", new Error(e));
+    }
+
+```
+
+**2. Use two servers one for grpc unary and one for grpc bidi streaming.**
+
+Here the previously mentioned issue is not there since we allocate 2 boss threads one for each grpc unary and bidi stream. But for the services I'm using an executor which uses java ThreadPoolExecutor and my question is should I use 2 threadpools for the two services that use grpc unary and bidi streaming ?
+
+```java
+final EventLoopGroup bossGroup = new NioEventLoopGroup(Runtime.getRuntime().availableProcessors());
+    final EventLoopGroup workerGroup = new NioEventLoopGroup(Runtime.getRuntime().availableProcessors() * 2);
+    int blockingQueueLength = 1000;
+    final BlockingQueue blockingQueue = new LinkedBlockingQueue(blockingQueueLength);
+    final Executor executor = new ThreadPoolExecutor(400, 500, 30, TimeUnit.SECONDS, blockingQueue);
+
+    // I have used here the same executor for both servers. 
+    Server server1 = NettyServerBuilder.forPort(PORT_1).maxConcurrentCallsPerConnection(50)
+            .keepAliveTime(60, TimeUnit.SECONDS).bossEventLoopGroup(bossGroup)
+            .workerEventLoopGroup(workerGroup).addService(new ExtAuthService())
+            .channelType(NioServerSocketChannel.class)
+            .executor(executor).build();
+
+    Server server2 = NettyServerBuilder.forPort(PORT_2).maxConcurrentCallsPerConnection(50)
+            .keepAliveTime(60, TimeUnit.SECONDS).bossEventLoopGroup(bossGroup)
+            .workerEventLoopGroup(workerGroup).addService(new RateLimitService())
+            .channelType(NioServerSocketChannel.class)
+            .executor(executor).build();
+            
+    try{
+        server1.start();
+        server2.start();
+        server1.awaitTermination();
+        server2.awaitTermination();
+    }catch(Exception e){
+        Logger.Error("Execption", new Error(e));
+    }
+```
+
+
+

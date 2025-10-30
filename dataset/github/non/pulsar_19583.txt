@@ -1,0 +1,47 @@
+[Bug] KubernetesRuntime can't complete deletion of Function StatefulSet if tenant, namespace, or function name contains characters allowed by Pulsar but not permitted within Kubernetes labels
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Pulsar 2.9.4 running in Kubernetes 1.23 on CentOS 7.9
+
+
+### Minimal reproduce step
+
+1. Install Pulsar via the Pulsar helm chart into Kubernetes. 
+2. Create a Pulsar tenant named "platform" (pulsar-admin tenants create platform)
+3. Create a Pulsar namespace named "namespace:test" (pulsar-admin namespaces create platform/namespace:test)
+4. Create a Pulsar topic named "persistent://platform/namespace:test/test.input" (pulsar-admin topics create-partitioned-topic -p 1 persistent://platform/namespace:test/test.input)
+6. Submit a Pulsar function named "inputs:test.input:tf" to run within the tenant "platform", namespace "namespace:test". (pulsar-admin functions create --tenant platform --namespace namespace:test --name inputs:test.input:tf -i  persistent://platform/namespace:test/test.input --jar <path to any function jar file>)
+7. Verify that the Kubernetes StatefulSet has been created and that the function pod is running.
+8. Try to remove the Pulsar function (pulsar-admin functions delete --tenant platform --namespace namespace:test --name inputs:test.input:tf)
+
+### What did you expect to see?
+
+The Function pod should have been terminated and the StatefulSet removed.
+
+### What did you see instead?
+
+The StatefulSet was left untouched, so the Function pod kept running.
+
+The Pulsar logs showed this:
+```
+4T14:39:49,464+0000 [assignment-tailer-thread] WARN  org.apache.pulsar.functions.utils.Actions - Error completing action [ Waiting for pods for function platform/namespace:test/inputs:test.input:tf to terminate ] :- {"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"unable to parse requirement: invalid label value: \"namespace:test\": at key: \"namespace\": a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')","reason":"BadRequest","code":400}
+- [ATTEMPT] 10/10
+2023-02-14T14:39:50,464+0000 [assignment-tailer-thread] ERROR org.apache.pulsar.functions.utils.Actions - Failed completing action [ Waiting for pods for function platform/namespace:test/inputs:test.input:tf to terminate ]. Giving up!
+```
+
+### Anything else?
+
+The log message shows that the Pulsar function removal process is failing when the deletion logic attempts to set "analytics:passthrough-flink" as a Kubernetes label, since ':' is not a legal label character. The lines of code at https://github.com/apache/pulsar/blob/v2.9.4/pulsar-functions/runtime/src/main/java/org/apache/pulsar/functions/runtime/kubernetes/KubernetesRuntime.java#L658-L694 perform this handling.
+
+KubernetesRuntime.createStatefulSet() already reformats characters in the tenant, namespace, and name fields as necessary to create valid Kubernetes labels. KubernetesRuntime.deleteStatefulSet() should do the same.
+
+Will submit a PR that fixes this problem.
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

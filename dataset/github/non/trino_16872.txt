@@ -1,0 +1,298 @@
+trino connot insert into doris 1.2.0
+version :
+trino: 410
+doris: 1.2.0-rc04
+
+There is the log of trino insert into doris:
+
+> [INFO] 2023-04-03 09:18:35.961 +0000 - Full sql parameters: SqlParameters{type='TRINO', datasource=4, sql='insert into doris.demo.test2
+select 
+  to_date('2023-04-03','yyyy-MM-dd') as rq,
+  cast(calc_date as varchar(32)) calc_date,
+  cast(org_code as varchar(50)) org_code,
+  cast(org_name as varchar(50)) org_name,
+  cast(ys_num as int) ys_num,
+  cast(hs_num as int) hs_num
+from ambari_hive.ads.ads_jx_mrs_worker_hs_assess_d where day='2023-03-29'', sqlType=1, sendEmail=null, displayRows=10, limit=0, segmentSeparator=;, udfs='null', showType='null', connParams='null', groupId='0', title='null', preStatements=[], postStatements=[]}
+[INFO] 2023-04-03 09:18:35.961 +0000 - sql type : TRINO, datasource : 4, sql : insert into doris.demo.test2
+select 
+  to_date('2023-04-03','yyyy-MM-dd') as rq,
+  cast(calc_date as varchar(32)) calc_date,
+  cast(org_code as varchar(50)) org_code,
+  cast(org_name as varchar(50)) org_name,
+  cast(ys_num as int) ys_num,
+  cast(hs_num as int) hs_num
+from ambari_hive.ads.ads_jx_mrs_worker_hs_assess_d where day='2023-03-29' , localParams : [],udfs : null,showType : null,connParams : null,varPool : [] ,query max result limit  0
+[INFO] 2023-04-03 09:18:35.961 +0000 - can't find udf function resource
+[INFO] 2023-04-03 09:18:36.015 +0000 - prepare statement replace sql : 
+insert into doris.demo.test2
+select 
+  to_date('2023-04-03','yyyy-MM-dd') as rq,
+  cast(calc_date as varchar(32)) calc_date,
+  cast(org_code as varchar(50)) org_code,
+  cast(org_name as varchar(50)) org_name,
+  cast(ys_num as int) ys_num,
+  cast(hs_num as int) hs_num
+from ambari_hive.ads.ads_jx_mrs_worker_hs_assess_d where day='2023-03-29', sql parameters : {}
+[ERROR] 2023-04-03 09:18:36.462 +0000 - execute sql error: Query failed (#20230403_091836_00006_v9erb): errCode = 2, detailMessage = Syntax error in line 1:
+...no_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+                             ^
+Encountered: IDENTIFIER
+Expected
+
+> [ERROR] 2023-04-03 09:18:36.463 +0000 - sql task error
+java.sql.SQLException: Query failed (#20230403_091836_00006_v9erb): errCode = 2, detailMessage = Syntax error in line 1:
+...no_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+                             ^
+Encountered: IDENTIFIER
+Expected
+
+	at io.trino.jdbc.AbstractTrinoResultSet.resultsException(AbstractTrinoResultSet.java:1937)
+	at io.trino.jdbc.TrinoResultSet.getColumns(TrinoResultSet.java:319)
+	at io.trino.jdbc.TrinoResultSet.create(TrinoResultSet.java:62)
+	at io.trino.jdbc.TrinoStatement.internalExecute(TrinoStatement.java:262)
+	at io.trino.jdbc.TrinoStatement.execute(TrinoStatement.java:240)
+	at io.trino.jdbc.TrinoPreparedStatement.executeLargeUpdate(TrinoPreparedStatement.java:154)
+	at io.trino.jdbc.TrinoPreparedStatement.executeUpdate(TrinoPreparedStatement.java:146)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java)
+	at org.apache.dolphinscheduler.plugin.task.sql.SqlTask.executeUpdate(SqlTask.java:318)
+	at org.apache.dolphinscheduler.plugin.task.sql.SqlTask.executeFuncAndSql(SqlTask.java:214)
+	at org.apache.dolphinscheduler.plugin.task.sql.SqlTask.handle(SqlTask.java:164)
+	at org.apache.dolphinscheduler.server.worker.runner.DefaultWorkerDelayTaskExecuteRunnable.executeTask(DefaultWorkerDelayTaskExecuteRunnable.java:49)
+	at org.apache.dolphinscheduler.server.worker.runner.WorkerTaskExecuteRunnable.run(WorkerTaskExecuteRunnable.java:174)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:131)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:74)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:82)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:748)
+> Caused by: io.trino.jdbc.$internal.client.FailureInfo$FailureException: errCode = 2, detailMessage = Syntax error in line 1:
+...no_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+                             ^
+Encountered: IDENTIFIER
+Expected
+
+	at io.trino.plugin.jdbc.BaseJdbcClient.beginInsertTable(BaseJdbcClient.java:725)
+	at io.trino.plugin.jdbc.ForwardingJdbcClient.beginInsertTable(ForwardingJdbcClient.java:202)
+	at io.trino.plugin.jdbc.jmx.StatisticsAwareJdbcClient.lambda$beginInsertTable$29(StatisticsAwareJdbcClient.java:282)
+	at io.trino.plugin.jdbc.jmx.JdbcApiStats.wrap(JdbcApiStats.java:35)
+	at io.trino.plugin.jdbc.jmx.StatisticsAwareJdbcClient.beginInsertTable(StatisticsAwareJdbcClient.java:282)
+	at io.trino.plugin.jdbc.CachingJdbcClient.beginInsertTable(CachingJdbcClient.java:340)
+	at io.trino.plugin.jdbc.CachingJdbcClient.beginInsertTable(CachingJdbcClient.java:340)
+	at io.trino.plugin.jdbc.DefaultJdbcMetadata.beginInsert(DefaultJdbcMetadata.java:805)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.beginInsert(ClassLoaderSafeConnectorMetadata.java:511)
+	at io.trino.metadata.MetadataManager.beginInsert(MetadataManager.java:915)
+	at io.trino.sql.planner.optimizations.BeginTableWrite$Rewriter.createWriterTarget(BeginTableWrite.java:245)
+	at io.trino.sql.planner.optimizations.BeginTableWrite$Rewriter.visitTableFinish(BeginTableWrite.java:181)
+	at io.trino.sql.planner.optimizations.BeginTableWrite$Rewriter.visitTableFinish(BeginTableWrite.java:97)
+	at io.trino.sql.planner.plan.TableFinishNode.accept(TableFinishNode.java:106)
+	at io.trino.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:81)
+	at io.trino.sql.planner.plan.SimplePlanRewriter$RewriteContext.lambda$defaultRewrite$0(SimplePlanRewriter.java:72)
+	at com.google.common.collect.ImmutableList.forEach(ImmutableList.java:422)
+	at io.trino.sql.planner.plan.SimplePlanRewriter$RewriteContext.defaultRewrite(SimplePlanRewriter.java:72)
+	at io.trino.sql.planner.plan.SimplePlanRewriter.visitPlan(SimplePlanRewriter.java:37)
+	at io.trino.sql.planner.plan.SimplePlanRewriter.visitPlan(SimplePlanRewriter.java:21)
+	at io.trino.sql.planner.plan.PlanVisitor.visitOutput(PlanVisitor.java:49)
+	at io.trino.sql.planner.plan.OutputNode.accept(OutputNode.java:83)
+	at io.trino.sql.planner.plan.SimplePlanRewriter.rewriteWith(SimplePlanRewriter.java:31)
+	at io.trino.sql.planner.optimizations.BeginTableWrite.optimize(BeginTableWrite.java:82)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:245)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:220)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:215)
+	at io.trino.execution.SqlQueryExecution.doPlanQuery(SqlQueryExecution.java:466)
+	at io.trino.execution.SqlQueryExecution.planQuery(SqlQueryExecution.java:447)
+	at io.trino.execution.SqlQueryExecution.start(SqlQueryExecution.java:388)
+	at io.trino.execution.SqlQueryManager.createQuery(SqlQueryManager.java:249)
+	at io.trino.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:143)
+	at io.trino.$gen.Trino_410____20230403_091444_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+	Suppressed: io.trino.jdbc.$internal.client.FailureInfo$FailureException: Current plan:
+                Output[columnNames = [rows]]
+                │   Layout: [rows:bigint]
+                └─ TableCommit[target = doris:demo.test2 demo.test2]
+                   │   Layout: [rows:bigint]
+                   └─ LocalExchange[partitioning = SINGLE]
+                      │   Layout: [partialrows:bigint, fragment:varbinary]
+                      └─ RemoteExchange[type = GATHER]
+                         │   Layout: [partialrows:bigint, fragment:varbinary]
+                         └─ TableWriter[]
+                            │   Layout: [partialrows:bigint, fragment:varbinary]
+                            │   rq := rq
+                            │   calc_date := calc_date_4
+                            │   org_code := org_code_5
+                            │   org_name := org_name_6
+                            │   ys_num := ys_num_7
+                            │   hs_num := hs_num_8
+                            └─ LocalExchange[partitioning = SINGLE]
+                               │   Layout: [hs_num_8:integer, calc_date_4:varchar(32), org_name_6:varchar(50), ys_num_7:integer, org_code_5:varchar(50), rq:date]
+                               └─ RemoteExchange[type = REPARTITION]
+                                  │   Layout: [hs_num_8:integer, calc_date_4:varchar(32), org_name_6:varchar(50), ys_num_7:integer, org_code_5:varchar(50), rq:date]
+                                  └─ ScanProject[table = ambari_hive:ads:ads_jx_mrs_worker_hs_assess_d]
+                                         Layout: [hs_num_8:integer, calc_date_4:varchar(32), org_name_6:varchar(50), ys_num_7:integer, org_code_5:varchar(50), rq:date]
+                                         hs_num_8 := CAST("hs_num" AS int)
+                                         calc_date_4 := CAST("calc_date" AS varchar(32))
+                                         org_name_6 := CAST("org_name" AS varchar(50))
+                                         ys_num_7 := CAST("ys_num" AS int)
+                                         org_code_5 := CAST("org_code" AS varchar(50))
+                                         rq := to_date(CAST('2023-04-03' AS varchar), CAST('yyyy-MM-dd' AS varchar))
+                                         ys_num := ys_num:bigint:REGULAR
+                                         calc_date := calc_date:string:REGULAR
+                                         hs_num := hs_num:bigint:REGULAR
+                                         org_name := org_name:string:REGULAR
+                                         org_code := org_code:string:REGULAR
+                                         day:string:PARTITION_KEY
+                                             :: [[2023-03-29]]
+
+		at io.trino.sql.planner.optimizations.BeginTableWrite.optimize(BeginTableWrite.java:88)
+		... 12 common frames omitted
+> Caused by: io.trino.jdbc.$internal.client.FailureInfo$FailureException: errCode = 2, detailMessage = Syntax error in line 1:
+...no_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+                             ^
+Encountered: IDENTIFIER
+Expected
+
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:129)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeInternal(StatementImpl.java:763)
+	at com.mysql.cj.jdbc.StatementImpl.execute(StatementImpl.java:648)
+	at io.trino.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:1177)
+	at io.trino.plugin.jdbc.BaseJdbcClient.addColumn(BaseJdbcClient.java:937)
+	at io.trino.plugin.jdbc.BaseJdbcClient.beginInsertTable(BaseJdbcClient.java:707)
+	... 35 common frames omitted
+	Suppressed: io.trino.jdbc.$internal.client.FailureInfo$FailureException: Query: ALTER TABLE `demo`.`tmp_trino_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+		at io.trino.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:1180)
+		... 37 common frames omitted
+> [ERROR] 2023-04-03 09:18:36.463 +0000 - Task execute failed, due to meet an exception
+org.apache.dolphinscheduler.plugin.task.api.TaskException: Execute sql task failed
+	at org.apache.dolphinscheduler.plugin.task.sql.SqlTask.handle(SqlTask.java:171)
+	at org.apache.dolphinscheduler.server.worker.runner.DefaultWorkerDelayTaskExecuteRunnable.executeTask(DefaultWorkerDelayTaskExecuteRunnable.java:49)
+	at org.apache.dolphinscheduler.server.worker.runner.WorkerTaskExecuteRunnable.run(WorkerTaskExecuteRunnable.java:174)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask$TrustedFutureInterruptibleTask.runInterruptibly(TrustedListenableFutureTask.java:131)
+	at com.google.common.util.concurrent.InterruptibleTask.run(InterruptibleTask.java:74)
+	at com.google.common.util.concurrent.TrustedListenableFutureTask.run(TrustedListenableFutureTask.java:82)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:748)
+> Caused by: java.sql.SQLException: Query failed (#20230403_091836_00006_v9erb): errCode = 2, detailMessage = Syntax error in line 1:
+...no_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+                             ^
+Encountered: IDENTIFIER
+Expected
+
+	at io.trino.jdbc.AbstractTrinoResultSet.resultsException(AbstractTrinoResultSet.java:1937)
+	at io.trino.jdbc.TrinoResultSet.getColumns(TrinoResultSet.java:319)
+	at io.trino.jdbc.TrinoResultSet.create(TrinoResultSet.java:62)
+	at io.trino.jdbc.TrinoStatement.internalExecute(TrinoStatement.java:262)
+	at io.trino.jdbc.TrinoStatement.execute(TrinoStatement.java:240)
+	at io.trino.jdbc.TrinoPreparedStatement.executeLargeUpdate(TrinoPreparedStatement.java:154)
+	at io.trino.jdbc.TrinoPreparedStatement.executeUpdate(TrinoPreparedStatement.java:146)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java)
+	at org.apache.dolphinscheduler.plugin.task.sql.SqlTask.executeUpdate(SqlTask.java:318)
+	at org.apache.dolphinscheduler.plugin.task.sql.SqlTask.executeFuncAndSql(SqlTask.java:214)
+	at org.apache.dolphinscheduler.plugin.task.sql.SqlTask.handle(SqlTask.java:164)
+	... 9 common frames omitted
+> Caused by: io.trino.jdbc.$internal.client.FailureInfo$FailureException: errCode = 2, detailMessage = Syntax error in line 1:
+...no_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+                             ^
+Encountered: IDENTIFIER
+Expected
+
+	at io.trino.plugin.jdbc.BaseJdbcClient.beginInsertTable(BaseJdbcClient.java:725)
+	at io.trino.plugin.jdbc.ForwardingJdbcClient.beginInsertTable(ForwardingJdbcClient.java:202)
+	at io.trino.plugin.jdbc.jmx.StatisticsAwareJdbcClient.lambda$beginInsertTable$29(StatisticsAwareJdbcClient.java:282)
+	at io.trino.plugin.jdbc.jmx.JdbcApiStats.wrap(JdbcApiStats.java:35)
+	at io.trino.plugin.jdbc.jmx.StatisticsAwareJdbcClient.beginInsertTable(StatisticsAwareJdbcClient.java:282)
+	at io.trino.plugin.jdbc.CachingJdbcClient.beginInsertTable(CachingJdbcClient.java:340)
+	at io.trino.plugin.jdbc.CachingJdbcClient.beginInsertTable(CachingJdbcClient.java:340)
+	at io.trino.plugin.jdbc.DefaultJdbcMetadata.beginInsert(DefaultJdbcMetadata.java:805)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.beginInsert(ClassLoaderSafeConnectorMetadata.java:511)
+	at io.trino.metadata.MetadataManager.beginInsert(MetadataManager.java:915)
+	at io.trino.sql.planner.optimizations.BeginTableWrite$Rewriter.createWriterTarget(BeginTableWrite.java:245)
+	at io.trino.sql.planner.optimizations.BeginTableWrite$Rewriter.visitTableFinish(BeginTableWrite.java:181)
+	at io.trino.sql.planner.optimizations.BeginTableWrite$Rewriter.visitTableFinish(BeginTableWrite.java:97)
+	at io.trino.sql.planner.plan.TableFinishNode.accept(TableFinishNode.java:106)
+	at io.trino.sql.planner.plan.SimplePlanRewriter$RewriteContext.rewrite(SimplePlanRewriter.java:81)
+	at io.trino.sql.planner.plan.SimplePlanRewriter$RewriteContext.lambda$defaultRewrite$0(SimplePlanRewriter.java:72)
+	at com.google.common.collect.ImmutableList.forEach(ImmutableList.java:422)
+	at io.trino.sql.planner.plan.SimplePlanRewriter$RewriteContext.defaultRewrite(SimplePlanRewriter.java:72)
+	at io.trino.sql.planner.plan.SimplePlanRewriter.visitPlan(SimplePlanRewriter.java:37)
+	at io.trino.sql.planner.plan.SimplePlanRewriter.visitPlan(SimplePlanRewriter.java:21)
+	at io.trino.sql.planner.plan.PlanVisitor.visitOutput(PlanVisitor.java:49)
+	at io.trino.sql.planner.plan.OutputNode.accept(OutputNode.java:83)
+	at io.trino.sql.planner.plan.SimplePlanRewriter.rewriteWith(SimplePlanRewriter.java:31)
+	at io.trino.sql.planner.optimizations.BeginTableWrite.optimize(BeginTableWrite.java:82)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:245)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:220)
+	at io.trino.sql.planner.LogicalPlanner.plan(LogicalPlanner.java:215)
+	at io.trino.execution.SqlQueryExecution.doPlanQuery(SqlQueryExecution.java:466)
+	at io.trino.execution.SqlQueryExecution.planQuery(SqlQueryExecution.java:447)
+	at io.trino.execution.SqlQueryExecution.start(SqlQueryExecution.java:388)
+	at io.trino.execution.SqlQueryManager.createQuery(SqlQueryManager.java:249)
+	at io.trino.dispatcher.LocalDispatchQuery.lambda$startExecution$7(LocalDispatchQuery.java:143)
+	at io.trino.$gen.Trino_410____20230403_091444_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+	Suppressed: io.trino.jdbc.$internal.client.FailureInfo$FailureException: Current plan:
+                Output[columnNames = [rows]]
+                │   Layout: [rows:bigint]
+                └─ TableCommit[target = doris:demo.test2 demo.test2]
+                   │   Layout: [rows:bigint]
+                   └─ LocalExchange[partitioning = SINGLE]
+                      │   Layout: [partialrows:bigint, fragment:varbinary]
+                      └─ RemoteExchange[type = GATHER]
+                         │   Layout: [partialrows:bigint, fragment:varbinary]
+                         └─ TableWriter[]
+                            │   Layout: [partialrows:bigint, fragment:varbinary]
+                            │   rq := rq
+                            │   calc_date := calc_date_4
+                            │   org_code := org_code_5
+                            │   org_name := org_name_6
+                            │   ys_num := ys_num_7
+                            │   hs_num := hs_num_8
+                            └─ LocalExchange[partitioning = SINGLE]
+                               │   Layout: [hs_num_8:integer, calc_date_4:varchar(32), org_name_6:varchar(50), ys_num_7:integer, org_code_5:varchar(50), rq:date]
+                               └─ RemoteExchange[type = REPARTITION]
+                                  │   Layout: [hs_num_8:integer, calc_date_4:varchar(32), org_name_6:varchar(50), ys_num_7:integer, org_code_5:varchar(50), rq:date]
+                                  └─ ScanProject[table = ambari_hive:ads:ads_jx_mrs_worker_hs_assess_d]
+                                         Layout: [hs_num_8:integer, calc_date_4:varchar(32), org_name_6:varchar(50), ys_num_7:integer, org_code_5:varchar(50), rq:date]
+                                         hs_num_8 := CAST("hs_num" AS int)
+                                         calc_date_4 := CAST("calc_date" AS varchar(32))
+                                         org_name_6 := CAST("org_name" AS varchar(50))
+                                         ys_num_7 := CAST("ys_num" AS int)
+                                         org_code_5 := CAST("org_code" AS varchar(50))
+                                         rq := to_date(CAST('2023-04-03' AS varchar), CAST('yyyy-MM-dd' AS varchar))
+                                         ys_num := ys_num:bigint:REGULAR
+                                         calc_date := calc_date:string:REGULAR
+                                         hs_num := hs_num:bigint:REGULAR
+                                         org_name := org_name:string:REGULAR
+                                         org_code := org_code:string:REGULAR
+                                         day:string:PARTITION_KEY
+                                             :: [[2023-03-29]]
+
+		at io.trino.sql.planner.optimizations.BeginTableWrite.optimize(BeginTableWrite.java:88)
+		... 12 common frames omitted
+> Caused by: io.trino.jdbc.$internal.client.FailureInfo$FailureException: errCode = 2, detailMessage = Syntax error in line 1:
+...no_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+                             ^
+Encountered: IDENTIFIER
+Expected
+
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:129)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeInternal(StatementImpl.java:763)
+	at com.mysql.cj.jdbc.StatementImpl.execute(StatementImpl.java:648)
+	at io.trino.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:1177)
+	at io.trino.plugin.jdbc.BaseJdbcClient.addColumn(BaseJdbcClient.java:937)
+	at io.trino.plugin.jdbc.BaseJdbcClient.beginInsertTable(BaseJdbcClient.java:707)
+	... 35 common frames omitted
+	Suppressed: io.trino.jdbc.$internal.client.FailureInfo$FailureException: Query: ALTER TABLE `demo`.`tmp_trino_41c19516_a6e062a4` ADD `trino_page_sink_id` bigint
+		at io.trino.plugin.jdbc.BaseJdbcClient.execute(BaseJdbcClient.java:1180)
+		... 37 common frames omitted
+> [INFO] 2023-04-03 09:18:36.464 +0000 - Get a exception when execute the task, will send the task execute result to master, the current task execute result is TaskExecutionStatus{code=6, desc='failure'}

@@ -1,0 +1,81 @@
+After uprading to 4.0.3 and above uploading multiple files/form datas  fail randomly
+### Questions
+In our applicatioin, we all upload multiple files using http and using Pump to write contents to HttpClientRequest. And we upgrade from vert.x 3.9.4 to 4.0.3(also tried 4.1.0.RC1) the tests case fails randomly.  The updated code to write multiple files
+to HttpClientRequest is:
+
+```
+  private void attachFile(String boundary, Iterator<Entry<String, Part>> uploadsIterator) {
+    if (!uploadsIterator.hasNext()) {
+      request.write(boundaryEndInfo(boundary));
+      request.end();
+      return;
+    }
+    Entry<String, Part> entry = uploadsIterator.next();
+    // do not use part.getName() to get parameter name
+    // because pojo consumer not easy to set name to part
+    String name = entry.getKey();
+    Part part = entry.getValue();
+    String filename = part.getSubmittedFileName();
+
+    LOGGER.info("Start attach file [{}:{}].", name, filename);
+    request.write(fileBoundaryInfo(boundary, name, part)).compose(v ->
+        Future.fromCompletionStage(new PumpFromPart(context, part).toWriteStream(request, throwableHandler)))
+        .onComplete(r -> {
+          if (r.failed()) {
+            LOGGER.warn("Failed attach file [{}:{}].", name, filename, r.cause());
+            asyncResp.consumerFail(r.cause());
+            return;
+          }
+
+          LOGGER.info("Finish attach file [{}:{}].", name, filename);
+          attachFile(boundary, uploadsIterator);
+        });
+  }
+```
+
+see details [here](https://github.com/apache/servicecomb-java-chassis/pull/2394/files#diff-eb2ba960b8188b577883b01315ac99bd4fd8531f5eb3d67a6e12a021498c1b30)
+
+### Version
+
+4.0.3 and above
+
+### Context
+
+After look code at PumpIml 
+
+```
+  PumpImpl(ReadStream<T> rs, WriteStream<T> ws) {
+    this.readStream = rs;
+    this.writeStream = ws;
+    drainHandler = v-> readStream.resume();
+    dataHandler = data -> {
+      writeStream.write(data);
+      incPumped();
+      if (writeStream.writeQueueFull()) {
+        readStream.pause();
+        writeStream.drainHandler(drainHandler);
+      }
+    };
+  }
+```
+
+I guess the problem happends because vert.x 4.x change 
+
+```
+writeStream.write(data);
+```
+
+to asynchronouse and not make sure if the data is actually written. And in our context, previously we check if a file successfully by ReadStream endHanlder, now the check can not make sure if the upload is successfully and cause the problem. 
+
+
+### Do you have a reproducer?
+
+see questions.
+
+### Steps to reproduce
+
+see questions.
+
+### Extra
+
+

@@ -1,0 +1,59 @@
+Reindexing of One Datasource using another Input Datasource gives 0 Hyperloglog values
+I am facing an issue with reindexing a datasource (which involves HLL Metrics using Datasketches HLLSketch) using another datasource.
+
+Original_Datasource - Dimensions D1,D2,D3,D4. Metrics - M1, M2, M3, M4
+Cardinality_Datasource - Dimensions D1, D2. Metrics - D3Cardinality, D4Cardinality using HLLSketch. (I want to maintain cardinality of dimensions D3 and D4 for each combination of D1 and D2).
+
+I want to reindex Cardinality_Datasource using Original_Datasource, using the following spec
+
+```
+{
+  "type": "index_parallel",
+  "spec": {
+    "dataSchema": {
+      "dataSource": "Cardinality_Datasource",
+      "timestampSpec": {
+        "column": "_time",
+        "format": "auto"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "D1",
+          "D2"
+        ]
+      },
+      "metricsSpec": [
+        {
+          "name": "D3Cardinality",
+          "type": "HLLSketchBuild",
+          "fieldName": "D3"
+        },
+        {
+          "name": "D4Cardinality",
+          "type": "HLLSketchBuild",
+          "fieldName": "D4"
+        }
+      ],
+      "granularitySpec": {
+        "type": "uniform",
+        "segmentGranularity": "hour",
+        "queryGranularity": "hour"
+      }
+    },
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "druid",
+        "dataSource" : "Original_Datasource",
+        "interval": "2020-08-11T00/2020-08-11T01"
+      }
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "maxNumConcurrentSubTasks": 3
+    }
+  }
+}
+```
+
+With this specification, I can see D1 and D2 dimensions in Cardinality_Datasource table but D3Cardinality and D4Cardinality values are all 0. Can someone please help me with this issue?

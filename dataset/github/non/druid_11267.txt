@@ -1,0 +1,190 @@
+Cannot create a new extension query that executes successfully
+Hello,
+I am trying to make a new query type. I followed some of the other extensions to get started with them but I had no luck. So I am asking what should I do, to have a "boilerplate" extension query (Just return * from the database).
+**Extension loads successfully** but when I execute the query I get a java.lang.NullPointerException error.
+Specifically, according to the broker:
+```
+2021-05-18T01:56:04,595 WARN [qtp1210856733-117[testQuery_[new-data-source]_queryId]] org.apache.druid.server.QueryLifecycle - Exception while processing queryId [queryId] (java.lang.NullPointerException: queryId)
+2021-05-18T01:56:04,609 ERROR [qtp1210856733-117[testQuery_[new-data-source]_queryId]] org.apache.druid.server.QueryResource - Exception handling request: {class=org.apache.druid.server.QueryResource, exceptionType=class java.lang.NullPointerException, exceptionMessage=queryId, query={"queryType":"testQuery","dataSource":{"type":"table","name":"new-data-source"},"intervals":{"type":"LegacySegmentSpec","intervals":["0000-01-01T00:00:00.000Z/3000-01-01T00:00:00.000Z"]},"context":{"queryId":"queryId"},"descending":false,"granularity":{"type":"all"}}, peer=127.0.0.1} (java.lang.NullPointerException: queryId)
+```
+
+### Affected Version
+
+Tested on versions **0.21.0** and **0.20.1**
+
+### Description
+
+Configuration: micro-quickstart with the extension query loaded in the right `_common` folder. Other configurations are untouched.
+Java: 8 (openjdk 1.8.0_292)
+Maven: 4.0.0
+
+I am showing my code in case if I have done any silly mistake on my part:
+
+##### TestQueryModule.java
+```
+public class TestQueryModule implements DruidModule {
+    public List<? extends Module> getJacksonModules() {
+        return ImmutableList.of(
+                new SimpleModule(getClass().getSimpleName())
+                        .registerSubtypes(
+                                new NamedType(TestQuery.class, TestQuery.TEST_QUERY_TYPE)));
+    }
+
+    public void configure(Binder binder) {
+        DruidBinders.queryToolChestBinder(binder)
+                .addBinding(TestQuery.class)
+                .to(TestQueryQueryToolChest.class);
+
+        DruidBinders.queryRunnerFactoryBinder(binder)
+                .addBinding(TestQuery.class)
+                .to(TestQueryRunnerFactory.class);
+    }
+}
+```
+
+##### TestQuery.java
+```
+public class TestQuery extends BaseQuery<Row> {
+
+    public static final String TEST_QUERY_TYPE = "testQuery";
+
+    @JsonCreator
+    public TestQuery(
+            @JsonProperty("dataSource") DataSource dataSource,
+            @JsonProperty("intervals") QuerySegmentSpec querySegmentSpec,
+            @JsonProperty("context") Map<String, Object> context
+    )
+    {
+        super(dataSource, querySegmentSpec, false, context);
+    }
+
+    public boolean hasFilters() {
+        return false;
+    }
+
+    public DimFilter getFilter() {
+        return null;
+    }
+
+    public String getType() {
+        return TEST_QUERY_TYPE;
+    }
+
+    public Query<Row> withOverriddenContext(Map<String, Object> map) {
+        return new TestQuery(getDataSource(), getQuerySegmentSpec(), map);
+    }
+
+    public Query<Row> withQuerySegmentSpec(QuerySegmentSpec querySegmentSpec) {
+        return new TestQuery(getDataSource(), querySegmentSpec, getContext());
+    }
+
+    public Query<Row> withDataSource(DataSource dataSource) {
+        return new TestQuery(dataSource, getQuerySegmentSpec(), getContext());
+    }
+}
+
+```
+
+##### TestQueryQueryToolChest.java
+```
+public class TestQueryQueryToolChest extends QueryToolChest<Row, TestQuery> {
+
+    public TestQueryQueryToolChest(){
+        System.out.println("TestQueryQueryToolChest created");
+    }
+
+    public QueryMetrics<? super TestQuery> makeMetrics(TestQuery testQuery) {
+        return new DefaultGenericQueryMetricsFactory().makeMetrics(testQuery);
+    }
+
+    public Function<Row, Row> makePreComputeManipulatorFn(TestQuery testQuery, MetricManipulationFn metricManipulationFn) {
+        return Functions.identity();
+    }
+
+    public TypeReference<Row> getResultTypeReference() {
+        return new TypeReference<Row>() {};
+    }
+}
+```
+##### TestQueryRunnerFactory.java
+```
+public class TestQueryRunnerFactory implements QueryRunnerFactory<Row, TestQuery> {
+
+    TestQueryQueryToolChest toolChest;
+
+    @Inject
+    public TestQueryRunnerFactory(TestQueryQueryToolChest toolChest){
+        System.out.println("TestQueryRunnerFactory created");
+        this.toolChest = toolChest;
+    }
+
+    public QueryRunner<Row> createRunner(Segment segment) {
+        System.out.println("Hello from runner factory: " + segment.getId());
+        return new QueryRunner<Row>() {
+            public Sequence<Row> run(QueryPlus<Row> queryPlus, ResponseContext responseContext) {
+                return Sequences.empty();
+            }
+        };
+    }
+
+    public QueryRunner<Row> mergeRunners(ExecutorService executorService, Iterable<QueryRunner<Row>> iterable) {
+        return new QueryRunner<Row>() {
+            public Sequence<Row> run(QueryPlus<Row> queryPlus, ResponseContext responseContext) {
+                System.out.println("Hello from runner factory's merge function");
+                return Sequences.empty();
+            }
+        };
+    }
+
+    public QueryToolChest<Row, TestQuery> getToolchest() {
+        return toolChest;
+    }
+}
+
+```
+##### pom.xml
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.example</groupId>
+    <artifactId>test-query</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.druid.version>0.21.0</project.druid.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.druid</groupId>
+            <artifactId>druid-core</artifactId>
+            <version>${project.druid.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.druid</groupId>
+            <artifactId>druid-processing</artifactId>
+            <version>${project.druid.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.druid</groupId>
+            <artifactId>druid-server</artifactId>
+            <version>${project.druid.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>
+```
+
+
+From some print outputs I've put in the classes it seems that QueryRunnerFactory's methods don't execute (apart from the constructor).
+Any help would be very much appreciated!
+Thank you in advance!
+

@@ -1,0 +1,48 @@
+Managing Nested Fields
+### Discussed in https://github.com/trinodb/trino/discussions/16897
+
+<div type='discussions-op-text'>
+
+<sup>Originally posted by **ebyhr** April  6, 2023</sup>
+### Overview
+We need a way to add, drop, rename and change the types of nested columns via SQL in Trino. Most connectors do not support nested data, but for connectors like Iceberg that do, the inability to modify nested data types makes the feature effectively unusable.
+Proposed Changes
+
+### Grammar
+In general ALTER TABLE commands should use qualifiedName, a dotted path, to refer to a column instead of just an identifier.  
+We considered the following syntax for renaming a field.
+1.  ALTER TABLE ... RENAME COLUMN a.b.c TO d
+2. ALTER TABLE ... ALTER COLUMN a RENAME FIELD b.c TO b.d
+3. ALTER TABLE ... RENAME COLUMN a.b.c TO a.b.d
+
+1 is a straightforward and natural extension of the existing syntax. 
+2 makes us reuse code easily (especially around *ColumnTask class), but such option (RENAME FIELD) doesn't exist in SQL standard.
+3 allows moving a field to a different layer like a.b.c → a.c, but we assume existing file formats don't support such movement. 
+
+In conclusion, we're going to adopt 1. Other syntax (ADD COLUMN, DROP COLUMN & SET DATA TYPE) will support this syntax in the same way. 
+
+The ADD COLUMN command will be a problem because it shares columnDefinition grammar with CREATE TABLE which does not need dotted paths. We could avoid this by separating syntax in `SqlBase.g4`
+
+```antlr
+    | ALTER TABLE (IF EXISTS)? tableName=qualifiedName
+        ADD COLUMN (IF NOT EXISTS)? column=columnDefinition            #addColumn
+    | ALTER TABLE (IF EXISTS)? tableName=qualifiedName
+        ADD COLUMN (IF NOT EXISTS)? columnName=qualifiedName type      #addField
+```
+
+### Column Path
+When altering columns the nested target will be selected using a sequence of identifiers separated by dots using the following rules:
+* ROW: has a nested fields as normal
+* MAP: has synthetic key and value fields
+* ARRAY: has a synthetic element field
+
+For example, if we have column my_col of type ARRAY(ROW(my_map MAP(VARCHAR, ROW(x BIGINT, y BIGINT)))), the nested y field can be target with my_col.element.my_map.value.y.
+
+### Security
+The checks for column add, drop, rename, and change type will need to be updated for field path.
+
+### Follow-up Work
+Multi-part Alter Table
+We should also consider adding multi part alter table commands, so multiple columns can be added, removed, or renamed in one statement.  This is important for complex atomic transformations of tables, and is supported by Iceberg.
+
+The syntax has been discussed with @martint @electrum @dain @erichwang @findepi @kasiafi. Thanks for writing the base documentation. </div>

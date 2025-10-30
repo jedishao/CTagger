@@ -1,0 +1,54 @@
+The map implementation no longer converts empty characters, after the update from 0.20.0 to 0.20.1
+The map implementation no longer converts empty characters, after the update from 0.20.0 to 0.20.1
+
+### Affected Version
+0.20.1
+
+### Description
+In our environment, the results of the following queries changed before and after the upgrade.
+
+```
+{
+  "queryType": "topN",
+  "dataSource": "data_source_name",
+  "intervals":  ["2018-01-07T15:00:00.000Z/2018-01-14T15:00:00.000Z"],
+  "granularity": "all",
+  "aggregations": [{"type": "longSum", "name": "value", "fieldName": "field_name"}],
+  "dimension": {
+    "type": "extraction", "dimension": "dimension", "outputName": "output_name", "outputType": "STRING",
+    "extractionFn": {
+      "type": "lookup",
+      "lookup": {
+        "type": "map",
+        "map": { "", "(empty set)"},
+        "isOneToOne": false
+      },
+      "retainMissingValue": true,
+      "replaceMissingValueWith": null
+    }
+  },
+  "threshold": 3,
+  "metric": "value",
+  "segments": []
+}
+```
+
+expected result
+
+|  output_name|  value  |
+| ---- | ---- |
+|  (empty set)  |  10000  |
+|  aaa  |  9000  |
+|  bbb  |  8000  |
+
+actual result
+
+|  output_name|  value  |
+| ---- | ---- |
+|  null  |  10000  |
+|  aaa  |  9000  |
+|  bbb  |  8000  |
+
+
+We think the cause is known to be due to the following update.
+https://github.com/apache/druid/commit/ae4b1920c53d34008ab55cfa2e368a8affad77a0#diff-a6471b0e75ec5f881cceafb6186[…]e04e6fe4e8a1fca21674bf9a5R64-R112

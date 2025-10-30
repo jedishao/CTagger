@@ -1,0 +1,142 @@
+Eclipse Vert.x Json Deserialization Vulnerability
+Created 5 years ago here: https://gitlab.eclipse.org/eclipsefdn/helpdesk/-/issues/340
+
+Incoming e-mail via [security@eclipse.org](mailto:security@eclipse.org):
+
+\----  
+\-----BEGIN PGP SIGNED MESSAGE-----  
+Hash: SHA256
+
+Hi Security Team,
+
+during a source code audit, I identify a Java deserialization  
+vulnerability in the io.vertx.core.json.Json implementation  
+(http://vertx.io/docs/apidocs/io/vertx/core/json/Json.html) of Eclipse  
+Vert.x core component.
+
+Description:  
+The io.vertx.core implements the Jackson library (see  
+https://github.com/eclipse/vert.x/blob/master/pom.xml) which is  
+vulnerable to a Json deserialization attack \[1\]. The  
+io.vertx.core.json.Json use the default jackson implementation. This  
+behavior can leads to a remote code execution. The issue affects the  
+latest version 3.4.2 of vert.x. The full exploit and test code can be  
+reviewed on github \[2\]. Apache Struts is affected in the same manner  
+CVE-2017-9805 (see https://lgtm.com/blog/apache_struts_CVE-2017-9805).
+
+Threat:  
+An attacker can execute arbitrary code on a vulnerable host.
+
+Recommendation:  
+The Json implementation should be removed. Currently, Jackson doesn't  
+provide a effective protection. In jackson version 2.9, the official  
+"fix" only checks for vulnerable gadgets. Thus, the library is further  
+vulnerable to undocumented Java deserialization attacks. The  
+io.vertx.core.json.Json should switch to a safer implementation like  
+Gson (Google) \[3\].
+
+Proof of Concept:  
+[https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul\\](https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul%5C) nerable-endpoint/src/test/java/de/marko/pentest/parser/VertxJsonParserTe  
+st.java
+
+Vulnerable implementation:  
+Json.mapper.enableDefaultTyping();  
+Json.decodeValue(jdbcPayload, Object.class);
+
+If you need any further information, please contact me.
+
+Kind regards,  
+Marko
+
+\[1\] [https://github.com/no-sec-marko/marshalsec/blob/master/marshalsec.pd\\](https://github.com/no-sec-marko/marshalsec/blob/master/marshalsec.pd%5C) f  
+\[2\]  
+[https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul\\](https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul%5C) nerable-endpoint/src/test/java/de/marko/pentest/parser/VertxJsonParserTe  
+st.java  
+\[3\] [https://github.com/google/gson\\](https://github.com/google/gson%5C) -----BEGIN PGP SIGNATURE-----  
+Version: GnuPG v2
+
+iQIcBAEBCAAGBQJZsa6gAAoJEG/0NdxPzbER8J0P/2+nkiGCXD786I0yoVgn2T7F  
+/Yyl5PX2R8cKosXKi4NgKUDJtEzYtcjs6a1jplCNzRtCgfm6Ez+VF8FjjL0tUxCP  
+M73kte9ycJWi0NkLtNrwgvZFgXM9yzxf+MgieXh3h9TK20i7tQPnPVwS59eZGX4w  
+BnncbekbMrDUbyQIt1o6COCPnu+IBeYui03VSK7xGaAG0Pm227uuzohLkq1u7591  
+Xw9+weK6Q67MeL4X6z8vpUP2uHrUedUCHh+4YoetaDtZWVZTr7nkFP/OXGNZVAHj  
+Qd0XZAK62FdN79fgiteWkGWZiybpXoLpqu/lWKGxZT2CW8fwdublgiJP/V9QZXgY  
+bFOYGYaVskMxvt+KPMyGaqRKkIVW+MrBKShkQQlSkPpEvIrceqw/iXDl73UBlUuh  
+vdXxaer1OYEhJ+1h+fdSNpzNAHt3xRqluCoYsRxc4Eew2v8Aa0hYbqE08IxlR6u3  
+P/4G7HkKdny1tZS8AJ6IFbZOAm2lWQzGXKulRI3XDlIl58WOzHsMMoF17havCP4Q  
+LvqPkY3nBAQMESuhBz9ksOW5oGJia/KSEj1jXe4XolYXF6AQFydyhZyYw0K428Fl  
+0/yx/tPuZ/jEU42t4CG9J2JTk2IuI4gc3ay9zsDHRny+xMJg3WEEe5j66xh+YuKE  
+Q/xyfaWYTpulgtLg7vvs  
+=QBZY  
+\-----END PGP SIGNATURE-----
+
+## \______________________________________________\_  
+security mailing list  
+[security@eclipse.org](mailto:security@eclipse.org)  
+To change your delivery options, retrieve your password, or unsubscribe from this list, visit  
+[https://dev.eclipse.org/mailman/listinfo/security\\](https://dev.eclipse.org/mailman/listinfo/security%5C)Incoming e-mail via [security@eclipse.org](mailto:security@eclipse.org):
+----
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+Hi Security Team,
+during a source code audit, I identify a Java deserialization
+vulnerability in the io.vertx.core.json.Json implementation
+(http://vertx.io/docs/apidocs/io/vertx/core/json/Json.html) of Eclipse
+Vert.x core component.
+Description:
+The io.vertx.core implements the Jackson library (see
+https://github.com/eclipse/vert.x/blob/master/pom.xml) which is
+vulnerable to a Json deserialization attack [1]. The
+io.vertx.core.json.Json use the default jackson implementation. This
+behavior can leads to a remote code execution. The issue affects the
+latest version 3.4.2 of vert.x. The full exploit and test code can be
+reviewed on github [2]. Apache Struts is affected in the same manner
+CVE-2017-9805 (see https://lgtm.com/blog/apache_struts_CVE-2017-9805).
+Threat:
+An attacker can execute arbitrary code on a vulnerable host.
+Recommendation:
+The Json implementation should be removed. Currently, Jackson doesn't
+provide a effective protection. In jackson version 2.9, the official
+"fix" only checks for vulnerable gadgets. Thus, the library is further
+vulnerable to undocumented Java deserialization attacks. The
+io.vertx.core.json.Json should switch to a safer implementation like
+Gson (Google) [3].
+Proof of Concept:
+[https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul\](https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul%5C)
+nerable-endpoint/src/test/java/de/marko/pentest/parser/VertxJsonParserTe
+st.java
+Vulnerable implementation:
+Json.mapper.enableDefaultTyping();
+Json.decodeValue(jdbcPayload, Object.class);
+If you need any further information, please contact me.
+Kind regards,
+Marko
+[1] [https://github.com/no-sec-marko/marshalsec/blob/master/marshalsec.pd\](https://github.com/no-sec-marko/marshalsec/blob/master/marshalsec.pd%5C)
+f
+[2]
+[https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul\](https://github.com/no-sec-marko/java-web-vulnerabilities/blob/master/vul%5C)
+nerable-endpoint/src/test/java/de/marko/pentest/parser/VertxJsonParserTe
+st.java
+[3] [https://github.com/google/gson\](https://github.com/google/gson%5C)
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v2
+iQIcBAEBCAAGBQJZsa6gAAoJEG/0NdxPzbER8J0P/2+nkiGCXD786I0yoVgn2T7F
+/Yyl5PX2R8cKosXKi4NgKUDJtEzYtcjs6a1jplCNzRtCgfm6Ez+VF8FjjL0tUxCP
+M73kte9ycJWi0NkLtNrwgvZFgXM9yzxf+MgieXh3h9TK20i7tQPnPVwS59eZGX4w
+BnncbekbMrDUbyQIt1o6COCPnu+IBeYui03VSK7xGaAG0Pm227uuzohLkq1u7591
+Xw9+weK6Q67MeL4X6z8vpUP2uHrUedUCHh+4YoetaDtZWVZTr7nkFP/OXGNZVAHj
+Qd0XZAK62FdN79fgiteWkGWZiybpXoLpqu/lWKGxZT2CW8fwdublgiJP/V9QZXgY
+bFOYGYaVskMxvt+KPMyGaqRKkIVW+MrBKShkQQlSkPpEvIrceqw/iXDl73UBlUuh
+vdXxaer1OYEhJ+1h+fdSNpzNAHt3xRqluCoYsRxc4Eew2v8Aa0hYbqE08IxlR6u3
+P/4G7HkKdny1tZS8AJ6IFbZOAm2lWQzGXKulRI3XDlIl58WOzHsMMoF17havCP4Q
+LvqPkY3nBAQMESuhBz9ksOW5oGJia/KSEj1jXe4XolYXF6AQFydyhZyYw0K428Fl
+0/yx/tPuZ/jEU42t4CG9J2JTk2IuI4gc3ay9zsDHRny+xMJg3WEEe5j66xh+YuKE
+Q/xyfaWYTpulgtLg7vvs
+=QBZY
+-----END PGP SIGNATURE-----
+
+_______________________________________________
+security mailing list
+[security@eclipse.org](mailto:security@eclipse.org)
+To change your delivery options, retrieve your password, or unsubscribe from this list, visit
+[https://dev.eclipse.org/mailman/listinfo/security\](https://dev.eclipse.org/mailman/listinfo/security%5C)

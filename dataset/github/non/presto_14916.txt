@@ -1,0 +1,52 @@
+Unexpected 'ARRAY comparison not supported for arrays with null elements' error when using array column in a subquery
+Consider the following subquery that we have on our AWS EMR Cluster (EMR version 5.29, Presto 0.227):
+```
+...
+inter_treatment_filtered_messages AS
+(
+    WITH aux_table AS
+    (
+        SELECT communication_type, message_parts,
+            row_number() OVER(
+                PARTITION BY
+                    fmboa.message_contact
+                ORDER BY
+                    fmboa.treatment_rank, fmboa.treatment_name)
+            AS rnk
+        FROM filtered_messages_based_on_aggr AS fmboa
+    )
+    SELECT *
+    FROM aux_table
+    WHERE rnk = 1
+)
+SELECT *
+FROM inter_treatment_filtered_messages
+```
+
+The column `message_parts` type is `ARRAY<STRING>` and the other columns are BIGINT or STRING. When we run the query that contains this subquery, it fails with the following stacktrace:
+```
+com.facebook.presto.spi.PrestoException: ARRAY comparison not supported for arrays with null elements
+	at com.facebook.presto.spi.type.TypeUtils.checkElementNotNull(TypeUtils.java:103)
+	at com.facebook.presto.spi.type.ArrayType.equalTo(ArrayType.java:74)
+	at com.facebook.presto.$gen.PagesHashStrategy_20200729_133612_28879.rowEqualsRow(Unknown Source)
+	at com.facebook.presto.operator.StreamingAggregationOperator.findNextGroupStart(StreamingAggregationOperator.java:258)
+	at com.facebook.presto.operator.StreamingAggregationOperator.processInput(StreamingAggregationOperator.java:203)
+	at com.facebook.presto.operator.StreamingAggregationOperator.addInput(StreamingAggregationOperator.java:161)
+	at com.facebook.presto.operator.Driver.processInternal(Driver.java:384)
+	at com.facebook.presto.operator.Driver.lambda$processFor$8(Driver.java:283)
+	at com.facebook.presto.operator.Driver.tryWithLock(Driver.java:675)
+	at com.facebook.presto.operator.Driver.processFor(Driver.java:276)
+	at com.facebook.presto.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:1077)
+	at com.facebook.presto.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:162)
+	at com.facebook.presto.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:483)
+	at com.facebook.presto.$gen.Presto_0_227____20200722_202716_1.run(Unknown Source)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+If I remove that column `message_parts` from the subquery, everything works fine. Note that that column doesn't appear in any predicate on the SQL (except at the last Select to display the results). I tried to reproduce this exception creating a small table with an empty array but the same error didn't happen, so I think that it may only happen when dealing with millions of rows (moreover since I don't compare entire rows on my query).
+
+Could someone please take a look on this? This error message is pretty unhelpful because there is no line on the exception and it seems to be caused by an engine internal error.
+
+Thanks!

@@ -1,0 +1,10 @@
+Failed DNF conversion in MaterializedViewQueryOptimizer
+#16361  During the filter condition matching process, DNF Conversion is required. However, if a filter condition is relatively complicated, the DNF conversion will failed.
+
+```
+MV Definition: SELECT a, b, c FROM base WHERE a = 1 AND b = 2 OR b = 3 AND c = 4
+Base Query: SELECT a, b, c FROM base WHERE a = 1 AND b = 2 AND c = 3
+```
+In this example, the resulting A^~B logic expression cannot be converted to DNF format due to exponential explosion of sub-expression.
+
+One solution is to import (external) SAT solver libraries to solve the boolean problem (example: https://www.sat4j.org/index.php).

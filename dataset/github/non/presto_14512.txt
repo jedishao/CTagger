@@ -1,0 +1,31 @@
+Query spends a long time in WAITING_FOR_RESOURCES
+Hi.  I'm running Presto on my local machine.  Without any other load on the Presto job, if I send one query, it stays in WAITING_FOR_RESOURCES for over 10 seconds.  If I send another query, it spends about the same time in WAITING_FOR_RESOURCES.  Each of these also spend a couple seconds in QUERY_PLANNING (which is overkill for my simple queries).
+
+My queries are very small (currently about 100 rows).  I've tried a bunch of different config.properties settings but have not gotten any of them work.  Here are some of the values.  My local machine is the only coordinator / worker.
+
+How can I debug this?  I looked at the query UI but it was not useful.  I assume there are logs that I'm missing.
+
+config.properties: |-
+    node-scheduler.include-coordinator=true
+    node-scheduler.max-splits-per-node=1
+    node-scheduler.max-pending-splits-per-task=1
+    node-scheduler.min-candidates=1
+    query.max-memory=16MB
+    query.max-memory-per-node=16MB
+    query.max-total-memory-per-node=32MB
+    discovery-server.enabled=true
+    discovery.uri=http://presto-coordinator:8080
+
+
+jvm.config: |-
+    -server
+    -Xmx16G
+    -XX:+UseG1GC
+    -XX:G1HeapRegionSize=32M
+    -XX:+UseGCOverheadLimit
+    -XX:+ExplicitGCInvokesConcurrent
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:OnOutOfMemoryError=kill -9 %p
+
+Thanks!
+- Dan

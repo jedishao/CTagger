@@ -1,0 +1,10 @@
+DictionaryBlock for build page in LookupJoinPageBuilder
+LookupJoin uses block builder for the build side and does not use the dictionary block. https://github.com/prestodb/presto/blob/master/presto-main/src/main/java/com/facebook/presto/operator/LookupJoinPageBuilder.java#L33
+
+Is there some caveats to fixing this issue or is this just a matter of implementation ?  If it is just code change, I will try to fix this problem.
+
+Assume the build side has 5 rows. The probe side has million rows. The LookupPageBuilder will create a new MapBlock builder and create a million element map block builder. 
+
+MapBlockBuilder after https://github.com/prestodb/presto/pull/16346  additional hash tables lazily (MapBlock computed them lazily for a long time). 
+
+Due to the cardinality increase 1) It will hold on to many copies of the data, including hash tables. 2) If the hash tables are computed lazily, it will waste CPU in repeated computation of the hash tables.

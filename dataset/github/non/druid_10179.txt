@@ -1,0 +1,93 @@
+query topN with join the result not rollup
+i use topN query with join，result not rollup，only i use groupBy the result will correct. how can i use top with join?
+{
+    "queryType": "topN",
+    "dataSource": {
+        "type": "join",
+        "left": "xxx",
+        "right": {
+            "type": "query",
+            "query": {
+                "queryType": "scan",
+                 "dataSource":{
+                    "type":"table",
+                    "name":"yyy"
+                },
+                "context": {
+                    "timeout": 180000
+                },
+                "intervals": "2020-07-02T00Z/2020-07-03T00Z",
+                "granularity": "all",
+                "columns": [
+                    "uid",
+                    "channel"
+                ],
+                    "limit": 100000,
+                "lenientAggregatorMerge": false,
+                "descending": false
+            }
+        },
+        "rightPrefix": "r.",
+        "condition": "uid== \"r.uid\"",
+        "joinType": "INNER"
+    },
+    "context": {
+        "timeout": 180000,
+        "priority": 2147483647,
+        "queryId": "wwh-test",
+        "skipJwoodCache": false,
+        "weight": 0
+    },
+    "intervals": "2020-07-02T00Z/2020-07-03T00Z",
+    "filter": {
+        "type": "in",
+        "dimension": "r.channel",
+        "values": [
+            "googleplay",
+            "appstore"
+        ],
+        "lowerStrict": false,
+        "upperStrict": false,
+        "alphaNumeric": false
+    },
+    "aggregations": [
+        {
+            "type": "thetaSketch",
+            "name": "!Theta_counted_uid",
+            "fieldName": "counted_uid",
+            "byRow": false,
+            "inputThetaSketch": false
+        },
+        {
+            "type": "doubleSum",
+            "name": "item_golds",
+            "fieldName": "item_golds",
+            "byRow": false,
+            "inputThetaSketch": false
+        }
+    ],
+    "postAggregations": [
+        {
+            "type": "thetaSketchEstimate",
+            "name": "counted_uid",
+            "field": {
+                "type": "fieldAccess",
+                "fieldName": "!Theta_counted_uid"
+            }
+        }
+    ],
+    "granularity": "all",
+    "lenientAggregatorMerge": false,
+    "merge": true,
+    "dimension": {
+        "type": "default",
+        "dimension": "r.channel",
+        "outputName": "channel"
+    },
+    "threshold": 500,
+    "metric": {
+        "type": "lexicographic"
+    },
+    "descending": false,
+    "virtualColumns": []
+}

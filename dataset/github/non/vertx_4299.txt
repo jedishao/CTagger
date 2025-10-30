@@ -1,0 +1,35 @@
+Websockets serving cached/wrong responses and potentially have incorrect headers in websocket
+### Version
+
+Vertx core 3.6.3 AND 3.7.0
+NGINX 1.19.9
+
+### Context
+
+**Vertx 3.6.3**
+
+We use NGINX 1.19.9 to proxy requests to our services in Kubernetes. One such service is a client manager that creates web sockets. For paths where the user in unauthorized, we call `client.reject(403)`. 
+
+Let's say client 1 connects to the service using `wss://myuri.com/api` and gets a valid 403. Great.
+Now when client 2 connects to the service, the request handler appears to be re-using the request headers from client 1. The same is true for client 3, 4, 5, etc. Now all of our clients are in a bad state.
+
+We've determined that it seems to be an interplay between nginx and vertx/netty. When we change upstream-keepalive-timeout to 0, the issue goes away. Only client 1 gets the 403. When we get rid of nginx entirely, the issue is also gone.
+
+https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#upstream-keepalive-timeout
+
+
+### Do you have a reproducer?
+
+**Vertx 3.7.0**
+
+Reproducer code: https://github.com/NguyenVoDev/pure-vertx-js/blob/main/src/main/java/org/example/Server.java
+
+Note this won't work if you try and repro locally, only if using nginx with keepalive set to > 0 (we have 60s). It could actually just be the headers nginx is adding to the request though
+
+Instead of clients receiving headers from the existing web socket connection (like in 3.6.3), now the connections just hang and the websocket handler isn't even called.
+
+### Extra
+
+Are we supposed to be closing websockets after rejecting them?
+
+* Java 11, Adopt openJDK

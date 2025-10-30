@@ -1,0 +1,89 @@
+HTTP client request timeout is double of the requested value
+### Description
+Vert.x `HttpClientImpl#doRequest` method applies request timeout (from `RequestOptions`) twice:
+- once as a timeout for obtaining the request from connection pool;
+- and then, once connection is obtained from the pool, applies the same timeout second time as a timeout for waiting for response.
+
+As a result, if timeout set in `RequestOptions` is, say, 200 ms, then de-facto request can take up to 400 ms.
+AFAIK this is different from the previous behavior in Vert.x 3.x and is wrong in general as the de-facto timeout value applied is anything from really requested timeout up to 2x the timeout value (depending how long it takes to obtain a connection from the pool).
+
+### Expected behavior
+Request timeout value should be respected **as is**.
+
+Also, I guess, the preferable fix (which will be a new feature as well) is to have multiple timeouts, for example:
+ - connectionPoolTimeout - timeout for obtaining a connection from the pool;
+ - responseTimeout - timeout for waiting for response from the server from the moment request is actually sent (or from the moment connection is obtained);
+ - requestTimeout - as now, overall timeout for the whole request (e.g. application may not care about individual connectionPoolTimeout and responseTimeout, just overall max request processing time).
+
+### Patch that applies correct timeout value
+I believe the patch below fixes the issue, it was tested in a real app but I've no idea how to create a proper Vert.x test for this case as it requires server to accept connection with a delay...
+```
+diff --git a/src/main/java/io/vertx/core/http/impl/HttpClientImpl.java b/src/main/java/io/vertx/core/http/impl/HttpClientImpl.java
+index c1f4e37f4..8b116b048 100644
+--- a/src/main/java/io/vertx/core/http/impl/HttpClientImpl.java
++++ b/src/main/java/io/vertx/core/http/impl/HttpClientImpl.java
+@@ -627,34 +627,41 @@ public class HttpClientImpl implements HttpClient, MetricsProvider, Closeable {
+     Boolean followRedirects,
+     ProxyOptions proxyOptions,
+     PromiseInternal<HttpClientRequest> requestPromise) {
++    long start = System.currentTimeMillis();
+     ContextInternal ctx = requestPromise.context();
+     EndpointKey key = new EndpointKey(useSSL, proxyOptions, server, peerAddress);
+     httpCM.getConnection(ctx, key, timeout, ar1 -> {
+       if (ar1.succeeded()) {
+         Lease<HttpClientConnection> lease = ar1.result();
+-        HttpClientConnection conn = lease.get();
+-        conn.createStream(ctx, ar2 -> {
+-          if (ar2.succeeded()) {
+-            HttpClientStream stream = ar2.result();
+-            stream.closeHandler(v -> {
+-              lease.recycle();
+-            });
+-            HttpClientRequestImpl req = new HttpClientRequestImpl(this, stream, ctx.promise(), useSSL, method, server, host, port, requestURI, traceOperation);
+-            if (headers != null) {
+-              req.headers().setAll(headers);
++        long remaining = timeout - (System.currentTimeMillis() - start);
++        if ((remaining > 0) || (timeout <= 0)) {
++          HttpClientConnection conn = lease.get();
++          conn.createStream(ctx, ar2 -> {
++            if (ar2.succeeded()) {
++              HttpClientStream stream = ar2.result();
++              stream.closeHandler(v -> {
++                lease.recycle();
++              });
++              HttpClientRequestImpl req = new HttpClientRequestImpl(this, stream, ctx.promise(), useSSL, method, server,
++                  host, port, requestURI, traceOperation);
++              if (headers != null) {
++                req.headers().setAll(headers);
++              }
++              if (followRedirects != null) {
++                req.setFollowRedirects(followRedirects);
++              }
++              if (timeout > 0L) {
++                req.setTimeout(remaining);
++              }
++              requestPromise.tryComplete(req);
++            } else {
++              requestPromise.tryFail(ar2.cause());
+             }
+-            if (followRedirects != null) {
+-              req.setFollowRedirects(followRedirects);
+-            }
+-            if (timeout > 0L) {
+-              // Maybe later ?
+-              req.setTimeout(timeout);
+-            }
+-            requestPromise.tryComplete(req);
+-          } else {
+-            requestPromise.tryFail(ar2.cause());
+-          }
+-        });
++          });
++        } else {
++          lease.recycle();
++          requestPromise.tryFail(new NoStackTraceTimeoutException("The timeout of " + timeout + " ms has been exceeded when getting a connection to " + server));
++        }
+       } else {
+         requestPromise.tryFail(ar1.cause());
+       }
+```

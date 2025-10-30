@@ -1,0 +1,21 @@
+Orc indexing issues while handling 16 byte sketches
+Recently encountered an issue while indexing ORC files containing Theta single-item sketches using `druid-orc-extensions`. The indexing fails with: 
+
+```
+java.lang.AssertionError: reqOffset: 24, reqLength: 8, (reqOff + reqLen): 32, allocSize: 24
+
+at org.apache.datasketches.memory.UnsafeUtil.assertBounds(UnsafeUtil.java:200)
+at org.apache.datasketches.memory.BaseState.assertValidAndBoundsForRead(BaseState.java:374)
+at org.apache.datasketches.memory.BaseWritableMemoryImpl.getNativeOrderedLong(BaseWritableMemoryImpl.java:298)
+at org.apache.datasketches.memory.WritableMemoryImpl.getLong(WritableMemoryImpl.java:147)
+at org.apache.datasketches.theta.UnionImpl.update(UnionImpl.java:292)
+at org.apache.druid.query.aggregation.datasketches.theta.SketchHolder.updateUnion(SketchHolder.java:137)
+```
+
+Investigating this further, it was found that this sketch was originally 16bytes in size, but reading the sketch using the OrcMapredRecordReader [here](https://github.com/apache/druid/blob/master/extensions-core/orc-extensions/src/main/java/org/apache/druid/data/input/orc/OrcReader.java#L115) , the `BytesWritable` set operation resizes the byte array to [24 bytes](https://github.com/apache/hadoop/blob/trunk/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/io/BytesWritable.java#L130).
+
+So, when the [OrcStructConverter reads in the data](https://github.com/apache/druid/blob/master/extensions-core/orc-extensions/src/main/java/org/apache/druid/data/input/orc/OrcStructConverter.java#L140), we get a 24 byte array which contains the 16byte sketch along with  padding and this trips up the sketch validation within datasketches.memory.
+We can of course fix this by replacing `BytesWritable.getBytes()` with [BytesWritable.copyBytes()](https://hadoop.apache.org/docs/r2.8.5/api/org/apache/hadoop/io/BytesWritable.html#copyBytes()) which ensures that the exact 16 byte array is returned.
+The concern with `BytesWritable.copyBytes()` is that it isn't efficient as it does a `System.arraycopy` into a new byte array on each invocation. 
+Considering the fact that this validation problem could be fixed in apache-datasketches2.0.0, I'm wondering if we need to make the switch to copyBytes() so it that it takes care of similar potential problems in the future at the cost of performance degradation.
+@clintropolis @AlexanderSaydakov Any thoughts here?

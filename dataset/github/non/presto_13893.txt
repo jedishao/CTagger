@@ -1,0 +1,43 @@
+Specified key was too long; max key length is 3072 bytes
+when i use db resource manager
+etc/resource-groups.properties
+resource-groups.configuration-manager=db
+#resource-groups.config-file=etc/resource_groups.json
+resource-groups.config-db-url=jdbc:mysql://localhost:3306/presto_config?user=root&password=123456&useSSL=false
+resource-groups.max-refresh-interval=1m
+resource-groups.exact-match-selector-enabled=true
+
+and mysql version=5.7.22
+
+error log:
+1) Error injecting constructor, org.jdbi.v3.core.statement.UnableToExecuteStatementException: com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException: Specified key was too long; max key length is 3072 bytes [statement:"CREATE TABLE IF NOT EXISTS exact_match_source_selectors(
+  environment VARCHAR(128),
+  source VARCHAR(512) NOT NULL,
+  query_type VARCHAR(512),
+  update_time DATETIME NOT NULL,
+  resource_group_id VARCHAR(256) NOT NULL,
+  PRIMARY KEY (environment, source, query_type),
+  UNIQUE (source, environment, query_type, resource_group_id)
+)", rewritten:"CREATE TABLE IF NOT EXISTS exact_match_source_selectors(
+  environment VARCHAR(128),
+  source VARCHAR(512) NOT NULL,
+  query_type VARCHAR(512),
+  update_time DATETIME NOT NULL,
+  resource_group_id VARCHAR(256) NOT NULL,
+  PRIMARY KEY (environment, source, query_type),
+  UNIQUE (source, environment, query_type, resource_group_id)
+)", parsed:"ParsedSql{sql='CREATE TABLE IF NOT EXISTS exact_match_source_selectors(
+  environment VARCHAR(128),
+  source VARCHAR(512) NOT NULL,
+  query_type VARCHAR(512),
+  update_time DATETIME NOT NULL,
+  resource_group_id VARCHAR(256) NOT NULL,
+  PRIMARY KEY (environment, source, query_type),
+  UNIQUE (source, environment, query_type, resource_group_id)
+)', parameters=ParsedParameters{positional=false, parameterNames=[]}}", arguments:{positional:{}, named:{}, finder:[]}]
+  at com.facebook.presto.resourceGroups.db.DbResourceGroupConfigurationManager.<init>(DbResourceGroupConfigurationManager.java:95)
+  at com.facebook.presto.resourceGroups.db.DbResourceGroupsModule.configure(DbResourceGroupsModule.java:32)
+  while locating com.facebook.presto.resourceGroups.db.DbResourceGroupConfigurationManager
+  at com.facebook.presto.resourceGroups.db.DbResourceGroupsModule.configure(DbResourceGroupsModule.java:33)
+  while locating com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager
+

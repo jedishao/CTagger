@@ -1,0 +1,19 @@
+The estimatedSize of PagesIndex may far away from the exactly size of PagesIndex
+Here is how the estimatedSize calculated in presto
+```
+private long calculateEstimatedSize()
+    {
+        long elementsSize = (channels.length > 0) ? sizeOf(channels[0].elements()) : 0;
+        long channelsArraySize = elementsSize * channels.length;
+        long addressesArraySize = sizeOf(valueAddresses.elements());
+        return INSTANCE_SIZE + pagesMemorySize + channelsArraySize + addressesArraySize;
+    }
+```
+```
+    public static long sizeOfObjectArray(int length) {
+        return (long)Unsafe.ARRAY_OBJECT_BASE_OFFSET + (long)Unsafe.ARRAY_OBJECT_INDEX_SCALE * (long)length;
+    }
+```
+But I find the value of Unsafe.ARRAY_OBJECT_INDEX_SCALE is always 4, so when we put objects in channels elements, it will be estimated 4 bytes no matter what it is.
+
+So I am curious how presto take this way to estimate the data size and it works. 

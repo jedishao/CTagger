@@ -1,0 +1,9 @@
+Optimize multiple json_extract(varchar, ..) calls
+JSON_EXTRACT calls on json strings (varchar) parse the string to extract the elements. So if there are multiple calls to json_extract* on the same string, we parse it multiple times. Instead it can benefit to parse it only once to make it a json_object and use it. Proper care needs to be taken for things like incorrect json, etc. Roughly:
+
+SELECT JSON_EXTRACT(s, f1), JSON_EXTRACT(s, f2) .. FROM T
+
+Can be written as:
+
+SELECT IF(j is not null, json_extract(j, f1), json_extract(s, f1)),  IF(j is not null, json_extract(j, f2), json_extract(s, f2)),  ...
+FROM (SELECT *, TRY(JSON_PARSE(s)) AS j FROM T)

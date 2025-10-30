@@ -1,0 +1,62 @@
+Invalid header name [X-B3-TraceId] when WebClient requests with HTTP2 and OpenTelemetry B3Propagator tracing options
+### Issue
+
+"Invalid header name [X-B3-TraceId]" exception thrown when the WebClient request a same URL for second time. The WebClient is configured with HTTP2 and OpenTelemetry with B3Propagator.
+
+### Version
+
+4.3.7
+
+### Context
+
+I am getting the "Invalid header name [X-B3-TraceId]" exception when the WebClient request a same URL for second time. The WebClient is configured with HTTP2 and OpenTelemetry with B3Propagator.
+
+The HTTP2 protocol requires all the headers to be in lower case. First WebClient request able to convert the tracing propagator headers to lower case, however the WebClient failed to do so on second request onward.
+
+Exceptions:
+
+> io.netty.handler.codec.http2.Http2Exception: invalid header name [X-B3-TraceId]
+> 	at io.netty.handler.codec.http2.Http2Exception.connectionError(Http2Exception.java:109)
+> 	at io.netty.handler.codec.http2.DefaultHttp2Headers$2.validateName(DefaultHttp2Headers.java:71)
+> 	at io.netty.handler.codec.http2.DefaultHttp2Headers$2.validateName(DefaultHttp2Headers.java:42)
+> 	at io.netty.handler.codec.DefaultHeaders.validateName(DefaultHeaders.java:1012)
+> 	at io.netty.handler.codec.http2.DefaultHttp2Headers.validateName(DefaultHttp2Headers.java:166)
+> 	at io.netty.handler.codec.http2.DefaultHttp2Headers.validateName(DefaultHttp2Headers.java:33)
+> 	at io.netty.handler.codec.DefaultHeaders.add(DefaultHeaders.java:329)
+> 	at io.vertx.tracing.opentelemetry.HeadersPropagatorSetter.set(HeadersPropagatorSetter.java:24)
+> 	at io.vertx.tracing.opentelemetry.HeadersPropagatorSetter.set(HeadersPropagatorSetter.java:17)
+> 	at io.opentelemetry.extension.trace.propagation.B3PropagatorInjectorMultipleHeaders.inject(B3PropagatorInjectorMultipleHeaders.java:52)
+> 	at io.opentelemetry.extension.trace.propagation.B3Propagator.inject(B3Propagator.java:111)
+> 	at io.vertx.tracing.opentelemetry.OpenTelemetryTracer.sendRequest(OpenTelemetryTracer.java:130)
+> 	at io.vertx.tracing.opentelemetry.OpenTelemetryTracer.sendRequest(OpenTelemetryTracer.java:31)
+> 	at io.vertx.core.http.impl.Http2ClientConnection$StreamImpl.createStream(Http2ClientConnection.java:570)
+> 	at io.vertx.core.http.impl.Http2ClientConnection$StreamImpl.writeHeaders(Http2ClientConnection.java:533)
+> 	at io.vertx.core.http.impl.Http2ClientConnection$StreamImpl.lambda$writeHead$0(Http2ClientConnection.java:501)
+> 	at io.vertx.core.impl.EventLoopContext.emit(EventLoopContext.java:55)
+> 	at io.vertx.core.impl.ContextBase.emit(ContextBase.java:239)
+> 	at io.vertx.core.http.impl.Http2ClientConnection$StreamImpl.writeHead(Http2ClientConnection.java:500)
+> 	at io.vertx.core.http.impl.Http2UpgradeClientConnection$DelegatingStream.writeHead(Http2UpgradeClientConnection.java:138)
+> 	at io.vertx.core.http.impl.HttpClientRequestImpl.doWrite(HttpClientRequestImpl.java:476)
+> 	at io.vertx.core.http.impl.HttpClientRequestImpl.write(HttpClientRequestImpl.java:449)
+> 	at io.vertx.core.http.impl.HttpClientRequestImpl.end(HttpClientRequestImpl.java:395)
+> 	at io.vertx.core.http.impl.HttpClientRequestImpl.end(HttpClientRequestImpl.java:389)
+>   ...
+> 
+> Jan 04, 2023 10:53:13 AM io.vertx.core.http.impl.HttpClientRequestImpl
+> SEVERE: invalid header name [X-B3-TraceId]
+
+### Do you have a reproducer?
+
+Reproducer codes (Maven project):
+https://github.com/hsrky/vertx-otel-http2-b3-propagator/
+
+Full exceptions and steps to reproduce:
+https://github.com/hsrky/vertx-otel-http2-b3-propagator/blob/main/README.md
+
+### Steps to reproduce
+1. Run the main method on https://github.com/hsrky/vertx-otel-http2-b3-propagator/blob/main/src/main/java/com/example/starter/Main.java
+2. The main method will serve a vertx HTTP server at port 8080, with `/test` endpoint.
+3. Send HTTP GET request to `http://localhost:8080/test` and observe first request is success without error
+4. Send same HTTP GET request to `http://localhost:8080/test` and observe second request failed with invalid header exception.
+
+

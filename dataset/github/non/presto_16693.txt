@@ -1,0 +1,17 @@
+ANALYZE reads unused nested data
+After migration from prestodb 0.224 to 0.245.1 we noticed significant slowdown in `ANALYZE` performance on our HIVE tables. After some analysis it looks like presto reads all the data, including nested columns, even if the nested columns are not supported by `ANALYZE`.
+
+The hypothesis is based on `Raw Input Data` query metric.
+
+Tests performed on a sample table stored as parquet files with several nested columns on various PResto versions show following values of  `Raw Input Data`.  Physical size of table is 6.87 GiB.
+
+| Presto version | 0.224  | 0.236  | 0.245.1 | 0.260.1 |
+|----------------|--------|--------|---------|---------|
+| Raw Input Data | 2.54GB | 6.87GB | 6.87GB  | 6.88GB  |
+
+The bump in size of read data is apparent and the statistics are still calculated just for columns with simple types and the calculated statistics are the same across Presto versions.
+
+In versions between 0.224 and 0.236 is is not possible to check, because they were affected by: https://github.com/prestodb/presto/issues/14494 so I think this is related to the same root cause as  https://github.com/prestodb/presto/issues/14494
+
+
+

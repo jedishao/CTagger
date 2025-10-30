@@ -1,0 +1,159 @@
+Major Performance Degradation in RedissonScoredSortedSet.readAll function starting from redisson 3.10.0
+**Expected behavior**
+Response should be received within 1-2 seconds
+
+**Actual behavior**
+Response is received in around 1 Hour 20 minutes in following versions in production system -
+redisson (3.13.6) and netty (4.1.52.Final) 
+redisson (3.14.1) and netty (4.1.54.Final)
+redisson (3.15.0) and netty (4.1.58.Final)
+redisson (3.16.8) and netty (4.1.73.Final)
+
+Performance is degraded starting from redisson version 3.10.0, in version 3.9.1 its quick within 1-2 seconds.
+
+**Steps to reproduce or test case**
+
+Following program can be used to visualize the performance degradation not exactly same with production system.
+
+```
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import org.redisson.Redisson;
+import org.redisson.api.RScoredSortedSet;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
+
+public class TopologyRedisClient
+{
+   public static void main(String[] args) throws IOException
+   {
+      Config config = new Config();
+      config = Config.fromYAML(new File("./sentinel-topo.yaml"));
+      RedissonClient redisson = Redisson.create(config);
+
+      RScoredSortedSet<Object> scoredSortedSetStartTime = redisson.getScoredSortedSet("sie-topo:idsByStartTime");
+      RScoredSortedSet<Object> scoredSortedSetEndTime = redisson.getScoredSortedSet("sie-topo:idsByEndTime");
+
+      int documentsToInsert = 0;
+      int loopSize = 1;
+      if (args.length != 0)
+         loopSize = Integer.valueOf(args[0]);
+      if (args.length >= 2)
+         documentsToInsert = Integer.valueOf(args[1]);
+      for(int i =0 ; i <documentsToInsert; i ++)
+      {
+          boolean startAdded = scoredSortedSetStartTime.add(i, "FixedString Value" + i);
+          boolean endAdded = scoredSortedSetEndTime.add(i, "FixedString Value" + i);
+          if (i !=0 && i % 100000 == 0 )
+              System.out.println("Inserted count;" + i );
+      }
+
+      new Thread(new RedisThread(loopSize, scoredSortedSetStartTime, scoredSortedSetEndTime)).start();
+   }
+
+   static class RedisThread implements Runnable{
+      int loopSize;
+      RScoredSortedSet<Object> scoredSortedSetStartTime;
+      RScoredSortedSet<Object> scoredSortedSetEndTime;
+
+
+      RedisThread(int loopSize, RScoredSortedSet<Object> scoredSortedSetStartTime, RScoredSortedSet<Object> scoredSortedSetEndTime)
+      {
+         this.loopSize = loopSize;
+         this.scoredSortedSetEndTime = scoredSortedSetEndTime;
+         this.scoredSortedSetStartTime = scoredSortedSetStartTime;
+      }
+
+      @Override
+      public void run(){
+
+         for(int i =0 ; i <loopSize; i ++)
+         {
+            System.out.println(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()) + ";Scored startTime set sizeOnly = "  + scoredSortedSetStartTime.size());
+            int readAllSize = scoredSortedSetStartTime.readAll().size();
+            System.out.println(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()) + ";Scored startTime set readAll size = "  + readAllSize);
+            System.out.println(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()) + ";Scored endTime set sizeOnly = "  + scoredSortedSetEndTime.size());
+            readAllSize = scoredSortedSetEndTime.readAll().size();
+            System.out.println(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()) + ";Scored endTime set readAll size = "  + readAllSize);
+         }
+      }
+   }
+}
+```
+
+Save below configuration in sentinel-topo.yaml file.
+Use following arg parameter to run above -
+java -classpath<classpath> TopologyRedisClient 5 2000000
+
+
+
+**Redis version**
+   4.0.14
+
+**Redisson version**
+   3.16.8
+
+**Redisson configuration**
+```
+---
+sentinelServersConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 1200000
+  timeout: 1200000
+  retryAttempts: 60
+  retryInterval: 1500
+  failedSlaveReconnectionInterval: 3000
+  failedSlaveCheckInterval: 60000
+  password: null
+  subscriptionsPerConnection: 5
+  clientName: null
+  loadBalancer: !<org.redisson.connection.balancer.RoundRobinLoadBalancer> {}
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 5
+  slaveConnectionMinimumIdleSize: 8
+  slaveConnectionPoolSize: 8
+  masterConnectionMinimumIdleSize: 8
+  masterConnectionPoolSize: 8
+  readMode: "MASTER"
+  subscriptionMode: "MASTER"
+  sentinelAddresses:
+    - "redis://eaa-platform-redis-sentinel-1:26379"
+    - "redis://eaa-platform-redis-sentinel-2:26379"
+    - "redis://eaa-platform-redis-sentinel-3:26379"
+  masterName: "mymaster"
+  database: 14
+threads: 2
+nettyThreads: 32
+codec: !<org.redisson.codec.SmileJacksonCodec> {}
+transportMode: "NIO"
+
+```
+
+**Example Logs From production -** (Using redisson version 3.16.8 and netty 4.1.73.Final) 
+2022-03-16 00:37:33.839;Scored startTime set sizeOnly = 886651
+2022-03-16 00:38:22.516;Scored startTime set readAll size = 886651
+2022-03-16 00:38:22.537;Scored endTime set sizeOnly = 883749
+2022-03-16 01:39:16.277;Scored endTime set readAll size = 883749
+2022-03-16 01:39:16.278;Scored startTime set sizeOnly = 885147
+2022-03-16 01:40:10.371;Scored startTime set readAll size = 885147
+2022-03-16 01:40:10.371;Scored endTime set sizeOnly = 883749
+2022-03-16 03:01:03.868;Scored endTime set readAll size = 883749
+2022-03-16 03:01:03.868;Scored startTime set sizeOnly = 885147
+
+Example Stack Trace -
+
+```
+"ForkJoinPool-1-worker-43" #222 daemon prio=5 os_prio=0 tid=0x00007ff1c83b6000 nid=0x24bf in Object.wait() [0x00007ff05cbf7000]
+   java.lang.Thread.State: WAITING (on object monitor)
+        at java.lang.Object.wait(Native Method)
+        at java.lang.Object.wait(Object.java:502)
+        at io.shaded.netty.util.concurrent.DefaultPromise.await(DefaultPromise.java:253)
+        - locked <0x00007ff8bf824090> (a io.shaded.netty.util.concurrent.ImmediateEventExecutor$ImmediatePromise)
+        at org.redisson.misc.RedissonPromise.await(RedissonPromise.java:110)
+        at org.redisson.misc.RedissonPromise.await(RedissonPromise.java:35)
+        at org.redisson.command.CommandAsyncService.get(CommandAsyncService.java:140)
+        at org.redisson.RedissonObject.get(RedissonObject.java:81)
+        at org.redisson.RedissonScoredSortedSet.readAll(RedissonScoredSortedSet.java:79)
+```

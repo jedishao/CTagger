@@ -1,0 +1,44 @@
+Delta Lake connector: DELETE operations fail when multiple are performed simultaneously (or nearly)
+I'm encountering this problem, when performing DELETE tasks (two or more) at the same time or very close to one another.
+
+If I perform the two DELETEs exactly at the same time, both fail with `Query XXX failed: Failed to write Delta Lake transaction log entry`. If I perform both in quick succession, only the second one fails. Immediately afterwards, I can perform the second one successfully.
+
+This also happens with several DELETE operations in quick succession, only the first one completes, the remaining fail.
+
+The error type is `EXTERNAL` and the error code `DELTA_LAKE_BAD_WRITE (84279299)`.
+
+The stack trace, obtained from the web console, is: 
+```
+io.trino.spi.TrinoException: Failed to write Delta Lake transaction log entry
+	at io.trino.plugin.deltalake.DeltaLakeMetadata.finishWrite(DeltaLakeMetadata.java:1967)
+	at io.trino.plugin.deltalake.DeltaLakeMetadata.finishDelete(DeltaLakeMetadata.java:1424)
+	at io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata.finishDelete(ClassLoaderSafeConnectorMetadata.java:652)
+	at io.trino.metadata.MetadataManager.finishDelete(MetadataManager.java:1042)
+	at io.trino.sql.planner.LocalExecutionPlanner.lambda$createTableFinisher$4(LocalExecutionPlanner.java:4062)
+	at io.trino.operator.TableFinishOperator.getOutput(TableFinishOperator.java:319)
+	at io.trino.operator.Driver.processInternal(Driver.java:411)
+	at io.trino.operator.Driver.lambda$process$10(Driver.java:314)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:706)
+	at io.trino.operator.Driver.process(Driver.java:306)
+	at io.trino.operator.Driver.processForDuration(Driver.java:277)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:739)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:164)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:519)
+	at io.trino.$gen.Trino_403____20230210_115917_2.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: io.trino.plugin.deltalake.transactionlog.writer.TransactionConflictException: Transaction log locked(2); lockingCluster=trino-403-1039ffbb-daf8-48b0-b9a4-326c125f1706; lockingQuery=20230213_153942_00052_5yrxi; expires=2023-02-13T15:44:42.742Z
+	at io.trino.plugin.deltalake.transactionlog.writer.S3TransactionLogSynchronizer.write(S3TransactionLogSynchronizer.java:128)
+	at io.trino.plugin.deltalake.transactionlog.writer.TransactionLogWriter.flush(TransactionLogWriter.java:104)
+	at io.trino.plugin.deltalake.DeltaLakeMetadata.finishWrite(DeltaLakeMetadata.java:1958)
+	... 17 more
+```
+
+I can provide more extensive data related to the error, if needed.
+
+Using delta tables stored on MinIO, accessed using `s3a`. Apart from this problem, it's working correctly and with good performance. The `delta.enable-non-concurrent-writes` option on the connector configuration was set to `true`.
+
+Is this related to the above situation? Is there anything we should do to allow concurrent writes on delta tables?
+
+Thanks.

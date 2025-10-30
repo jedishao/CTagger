@@ -1,0 +1,82 @@
+[Help wanted] io.grpc.okhttp.OkHttpClientTransportTest fails in Mac and GitHub Actions
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+In master, I cannot build :grpc-okhttp module because OkHttpClientTransportTest fails in my Mac (Mac OS 11.2.3) and GitHub Actions ([link](https://github.com/GoogleCloudPlatform/cloud-opensource-java/pull/1982/checks?check_run_id=2328386670)). 
+
+```
+suztomo-macbookpro44% git log -1                                                                  
+commit d4fa0ecc07495097453b0a2848765f076b9e714c (HEAD -> master, origin/master, origin/HEAD)
+Author: Chengyuan Zhang <chengyuanzhang@google.com>
+Date:   Mon Apr 12 14:55:31 2021 -0700
+...(omit)...
+suztomo-macbookpro44% cat gradle.properties 
+skipCodegen=true
+skipAndroid=true
+suztomo-macbookpro44%  ./gradlew cleanTest :grpc-okhttp:test --tests=io.grpc.okhttp.OkHttpClientTransportTest
+*** Skipping the build of codegen and compilation of proto files because skipCodegen=true
+  * Skipping the build of Android projects because skipAndroid=true
+
+> Task :grpc-okhttp:test
+
+io.grpc.okhttp.OkHttpClientTransportTest > proxy_200 FAILED
+    org.junit.runners.model.TestTimedOutException: test timed out after 10 seconds
+        at java.net.PlainSocketImpl.socketAccept(Native Method)
+        at java.net.AbstractPlainSocketImpl.accept(AbstractPlainSocketImpl.java:409)
+        at java.net.ServerSocket.implAccept(ServerSocket.java:545)
+        at java.net.ServerSocket.accept(ServerSocket.java:513)
+        at io.grpc.okhttp.OkHttpClientTransportTest.proxy_200(OkHttpClientTransportTest.java:1876)
+
+io.grpc.okhttp.OkHttpClientTransportTest > proxy_500 FAILED
+    org.junit.runners.model.TestTimedOutException: test timed out after 10 seconds
+        at java.net.PlainSocketImpl.socketAccept(Native Method)
+        at java.net.AbstractPlainSocketImpl.accept(AbstractPlainSocketImpl.java:409)
+        at java.net.ServerSocket.implAccept(ServerSocket.java:545)
+        at java.net.ServerSocket.accept(ServerSocket.java:513)
+        at io.grpc.okhttp.OkHttpClientTransportTest.proxy_500(OkHttpClientTransportTest.java:1933)
+
+io.grpc.okhttp.OkHttpClientTransportTest > proxy_immediateServerClose FAILED
+    org.junit.runners.model.TestTimedOutException: test timed out after 10 seconds
+        at java.net.PlainSocketImpl.socketAccept(Native Method)
+        at java.net.AbstractPlainSocketImpl.accept(AbstractPlainSocketImpl.java:409)
+        at java.net.ServerSocket.implAccept(ServerSocket.java:545)
+        at java.net.ServerSocket.accept(ServerSocket.java:513)
+        at io.grpc.okhttp.OkHttpClientTransportTest.proxy_immediateServerClose(OkHttpClientTransportTest.java:1989)
+
+68 tests completed, 3 failed
+
+> Task :grpc-okhttp:test FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':grpc-okhttp:test'.
+> There were failing tests. See the report at: file:///Users/suztomo/grpc-java/okhttp/build/reports/tests/test/index.html
+
+* Try:
+Run with --stacktrace option to get the stack trace. Run with --info or --debug option to get more log output. Run with --scan to get full insights.
+
+* Get more help at https://help.gradle.org
+
+BUILD FAILED in 34s
+58 actionable tasks: 3 executed, 55 up-to-date
+```
+
+The build works fine in my Debian machine. (I also see this repository has setup Travis CI enabled.)
+
+```
+suztomo@suztomo:~/grpc-java$  ./gradlew cleanTest  :grpc-okhttp:test --tests=io.grpc.okhttp.OkHttpClientTransportTest
+*** Skipping the build of codegen and compilation of proto files because skipCodegen=true
+  * Skipping the build of Android projects because skipAndroid=true
+
+BUILD SUCCESSFUL in 5s
+58 actionable tasks: 2 executed, 56 up-to-date
+```
+
+Therefore I think I'll need to setup something for the failing environment to make the test pass.
+
+While I continue to dig further, I appreciate if anyone know the prerequisite for OkHttpClientTransportTest.

@@ -1,0 +1,47 @@
+Quarkus environment variables not working
+Some environment variables are not working.
+
+```
+quarkus:
+  redisson:
+    single-server-config:
+      address: 
+      - "redis://127.0.0.1:16379"
+```
+In case we want to override this value with the environment variable: QUARKUS_REDISSON_SINGLESERVERCONFIG_ADDRESS, the configuration fails to load. It seems that: https://github.com/redisson/redisson/issues/3943 didn't completely solve issues with environment variables.
+
+**Expected behavior**
+Configuration should successfully load when using ENV variables.
+
+**Actual behavior**
+
+```
+Caused by: javax.enterprise.event.ObserverException: com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException: Unrecognized field "singleserverconfig" (class org.redisson.config.Config), not marked as ignorable (23 known properties: "eventLoopGroup", "maxCleanUpDelay", "nettyHook", "keepPubSubOrder", "nettyThreads", "threads", "transportMode", "singleServerConfig", "sentinelServersConfig", "reliableTopicWatchdogTimeout", "useScriptCache", "minCleanUpDelay", "connectionListener", "executor", "codec", "replicatedServersConfig", "clusterServersConfig", "useThreadClassLoader", "masterSlaveServersConfig", "addressResolverGroupFactory", "lockWatchdogTimeout", "cleanUpKeysAmount", "referenceEnabled"])
+ at [Source: (StringReader); line: 4, column: 3] (through reference chain: org.redisson.config.Config["singleserverconfig"])
+	at io.quarkus.arc.impl.EventImpl$ObserverExceptionHandler.lambda$static$0(EventImpl.java:542)
+	at io.quarkus.arc.impl.EventImpl$Notifier.notifyObservers(EventImpl.java:322)
+	at io.quarkus.arc.impl.EventImpl$Notifier.notify(EventImpl.java:302)
+	at io.quarkus.arc.impl.EventImpl.fire(EventImpl.java:73)
+	at io.quarkus.arc.runtime.ArcRecorder.fireLifecycleEvent(ArcRecorder.java:128)
+	at io.quarkus.arc.runtime.ArcRecorder.handleLifecycleEvents(ArcRecorder.java:97)
+	at io.quarkus.deployment.steps.LifecycleEventsBuildStep$startupEvent1144526294.deploy_0(Unknown Source)
+	at io.quarkus.deployment.steps.LifecycleEventsBuildStep$startupEvent1144526294.deploy(Unknown Source)
+	... 13 more
+```
+
+**Steps to reproduce or test case**
+- Setup Quarkus project
+- Add redisson-quarkus-20 dependency
+- Set environment variable: QUARKUS_REDISSON_SINGLESERVERCONFIG_ADDRESS
+
+**Redis version**
+6.2.6
+
+**Redisson version**
+```
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-quarkus-20</artifactId>
+            <version>3.16.8</version>
+        </dependency>
+```

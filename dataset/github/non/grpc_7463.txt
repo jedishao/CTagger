@@ -1,0 +1,47 @@
+Multiple gRPC servers within the same application and towards the same host interfere with each other?
+<!-- Please answer these questions before submitting a bug report. -->
+
+Settings: 
+Two identical grpc servers on the same machine within the same JVM (It's a local simulation for a cluster). They are binded to different ports.
+When a **request** towards the server A is issued, everything is fine. When a trying to **build** a channel towards B, gRPC complains about the channel used for A to not being closed.
+The request done towards A is a stream requests, so it is supposed to be still working. 
+
+The code used for creating the two different channels:
+```java
+System.out.printf("Requesting channel for %s and port %d%n", host, port);
+var managedChannel = ManagedChannelBuilder.forAddress(host, port)
+                                          .keepAliveTime(5, TimeUnit.SECONDS)
+                                          .keepAliveWithoutCalls(true)
+                                          .enableRetry()
+                                          .usePlaintext()
+                                          .build();
+```
+### What version of gRPC-Java are you using? 
+1.32.1
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+MacOS Catalina 10.15.7 (19H2)
+
+openjdk version "15" 2020-09-15
+OpenJDK Runtime Environment (build 15+36-1562)
+OpenJDK 64-Bit Server VM (build 15+36-1562, mixed mode, sharing)
+
+### What did you expect to see?
+No errors
+### What did you see instead?
+```text
+Requesting channel for localhost and port 12345
+Requesting channel for localhost and port 54321
+set 27, 2020 2:14:31 PM io.grpc.internal.ManagedChannelOrphanWrapper$ManagedChannelReference cleanQueue
+SEVERE: *~*~*~ Channel ManagedChannelImpl{logId=7, target=localhost:12345} was not shutdown properly!!! ~*~*~*
+    Make sure to call shutdown()/shutdownNow() and wait until awaitTermination() returns true.
+java.lang.RuntimeException: ManagedChannel allocation site
+	at io.grpc.internal.ManagedChannelOrphanWrapper$ManagedChannelReference.<init>(ManagedChannelOrphanWrapper.java:93)
+	at io.grpc.internal.ManagedChannelOrphanWrapper.<init>(ManagedChannelOrphanWrapper.java:53)
+	at io.grpc.internal.ManagedChannelOrphanWrapper.<init>(ManagedChannelOrphanWrapper.java:44)
+	at io.grpc.internal.AbstractManagedChannelImplBuilder.build(AbstractManagedChannelImplBuilder.java:518)
+```
+### Steps to reproduce the bug
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->

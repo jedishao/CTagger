@@ -1,0 +1,98 @@
+Potential regression in spilled ORDER BY
+example from https://github.com/trinodb/trino/pull/16400 build https://github.com/trinodb/trino/actions/runs/4351418003/jobs/7603093117
+
+```
+Error:  Tests run: 3957, Failures: 2, Errors: 0, Skipped: 318, Time elapsed: 1,918.51 s <<< FAILURE! - in TestSuite
+Error:  io.trino.tests.TestSpilledOrderByQueries.testOrderBy  Time elapsed: 0.165 s  <<< FAILURE!
+java.lang.AssertionError: Execution of 'actual' query failed: SELECT orderstatus FROM orders ORDER BY orderstatus
+	at org.testng.Assert.fail(Assert.java:83)
+	at io.trino.testing.QueryAssertions.assertQuery(QueryAssertions.java:150)
+	at io.trino.testing.QueryAssertions.assertQuery(QueryAssertions.java:106)
+	at io.trino.testing.AbstractTestQueryFramework.assertQueryOrdered(AbstractTestQueryFramework.java:381)
+	at io.trino.testing.AbstractTestQueryFramework.assertQueryOrdered(AbstractTestQueryFramework.java:371)
+	at io.trino.testing.AbstractTestQueryFramework.assertQueryOrdered(AbstractTestQueryFramework.java:366)
+	at io.trino.testing.AbstractTestOrderByQueries.testOrderBy(AbstractTestOrderByQueries.java:30)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at org.testng.internal.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:104)
+	at org.testng.internal.Invoker.invokeMethod(Invoker.java:645)
+	at org.testng.internal.Invoker.invokeTestMethod(Invoker.java:851)
+	at org.testng.internal.Invoker.invokeTestMethods(Invoker.java:1177)
+	at org.testng.internal.TestMethodWorker.invokeTestMethods(TestMethodWorker.java:129)
+	at org.testng.internal.TestMethodWorker.run(TestMethodWorker.java:112)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: io.trino.testing.QueryFailedException: Index (0) is greater than or equal to list size (0)
+	at io.trino.testing.AbstractTestingTrinoClient.execute(AbstractTestingTrinoClient.java:122)
+	at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:489)
+	at io.trino.testing.QueryAssertions.assertQuery(QueryAssertions.java:147)
+	... 18 more
+	Suppressed: java.lang.Exception: SQL: SELECT orderstatus FROM orders ORDER BY orderstatus
+		at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:492)
+		... 19 more
+Caused by: java.lang.IndexOutOfBoundsException: Index (0) is greater than or equal to list size (0)
+	at it.unimi.dsi.fastutil.longs.LongArrayList.getLong(LongArrayList.java:267)
+	at io.trino.operator.PagesIndex.buildPage(PagesIndex.java:306)
+	at io.trino.operator.PagesIndex$2.computeNext(PagesIndex.java:631)
+	at io.trino.operator.PagesIndex$2.computeNext(PagesIndex.java:624)
+	at com.google.common.collect.AbstractIterator.tryToComputeNext(AbstractIterator.java:146)
+	at com.google.common.collect.AbstractIterator.hasNext(AbstractIterator.java:141)
+	at io.trino.operator.WorkProcessorUtils.lambda$fromIterator$0(WorkProcessorUtils.java:103)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:347)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:347)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.testing.QueryAssertions.assertQuery(QueryAssertions.java:147)
+	... 18 more
+	Suppressed: java.lang.Exception: SQL: SELECT orderkey, custkey, orderstatus FROM orders ORDER BY nullif(orderkey, 3) ASC NULLS LAST, custkey ASC
+		at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:492)
+		... 19 more
+Caused by: java.lang.IndexOutOfBoundsException: Index (0) is greater than or equal to list size (0)
+	at it.unimi.dsi.fastutil.longs.LongArrayList.getLong(LongArrayList.java:267)
+	at io.trino.operator.PagesIndex.buildPage(PagesIndex.java:306)
+	at io.trino.operator.PagesIndex$2.computeNext(PagesIndex.java:631)
+	at io.trino.operator.PagesIndex$2.computeNext(PagesIndex.java:624)
+	at com.google.common.collect.AbstractIterator.tryToComputeNext(AbstractIterator.java:146)
+	at com.google.common.collect.AbstractIterator.hasNext(AbstractIterator.java:141)
+	at io.trino.operator.WorkProcessorUtils.lambda$fromIterator$0(WorkProcessorUtils.java:103)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:347)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:347)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils$2.process(WorkProcessorUtils.java:126)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils.getNextState(WorkProcessorUtils.java:262)
+	at io.trino.operator.WorkProcessorUtils$YieldingProcess.process(WorkProcessorUtils.java:182)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils$3.process(WorkProcessorUtils.java:347)
+	at io.trino.operator.WorkProcessorUtils$ProcessWorkProcessor.process(WorkProcessorUtils.java:413)
+	at io.trino.operator.WorkProcessorUtils$YieldingIterator.computeNext(WorkProcessorUtils.java:81)
+	at io.trino.operator.WorkProcessorUtils$YieldingIterator.computeNext(WorkProcessorUtils.java:67)
+	at com.google.common.collect.AbstractIterator.tryToComputeNext(AbstractIterator.java:146)
+	at com.google.common.collect.AbstractIterator.hasNext(AbstractIterator.java:141)
+	at io.trino.operator.OrderByOperator.getOutput(OrderByOperator.java:275)
+	at io.trino.operator.Driver.processInternal(Driver.java:394)
+	at io.trino.operator.Driver.lambda$process$8(Driver.java:297)
+	at io.trino.operator.Driver.tryWithLock(Driver.java:689)
+	at io.trino.operator.Driver.process(Driver.java:289)
+	at io.trino.operator.Driver.processForDuration(Driver.java:260)
+	at io.trino.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:773)
+	at io.trino.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:165)
+	at io.trino.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:523)
+	at io.trino.$gen.Trino_testversion____20230307_070445_4328.run(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+```
+
+```
+Error:  Failures: 
+Error:    TestSpilledOrderByQueries>AbstractTestOrderByQueries.testOrderBy:30->AbstractTestQueryFramework.assertQueryOrdered:366->AbstractTestQueryFramework.assertQueryOrdered:371->AbstractTestQueryFramework.assertQueryOrdered:381 Execution of 'actual' query failed: SELECT orderstatus FROM orders ORDER BY orderstatus
+Error:    TestSpilledOrderByQueries>AbstractTestOrderByQueries.testOrderByWithNulls:149->AbstractTestQueryFramework.assertQueryOrdered:366->AbstractTestQueryFramework.assertQueryOrdered:371->AbstractTestQueryFramework.assertQueryOrdered:381 Execution of 'actual' query failed: SELECT orderkey, custkey, orderstatus FROM orders ORDER BY nullif(orderkey, 3) ASC NULLS LAST, custkey ASC
+[INFO] 
+```

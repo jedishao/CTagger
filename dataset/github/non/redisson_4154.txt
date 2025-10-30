@@ -1,0 +1,254 @@
+IllegalStateException: Only 2 of 1 slaves were synced
+Hello, I started getting weird exception after sentinel cluster failover. Application restart does not help. Looks like sentinel cluster might be at a faulty state, but there's no signs of it.
+
+Redisson version: 3.16.7
+
+```
+Caused by: j.lang.IllegalStateException: Only 2 of 1 slaves were synced
+	at org.redisson.RedissonBaseLock.lambda$evalWriteAsync$0(RedissonBaseLock.java:235)
+	at o.r.misc.RedissonPromise.lambda$onComplete$0(RedissonPromise.java:187)
+	at i.n.u.c.DefaultPromise.notifyListener0(DefaultPromise.java:578)
+	at i.n.u.c.DefaultPromise.notifyListenersNow(DefaultPromise.java:552)
+	at i.n.u.c.DefaultPromise.notifyListeners(DefaultPromise.java:491)
+	at i.n.u.c.DefaultPromise.setValue0(DefaultPromise.java:616)
+	at i.n.u.c.DefaultPromise.setSuccess0(DefaultPromise.java:605)
+	at i.n.u.c.DefaultPromise.trySuccess(DefaultPromise.java:104)
+	at o.r.misc.RedissonPromise.trySuccess(RedissonPromise.java:82)
+	at o.r.c.CommandBatchService.lambda$executeAsync$7(CommandBatchService.java:331)
+	at o.r.misc.RedissonPromise.lambda$onComplete$0(RedissonPromise.java:187)
+	at i.n.u.c.DefaultPromise.notifyListener0(DefaultPromise.java:578)
+	at i.n.u.c.DefaultPromise.notifyListeners0(DefaultPromise.java:571)
+	at i.n.u.c.DefaultPromise.notifyListenersNow(DefaultPromise.java:550)
+	at i.n.u.c.DefaultPromise.notifyListeners(DefaultPromise.java:491)
+	at i.n.u.c.DefaultPromise.setValue0(DefaultPromise.java:616)
+	at i.n.u.c.DefaultPromise.setSuccess0(DefaultPromise.java:605)
+	at i.n.u.c.DefaultPromise.trySuccess(DefaultPromise.java:104)
+	at o.r.misc.RedissonPromise.trySuccess(RedissonPromise.java:82)
+	at o.r.c.RedisCommonBatchExecutor.handleResult(RedisCommonBatchExecutor.java:164)
+	at o.r.command.RedisExecutor.checkAttemptPromise(RedisExecutor.java:465)
+	at o.r.command.RedisExecutor.lambda$execute$3(RedisExecutor.java:173)
+	at o.r.misc.RedissonPromise.lambda$onComplete$0(RedissonPromise.java:187)
+	at i.n.u.c.DefaultPromise.notifyListener0(DefaultPromise.java:578)
+	at i.n.u.c.DefaultPromise.notifyListenersNow(DefaultPromise.java:552)
+	at i.n.u.c.DefaultPromise.notifyListeners(DefaultPromise.java:491)
+	at i.n.u.c.DefaultPromise.setValue0(DefaultPromise.java:616)
+	at i.n.u.c.DefaultPromise.setSuccess0(DefaultPromise.java:605)
+	at i.n.u.c.DefaultPromise.trySuccess(DefaultPromise.java:104)
+	at o.r.misc.RedissonPromise.trySuccess(RedissonPromise.java:82)
+```
+
+**Steps to reproduce or test case**
+
+Still figuring it out. We were experimenting on sentinel cluster with 3 nodes, killing master for test purposes.
+
+**Redis info**
+
+```
+Server
+redis_version:6.2.6
+redis_git_sha1:00000000
+redis_git_dirty:0
+redis_build_id:117005704b7d572d
+redis_mode:standalone
+os:Linux 5.4.156-83.273.amzn2.x86_64 x86_64
+arch_bits:64
+multiplexing_api:epoll
+atomicvar_api:c11-builtin
+gcc_version:8.3.0
+process_id:1
+process_supervised:no
+run_id:8d5d7867c0685a1a162696c505793e870f44ef25
+tcp_port:6379
+server_time_usec:1645556982046578
+uptime_in_seconds:6823
+uptime_in_days:0
+hz:10
+configured_hz:10
+lru_clock:1389813
+executable:/redis-server
+config_file:
+io_threads_active:0
+
+# Clients
+connected_clients:221
+cluster_connections:0
+maxclients:10000
+client_recent_max_input_buffer:40
+client_recent_max_output_buffer:0
+blocked_clients:0
+tracking_clients:0
+clients_in_timeout_table:0
+
+# Memory
+used_memory:12026224
+used_memory_human:11.47M
+used_memory_rss:23326720
+used_memory_rss_human:22.25M
+used_memory_peak:27203384
+used_memory_peak_human:25.94M
+used_memory_peak_perc:44.21%
+used_memory_overhead:7255192
+used_memory_startup:810480
+used_memory_dataset:4771032
+used_memory_dataset_perc:42.54%
+allocator_allocated:12542192
+allocator_active:14557184
+allocator_resident:21155840
+total_system_memory:16593977344
+total_system_memory_human:15.45G
+used_memory_lua:39936
+used_memory_lua_human:39.00K
+used_memory_scripts:880
+used_memory_scripts_human:880B
+number_of_cached_scripts:2
+maxmemory:0
+maxmemory_human:0B
+maxmemory_policy:noeviction
+allocator_frag_ratio:1.16
+allocator_frag_bytes:2014992
+allocator_rss_ratio:1.45
+allocator_rss_bytes:6598656
+rss_overhead_ratio:1.10
+rss_overhead_bytes:2170880
+mem_fragmentation_ratio:1.91
+mem_fragmentation_bytes:11118000
+mem_not_counted_for_evict:2554
+mem_replication_backlog:1048576
+mem_clients_slaves:41024
+mem_clients_normal:4532984
+mem_aof_buffer:2560
+mem_allocator:jemalloc-5.1.0
+active_defrag_running:0
+lazyfree_pending_objects:0
+lazyfreed_objects:0
+
+# Persistence
+loading:0
+current_cow_size:0
+current_cow_size_age:0
+current_fork_perc:0.00
+current_save_keys_processed:0
+current_save_keys_total:0
+rdb_changes_since_last_save:3481418
+rdb_bgsave_in_progress:0
+rdb_last_save_time:1645550247
+rdb_last_bgsave_status:ok
+rdb_last_bgsave_time_sec:0
+rdb_current_bgsave_time_sec:-1
+rdb_last_cow_size:741376
+aof_enabled:1
+aof_rewrite_in_progress:0
+aof_rewrite_scheduled:0
+aof_last_rewrite_time_sec:1
+aof_current_rewrite_time_sec:-1
+aof_last_bgrewrite_status:ok
+aof_last_write_status:ok
+aof_last_cow_size:5128192
+module_fork_in_progress:0
+module_fork_last_cow_size:0
+aof_current_size:65106117
+aof_base_size:931967
+aof_pending_rewrite:0
+aof_buffer_length:0
+aof_rewrite_buffer_length:0
+aof_pending_bio_fsync:0
+aof_delayed_fsync:0
+
+# Stats
+total_connections_received:700643
+total_commands_processed:11386723
+instantaneous_ops_per_sec:1422
+total_net_input_bytes:1028876426
+total_net_output_bytes:46767630387
+instantaneous_input_kbps:119.32
+instantaneous_output_kbps:6807.82
+rejected_connections:0
+sync_full:3
+sync_partial_ok:0
+sync_partial_err:2
+expired_keys:67829
+expired_stale_perc:1.05
+expired_time_cap_reached_count:0
+expire_cycle_cpu_milliseconds:337
+evicted_keys:0
+keyspace_hits:2623786
+keyspace_misses:324519
+pubsub_channels:3
+pubsub_patterns:0
+latest_fork_usec:680
+total_forks:10
+migrate_cached_sockets:0
+slave_expires_tracked_keys:0
+active_defrag_hits:0
+active_defrag_misses:0
+active_defrag_key_hits:0
+active_defrag_key_misses:0
+tracking_total_keys:0
+tracking_total_items:0
+tracking_total_prefixes:0
+unexpected_error_replies:0
+total_error_replies:7
+dump_payload_sanitizations:0
+total_reads_processed:7655271
+total_writes_processed:10129346
+io_threaded_reads_processed:0
+io_threaded_writes_processed:0
+
+# Replication
+role:master
+connected_slaves:2
+slave0:ip=redis-sentinel-node-1.redis-sentinel-headless.default.svc.cluster.local,port=6379,state=online,offset=28711301244,lag=1
+slave1:ip=redis-sentinel-node-0.redis-sentinel-headless.default.svc.cluster.local,port=6379,state=online,offset=28711301244,lag=1
+master_failover_state:no-failover
+master_replid:ab572f8c1c8a733396709bade2a5bc700701ec86
+master_replid2:01e55261afc7c5505d7da94699e5a403d2eef737
+master_repl_offset:28711301281
+second_repl_offset:28196501650
+repl_backlog_active:1
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:28710252706
+repl_backlog_histlen:1048576
+
+# CPU
+used_cpu_sys:206.684823
+used_cpu_user:174.922001
+used_cpu_sys_children:0.035053
+used_cpu_user_children:0.152909
+used_cpu_sys_main_thread:205.938414
+used_cpu_user_main_thread:174.665218
+
+# Modules
+
+# Errorstats
+errorstat_ERR:count=4
+errorstat_NOAUTH:count=3
+
+# Cluster
+cluster_enabled:0
+
+# Keyspace
+db0:keys=8696,expires=8696,avg_ttl=106041980
+```
+
+Sentinel config:
+
+```
+dir "/tmp"
+port 26379
+sentinel monitor mymaster redis-sentinel-node-2.redis-sentinel-headless.default.svc.cluster.local 6379 2
+sentinel down-after-milliseconds mymaster 2000
+sentinel failover-timeout mymaster 5000
+# User-supplied sentinel configuration:
+# End of sentinel configuration
+sentinel auth-pass mymaster ***
+requirepass "***"
+sentinel myid 6b28db582bd8af66c1e0ddbcc9afcce2daba4354
+sentinel known-replica mymaster redis-sentinel-node-1.redis-sentinel-headless.default.svc.cluster.local 6379
+sentinel known-sentinel mymaster redis-sentinel-node-1.redis-sentinel-headless.default.svc.cluster.local 26379 5add24b6f14969527b26e2b3d62ebfa73e2de554
+sentinel known-replica mymaster redis-sentinel-node-0.redis-sentinel-headless.default.svc.cluster.local 6379
+sentinel known-sentinel mymaster redis-sentinel-node-2.redis-sentinel-headless.default.svc.cluster.local 26379 5f4ff5b1f3024ce375ab027ac24adb717305f02c
+sentinel announce-hostnames yes
+sentinel resolve-hostnames yes
+sentinel announce-port 26379
+sentinel announce-ip "redis-sentinel-node-0.redis-sentinel-headless.default.svc.cluster.local"
+```

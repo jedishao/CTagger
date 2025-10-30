@@ -1,0 +1,213 @@
+Proposal for a gRPC Query API
+Druid uses REST as its RPC protocol. Druid has a large variety of REST operations including query, ingest jobs, monitoring, configuration and many more. Although REST is a universally supported RPC format, is not the only one in use.
+
+Some shops standardized on other formats: Protobuf (typically with gRPC), Thrift, etc. Here, we identify requirements and a proposed technical design for a limited gRPC (i.e. Protobuf) solution for one particular use case for the query API. We *do not* propose, in this project, to provide a gRPC solution for Druids other APIs: only query.
+
+## Use Case
+
+The target use case is for an application which uses a fixed set of queries, each of which is carefully designed to power one application, say a dashboard. The (simplified) message flow is:
+
+```text
++-----------+   query ->  +-------+
+| Dashboard | -- gRPC --> | Druid |
++-----------+  <- data    +-------+
+```
+
+In practice, there may be multiple proxy layers: one on the application side, and the Router on the Druid side.
+
+The dashboard displays a fixed set of reports and charts. Each of those sends a well-defined query specified as part of the application. The returned data is thus both well-known and fixed for each query. The set of queries is fixed by the contents of the dashboard. That is, this is not an ad-hoc query use case.
+
+Because the queries are locked down, and are part of the application, the set of valid result sets is also well known and locked down. Given this well-controlled use case, it is possible to use a pre-defined Protobuf message to represent the results of each distinct query. (Protobuf is a compiled format: the solution works only because the set of messages are well known. It would not work for the ad-hoc case in which each query has a different result set schema.)
+
+To be very clear: the application has a fixed set of queries to be sent to Druid via gRPC. For each query, there is a fixed Protobuf response format defined by the application. No other queries, aside from this well-known set, will be sent to the gRPC endpoint using the Protobuf response format.
+
+## Requirements
+
+To satisfy the above use case, we propose:
+
+* Define the gRPC API as a Druid extension.
+* Define a new gRPC endpoint on the Druid Broker that handles queries.
+* Define a proxy implementation for this endpoint in the Druid Router.
+* The implementation works similar to the existing REST query endpoint: receive the query, plan the query, execute the query, and return results.
+* Each query request, in addition to Druid's existing query fields, names the Protobuf message to use for the response.
+* The response from a gRPC query, when Protobuf is selected, is the identified Protobuf message.
+* The set of supported Protobuf messages is set via a configuration. The minimum requirement is to require a Broker restart to see new messages. Adding and removing messages dynamically at run time is a nice-to-have, but not essential for this use case.
+* Another nice-to-have is to provide Druid's existing query data formats, encapsulated in a generic Protobuf response message.
+
+## Open Questions
+
+To work out a detailed design, we must first resolve a number of open questions:
+
+* Ensure the current gRPC library is compatible with the Druid code base. Druid uses old versions of Guava, etc. What are the conflicts and how can they be resolved?
+* Work out how to dynamically create a Protobuf decoder. This isn’t how Protobuf is designed to work, so we’ll need some cleverness to make this work without having to compile in code for every new Protobuf. What code exists in open source that can help?
+* How can the gRPC endpoint be integrated with Druid? Can it run within Druid's existing Jetty server? Or, will gRPC spin up its own server?
+* We propose to use Protobuf 3 unless there is a compelling reason to use Protobuf 2.
+
+## Design Sketch
+
+Let's assume we find acceptable answers to the above open issues. Then minimal design might be the following, presented as a set of development steps.
+
+### gRPC Query Extension (Done)
+
+* Create a gRPC extension project.
+* Define the usual resource and Guice modules needed to integrate the extension with Druid.
+
+### Hello World Prototype (Done)
+
+A very simple message prototype will validate the extension and the open issues identified above. It will give us the confidence to dive into the query implementation.
+
+* Integrate the gRPC endpoint with Druid.
+* Create a simple dummy “hello/ack” message to ensure we can integrate gRPC into Druid.
+* Create a unit test that allows the server to run on Druid's test-specific query stack.
+
+### Basic Query Service (Done)
+
+* Create the Protobuf message file for the request/response protocol. (See below.)
+* Refactor the HTTP endpoint to minimize copy/paste.
+* Create a query request/response endpoint that encodes results as, say, CSV. This endpoint can reuse large amounts of the (refactored) HTTP endpoint.
+* Implement the basics of the gRPC request/response format.
+* Implement one format, say CSV, to validate the code.
+* Implement the remaining non-Protobuf formats. (This should be easy as the code already exists in the HTTP endpoint.)
+
+### Message Registry
+
+We need a way to register the supported protobuf messages:
+
+* Message formats are defined in a directory on each Broker host, perhaps within the Druid directory, such as `$DRUID_HOME/protobuf`.
+* Define an Druid configuration object, and properties, to identify the registry directory. (The default could be the one mentioned above.)
+* The application registers new messages by writing them to the registry directory on each host before issuing any queries that reference that that message.
+* Implement the configuration object for the Protobuf registry.
+* Implement the Protobuf registry (which should be simple.)
+
+### Protobuf Response (Done)
+
+* Implement the embedded form of the Protobuf response. Doing so requires the dynamic encoder listed above. Once that's available, conversion to Protobuf should pretty much follow what was done earlier for the existing formats.
+* Implement the response form of the Protobuf format: just send the Protobuf results in place of the generic response.
+
+### Reviews, Testing, Etc.
+
+At this point, the extension is done. All that's needed are unit tests, integration tests and a pull request. We'll discus the mechanics of these when the time comes: there are useful tricks we can use for the tests.
+
+## Router Proxy
+
+In Druid, all messages arrive at the Router and are proxied to other services. For gRPC, this requires proxying the gRPC HTTP 2.0 messages. Investigation is needed to determine how this will work for gRPC. If the gRPC extension is enabled, we must add the required routing path to the Router.
+
+## Request/Response Design (Done)
+
+The proposed gRPC query request message follows Druid's [existing REST JSON query request](https://druid.apache.org/docs/latest/querying/sql-api.html). Example of the JSON message:
+
+```json
+{
+  "query" : "SELECT COUNT(*) FROM data_source WHERE foo = ? AND __time > ?",
+  "context" : {
+    "sqlTimeZone" : "America/Los_Angeles"
+  },
+  "parameters": [
+    { "type": "VARCHAR", "value": "bar"},
+    { "type": "TIMESTAMP", "value": "2000-01-01 00:00:00" }
+  ]
+}
+```
+
+The corresponding Protobuf request message would be similar, with adjustments to create a "native" Protobuf design.
+
+```protobuf
+enum QueryResultFormat {
+  CSV = 1;
+  JSON_OBJECT = 2;
+  JSON_ARRAY = 3;
+  JSON_OBJECT_LINES = 4;
+  JSON_ARRAY_LINES = 5;
+  PROTOBUF_INLINE = 6;
+  PROTOBUF_RESPONSE = 7;
+}
+
+Message QueryParameter {
+  oneof value {
+    bool nullValue = 1;
+    string stringValue = 2;
+    sint64 longValue = 3;
+    Double doubleValue = 4;
+  }
+}
+      
+message QueryRequest {
+  required string query = 1;
+  required QueryResultFormat resultFormat = 2;
+  optional map<string, string> context = 3;
+  repeated QueryParameter parameters = 4;
+  optional string responseMessage = 5; 
+}
+
+enum QueryStatus {
+  OK = 1;
+  UNAUTHORIZED = 2;
+  INVALID_SQL = 3;
+  RUNTIME_ERROR = 4;
+}
+
+enum DruidType {
+  STRING = 1;
+  LONG = 2;
+  DOUBLE = 3;
+  FLOAT = 4;
+  STRING_ARRAY = 5;
+  LONG_ARRAY = 6;
+  DOUBLE_ARRAY = 7;
+  FLOAT_ARRAY = 8;
+  COMPLEX = 9
+}
+
+message ColumnSchema {
+  required string name = 1;
+  required string sqlType = 2;
+  required DruidType druidType = 3;
+}    
+
+message QueryResponse {
+  required string queryId = 1;
+  required QueryStatus status = 2;
+  optional string errorMessage = 3;
+  repeated ColumnSchema columns = 4;
+  optional bytes data = 5;
+}
+```
+
+### `QueryResultFormat`
+
+This is an enum-representation of the [REST API result formats](https://druid.apache.org/docs/latest/querying/sql-api.html#responses), with adjustments as needed for Protobuf.
+
+* Since Protobuf does not transmit the full name (instead it sends the ordinal), we can make the names more descriptive of each format.
+* Two Protobuf formats are added. See below for details.
+
+### `QueryParameter`
+
+Encodes the value for one SQL query parameter as a union (`oneof`) of supported values. Since Protobuf supports unions, we need not explicitly specify the type. Parameters can be null, which is indicated by choosing the `nullValue` field. The actual value of the field is ignored.
+
+### `QueryRequest`
+
+The client performs a query by sending a `QueryRequest` to Druid. This messages is the equivalent of the REST API `SqlQuery` Java class (with a few adjustments.)
+
+* `query`: required. The SQL query as a string, with optional parameter placeholders.
+* `resultFormat`: One of the `QueryResultFormat` values described above.
+* `context`: Optional query context as a set of name/value pairs. Values must be strings to avoid the need for a union. As it turns out, Druid's query context code handles string values for all types.
+* `parameters`: A list of parameter values: one for each placeholder in the statement, in the same order as the placeholders appear in the text.
+* `responseMessage`: required for the two Protobuf formats. The name of the message file to use for encoding as a path name relative to the type registry directory. (Example: `examples/myMessage.proto`).
+
+### `QueryResponse`
+
+Druid returns the query response for all response types except `PROTOBUF_RESPONSE`.
+
+* `queryId`: The Query ID assigned by Druid to the query. Useful for associating log messages or metrics with a query.
+* `status`: An instance of `QueryStatus` that describes the result. `OK` for a normal query, else a broad indication of what went wrong.
+* `errorMessage`: Set only if the status is other than `OK`. The full Druid error message for the error.
+* `columns`: Provided if the status is `OK`. A list of `ColumnSchema` objects to provide the column name, SQL type and Druid type. (This field always appears for successful queries, and replaces the various "header" options in the JSON format.)
+* `data`: The query result, in the requested format, encoded as UTF-8.
+
+If the result format is `PROTOBUF_INLINE`, then the query results are first encoded as Protobuf, then converted to bytes, and the bytes placed in the `data` field. This format is consistent with the other response formats, and gives access to the various response fields, but can result in a costly double-decoding for the Broker and the client.
+
+### `PROTOBUF_RESPONSE`
+
+The `PROTOBUF_RESPONSE` format differs from all the others. In this format the response to the query is directly the requested protobuf message with no "wrapper" response. The disadvantage is that the response fields are not available. However, they are generally not necessary for a successful query. The advantage is that there is no double-encoding for either the Broker or the client.
+
+Errors in this format are indicated by the HTTP status. The error message text can be obtained from the log (or by resubmitting the query using a different response format.) 

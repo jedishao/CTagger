@@ -1,0 +1,130 @@
+Enhanced Druid Exceptions for improved user error messages
+### Description
+
+Proposed is a standardized, more robust form for Druid error messages to upgrade the somewhat ad-hoc approach employed today. The design focuses on the needs of the end user: what went wrong and how can they fix it. The design allows incremental upgrade from the existing code.
+
+This is a first-draft proposal to explore the basic idea of a revised error mechanism. Comments and suggestions encouraged!
+
+### Motivation
+
+Druid uses Java exceptions for many different purposes
+
+* The user provided input which is not valid. (An invalid native query, or invalid SQL query, say.)
+* The user configured the system incorrectly. (A required directory doesn’t actually exist.)
+* Capacity limits (out of memory, reached capacity limits)
+* Detecting “should not occur” conditions during development
+
+At present, Druid uses the same form of exception for all these cases. Exceptions tend to have very simple messages which focus on the immediate condition such as “invalid syntax” or “no more slots”. As with all Java applications, developers rely on the stack trace to identify the context in which the error occurs.
+
+Users, however, find Java stack traces unhelpful. Within the last year or two, Druid did work to sanitize errors, stripping off the stack trace and removing unhelpful messages. Unfortulately, the result is often an error of the form “something went wrong”, which does turn out to be helpful to users.
+
+What users want is to know:
+
+* What specific item went wrong?
+* What do I need to do to fix the error?
+
+That information cannot be inferred from the current error messages: it is something that we have to think through and add to the error at the point it is thrown.
+
+This proposal discusses how we do this. This design is based on on successfully used in Apache Drill.
+
+### Goals
+
+We propose to acknowledge that Druid exceptions serve two entirely different needs: help a developer debug an issue with the code, and help a production user diagnose problems related to their usage of the system. Any given exception may serve both needs, though there will be many more that are primarily for developers.
+
+### Proposal - Druid Exception
+
+We propose to create a new exception class, say, `DruidException`, which captures exceptions that are likely to be presented to the user. (Those exceptions which are primarily internal can continue to use the existing assortment of exception classes.)
+
+A `DruidException`:
+
+* Provides a clear description of the situation *from the user’s perspective*.
+* Provides context (such as the specific node, data source, column or other item) that has a problem.
+* Has an error “kind”: user error, config error, capacity limit, internal error.
+* Is logged for use in diagnosing problems after the fact
+* Is presented to the user as nicely-formatted text without a stack trace
+* May include an error code to map to SQL and JDBC error codes.
+
+### Proposal - Response Builder
+
+Druid uses REST for (most of) its APIs. Druid is, however, wonderfully creative in the form of responses when an error occurs. Sometimes the error is plain text. Sometimes it is an object with one field. Sometimes is has multiple fields. Let a 100 error responses bloom!
+
+The one draw-back is when someone tries to write a Druid client (such as [this one in Python](https://github.com/paul-rogers/druid-client)). Each messages is a bit of a problem-child: trial and error is necessary to determine which error format is used for which message. (Some OL messages use plain text some times, JSON other times. Fun!)
+
+The existing mechanism is (sometimes) based on a `SanitizableException` class that generates three fields in a REST response:
+
+* `error` - An error “code” such as "SQL query is unsupported"
+* `errorMessage` - The message from the original exception, which is often unclear.
+* `errorClass` - ?
+
+Unfortunately, these categories are not well defined or consistently used. (That is one of the issues that lead to this proposal.) In practice, the fields tend to be used inconsistent, and are often null.
+
+To address this, we propose to leverage the proposed Druid Exception to standardize our HTTP response via a "response builder". This idea was prototyped in the [Catalog PR](https://github.com/apache/druid/blob/28a2d240821fcde8b2f69abf2f7b8ad77cda5a03/extensions-core/druid-catalog/src/main/java/org/apache/druid/catalog/storage/Actions.java). Would be great to roll that out more widely. The basic idea is to have functions to build our standard HTTP responses. For example:
+
+```java
+class ResponseBuilder {
+  public static Response ok() ...
+  public static Response error(DruidException ex) ...
+}
+```
+
+We have to pick an HTTP status. This can come in from the caller:
+
+```java
+  public static Response error(Response.Status status, DruidException ex) ...
+```
+
+Or, better, we can leverage error types to pick the status automatically. For example, a "UserError` might return a 400 (bad request), while a `SystemError` or `ConfigError` might return a 500. That way, the code that raises the exception would not pick the status code, only the error type. (Code deep in Druid probably should not try to second-guess the HTTP resources.)
+
+The proposed `ResponseBuilder` would translate a `DruidException` into a common, uniform error response with fields such as:
+
+* `error` - Brief summary of the error
+* `message` - Multi-line, detailed description, including context
+* `class` - One of the major categories: user error, configuration error, etc.
+* `code` - Optional in the case that we assign specific numeric or string error codes, such as standard SQL error codes.
+
+An example might be:
+
+```json
+{
+   "error":{
+      "error":"Invalid SQL",
+      "message":"The table 'foo' is not defined in schema 'druid'."
+      "context": {
+        "location": "Line 4, column 23"
+      },
+      "class":"user",
+      "sqlError":"HV00R"
+   }
+}
+```
+
+### Style Guide
+
+Error messages presented to users are, essentially, just-in-time documentation. As such we’d want to craft user-visible error messages carefully. To help with this, we should create a simple style guide that explains what a good error message looks like, and common wording.
+
+Older systems used a “message catalog” to separate the text of errors from code. However, more recent Java applications just put the messages directly in the code. Either is fine as long as we can ensure the messages are clear and to-the-point.
+
+
+### Example Code
+
+The following is a crude straw-man example of how the new mechanism may appear in code. The idea is to define a builder that gathers information about the error:
+
+```
+  throw DruidException
+      .userError()
+      .error(DruidException.INVALID_SQL)
+      .message(“The table ‘%s’ is not defined in schema ‘%s’.", tableName, schemaName)
+      .context("location", "Line %d, column %d", node.lineNo, node.columnNo)
+      .build();
+```
+
+The `build()` call creates the exception and logs it. Log level is determined the the error kind. Here, we raise a user exception, which needs only, say, `info` logging level. An `internalError()` might be logged at the `error` level. The builder can offer an exception, a `logLevel()` method that lets the developer override the general rules.
+
+### Roll-out Plan
+
+This proposal requires two distinct parts:
+
+1. Design the `DruidException` mechanism itself.
+2. Incrementally upgrade existing exceptions based on priority (frequency of occurrence.)
+
+Of course, the process is iterative: converting the first few exceptions will certainly identify enhancements we’d like in the exception mechanism.

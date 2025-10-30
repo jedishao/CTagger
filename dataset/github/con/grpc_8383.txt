@@ -1,0 +1,76 @@
+RPCs start to fail as commands are no longer written to the wire after receiving 503. 
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+
+I am using 1.23.0, however I can reproduce the issue on 1.39.1. 
+
+### What is your environment?
+Ubuntu 20.04
+
+```
+java --version
+openjdk 11.0.10 2021-01-19
+OpenJDK Runtime Environment AdoptOpenJDK (build 11.0.10+9)
+OpenJDK 64-Bit Server VM AdoptOpenJDK (build 11.0.10+9, mixed mode)
+```
+
+### What did you expect to see?
+
+I would expect new RPCs to function normally and send messages to the wire.
+
+### What did you see instead?
+
+We have a service which acts as a gRPC client and makes requests to several gRPC servers. Our client uses a single underlying channel and makes a combination of streaming and unary requests. The unary requests happen on a regular 5 second interval. It appears that once our client makes a certain amount of requests, the server gets unhappy and sends us an HTTP 503 / gRPC UNAVAILABLE (likely due to rate limiting). After we receive this 503 it appears that any following RPCs will fail since commands/messages are no longer being written to the wire. 
+
+These are the last messages that we see on the HTTP2 frame logger
+
+```
+[id: 0xe913cd96, L:/<redacted>:55370 - R:<redacted>:443] OUTBOUND HEADERS: streamId=479 headers=GrpcHttp2OutboundHeaders[:authority: <redacted>, :path: /<redacted>, :method: POST, :scheme: https, content-type: application/grpc, te: trailers, user-agent: grpc-java-netty/1.39.0, authorization: <redacted>, x-sandbox: true, grpc-accept-encoding: gzip, grpc-timeout: 4568538u] streamDependency=0 weight=16 exclusive=false padding=0 endStream=false
+[id: 0xe913cd96, L:/<redacted>:55370 - R:<redacted>:443] OUTBOUND DATA: streamId=479 padding=0 endStream=true length=7 bytes=<redacted>
+[id: 0xe913cd96, L:/<redacted>:55370 - R:<redacted>:443] INBOUND HEADERS: streamId=479 headers=GrpcHttp2ResponseHeaders[:status: 503, date: Wed, 04 Aug 2021 21:33:28 GMT, server: envoy-iad] padding=0
+[id: 0xe913cd96, L:/<redacted>:55370 - R:<redacted>:443] OUTBOUND RST_STREAM: streamId=479 errorCode=8 
+```
+
+When our code proceeds to make the next unary requests on the 5 second interval the HTTP2 frame logger is silent (with the exception of messages written on a totally different channel/target).
+
+Originally we had no deadlines on these requests so these RPCs were hanging indefinitely (if I add deadlines the deadlines do work which is different from https://github.com/grpc/grpc-java/issues/8334). It appeared as if all of our threads executing gRPC requests were in a deadlock so I attached a debugger and took a thread dump. Every single one of the threads using the shared gRPC channel was parked in a WAITING state inside of [waitAndDrain](https://github.com/grpc/grpc-java/blob/master/stub/src/main/java/io/grpc/stub/ClientCalls.java#L731).
+
+```
+
+"BackgroundDispatcher-worker-336" - Thread t@491
+   java.lang.Thread.State: WAITING
+        at java.base@11.0.5/jdk.internal.misc.Unsafe.park(Native Method)
+        - parking to wait for <24da91c5> (a io.grpc.stub.ClientCalls$ThreadlessExecutor)
+        at java.base@11.0.5/java.util.concurrent.locks.LockSupport.park(Unknown Source)
+        at app//io.grpc.stub.ClientCalls$ThreadlessExecutor.waitAndDrain(ClientCalls.java:660)
+        at app//io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:132)
+       ...
+        at app//kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+        at app//kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:106)
+        at java.base@11.0.5/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+        at java.base@11.0.5/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+        at java.base@11.0.5/java.lang.Thread.run(Unknown Source)
+
+   Locked ownable synchronizers:
+        - locked <36595423> (a java.util.concurrent.ThreadPoolExecutor$Worker)
+```        
+
+It took me a while to grok the code but I realized that these threads were essentially waiting for some Netty thread to parse the response from the server and enqueue some callback code for our blocking threads to execute. What was troubling to me is that the client was never even writing any requests onto the wire so surely  it would never receive any response and these threads would sit here indefinitely (unless a deadline was configured). 
+
+I continued tracing the code paths and debugging the code. I discovered that the new RPCs were getting legitimate stream implementations, ie. `NettyClientStream` and not `NoopClientStream`. I discovered that writes to a stream were enqueued onto a channel's `WriteQueue`. I verified that the `WriteQueue` was periodically flushing messages to the Netty channel. 
+
+For example, here is a create stream command that is being flushed. And it will not be loged by the HTTP frame logger.
+
+![Image from iOS](https://user-images.githubusercontent.com/1274471/128273608-13b8df4d-fe93-4d86-ac1e-8251660220b6.jpg)
+
+In order to double check that the HTTP frame logger wasn't malfunctioning I decided to take a packet capture and noticed a void of packets (after the initial 503 failures) when there should have at least been packets sent every 5 seconds. Capture ends when I kill the JVM. Note: Packet capture was taken at a different time than above screenshot so port numbers aren't the same because its a different TCP connection. 
+
+![Image from iOS (1)](https://user-images.githubusercontent.com/1274471/128274605-2388b8b8-e2be-4eb3-9287-530d4b08340f.jpg)
+
+I haven't gone through debugging the Netty pipeline yet but I figured I should post here before I go even further down the rabbit hole. 
+
+
+### Steps to reproduce the bug
+
+See above. Only able to reproduce with this particular target service which sends us 503s at certain request rates. Luckily it is extremely reproducible. 

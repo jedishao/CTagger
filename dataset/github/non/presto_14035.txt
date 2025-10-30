@@ -1,0 +1,104 @@
+New UDF and type proposal: KHyperLogLog
+Hello, I want to implement KHyperLogLog algorithm and data type as a UDF.  
+
+## Motivation
+
+Maintaining user’s data private and anonymized is not always trivial when databases scale too much. With new columns added to each table and new tables added to the database by many engineers in a growing organization, it is likely that sooner or later, user’s sensitive data becomes de-anonymized/re-identified through inadvertent logging of user identifying information. One particular metric to evaluate such risks is the [re-identification](https://en.wikipedia.org/wiki/Data_re-identification) potential of a column. It basically measures how unique is the relationship between a column’s values and user ID’s.
+
+As an example imagine a web app that logs the User Agent (UA) HTTP headers along with other information. This header contains details regarding application type, operating system, software vendor and software version of the given HTTP request. An experiment described in [1] counted how many different user ID’s were associated to the UA header (i.e. UA’s *uniqueness*) of a website’s visitors, and found that 83.6% of the cases held a 1:1 relationship. This means that anonymized tables that contain the UA header as a column can get re-identified (by linking/joining the tables with tables that contain UA and real user IDs).  Though the aforementioned example is for illustrative purposes only, our naive SQL-based implementation of KHyperLogLog successfully detected de-anonymization risks through linkage of real datasets stored in different user ID spaces within Facebook.
+
+KHyperLogLog [2] is an efficient way to calculate this re-identification risk of a given column F by *approximately* computing uniqueness for each value of a K-sized random sample of F. This is done maintaining K HyperLogLog sketches and extrapolating the samples' uniqueness distribution to all of F.
+
+To showcase the need of performing these computations more efficiently, I present some metrics for our SQL-based implementation of KHyperLogLog. The query was run on every column of each table, and in average there are 61 columns per table in our dataset. Measurements are per-table:
+
+| resource | average | p50 | p75 | p95 | max |
+| -----| -----| -----| -----| -----| ----- |
+| peak_memory_MB | 109 | 0 | 37 | 590 | 1,914 |
+| cpu_time_minutes | 161 | 3 | 21 | 379 | 15,742 |
+| exec_time_minutes | 2 | 1 | 2 | 7 | 115 |
+
+And here is a benchmark on individual columns. Note that columns with cardinality lower than K don’t need sampling so the query for that case was simpler, hence the distinction.
+
+|Table size	|Field cardinality	|Description	|K	|CPU Time	|Real Time	|Peak Memory	|
+|---	|---	|---	|---	|---	|---	|---	|
+|2.54 TB	|235	|Low cardinality (no sampling)	|2.048	|10.82 hours	|1.92 min	|71.65 MB	|
+|2.54 TB	|11.452.718	|High Cardinality (with sampling)	|2.048	|18.47 hours	|52 sec	|256.67 MB	|
+|21.5 GB	|4	|Low cardinality (no sampling)	|2.048	|12.11 min	|6.85 sec	|1.41 MB	|
+|21.5 GB	|33.975.589	|High Cardinality (with sampling)	|2.048	|19.14 min	|8.33 sec	|257 MB	|
+
+
+
+## Type proposal
+
+I propose KHyperLogLog as a type, that maintains (at most) K HyperLogLog sketches mapped from a KMinimumValues main structure. Details on this two-level structure can be found in [2]. It should be built from two different columns, and it would represent the approximate set of values from the second one that are associated to distinct values from the first one:
+`KHLL(T, V) -> KHYPERLOGLOG`
+
+In the previous example we would be interested in `KHLL(UA_header, user_id)`.
+
+Functions for my use case would include:
+
+* `UNIQUENESS_DISTRIBUTION(KHYPERLOGLOG) -> MAP<BIGINT, BIGINT>` The output would be a histogram containing a representation of the uniqueness distribution of the sample. This is a map from number of different user_id's to number of different field values that are linked to that amount of user_id's.
+* `NORMALIZED_UNIQUENESS_DISTRIBUTION(KHYPERLOGLOG) -> MAP<BIGINT, DOUBLE>` The output is the same uniqueness distribution but represented as a probability distribution.
+* `REIDENTIFICATION_POTENTIAL(KHYPERLOGLOG, BIGINT) -> DOUBLE` Receive a KHLL sketch and a `threshold`, and output the ratio of the Field's unique values that are linked to `threshold` different user_id's or less. Hence, output range is [0, 1].
+* `CARDINALITY(KHYPERLOGLOG) -> BIGINT` This outputs the set cardinality of the field we are interested in; in the example, it's UA_header. This is computed directly from the first level KMinimumValues data structure.
+
+## Query example
+
+Determine if a certain column has over 90% of it's distinct values associated to 3 or less different user_id's.
+
+```
+SELECT REIDENTIFICATION_POTENTIAL(KHLL(some_column, user_id), 3) > 0.9 as is_risky
+FROM some_table
+```
+
+## Computing Uniqueness from KHyperLogLog
+
+Here I present the algorithm for obtaining a uniqueness distribution histogram from a KHLL sketch. This is done in one pass over K , which computes the cardinality of each HLL sketch. HLL’s cardinality operation, in turn, runs in `O(M)`, with M being the number of buckets the sketch has. Experiments done in [2] suggest  K=2048 and M=1024 (or even 512) as a good tradeoff between accuracy and memory usage. This leads to the Histogram building algorithm having time complexity  `O(K*M)`. The `BuildUniquenessHistogram` procedure also computes the KHLL cardinality, which can be done in constant time, as explained in [2].
+
+There is another parameter, `HistogramSize` which determines how many buckets should the histogram have, i.e. until what level of uniqueness are we interested in. To state this uniqueness distribution of a certain field F against a field UII clearly: the `i-th` bucket of the histogram represents how many distinct F values are associated to exactly `i` different UII values. Since we are interested in highly unique fields, it doesn’t make much sense to keep track of values associated with too many UII values.
+
+I also present `ComputeReidentificationPotential` procedure which allows to obtain the re-identification risk without having to compute the whole histogram first. The algorithms:
+
+```
+Procedure BuildNormalizedUniquenessHistogram(KHLL) do:
+1    Histogram := Map<Bigint, Double>; // Map with HistogramSize entries initialized to 0
+2    foreach HLL_i with i in [1, ..., K] do:
+3        C := Min(Cardinality(HLL_i), HistogramSize);
+4        Histogram[C] := Histogram[C] + (1 / K); // Count increment normalized over K
+5    end foreach;
+6    Output Histogram;
+end Procedure
+
+Procedure BuildUniquenessHistogram(KHLL) do:
+1    FieldCardinality := Cardinality(KHLL);
+2    Histogram := BuildNormalizedUniquenessHistogram(KHLL);
+3    foreach i in [1, ..., HistogramSize]:
+4        Histogram[i] := RoundAsBigint(Histogram[i] * FieldCardinality);
+5    end foreach;
+6    Output Histogram;
+end Procedure;
+
+Procedure ComputeReidentificationPotential(KHLL, threshold):
+1    UnderThreshold := 0;
+2    foreach HLL_i with i in [1, ..., K] do:
+3        if Cardinality(HLL_i) <= threshold:
+4            UnderThreshold := UnderThreshold + 1;
+5        end if;
+6    end foreach;
+7    Output UnderThreshold / K;
+end Procedure
+```
+
+## Memory usage
+
+A note on memory usage for this data structure. Presto implementation of HyperLogLog, using `APPROX_SET`, creates a sketch with 4096 buckets of 4 bits each by default. This accounts to 2KB, and totaling up to 2.24KB for storing overflow entries and other overhead. Using 1024 half-byte buckets we would have ~0.5KB per HLL sketch. Given the proposed K of 2048 , this would mean that **~2MB are needed for a worst-case fully populated KHLL**. Note that this would only happen for a field which values have very low uniqueness where all K HyperLogLog sketches are in their dense representation.
+
+## References
+
+[1] [How unique is your web browser?](https://dl.acm.org/doi/abs/10.5555/1881151.1881152)
+[2] [KHyperLogLog: Estimating Reidentifiability and Joinability of Large Data at Scale](https://research.google/pubs/pub47664/)
+[3] [HyperLogLog in Presto: A significantly faster way to handle cardinality estimation](https://engineering.fb.com/data-infrastructure/hyperloglog/)
+
+## Tags
+
+@tdcmeehan @rongrong 

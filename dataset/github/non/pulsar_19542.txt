@@ -1,0 +1,67 @@
+[Bug] Swagger definitions for creating sinks/sources are incorrect
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+The affected versions are all versions from Pulsar 2.9+
+I did not check earlier versions.
+
+### Minimal reproduce step
+
+1) Download swagger definitions from the Pulsar website, e.g. https://pulsar.apache.org/swagger/2.9.3/
+2) Import swagger definitions into Postman
+3) Use Pulsar Sink REST API > sinks > {tenant}/{namespace} > POST Creates a new Pulsar Sink in cluster mode to create a sink. Can use Postman directly or export generated curl command. Below is an example of the generated curl:
+
+```
+curl --location 'http://localhost:8080/admin/v3/sinks/public/default/my-jdbc' \
+--header 'Content-Type: multipart/form-data' \
+--form 'tenant="public"' \
+--form 'namespace="default"' \
+--form 'name="my-jdbc"' \
+--form 'inputs="[\"my-input\"]"' \
+--form 'configs="{\"jdbc.xyz\":\"abc\"}"' \
+--form 'sinkType="jdbc-postgres"'
+```
+
+### What did you expect to see?
+
+Successfully created a sink
+
+### What did you see instead?
+
+HTTP 400 Bad Request
+```
+{
+    "reason": "Sink config is not provided"
+}
+```
+
+### Anything else?
+
+The problem is that in the swagger definition, every field gets interpreted as a separate form, as you can see here:
+```
+curl --location 'http://localhost:8080/admin/v3/sinks/public/default/my-jdbc' \
+--header 'Content-Type: multipart/form-data' \
+--form 'tenant="public"' \
+--form 'namespace="default"' \
+--form 'name="my-jdbc"' \
+--form 'inputs="[\"my-input\"]"' \
+--form 'configs="{\"jdbc.xyz\":\"abc\"}"' \
+--form 'sinkType="jdbc-postgres"'
+```
+
+The correct request however, needs to look contain a single form called `sinkConfig` that contains a json of all these parameters:
+```
+curl --location 'http://localhost:8080/admin/v3/sinks/public/default/my-jdbc' \
+--header 'Content-Type: multipart/form-data' \
+--form 'sinkConfig="{"tenant":"public", "namespace":"default", ... }"
+```
+
+The same issue is affecting the route for Sources.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

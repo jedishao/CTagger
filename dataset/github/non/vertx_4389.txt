@@ -1,0 +1,28 @@
+FileResolverImpl tries to unpack resources from bundle URL on each call for same file resolving
+When resolving resources from bundle URL, the cache is not used at all.
+
+In the [FileResolverImpl.unpackFromBundleURL](https://github.com/eclipse-vertx/vert.x/blob/4.2.7/src/main/java/io/vertx/core/file/impl/FileResolverImpl.java#L350) method, the `String file = url.getHost() + File.separator + url.getFile()` is used as the file name to cache to the cache directory, but next calls of `resolve(fileName)` tries to use the `fileName` to resolve the File in cache first, so it never finds it, which leads to it tries to unpack again and again.
+
+
+### Version
+
+Vertx version:
+
+* 4.2.7
+* 4.3.2.SNAPSHOT
+
+Java Version:
+
+```
+[🎩 lgao@lins-p1 resolver-cache]$ java -version
+java version "11.0.11" 2021-04-20 LTS
+Java(TM) SE Runtime Environment 18.9 (build 11.0.11+9-LTS-194)
+Java HotSpot(TM) 64-Bit Server VM 18.9 (build 11.0.11+9-LTS-194, mixed mode)
+```
+
+### Do you have a reproducer?
+
+Please refer to https://github.com/gaol/tests/tree/master/vertx/resolver-cache for more detail information.
+
+
+

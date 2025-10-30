@@ -1,0 +1,75 @@
+[Bug]  Proxy fail to establish the TLS with broker without authentication 
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+Client(2.11.0)-->proxy(2.11.0)-->broker(2.10.2)-->bookie(2.10.2)-->ZK(2.10.2)
+OS: 159~16.04.1-Ubuntu 
+ 
+
+### Minimal reproduce step
+
+**Step-1: Apply the TLS configuration using JKS keystore but not enabled the authentication**
+Proxy: 
+Enable TLS using JKS keystore (But Not enable the authentication) 
+Apply this config: https://pulsar.apache.org/docs/2.11.x/security-tls-transport/#configure-proxies-1
+
+Broker: 
+Enable TLS using JKS keystore 
+https://pulsar.apache.org/docs/2.11.x/security-tls-transport/#configure-brokers-1
+
+Client(Publisher or subscriber):
+Enable TLS using JKS keystore 
+https://pulsar.apache.org/docs/2.11.x/security-tls-transport/#configure-clients-1
+
+Step-2: Start the Client to establish the connection   (between Client to  proxy and proxy --> Broker)
+
+Step-3: 
+* Observe TLS Connection between proxy and broker will be  denied.
+* Check the proxy logs and you can see the null pointer crash `getTlsKeyStoreParams()" because "this.authData" is null`
+https://github.com/apache/pulsar/blob/v2.11.0/pulsar-common/src/main/java/org/apache/pulsar/common/util/keystoretls/NettySSLContextAutoRefreshBuilder.java#L129
+
+* Its crashed because authData  is null since it's not initialized, it will be initialized only if enable the authentication.
+https://github.com/apache/pulsar/blob/v2.11.0/pulsar-proxy/src/main/java/org/apache/pulsar/proxy/server/DirectProxyHandler.java#L117
+
+
+
+```
+2023-02-09T22:38:34,864+0000 [pulsar-proxy-io-2-5] INFO org.apache.pulsar.proxy.server.ProxyConnection - [/10.225.80.120:62031] Connection closed
+2023-02-09T22:38:38,471+0000 [pulsar-proxy-io-2-8] INFO org.apache.pulsar.proxy.server.ProxyConnection - [/10.225.80.120:62039] New connection opened
+2023-02-09T22:38:38,759+0000 [pulsar-proxy-io-2-8] INFO org.apache.pulsar.proxy.server.ProxyConnection - [/10.225.80.120:62039] complete connection, init proxy handler. authenticated with none role null, hasProxyToBrokerUrl: true
+2023-02-09T22:38:38,765+0000 [pulsar-proxy-io-2-8] WARN io.netty.channel.ChannelInitializer - Failed to initialize a channel. Closing: [id: 0x5282c24a]
+java.lang.NullPointerException: Cannot invoke "org.apache.pulsar.client.api.AuthenticationDataProvider.getTlsKeyStoreParams()" because "this.authData" is null
+	at org.apache.pulsar.common.util.keystoretls.NettySSLContextAutoRefreshBuilder.update(NettySSLContextAutoRefreshBuilder.java:129) ~[org.apache.pulsar-pulsar-common-2.11.0.jar:2.11.0]
+	at org.apache.pulsar.common.util.keystoretls.NettySSLContextAutoRefreshBuilder.update(NettySSLContextAutoRefreshBuilder.java:32) ~[org.apache.pulsar-pulsar-common-2.11.0.jar:2.11.0]
+	at org.apache.pulsar.common.util.SslContextAutoRefreshBuilder.get(SslContextAutoRefreshBuilder.java:79) ~[org.apache.pulsar-pulsar-common-2.11.0.jar:2.11.0]
+	at org.apache.pulsar.proxy.server.DirectProxyHandler$1.initChannel(DirectProxyHandler.java:199) ~[org.apache.pulsar-pulsar-proxy-2.11.0.jar:2.11.0]
+	at org.apache.pulsar.proxy.server.DirectProxyHandler$1.initChannel(DirectProxyHandler.java:190) ~[org.apache.pulsar-pulsar-proxy-2.11.0.jar:2.11.0]
+	at io.netty.channel.ChannelInitializer.initChannel(ChannelInitializer.java:129) ~[io.netty-netty-transport-4.1.86.Final.jar:4.1.86.Final]
+	at io.netty.channel.ChannelInitializer.handlerAdded(ChannelInitializer.java:112) ~[io.netty-netty-transport-4.1.86.Final.jar:4.1.86.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.callHandlerAdded(AbstractChannelHandlerContext.java:1114) ~[io.netty-netty-transport-4.1.86.Final.jar:4.1.86.Final]
+	at io.netty.channel.DefaultChannelPipeline.callHandlerAdded0(DefaultChannelPipeline.java:609) ~[io.netty-netty-transport-4.1.86.Final.jar:4.1.86.Final]
+	at io.netty.channel.DefaultChannelPipeline.access$100(DefaultChannelPipeline.java:46) ~[io.netty-netty-transport-4.1.86.Final.jar:4.1.86.Final]
+```
+
+
+
+
+### What did you expect to see?
+
+Should allow establishing the TLS connection between proxy & broker even I not enabled the authentication 
+
+### What did you see instead?
+
+Currently, i am enabling the authentication to unblock myself
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

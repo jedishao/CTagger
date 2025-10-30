@@ -1,0 +1,141 @@
+Codec issue in redisson springboot project
+<!--
+Try Redisson PRO https://redisson.pro with with ultra-fast performance and support by SLA.
+-->
+
+Hi Team, I am developing an application for persist data into Redis cache as well as into some database.
+
+For this purpose I am using redisson client, 
+When developing as core java project it working fine, but similar things when I am writing with springboot then getting below exception:
+
+Exception in thread "redisson-3-2" java.lang.NullPointerException
+	at com.hpe.tslabs.namespace.config.NamespaceRedisListener.onMessage(NamespaceRedisListener.java:49)
+	at com.hpe.tslabs.namespace.config.NamespaceRedisListener.onMessage(NamespaceRedisListener.java:24)
+	at org.redisson.PubSubPatternMessageListener.onPatternMessage(PubSubPatternMessageListener.java:83)
+	at org.redisson.client.RedisPubSubConnection.onMessage(RedisPubSubConnection.java:74)
+	at org.redisson.client.handler.CommandPubSubDecoder$1.run(CommandPubSubDecoder.java:165)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+
+Below is the code :
+
+Service Class:
+
+@Service
+public class RedisSubscribeService
+{
+
+   RedissonClient redissonClient;
+
+   @Autowired
+   public void setRedissonClient(RedissonClient redissonClient)
+   {
+      this.redissonClient = redissonClient;
+   }
+
+   @Bean
+   public void subscribe()
+   {
+      RPatternTopic topic = redissonClient.getPatternTopic("__keyevent@0__:*", StringCodec.INSTANCE);
+      topic.addListener(String.class, new PersistRedisListener());
+   }
+
+}
+
+Lisener class : 
+
+@Service
+public class PersistRedisListener implements PatternMessageListener<String>
+{
+   private static final Logger         logger          = LoggerFactory.getLogger(NamespaceRedisListener.class);
+
+   RedissonClient redissonClient;
+
+   @Autowired
+   public RedissonClient getRedissonClient()
+   {
+      return redissonClient;
+   }
+
+   @Override
+   public void onMessage(CharSequence pattern, CharSequence channel, String id)
+   {
+      
+         String items = (String) redissonClient.getBucket(id, StringCodec.INSTANCE).get();
+            if (items != null)
+            {
+               // code to persist into database
+            }
+            else
+            {
+               logger.error("No data to save for the id : {} ", id);
+            }
+         }
+        
+      
+   }
+
+}
+
+
+Configuration class : 
+
+
+
+@Configuration
+@AutoConfigureBefore(RedisAutoConfiguration.class)
+@ConditionalOnClass({Redisson.class})
+@EnableConfigurationProperties({ RedisProperties.class})
+public class RedisConfiguration
+{
+
+   private final  RedisConfigData config = RedisConfigData.getInstance();
+
+   /**
+    * Instantiate Redis connection pool
+    */
+
+   @Bean
+   @ConditionalOnMissingBean(RedissonClient.class)
+   public RedissonClient redisson()
+   {
+      final String hostName = config.getProperty(RedisConfigKeys.REDIS_HOST_NAME);
+      final int port = config.getInteger(RedisConfigKeys.REDIS_PORT_NUMBER);
+      final String userName = config.getProperty(RedisConfigKeys.REDIS_USER_NAME);
+      final Config redissonConfig = new Config();
+      if (userName != null && !userName.isEmpty())
+      {
+         redissonConfig.useSingleServer().setAddress("redis://" + hostName + ":" + port).setUsername(userName)
+                 .setPassword(config.getProperty(NamespaceRedisConfigKeys.REDIS_USER_PASSWORD));
+      }
+      else
+      {
+         redissonConfig.useSingleServer().setAddress("redis://" + hostName + ":" + port);
+      }
+      //redissonConfig.setCodec(StringCodec.INSTANCE);
+      return Redisson.create(redissonConfig);
+   }
+
+}
+
+
+Client side code : 
+
+
+   public boolean insertItems(final String itemString)
+   {
+     
+      final RedissonClient redissonClient = redisUtil.getRedissonClient();
+      RBucket<String> rBucket = redissonClient.getBucket(someid, new StringCodec());
+      rBucket.set(itemString);
+         
+      redissonClient.shutdown();
+      return success;
+   }
+
+
+Please provide your support .
+
+Thanks much

@@ -1,0 +1,45 @@
+java.lang.OutOfMemoryError: unable to create native thread
+Hi,
+We use Trino deployed on Kubernetes cluster with the following specification:
+- One coordinator pod
+- 5 worker pods
+
+Each node has the following limits:
+- 4 CPUs 
+- Memory: 4 GB for the coordinator pod and 6 GB for the workers ones 
+
+JVM configuration:
+```
+  -server
+
+  -Xmx4G
+
+  -XX:+UseG1GC
+
+  -XX:G1HeapRegionSize=32M
+
+  -XX:+UseGCOverheadLimit
+
+  -XX:+ExplicitGCInvokesConcurrent
+
+  -XX:+HeapDumpOnOutOfMemoryError
+
+  -XX:+ExitOnOutOfMemoryError
+
+  -Djdk.attach.allowAttachSelf=true
+
+  -Djavax.net.ssl.trustStore=/etc/trino/certs/cacerts
+
+  -Djavax.net.ssl.trustStorePassword=redacted
+```
+
+We have updated from version 388 to 403 and now the following exception is raised when a query (that on works 388) is executed:
+java.lang.OutOfMemoryError: unable to create native thread: possibly out of memory or process/resource limits reached.
+
+We tried to increase the resources:
+- CPUs up to 8 for each pod
+- Memory up to 12 GB for each pod
+
+We also tuned the JVM Xmx parameter up to 12GB.
+
+Any suggestion?

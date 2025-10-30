@@ -1,0 +1,30 @@
+"Result is already complete" exception in case of timeout
+### Version
+
+4.0.3 (Java), Clustered
+
+### Context
+
+When a request is send to the cluster with a timeout set in the options, it might happen (especially when heavily loaded) that vertx issues a "Result is already complete" exception when applying the response to its internal promise, if the timeout has been triggered at the same time.
+
+Here's the stack trace:
+
+`java.lang.IllegalStateException: Result is already complete
+	at io.vertx.core.Promise.complete(Promise.java:67)
+	at io.vertx.core.eventbus.impl.ReplyHandler.dispatch(ReplyHandler.java:94)
+	at io.vertx.core.eventbus.impl.HandlerRegistration$InboundDeliveryContext.next(HandlerRegistration.java:163)
+	at io.vertx.core.eventbus.impl.HandlerRegistration$InboundDeliveryContext.dispatch(HandlerRegistration.java:128)
+	at io.vertx.core.impl.AbstractContext.dispatch(AbstractContext.java:107)
+	at io.vertx.core.eventbus.impl.HandlerRegistration.dispatch(HandlerRegistration.java:104)
+	at io.vertx.core.eventbus.impl.ReplyHandler.doReceive(ReplyHandler.java:75)
+	at io.vertx.core.eventbus.impl.HandlerRegistration.lambda$receive$0(HandlerRegistration.java:54)
+	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:164)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:500)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)`
+
+I suppose that the "complete" statement in the reply handler should be replaced by a tryComplete() or should detect that it already timed out
+

@@ -1,0 +1,28 @@
+cannot use avatica jdbc prepareStatement
+Here is my code to use jdbc to query druid：
+   
+         String url = "jdbc:avatica:remote:url=http://xxxxxx:8072/druid/v2/sql/avatica/";
+        Properties connectionProperties = new Properties();
+        String sql = "select channel from druid.\"wikiticker\" where isMinor = ? and isNew = ?  order by __time";
+        try (Connection connection = DriverManager.getConnection(url, connectionProperties)) {
+            AvaticaPreparedStatement statement = (AvaticaPreparedStatement) connection.prepareStatement(sql);
+            statement.setString(1,"false");
+            statement.setString(2,"true");
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                System.out.println(resultSet.getString(1));
+            }
+        }
+
+And the console print:
+   java.lang.RuntimeException: org.apache.calcite.plan.RelOptPlanner$CannotPlanException: There are not enough rules to produce a node with desired properties: convention=DRUID, sort=[1].
+Missing conversion is LogicalProject[convention: NONE -> DRUID, sort: [] -> [1]]
+There is 1 empty subset: rel#5099:Subset#3.DRUID.[1], the relevant part of the original plan is as follows
+5092:LogicalProject(channel=[$1], __time=[$0])
+  5090:LogicalFilter(subset=[rel#5091:Subset#2.NONE.[]], condition=[AND(=($2, ?0), =($3, ?1))])
+    5088:LogicalProject(subset=[rel#5089:Subset#1.NONE.[]], __time=[$0], channel=[$1], isMinor=[$8], isNew=[$9])
+      5072:LogicalTableScan(subset=[rel#5087:Subset#0.NONE.[]], table=[[druid, wikiticker]])
+
+Root: rel#5099:Subset#3.DRUID.[1]
+....................
+My druid server is running in the start-micro-quick mode,please help me 。

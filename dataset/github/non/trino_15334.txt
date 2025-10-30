@@ -1,0 +1,30 @@
+Index join may return incorrect results in certain cases
+Consider a query:
+
+```
+SELECT *
+FROM lineitem l
+INNER JOIN (
+    SELECT orderkey, (orderkey + custkey) % 107 some_projection
+    FROM orders
+) o
+ON l.orderkey = o.orderkey AND l.linenumber % 407 = o.some_projection
+```
+
+The `orders` table is indexed on `orderkey` while JOIN is done on two columns, `orderkey` and some projection. 
+
+Currently the engine allows this query shape to be run as an `IndexJoin` querying index by only a single column (e.g.: `orderkey`).
+
+However the engine caches results not based on `orderkey`, but based on both, `orderkey + some_projection`.
+
+What happens is:
+
+1. Engine joins a row containing `orderkey = 1, some_projection = 2`
+2. Index is queried for `orderkey = 1`
+3. Index returns a row, `orderkey = 1, some_projection = 2`
+4. Engine joins a row containing `orderkey = 1, some_projection = 3`. The row is not cached.
+5. Index is queried again for `orderkey = 1`
+6. Index again returns a row, `orderkey = 1, some_projection = 2`.
+7. Now the cache index contains two instances of the same row: `orderkey = 1, some_projection = 2`
+
+

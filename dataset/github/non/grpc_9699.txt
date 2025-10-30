@@ -1,0 +1,91 @@
+How to transfer data in InheritableThreadLocal to ClientInterceptor
+
+The default client thread pool uses InheritableThreadLocal to transfer data, which will reuse the data of the previous request. If the grpc request ends, clear the data in InheritableThreadLocal. Then the latest InheritableThreadLocal data cannot be obtained next time
+
+
+````java
+
+	GrpcContext.setTenantId("123456789");
+	var request = HelloRequest.newBuilder()
+        .setName(name)
+        .build();
+	log.info("1.Client TenantId: \n{}", tenantId);
+	blockingStub.sayHello(request);
+
+    private static final Metadata.Key<String> TENANT_ID = Metadata.Key.of("tenantId", ASCII_STRING_MARSHALLER);
+
+    @Slf4j
+    @GrpcGlobalClientInterceptor
+    public static class TokenClientInterceptor implements ClientInterceptor {
+
+        @Override
+        public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> methodDescriptor,
+                                                                   CallOptions callOptions,
+                                                                   Channel channel) {
+            var delegate = channel.newCall(methodDescriptor, callOptions);
+            return new ForwardingClientCall.SimpleForwardingClientCall<>(delegate) {
+
+                @Override
+                public void start(Listener<RespT> responseListener, Metadata headers) {
+                    var tenantId = GrpcContext.getTenantId();
+                    log.info("2.Client TenantId: \n{}", tenantId);
+                    if (StringUtils.hasText(tenantId)) {
+                        headers.put(TENANT_ID, tenantId);
+                    }
+                    super.start(new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
+
+                        @Override
+                        public void onClose(Status status, Metadata trailers) {
+                            log.info("4.onClose: \n{}", GrpcContext.getTenantId());
+                            GrpcContext.reset();
+                            super.onClose(status, trailers);
+                        }
+
+                    }, headers);
+                }
+
+            };
+        }
+    }
+
+
+    @Slf4j
+    @GrpcGlobalServerInterceptor
+    public static class TokenServerInterceptor implements ServerInterceptor {
+
+        @Override
+        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call,
+                                                                     Metadata headers,
+                                                                     ServerCallHandler<ReqT, RespT> next) {
+            GrpcContext.reset();
+            var tenantId = headers.get(TENANT_ID);
+            log.info("3.Server TenantId: \n{}", GrpcContext.getTenantId());
+            GrpcContext.setTenantId(tenantId);
+        }
+
+    }
+
+
+	public class GrpcContext {
+
+		private static final InheritableThreadLocal<String> TENANT_ID = new InheritableThreadLocal<>();
+
+		public static void setTenantId(String tenantId) {
+			if (StringUtils.hasText(tenantId)) {
+				TENANT_ID.set(tenantId);
+			} else {
+				TENANT_ID.remove();
+			}
+		}
+
+		public static String getTenantId() {
+			return TENANT_ID.get();
+		}
+
+		public static void reset() {
+			TENANT_ID.remove();
+		}
+
+	}
+````
+

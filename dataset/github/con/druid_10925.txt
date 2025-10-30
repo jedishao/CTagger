@@ -1,0 +1,20 @@
+Overlord fail to updated segment state after middle manager
+### Affected Version
+
+0.13
+
+### Description
+I am running hourly indexing from kafka. and today they start to fail. cluster is small . 3 coodinators,overlords,middle manager + 2 brokers + 6 historical all running 0.13.
+when it starts it makes 2 kafka indexing tasks * 2 datasources . and runs fine the problem is when the middlemanager post to the overlord the hourly index completion. The task is never stopped and 2 more are created..
+from what i see the data file in s3 is there the db entry in the segments table is fine and i can check even with multiple indexing task running the values in turnillo. however if the task is stopped from the druid task console then i stop seeing the results in turnillo although the the files and db  are ok.. its like it never announce the segments
+there are merging index task that run fine
+it seams that the overload is not informed that the task is completed and it continues to expect the confirmation from the middle manager. 
+In fact this is a race condition in indexersqlmetadatastoragecoordinator.java (log.info("Not updating metadata, existing state is not the expected start state.");)
+basically one replica alter the UPDATE druid_dataSource SET commit_metadata_payload = _binary'{\"typ...
+and the other fails the check when comparing the original to the one in the db SELECT commit_metadata_payload FROM druid_dataSource WHERE dataSource..
+
+unfortunately the only form we found to avid this is to reduce the replica count to 1 
+
+i send part of the log of the task and of the overlord
+[task.log](https://github.com/apache/druid/files/6047491/task.log)
+[over.log](https://github.com/apache/druid/files/6047501/over.log)

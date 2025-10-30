@@ -1,0 +1,32 @@
+Using CompositeCodec with TypedJsonJacksonCodec
+Hi Team, I am using CompositeCodec with TypedJsonJacksonCodec for values like below
+```  
+var codec = new TypedJsonJacksonCodec(ItemInventory.class, mapper);
+ var inventoryCodec = new CompositeCodec(StringCodec.INSTANCE, codec);
+```
+(<img width="526" alt="Screenshot 2022-10-17 at 1 37 17 PM" src="https://user-images.githubusercontent.com/67601752/196123065-b05781bb-966b-43e7-a546-6afb7c31bafa.png">)
+
+It works fine when saving in Redis, However, while getting the values, it deserializes the value to LinkedHashMap. Is it not the right way to use CompositeCodec?
+
+**Update:**
+
+When I am trying to use it like below, it works fine but fails in case of transactions
+
+```
+
+        var codec = new TypedJsonJacksonCodec(String.class, ItemInventory.class, mapper);
+        inventoryCodec = new CompositeCodec(StringCodec.INSTANCE, codec);
+
+    options = LocalCachedMapOptions.defaults()
+                .cacheSize(1_00_000)
+                .evictionPolicy(LocalCachedMapOptions.EvictionPolicy.LRU)
+                .syncStrategy(LocalCachedMapOptions.SyncStrategy.UPDATE);
+
+       inventoryMap = redissonClient.getLocalCachedMap(REDIS_INVENTORY_MAP, inventoryCodec, LocalCachedMapOptions.defaults());
+
+var itemInventoryRMap = transaction.getLocalCachedMap(inventoryRMap);
+
+```
+
+Above code throws error when service restarts: `Failed to instantiate [com.apollopharmacy.inventorymanagementservice.repository.cache.InventoryCacheRepository]: Constructor threw exception; nested exception is java.lang.ClassCastException: class java.lang.String cannot be cast to class org.redisson.cache.LocalCachedMapDisabledKey (java.lang.String is in module java.base of loader 'bootstrap'; org.redisson.cache.LocalCachedMapDisabledKey is in unnamed module of loader 'app')`
+

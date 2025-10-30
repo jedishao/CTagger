@@ -1,0 +1,20 @@
+"select" failed when  "In" caluse contains RowType
+### Discussed in https://github.com/trinodb/trino/discussions/16633
+
+<div type='discussions-op-text'>
+
+<sup>Originally posted by **boson234** March 20, 2023</sup>
+**steps：**
+create table r01 (id int, val row(x bigint,y double));
+create table r02 (name varchar, val row(x bigint,y double));
+insert into r01 values (10,row(987654,0.99999)),(20,row(321234,1.88888)),(30,row(567890,2.77777));
+insert into r02 values ('one',row(987654,0.99999)),('two',row(123456,3.66666)),('three',row(567890,2.77777));
+select * from r01 where r01.val in (select val from r02);
+
+**result：**
+![image](https://user-images.githubusercontent.com/34983864/226271476-ff85115e-2abf-4d7a-8b0e-29303241f8da.png)
+
+as  code shows , r01.val is a rowType column , so it can't enter the if statement,that why this query failed.
+![image](https://user-images.githubusercontent.com/34983864/226271570-2cfdea8e-b857-473a-9bb0-9d40d5d7ec67.png)
+
+</div>

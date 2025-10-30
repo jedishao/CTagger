@@ -1,0 +1,58 @@
+CRC calculation in PagesSerde is incorrect
+com.facebook.presto.spi.page.PagesSerdeUtil#computeSerializedPageChecksum method uses "update(int)" method for 3 integers: markers, positionCount and uncompressedSize. It appears that this method doesn't consider all the bytes of the integer, but just one byte. The following test demonstrates the problem and proposed solution.
+
+```
+        CRC32 crc32 = new CRC32();
+        crc32.update(pageData.byteArray(), pageData.byteArrayOffset(), pageData.length());
+        crc32.update(markers);
+        crc32.update(positionCount);
+        crc32.update(uncompressedSize);
+        return crc32.getValue();
+```
+
+```
+    private void computeCrc(int value)
+    {
+        CRC32 crc32 = new CRC32();
+        crc32.update(value);
+        System.out.println("value: " + value + ", " + crc32.getValue());
+    }
+
+    private void computeCrc2(int value)
+    {
+        byte[] bytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array();
+        CRC32 crc32 = new CRC32();
+        crc32.update(bytes, 0, 4);
+        System.out.println("value: " + value + ", " + crc32.getValue());
+    }
+
+    @Test
+    public void test()
+    {
+        computeCrc(25);
+        computeCrc(25 + (1 << 8));
+        computeCrc(25 + (1 << 16));
+        computeCrc(25 + (1 << 20));
+
+        computeCrc2(25);
+        computeCrc2(25 + (1 << 8));
+        computeCrc2(25 + (1 << 16));
+        computeCrc2(25 + (1 << 20));
+    }
+
+
+/// The results for all values are the same before only least significant byte is considered
+value: 25, 3060352845
+value: 281, 3060352845
+value: 65561, 3060352845
+value: 1048601, 3060352845
+
+/// The results for all values are different before all bytes are considered
+value: 25, 206948105
+value: 281, 228044094
+value: 65561, 357496392
+value: 1048601, 1184355672
+
+```
+
+CC: @arhimondr @tdcmeehan @amitkdutta

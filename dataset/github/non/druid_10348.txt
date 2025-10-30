@@ -1,0 +1,44 @@
+druid.segmentCache.locationSelectorStrategy config raise Exception
+Affected Version
+0.18.1
+
+Description
+When add local cache ,we use druid.segmentCache.locationSelectorStrategy config to scan the disk,but it raise some exception like:
+
+Problem parsing object at prefix[druid.segmentCache]: Cannot construct instance of org.apache.druid.segment.loading.LeastBytesUsedStorageLocationSelectorStrategy (no Creators, like default construct, exist): no String-argument constructor/factory method to deserialize from String value ('roundRobin')
+2 historical node ,1 master node
+My configure: druid.segmentCache.locationSelectorStrategy=mostAvailableSize
+the exception log :
+Problem parsing object at prefix[druid.segmentCache]: Cannot construct instance of org.apache.druid.segment.loading.MostAvailableSizeStorageLocatio nSelectorStrategy (no Creators, like default construct, exist): no String-argument constructor/factory method to deserialize from String value ('mostAvailableSize')
+at [Source: UNKNOWN; line: -1, column: -1] (through reference chain: org.apache.druid.segment.loading.SegmentLoaderConfig["locationSelectorStrategy
+"]).
+at org.apache.druid.guice.JsonConfigProvider.bind(JsonConfigProvider.java:151) (via modules: com.google.inject.util.Modules$OverrideModule -> com.
+google.inject.util.Modules$OverrideModule -> org.apache.druid.guice.StorageNodeModule)
+at org.apache.druid.guice.JsonConfigProvider.bind(JsonConfigProvider.java:151) (via modules: com.google.inject.util.Modules$OverrideModule -> com.
+google.inject.util.Modules$OverrideModule -> org.apache.druid.guice.StorageNodeModule)
+while locating com.google.common.base.Supplier<org.apache.druid.segment.loading.SegmentLoaderConfig>
+at org.apache.druid.guice.JsonConfigProvider.bind(JsonConfigProvider.java:152) (via modules: com.google.inject.util.Modules$OverrideModule -> com.
+google.inject.util.Modules$OverrideModule -> org.apache.druid.guice.StorageNodeModule)
+while locating org.apache.druid.segment.loading.SegmentLoaderConfig
+for the 2nd parameter of org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager.(SegmentLoaderLocalCacheManager.java:88)
+while locating org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager
+at org.apache.druid.guice.LocalDataStorageDruidModule.configure(LocalDataStorageDruidModule.java:51) (via modules: com.google.inject.util.Modules$
+OverrideModule -> com.google.inject.util.Modules$OverrideModule -> org.apache.druid.guice.LocalDataStorageDruidModule)
+while locating org.apache.druid.segment.loading.SegmentLoader
+for the 1st parameter of org.apache.druid.server.SegmentManager.(SegmentManager.java:100)
+at org.apache.druid.cli.CliHistorical.lambda$getModules$0(CliHistorical.java:90) (via modules: com.google.inject.util.Modules$OverrideModule -> co
+m.google.inject.util.Modules$OverrideModule -> org.apache.druid.cli.CliHistorical$$Lambda$13/701487403)
+while locating org.apache.druid.server.SegmentManager
+for the 8th parameter of org.apache.druid.server.coordination.ServerManager.(ServerManager.java:101)
+at org.apache.druid.cli.CliHistorical.lambda$getModules$0(CliHistorical.java:89) (via modules: com.google.inject.util.Modules$OverrideModule -> co
+m.google.inject.util.Modules$OverrideModule -> org.apache.druid.cli.CliHistorical$$Lambda$13/701487403)
+while locating org.apache.druid.server.coordination.ServerManager
+at org.apache.druid.cli.CliHistorical.lambda$getModules$0(CliHistorical.java:92) (via modules: com.google.inject.util.Modules$OverrideModule -> co
+m.google.inject.util.Modules$OverrideModule -> org.apache.druid.cli.CliHistorical$$Lambda$13/701487403)
+while locating org.apache.druid.query.QuerySegmentWalker
+for the 2nd parameter of org.apache.druid.server.QueryLifecycleFactory.(QueryLifecycleFactory.java:52)
+at org.apache.druid.server.QueryLifecycleFactory.class(QueryLifecycleFactory.java:52)
+while locating org.apache.druid.server.QueryLifecycleFactory
+for the 1st parameter of org.apache.druid.server.QueryResource.(QueryResource.java:121)
+at org.apache.druid.server.QueryResource.class(QueryResource.java:79)
+while locating org.apache.druid.server.QueryResource

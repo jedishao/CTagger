@@ -1,0 +1,38 @@
+The UI reports incorrect historical max size after I resized them.
+### Affected Version
+
+0.21.1
+
+### Description
+
+* I am deploying Druid on EKS Kubernetes.
+* The original EBS size for historical is 2TB per pod, I resized it to 10TB.
+* But the UI still reports 2TB.
+
+What can I do to fix the reporting? See screenshot for more details:
+
+The Volume Claim Definition:
+
+```
+  volumeClaimTemplates:
+  - metadata:
+      name: historical-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: gp2-encrypted-retain
+      resources:
+        requests:
+          storage: 10000Gi
+```
+
+The actual disk size:
+
+```
+df -h /opt/druid/var/ebs
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme2n1    9.7T  1.6T  8.2T  16% /opt/apache-druid-0.21.1/var/ebs
+```
+
+The UI Services Tab
+
+<img width="1313" alt="Screen Shot 2021-07-14 at 2 57 04 PM" src="https://user-images.githubusercontent.com/72918/125698409-cd9f7f6a-ff1a-45c0-8f3b-983fed3d4420.png">

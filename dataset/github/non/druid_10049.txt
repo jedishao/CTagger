@@ -1,0 +1,81 @@
+GroupBY get different result when use populateCache 
+
+GroupBY get different result when use populateCache 
+### Affected Version
+
+in 0.16.1 and  0.17.1
+
+### Description
+
+on historical 
+
+```
+druid.historical.cache.useCache=true
+druid.historical.cache.populateCache=true
+druid.cache.type=caffeine
+druid.cache.sizeInBytes=128000000
+```
+
+sql
+```
+
+SELECT "dst_ip", "src_ip", sum("sum_volume") FROM "analysis_business_detail" where  __time >='2020-06-17' and __time <='2020-06-18' GROUP BY "dst_ip", "src_ip" limit 200000
+```
+
+Query plan
+```
+
+{
+  "queryType": "groupBy",
+  "dataSource": {
+    "type": "table",
+    "name": "analysis_business_detail"
+  },
+  "intervals": {
+    "type": "intervals",
+    "intervals": [
+      "2020-06-17T00:00:00.000Z/2020-06-18T00:00:00.001Z"
+    ]
+  },
+  "virtualColumns": [],
+  "filter": null,
+  "granularity": {
+    "type": "all"
+  },
+  "dimensions": [
+    {
+      "type": "default",
+      "dimension": "dst_ip",
+      "outputName": "d0",
+      "outputType": "STRING"
+    },
+    {
+      "type": "default",
+      "dimension": "src_ip",
+      "outputName": "d1",
+      "outputType": "STRING"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "longSum",
+      "name": "a0",
+      "fieldName": "sum_volume",
+      "expression": null
+    }
+  ],
+  "postAggregations": [],
+  "having": null,
+  "limitSpec": {
+    "type": "default",
+    "columns": [],
+    "limit": 200000
+  },
+  "context": {
+    "sqlQueryId": "57f0ef8f-5c6b-46c3-a084-bff9e513e1b5"
+  },
+  "descending": false
+}
+```
+
+The results are different each time the query is executed

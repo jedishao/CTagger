@@ -1,0 +1,45 @@
+[Bug] When consuming messages using messageListener, the ConsumerStats#getMsgNumInReceiverQueue method always returns 0.
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+all version
+
+### Minimal reproduce step
+
+```java
+                .messageListener(new MessageListener<byte[]>() {
+                    @SneakyThrows
+                    @Override
+                    public void received(Consumer<byte[]> consumer, Message<byte[]> msg) {
+                        TimeUnit.SECONDS.sleep(100);
+                        consumer.acknowledge(msg);
+                    }
+                })
+
+Integer msgNumInReceiverQueue = consumer.getStats().getMsgNumInReceiverQueue();
+```
+
+When consuming messages using messageListener, the `msgNumInReceiverQueue` is always 0.
+
+
+### What did you expect to see?
+
+`consumer.getStats().getMsgNumInReceiverQueue()` returns the actual number of messages that are blocking.
+
+
+
+### What did you see instead?
+
+the `msgNumInReceiverQueue` is always 0.
+
+### Anything else?
+![image](https://user-images.githubusercontent.com/15684156/231387925-4c5326d7-5745-4639-8271-7184a1d47df9.png)
+As all messages are written to an unbounded queue in `externalPinnedExecutor`, should we consider adding a counter here to record the number of unconsumed messages?
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

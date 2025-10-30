@@ -1,0 +1,28 @@
+Support for TLS/plaintext Port Unification
+<!-- Please answer these questions before submitting a feature request. -->
+
+### Is your feature request related to a problem?
+<!-- A clear and concise description of what the problem is. Ex. I'm always frustrated when [...] -->
+While trying to work with TLS, I was scanning through the current server setup. The NettyServerBuilder configures the port to be TLS or plaintext based on the presence or absence of `SslContext`, correspondingly.
+https://github.com/grpc/grpc-java/blob/012dbaf5be3fb0d532d977d288a0e42a58f30a7c/netty/src/main/java/io/grpc/netty/NettyServerBuilder.java#L352-L364
+
+Resulting in a very little flexibility for the users to customize the port. Specifically, I was trying to see if we can accept both TLS & non-TLS connections on the same port without the need for creating a duplicate port. Netty demonstrates this through the [doc](https://netty.io/4.1/xref/io/netty/example/portunification/PortUnificationServerHandler.html#PortUnificationServerHandler).
+
+
+### Describe the solution you'd like
+<!-- A clear and concise description of what you want to happen. -->
+**Approach1**
+Explicit public interface in `NettyServerBuilder` for enabling/disabling/multiplexing TLS. 
+We could follow a [similar approach](https://netty.io/4.1/xref/io/netty/example/portunification/PortUnificationServerHandler.html#PortUnificationServerHandler) of spiffing the initial bytes & dynamically configuring TLS.
+
+
+**Approach2**
+A public interface for adding child handlers to customize the connections.
+https://github.com/grpc/grpc-java/blob/012dbaf5be3fb0d532d977d288a0e42a58f30a7c/netty/src/main/java/io/grpc/netty/NettyServer.java#L228  
+
+
+
+### Additional context
+<!-- Add any other context about the feature request here. -->
+Relevant thread in stackoverflow:
+https://stackoverflow.com/questions/71484231/port-unification-in-grpc-java 

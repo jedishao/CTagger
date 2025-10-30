@@ -1,0 +1,76 @@
+Pulsar-client: when  send message size more than nettyMaxFrameSizeBytes and less than maxMessageSize ，will cause subsequent normal messages to be unable to be sent.
+**Is your enhancement request related to a problem? Please describe.**
+When the configuration maxMessageSize is greater than nettyMaxFrameSizeBytes,  send message size more than nettyMaxFrameSizeBytes and less than maxMessageSize ，will cause subsequent normal messages to be unable to be sent.
+
+**Describe the solution you'd like**
+I think it can only affect the sending result of this message, and should not affect subsequent normal sending.
+
+**Additional context**
+* pulsar version
+`apache-pulsar-2.11.0-SNAPSHOT`
+
+* standalone.conf
+```
+maxMessageSize=5242880
+nettyMaxFrameSizeBytes=10485760
+```
+* test code
+```
+ StringBuilder data = new StringBuilder();
+            for(int i = 0 ;i< 1024 * 1024 * 7 ; i ++) {
+                data.append("a");
+            }
+Producer<String> producer= client.newProducer(Schema.STRING)
+                        .topic(topic)
+                        .create();
+ producer.newMessage().value(data.toString()).send();
+    
+```
+* log
+
+client.log
+```
+org.apache.pulsar.client.api.PulsarClientException$TimeoutException: The producer standalone-8-0 can not send message to the topic test within given timeout : createdAt 30.015 seconds ago, firstSentAt 30.014 seconds ago, lastSentAt 30.014 seconds ago, retryCount 1
+	at org.apache.pulsar.client.api.PulsarClientException.unwrap(PulsarClientException.java:1008)
+	at org.apache.pulsar.client.impl.TypedMessageBuilderImpl.send(TypedMessageBuilderImpl.java:91)
+	at com.sn.test.TestConsumer1.main(TestConsumer1.java:29)
+```
+broker.log
+
+```
+2022-07-18T11:16:26,595+0800 [bookie-io-9-24] ERROR org.apache.bookkeeper.proto.BookieRequestHandler - Unhandled exception occurred in I/O thread or handler on [id: 0x3ca495d3, L:/127.0.0.1:3181 - R:/127.0.0.1:60375]
+io.netty.handler.codec.TooLongFrameException: Adjusted frame length exceeds 10485760: 15728766 - discarded
+        at io.netty.handler.codec.LengthFieldBasedFrameDecoder.fail(LengthFieldBasedFrameDecoder.java:507) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.LengthFieldBasedFrameDecoder.failIfNecessary(LengthFieldBasedFrameDecoder.java:493) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.LengthFieldBasedFrameDecoder.exceededFrameLength(LengthFieldBasedFrameDecoder.java:377) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.LengthFieldBasedFrameDecoder.decode(LengthFieldBasedFrameDecoder.java:423) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.LengthFieldBasedFrameDecoder.decode(LengthFieldBasedFrameDecoder.java:333) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:510) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:449) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:279) ~[io.netty-netty-codec-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+2022-07-18T11:16:26,596+0800 [pulsar-io-28-5] WARN  org.apache.bookkeeper.proto.PerChannelBookieClient - Exception caught on:[id: 0x4a77fd5b, L:/127.0.0.1:60375 - R:/127.0.0.1:3181] cause:
+java.net.SocketException: Connection reset
+        at sun.nio.ch.SocketChannelImpl.throwConnectionReset(SocketChannelImpl.java:394) ~[?:?]
+        at sun.nio.ch.SocketChannelImpl.read(SocketChannelImpl.java:426) ~[?:?]
+        at io.netty.buffer.PooledByteBuf.setBytes(PooledByteBuf.java:258) ~[io.netty-netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.buffer.AbstractByteBuf.writeBytes(AbstractByteBuf.java:1132) ~[io.netty-netty-buffer-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.socket.nio.NioSocketChannel.doReadBytes(NioSocketChannel.java:357) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:151) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:722) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496) ~[io.netty-netty-transport-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:995) ~[io.netty-netty-common-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[io.netty-netty-common-4.1.77.Final.jar:4.1.77.Final]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.77.Final.jar:4.1.77.Final]
+        at java.lang.Thread.run(Thread.java:833) [?:?]
+2022-07-18T11:16:26,597+0800 [pulsar-io-28-5] INFO  org.apache.bookkeeper.proto.PerChannelBookieClient - Disconnected from bookie channel [id: 0x4a77fd5b, L:/127.0.0.1:60375 ! R:/127.0.0.1:3181]
+2022-07-18T11:16:26,599+0800 [BookKeeperClientWorker-OrderedExecutor-10-0] WARN  org.apache.bookkeeper.client.PendingAddOp - Failed to write entry (405, 0): Bookie handle is not available
+2022-07-18T11:16:26,603+0800 [BookKeeperClientWorker-OrderedExecutor-10-0] WARN  org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicyImpl - Failed to find 1 bookies : excludeBookies [<Bookie:127.0.0.1:3181>], allBookies [<Bookie:127.0.0.1:3181>].
+```
+

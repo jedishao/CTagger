@@ -1,0 +1,52 @@
+Optimized parquet reader does not perform overflow checks for decimals without rescaling
+ I have a hive table with the following structure:
+```
+CREATE TABLE hive.default.parquet_type_test5 (
+    int32_field integer,
+    int64_field bigint,
+    binary_decimal decimal(2, 1)
+ )
+ WITH (
+    external_location = 'file:/tmp/parquet/ParquetBenchmarks/',
+    format = 'PARQUET'
+ )
+```
+ The meta information of the parquet file is as follows 
+![image](https://user-images.githubusercontent.com/5170878/222628929-d6c9ad98-b352-45eb-bac9-73970fa27399.png)
+
+and I turning on the batch reader of parquet (`set session hive.parquet_optimized_reader_enabled=true`), the execution results are as follows
+```
+trino:default> set session hive.parquet_optimized_reader_enabled=true;
+SET SESSION
+trino:default> select binary_decimal from parquet_type_test5 where binary_decimal < 0 order by binary_decimal limit 10;
+ binary_decimal
+----------------
+          -12.8
+          -12.8
+          -12.8
+          -12.8
+          -12.7
+          -12.7
+          -12.7
+          -12.7
+          -12.7
+          -12.7
+(10 rows)
+
+Query 20230303_020242_00008_e9qxe, FINISHED, 1 node
+Splits: 18 total, 18 done (100.00%)
+2.98 [1000 rows, 15.7KB] [335 rows/s, 5.28KB/s]
+```
+if I turn off the batch reader of parquet, another exception occurred:
+
+```
+trino:default> set session hive.parquet_optimized_reader_enabled=false;
+SET SESSION
+trino:default> select binary_decimal from parquet_type_test5 where binary_decimal < 0 order by binary_decimal limit 10;
+Query 20230303_020345_00010_e9qxe failed: Cannot cast DECIMAL(2, 1) '-11.1' to DECIMAL(2, 1)
+```
+It seems that the batch reader of parquet does not detect the validity of the data.
+![image](https://user-images.githubusercontent.com/5170878/222629414-cc6197cd-06e7-4577-a0a8-186517b7ef96.png)
+
+If necessary, the following is the download address of the test file:
+https://trinodb.slack.com/files/U049BH76GP5/F04S3BNRRGV/parquet-1m

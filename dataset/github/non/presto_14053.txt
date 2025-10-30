@@ -1,0 +1,53 @@
+Remote UDF execution
+# The Challenge
+Over the years, users have been asking for a more flexible way of running complex business logic in the form of user defined functions (UDF). However, due to system constraints of Presto (lack of isolation, high requirement of performance, etc), it is unsafe to allow arbitrary UDFs running within the same JVM. As a result, we only allow users to write Presto builtin Java functions and they are reviewed by people who are familiar with Presto as function plugins. This caused several problems:
+* Developer efficiency. Users have to learn how to write Presto functions and go through extended code reviews, which slows down their projects.
+* Potentially duplicated logic. A lot of the business logic are already written someone else (Hive UDFs, users' own product, etc).
+
+# Propose Remote UDF Execution
+With #9613, we can semantically support non-builtin functions (functions that are not tied to Presto's release and deployment cycles). This enabled us to explore the possibility of supporting a wide range of other functions. We are already adding support for SQL expression functions. SQL expression function is a safe choice to be executed within the engine because they could be compiled to byte code the same way as normal expressions. However, this cannot be assumed for functions implemented in other languages. For the wider range of arbitrary functions implemented in arbitrary languages, we'd like to propose to consider them as remote functions, and execute them on separate UDF servers.
+
+## Architecture
+### Planning
+Expressions can appear in projections, filters, joins, lambda functions, etc. We will focus on supporting remote functions in projections and filters for now. Currently Presto would compile these expressions into byte code and execute them directly in `ScanFilterAndProjectOperator` or `FilterAndProjectOperator`. To allow functions to run remotely, one option is to generate the byte code to invoke functions remotely. However, this means that the function invocation would be triggered once for each row. This could be really expensive when each function invocation need to do an RPC call. So we propose another approach, which is to break up the expression into local and remote parts. Consider the following query:
+```
+SELECT local_foo(x), remote_foo(x + 1)  FROM (VALUES (1), (2), (3)) t(x);
+```
+where `local_foo` is a traditional local function and `remote_foo` is a function that can only be run on a remote UDF server. We now need to break it down to local projection:
+```
+exp1 = local_foo(x)
+exp2 = x + 1
+```
+and remote project
+```
+exp3 = remote_foo(exp2)
+exp1 = exp1 -- pass through
+```
+Now we can compile the local projection to byte code and execute as usual and introduce a new operator to handle the remote projections. Since operators work on a page at a time, we can send the whole page to remote UDF server for batch processing.
+![Screen Shot 2020-01-31 at 1 43 02 PM](https://user-images.githubusercontent.com/1448363/73576586-a1631b80-442f-11ea-8180-eb392733971f.png)
+
+The above proposal would solve the case for expressions in projection. What about filter? If a filter expression contains remote function, we can always convert that into a projection with subquery. For example, we can rewrite
+```
+SELECT x FROM (VALUES (1), (2), (3)) t(x) WHERE remote_foo(x + 1) > 1
+```
+to
+```
+SELECT x
+FROM (
+    SELECT x, remote_foo(x + 1) foo
+    FROM (VALUES (1), (2), (3)) t(x))
+WHERE foo > 1
+```
+### Execution
+Once we separate remote projections as a separate operator during query planning, we can execute these with a new `RemoteProjectOperator`. We propose to use Thrift as the protocol to invoke these remote functions. The reason for choosing Thrift at the moment is because Presto has already support Thrift connectors, thus all data serde with Thrift are already available to use.
+
+## SPI changes
+We propose to make the following changes in function related SPI to support remote functions.
+### RoutineCharacteristics.Language
+We propose to augment function's `RoutineCharacteristics.Language` to describe more kind of functions. These can be programing language, or specific platforms. For example, `PYTHON` could be used to describe functions implemented in the Python programing language, while `HIVE` can be used for HiveUDFs implemented in Java.
+### FunctionImplementationType 
+There's also the concept of `FunctionImplementationType`, which currently has `BUILTIN` AND `SQL`. We propose to extend this with `THRIFT` and mapping all languages that could not be run within the engine to this type.
+### ThriftScalarFunctionImplementation
+Corresponding to Thrift functions, we also propose to introduce `ThriftScalarFunctionImplementation` as a new type of `ScalarFunctionImplementation`. Since the engine will not execute this function directly, the `ThriftScalarFunctionImplementation` will only need to wrap the `SqlFunctionHandle` which the remote UDF server tier can use to resolve a particular version of the function to execution.
+### FunctionNamespaceManager
+As all other functions, remote functions will be managed by a `FunctionNamespaceManager`. Thus the function namespace manager needs to provide information connecting / routing to the remote thrift service that could run the function. Ideally the same `FunctionNamespaceManager` (or metadata the configured this `FunctionNamespaceManager`) should be used on the remote UDF server to resolve the actual implementation and execute the function.

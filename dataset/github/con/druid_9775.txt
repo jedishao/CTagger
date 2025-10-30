@@ -1,0 +1,22 @@
+emittingThread in HttpPostEmitter is not safe.
+HttpPostEmitter.close will lead task to hang forever because of   emittingThread quit.
+
+### Affected Version
+
+0.12.3
+
+### Description
+The task's jstack information as follows:
+![image](https://user-images.githubusercontent.com/6941514/80302739-7c880580-87de-11ea-9f42-05c746317b83.png)
+
+- We found  `emittingThread `  quit in  jstack, but it should't quit before main thread.
+- `concurrentBatch` will be set `null` when close, then `needsToShutdown`  may  be `true` due to `concurrentBatch.get()` and `emittingThread` exit normally.
+- So we should set `concurrentBatch=null` after `flush()`? , such as 
+```
+        Object lastBatch = concurrentBatch.get();
+        if (lastBatch instanceof Batch) {
+          flush((Batch) lastBatch);
+          concurrentBatch.set(null);
+        }
+```
+

@@ -1,0 +1,10 @@
+Compress TaskUpdateRequest JSON to avoid running out of native memory
+The TrinoServer process in our coordinator pod sometimes allocate over 100 GB native memory (NOT Java heap, which is fine) and hence being OOM-killed by k8s due to the pod ran out of memory. We have tracked down the reason being each TaskUpdateRequest may contain hundreds of splits each with the full table schema (all columns types, names and comments!). In one example, a single request contains 500 splits total 140 MB (because the table has 600+ columns, and the exact schema is duplicated 500 times in the request). There could be thousands of such requests with minutes, each with a JSON body of similar size. As the SocketChannel layer allocate native memory from the direct buffer pool for each request, the native memory reserved could quickly exceeds 100 GB within few minutes, and the TrinoServer process get OOM killed.
+
+We are eager to hear alternative effective solutions for such issues. One specific proposal is to compress the TaskUpdateRequest JSON into GZIP (which I measured lead to a size reduction of 12x). 
+
+Currently io.airlift.json.JsonCodec is used by sendUpdate() to serialize the object into JSON at https://github.com/trinodb/trino/blob/f6ad54257324bc5b891b03cec9ba82aeda24fb1b/core/trino-main/src/main/java/io/trino/server/remotetask/HttpRemoteTask.java#LL703 on the sender side. 
+
+On the receiving worker side, by the time it gets to createOrUpdateTask() at https://github.com/trinodb/trino/blob/f6ad54257324bc5b891b03cec9ba82aeda24fb1b/core/trino-main/src/main/java/io/trino/server/TaskResource.java#L140. The JSON is already deserialized into the taskUpdateRequest object, underneath by JsonCodec likely due to following line in CoordinatorModule.java : jsonCodecBinder(binder).bindJsonCodec(TaskUpdateRequest.class);
+
+I don't see an existing support to enable GZIP for the TaskUpdateRequest hence this issue to support GZIP compression for TaskUpdateRequest. It will avoid these severe OOM kill incidents due to TrinoServer process reserved too much native memory.

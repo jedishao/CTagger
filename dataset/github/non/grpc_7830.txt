@@ -1,0 +1,130 @@
+io.grpc.netty.NettyClientTransportTest  fails on ARM64 Linux
+Running `./gradlew build -PskipAndroid=true -PskipCodegen=true` consistently results in a failure
+
+I'm not sure if the `[jetty-alpn-agent][ warn] Could not find a matching alpn-boot jar for Java version: 11.0.9.1` could be the root cause.
+
+```
+> Task :grpc-netty:test
+[jetty-alpn-agent][ warn] Could not parse java.version: 11.0.9.1
+[jetty-alpn-agent][ warn] Could not find a matching alpn-boot jar for Java version: 11.0.9.1
+
+io.grpc.netty.NettyClientTransportTest > tlsNegotiationServerExecutorShouldSucceed FAILED
+    java.util.concurrent.TimeoutException: Waited 10 seconds (plus 93112 nanoseconds delay) for SettableFuture@33c70478[status=PENDING]
+        at com.google.common.util.concurrent.AbstractFuture.get(AbstractFuture.java:508)
+        at com.google.common.util.concurrent.AbstractFuture$TrustedFuture.get(AbstractFuture.java:111)
+        at io.grpc.netty.NettyClientTransportTest$Rpc.waitForResponse(NettyClientTransportTest.java:844)
+        at io.grpc.netty.NettyClientTransportTest.tlsNegotiationServerExecutorShouldSucceed(NettyClientTransportTest.java:719)
+
+io.grpc.netty.NettyClientTransportTest > tlsNegotiationFailurePropagatesToStatus FAILED
+    value of           : throwable.getCause().getMessage()
+    expected to contain: SSLV3_ALERT_HANDSHAKE_FAILURE
+    but was            : Received fatal alert: bad_certificate
+        at io.grpc.netty.NettyClientTransportTest.tlsNegotiationFailurePropagatesToStatus(NettyClientTransportTest.java:331)
+
+        Caused by:
+        io.grpc.StatusException: UNAVAILABLE: io exception
+        Channel Pipeline: [SslHandler#0, ProtocolNegotiators$ClientTlsHandler#0, WriteBufferingAndExceptionHandler#0, DefaultChannelPipeline$TailContext#0]
+            at io.grpc.Status.asException(Status.java:542)
+            at io.grpc.netty.NettyClientTransportTest$TestClientStreamListener.closed(NettyClientTransportTest.java:870)
+            at io.grpc.internal.AbstractClientStream$TransportState.closeListener(AbstractClientStream.java:459)
+            at io.grpc.internal.AbstractClientStream$TransportState.access$400(AbstractClientStream.java:221)
+            at io.grpc.internal.AbstractClientStream$TransportState$1.run(AbstractClientStream.java:442)
+            at io.grpc.internal.AbstractClientStream$TransportState.deframerClosed(AbstractClientStream.java:278)
+            at io.grpc.internal.Http2ClientStreamTransportState.deframerClosed(Http2ClientStreamTransportState.java:31)
+            at io.grpc.internal.MessageDeframer.close(MessageDeframer.java:233)
+            at io.grpc.internal.AbstractStream$TransportState.closeDeframer(AbstractStream.java:201)
+            at io.grpc.internal.AbstractClientStream$TransportState.transportReportStatus(AbstractClientStream.java:445)
+            at io.grpc.internal.AbstractClientStream$TransportState.transportReportStatus(AbstractClientStream.java:401)
+            at io.grpc.netty.NettyClientStream$Sink$1.operationComplete(NettyClientStream.java:160)
+            at io.grpc.netty.NettyClientStream$Sink$1.operationComplete(NettyClientStream.java:148)
+            at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:577)
+            at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:551)
+            at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:490)
+            at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:615)
+            at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:608)
+            at io.netty.util.concurrent.DefaultPromise.setFailure(DefaultPromise.java:109)
+            at io.netty.channel.DefaultChannelPromise.setFailure(DefaultChannelPromise.java:89)
+            at io.grpc.netty.WriteBufferingAndExceptionHandler.failWrites(WriteBufferingAndExceptionHandler.java:236)
+            at io.grpc.netty.WriteBufferingAndExceptionHandler.exceptionCaught(WriteBufferingAndExceptionHandler.java:90)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeExceptionCaught(AbstractChannelHandlerContext.java:302)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeExceptionCaught(AbstractChannelHandlerContext.java:281)
+            at io.netty.channel.AbstractChannelHandlerContext.fireExceptionCaught(AbstractChannelHandlerContext.java:273)
+            at io.grpc.netty.ProtocolNegotiators$ClientTlsHandler.userEventTriggered0(ProtocolNegotiators.java:606)
+            at io.grpc.netty.ProtocolNegotiators$ProtocolNegotiationHandler.userEventTriggered(ProtocolNegotiators.java:1033)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeUserEventTriggered(AbstractChannelHandlerContext.java:346)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeUserEventTriggered(AbstractChannelHandlerContext.java:332)
+            at io.netty.channel.AbstractChannelHandlerContext.fireUserEventTriggered(AbstractChannelHandlerContext.java:324)
+            at io.netty.handler.ssl.SslHandler.handleUnwrapThrowable(SslHandler.java:1300)
+            at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1281)
+            at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1322)
+            at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:501)
+            at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:440)
+            at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+            at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+            at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+            at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+            at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+            at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+            at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:714)
+            at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650)
+            at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576)
+            at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+            at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+            at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+            at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+            at java.base/java.lang.Thread.run(Thread.java:834)
+
+            Caused by:
+            javax.net.ssl.SSLHandshakeException: Received fatal alert: bad_certificate
+                at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:131)
+                at java.base/sun.security.ssl.Alert.createSSLException(Alert.java:117)
+                at java.base/sun.security.ssl.TransportContext.fatal(TransportContext.java:337)
+                at java.base/sun.security.ssl.Alert$AlertConsumer.consume(Alert.java:293)
+                at java.base/sun.security.ssl.TransportContext.dispatch(TransportContext.java:186)
+                at java.base/sun.security.ssl.SSLTransport.decode(SSLTransport.java:171)
+                at java.base/sun.security.ssl.SSLEngineImpl.decode(SSLEngineImpl.java:681)
+                at java.base/sun.security.ssl.SSLEngineImpl.readRecord(SSLEngineImpl.java:636)
+                at java.base/sun.security.ssl.SSLEngineImpl.unwrap(SSLEngineImpl.java:454)
+                at java.base/sun.security.ssl.SSLEngineImpl.unwrap(SSLEngineImpl.java:433)
+                at java.base/javax.net.ssl.SSLEngine.unwrap(SSLEngine.java:637)
+                at io.netty.handler.ssl.JdkSslEngine.unwrap(JdkSslEngine.java:92)
+                at io.netty.handler.ssl.JdkAlpnSslEngine.unwrap(JdkAlpnSslEngine.java:143)
+                at io.netty.handler.ssl.SslHandler$SslEngineType$3.unwrap(SslHandler.java:282)
+                at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1380)
+                at io.netty.handler.ssl.SslHandler.decodeJdkCompatible(SslHandler.java:1275)
+                ... 20 more
+
+402 tests completed, 2 failed, 16 skipped
+
+> Task :grpc-netty:test FAILED
+```
+
+### What version of gRPC-Java are you using?
+
+upstream/master
+
+### What is your environment?
+
+Ubuntu 18.04, aarch64
+
+java -version
+```
+openjdk version "11.0.9.1" 2020-11-04
+OpenJDK Runtime Environment (build 11.0.9.1+1-Ubuntu-0ubuntu1.18.04)
+OpenJDK 64-Bit Server VM (build 11.0.9.1+1-Ubuntu-0ubuntu1.18.04, mixed mode)
+```
+
+### What did you expect to see?
+
+tests pass
+
+### What did you see instead?
+
+### Steps to reproduce the bug
+
+Just run `./gradlew build -PskipAndroid=true -PskipCodegen=true`
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->

@@ -1,0 +1,76 @@
+[Bug] Producer exceeds PulsarClient memory limit when sending fail timeout using CompressionType.NONE
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+
+* Java version: 17.0.3.1, vendor: Oracle Corporation, runtime: /Users/didi/Documents/jdk-17.0.3.1.jdk/Contents/Home
+*  Default locale: zh_CN_#Hans, platform encoding: UTF-8
+*  OS name: "mac os x", version: "12.3.1", arch: "x86_64", family: "mac"
+*  Pulsar version: 2.10.1
+
+
+
+### Minimal reproduce step
+
+1. In order to make sending messages fail timeout, you can comment out the `org.apache.pulsar.client.impl.ProducerImpl#ackReceived` or create an empty method `ackReceived` like below
+<img width="986" alt="image" src="https://user-images.githubusercontent.com/10233437/190309225-1e3e0e16-14f2-4c62-b616-7967cb5a7926.png">
+
+2. mvn install pulsar-client module
+```
+mvn clean source:jar install -DskipTests -Pmain -Dlicense.skip=true -Dmaven.test.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true -pl pulsar-client -am
+```
+3. Start a standalone broker.
+4. Start a producer test demo  with  JVM options `-Xms2000m -Xmx2000m -XX:MaxDirectMemorySize=4000m`
+```
+    public static void main(String[] args) throws Exception {
+        String topic = "hxy-test-mem";
+        final int msgLength = 2000000;
+        byte[] bigMsg = new byte[msgLength];
+        byte[] smallMsg = new byte[1];
+        PulsarClient client = PulsarClient.builder()
+                .serviceUrl("pulsar://127.0.0.1:6650")
+                .memoryLimit(1000, SizeUnit.MEGA_BYTES)  // memory limit 1000M
+                .build();
+        Producer<byte[]> producer = client.newProducer()
+                .topic(topic)
+                .enableBatching(true)
+                .create();
+        for (int i = 0; i < Integer.MAX_VALUE; ++i) {
+            Thread.sleep(1);
+            if (i == 0) {
+                // first messages size is 2M bytes
+                producer.sendAsync(bigMsg);
+            } else {
+                // other message size is 1 byte
+                producer.sendAsync(smallMsg);
+            }
+        }
+    }
+```
+
+5. Start VisualVM and install "VisualVM-BufferMonitor"  plugin to monitor the direct buffer pool
+
+### What did you expect to see?
+
+Throw sending fail timeout exception or `MemoryBufferIsFullError` , and direct buffer pool shoud not exceed 1000M, which we set `memoryLimit` when building pulsar client 
+
+### What did you see instead?
+
+* There was no `MemoryBufferIsFullError` thrown, and the direct buffer pool  exceed 1000M upper to 4000M, which we set in JVM options `-XX:MaxDirectMemorySize=4000m`
+
+* The below picture from VisualVM shows detail
+
+<img width="1129" alt="image" src="https://user-images.githubusercontent.com/10233437/190310861-7e5e3bbf-72ff-414b-9acb-d30229cb5446.png">
+
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

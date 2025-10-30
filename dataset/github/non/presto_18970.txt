@@ -1,0 +1,14 @@
+Reduce DictionaryBlock creation in Presto
+Dictionary block compaction creates another dictionary block unconditionally. On one of the heap dumps, I am going through almost 70% of the Dictionary blocks had 1:1 mapping with the underlying block. i.e, if the underlying block has n positions, dictionary block will have n positions and the ids will be 0,1...n-1. Dictionary block is wasteful in such situations, there are many places where this happens. I want to propose 
+So what if DictionaryBlock.compact can return non dictionary blocks first. Any place where we want to create a view, we intentionally create DictionaryBlock on top of the current block.
+
+I made a [DictionaryBlock.compact can return regular block](https://github.com/prestodb/presto/pull/18926/files) with this change and shadowed some production traffic and it shows good improvement. Hard to quantify as the production shadow did not replay the full query.
+
+Couple of downsides, I can think of
+
+1. There is lot of code, which handles each block using instanceof check. So this might result in correctness issue. For example, the code in DictionaryAwareBlockProjection attaches special meaning to DictionaryBlock, RLE block and other blocks. Replacing one type of block with other will result in correctness issue. Fortunately, the external interface is good and it handles all inputs correctly. But if some block switches its type internally on some operations, it will result in an error.
+2. Some operations are really cheap in DictionaryBlock. for example copyPositions is just a copy of indices. 
+
+What do you folks think about this idea ?
+
+There are other places where we can apply the same optimization like DictionaryBlock.copyPositions, HiveCoercer, ReplicatedPushdownFilter, UnnestBlockBuilder, GenericPartitioningSpiller, DistinctLimitOperator and so on. 

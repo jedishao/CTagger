@@ -1,0 +1,63 @@
+PeriodLoadRule cannot Remove expired segment
+Recently, when deploying the cold/hot layered Druid cluster, it was found that a hot node loaded data beyond the time range, resulting in the hot node's storage being full soon. I found the same problem on the [Druid forum page](https://www.druidforum.org/t/druid-load-drop-rule/7739), which has not been handled by anyone for a long time. I checked `RunRules.java`, I feel there is a problem. `Periodloadrule` will not delete expired data at all, but only delete too many replicants. Does the current implementation of `PeriodLoadRule` meet expectations?
+
+The following is the current implementation of druid:
+```
+//RunRules.run
+      for (Rule rule : rules) {
+        if (rule.appliesTo(segment, now)) {
+          if (
+              stats.getGlobalStat(
+                  "totalNonPrimaryReplicantsLoaded") >= paramsWithReplicationManager.getCoordinatorDynamicConfig()
+                                                                                   .getMaxNonPrimaryReplicantsToLoad()
+              && !paramsWithReplicationManager.getReplicationManager().isLoadPrimaryReplicantsOnly()
+          ) {
+            log.info(
+                "Maximum number of non-primary replicants [%d] have been loaded for the current RunRules execution. Only loading primary replicants from here on for this coordinator run cycle.",
+                paramsWithReplicationManager.getCoordinatorDynamicConfig().getMaxNonPrimaryReplicantsToLoad()
+            );
+            paramsWithReplicationManager.getReplicationManager().setLoadPrimaryReplicantsOnly(true);
+          }
+          stats.accumulate(rule.run(coordinator, paramsWithReplicationManager, segment));
+          foundMatchingRule = true;
+          break;
+        }
+      }
+
+```
+
+
+Now, I have solved this problem by adding `dropallExpireSegments` to `PeriodLoadRule.java`, but I don't know what bad effect it will have.
+
+Here is my implementation:
+
+```
+//RunRules.run
+      for (Rule rule : rules) {
+        if (rule.appliesTo(segment, now)) {
+          if (
+              stats.getGlobalStat(
+                  "totalNonPrimaryReplicantsLoaded") >= paramsWithReplicationManager.getCoordinatorDynamicConfig()
+                                                                                   .getMaxNonPrimaryReplicantsToLoad()
+              && !paramsWithReplicationManager.getReplicationManager().isLoadPrimaryReplicantsOnly()
+          ) {
+            log.info(
+                "Maximum number of non-primary replicants [%d] have been loaded for the current RunRules execution. Only loading primary replicants from here on for this coordinator run cycle.",
+                paramsWithReplicationManager.getCoordinatorDynamicConfig().getMaxNonPrimaryReplicantsToLoad()
+            );
+            paramsWithReplicationManager.getReplicationManager().setLoadPrimaryReplicantsOnly(true);
+          }
+          stats.accumulate(rule.run(coordinator, paramsWithReplicationManager, segment));
+          foundMatchingRule = true;
+          break;
+        }else{
+          //Add Delete Logic,Only implement dropAllExpireSegments in PeriodLoadRule
+          rule.dropAllExpireSegments(paramsWithReplicationManager,segment);
+        }
+      }
+```
+
+### Affected Version
+0.22.0
+
+

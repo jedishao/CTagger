@@ -1,0 +1,92 @@
+[Bug] zk EventThread get block after zk leader stop
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+```shell
+# pulsar version: 2.8.1
+
+# cat /etc/redhat-release
+CentOS Linux release 7.9.2009 (Core)
+# java -version
+java version "1.8.0_121"
+Java(TM) SE Runtime Environment (build 1.8.0_121-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 25.121-b13, mixed mode)
+# uname  -r
+3.10.0-123.el7.x86_64
+```
+
+### Minimal reproduce step
+
+Setup a pulsar cluster and zk cluster, could get a chance to reproduce (not always) after stop zk leader
+
+### What did you expect to see?
+
+zk client should reconnect another zk node properly, 
+
+### What did you see instead?
+
+`main-EventThread` is blocking on `org.apache.pulsar.metadata.impl.ZKSessionWatcher#process` method.
+```java
+"metadata-store-zk-session-watcher-7-1" #16 prio=5 os_prio=0 tid=0x00007fd7ca112000 nid=0x6991 waiting on condition [0x00007fd742afa000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+        at sun.misc.Unsafe.park(Native Method)
+        - parking to wait for  <0x00000007953debd8> (a java.util.concurrent.CompletableFuture$Signaller)
+        at java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:215)
+        at java.util.concurrent.CompletableFuture$Signaller.block(CompletableFuture.java:1695)
+        at java.util.concurrent.ForkJoinPool.managedBlock(ForkJoinPool.java:3323)
+        at java.util.concurrent.CompletableFuture.timedGet(CompletableFuture.java:1775)
+        at java.util.concurrent.CompletableFuture.get(CompletableFuture.java:1915)
+        at org.apache.pulsar.metadata.impl.ZKSessionWatcher.checkConnectionStatus(ZKSessionWatcher.java:104)
+        - locked <0x00000006c66130e0> (a org.apache.pulsar.metadata.impl.ZKSessionWatcher)
+        at org.apache.pulsar.metadata.impl.ZKSessionWatcher$$Lambda$38/909132503.run(Unknown Source)
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+        at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:308)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$301(ScheduledThreadPoolExecutor.java:180)
+        at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:294)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+        at java.lang.Thread.run(Thread.java:748)
+
+"main-EventThread" #15 daemon prio=5 os_prio=0 tid=0x00007fd7ca108800 nid=0x6990 waiting for monitor entry [0x00007fd768380000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at org.apache.pulsar.metadata.impl.ZKSessionWatcher.process(ZKSessionWatcher.java:120)
+        - waiting to lock <0x00000006c66130e0> (a org.apache.pulsar.metadata.impl.ZKSessionWatcher)
+        at org.apache.pulsar.metadata.impl.ZKMetadataStore.lambda$new$0(ZKMetadataStore.java:75)
+        at org.apache.pulsar.metadata.impl.ZKMetadataStore$$Lambda$35/1305486145.process(Unknown Source)
+        at org.apache.bookkeeper.zookeeper.ZooKeeperWatcherBase.notifyEvent(ZooKeeperWatcherBase.java:180)
+        at org.apache.bookkeeper.zookeeper.ZooKeeperWatcherBase.process(ZooKeeperWatcherBase.java:146)
+        at org.apache.zookeeper.ClientCnxn$EventThread.processEvent(ClientCnxn.java:588)
+        at org.apache.zookeeper.ClientCnxn$EventThread.run(ClientCnxn.java:563)
+```
+
+`main-EventThread` log:
+<img width="1325" alt="image" src="https://user-images.githubusercontent.com/5058708/198993764-10cb9a13-db90-43b8-a709-d8d9d3e6687d.png">
+
+`metadata-store-zk-session-watcher-7-1` log:
+<img width="1323" alt="image" src="https://user-images.githubusercontent.com/5058708/198994044-4bb721d4-58f9-452e-abb6-6a1b524e0a25.png">
+
+`org.apache.pulsar.metadata.impl.ZKSessionWatcher#currentStatus` is `SessionLost`
+<img width="836" alt="image" src="https://user-images.githubusercontent.com/5058708/198994498-80b3f49e-a615-40b4-b14d-273a56cef366.png">
+
+zk EventThread internal task queue `waitingEvents` has many events to process
+<img width="1307" alt="image" src="https://user-images.githubusercontent.com/5058708/198994634-1c6d700b-0aa5-42bf-8990-cb37c892239d.png">
+
+The keeperState of current event that zk EventThread processing is `SyncConnected`
+<img width="1388" alt="image" src="https://user-images.githubusercontent.com/5058708/198995351-8bf5ad06-cea2-46fc-9065-ec8068e983fb.png">
+
+It seems that zk exists operation will always timeout cause zk EventThread is blocking and `metadata-store-zk-session-watcher` thread can always acquire lock (I don't understand why, a jvm bug?).
+https://github.com/apache/pulsar/blob/0866c3a6a734b39402a6bc8349bab13edab00488/pulsar-metadata/src/main/java/org/apache/pulsar/metadata/impl/ZKSessionWatcher.java#L68-L71
+https://github.com/apache/pulsar/blob/0866c3a6a734b39402a6bc8349bab13edab00488/pulsar-metadata/src/main/java/org/apache/pulsar/metadata/impl/ZKSessionWatcher.java#L86-L108
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

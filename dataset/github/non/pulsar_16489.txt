@@ -1,0 +1,104 @@
+Pulsar no longer works when zookeeper global goes into read only
+**Describe the bug**
+A clear and concise description of what the bug is.
+Pulsar no longer works when zookeeper global (configuration store) goes into read-only mode with the error:
+```pulsar-zookeeper-global-0 pulsar-zookeeper-global org.apache.zookeeper.server.ServerCnxn$CloseRequestException: Refusing session request for not-read-only client /10.76.10.9:54502```
+**To Reproduce**
+Steps to reproduce the behavior:
+1. create a global zookeeper cluster
+    a. see https://github.com/apache/pulsar/blob/master/bin/pulsar#L356
+2. force it to go into read only mode
+   a. Scale **voting** servers to 1 if in standalone mode
+   b. take other zookeepers offline to achieve a non-quroum 
+**Expected behavior**
+Seeing that the offial startup script supports read-only zookeeper, I would have thought that pulsar would continue to work on non-replicated topics/namespaces
+
+
+
+**Additional context**
+The above client is the pulsar broker, this is what we have as a k8s arg that references zookeeper-global
+```
+          /pulsar/keytool/keytool.sh broker ${HOSTNAME}.pulsar-broker.pulsar.svc.cluster.local true; until bin/bookkeeper org.apache.zookeeper.ZooKeeperMain -server pulsar-zookeeper-global:2281 get /admin/clusters/cluster-name ; do
+```
+
+Some example logs from pulsar-broker:
+
+
+```
+22:35:37.113 [ForkJoinPool.commonPool-worker-3] WARN  org.apache.pulsar.broker.service.ServerCnx - Failed to get Partitioned Metadata [/ClientIP:Port] persistent://tenant/namespace/topic: KeeperErrorCode = ConnectionLoss
+org.apache.zookeeper.KeeperException$ConnectionLossException: KeeperErrorCode = ConnectionLoss
+	at org.apache.zookeeper.KeeperException.create(KeeperException.java:102) ~[org.apache.pulsar-pulsar-zookeeper-2.7.0.jar:2.7.0]
+	at org.apache.zookeeper.KeeperException.create(KeeperException.java:76) ~[org.apache.pulsar-pulsar-zookeeper-2.7.0.jar:2.7.0]
+	at org.apache.pulsar.zookeeper.ZooKeeperCache.lambda$17(ZooKeeperCache.java:371) ~[org.apache.pulsar-pulsar-zookeeper-utils-2.7.0.jar:2.7.0]
+	at java.util.concurrent.ForkJoinTask$RunnableExecuteAction.exec(ForkJoinTask.java:1402) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:175) [?:1.8.0_275]
+22:35:37.113 [ForkJoinPool.commonPool-worker-3] WARN  com.github.benmanes.caffeine.cache.LocalAsyncLoadingCache - Exception thrown during asynchronous load
+org.apache.zookeeper.KeeperException$ConnectionLossException: KeeperErrorCode = ConnectionLoss
+	at org.apache.zookeeper.KeeperException.create(KeeperException.java:102) ~[org.apache.pulsar-pulsar-zookeeper-2.7.0.jar:2.7.0]
+	at org.apache.zookeeper.KeeperException.create(KeeperException.java:76) ~[org.apache.pulsar-pulsar-zookeeper-2.7.0.jar:2.7.0]
+	at org.apache.pulsar.zookeeper.ZooKeeperCache.lambda$17(ZooKeeperCache.java:371) ~[org.apache.pulsar-pulsar-zookeeper-utils-2.7.0.jar:2.7.0]
+	at java.util.concurrent.ForkJoinTask$RunnableExecuteAction.exec(ForkJoinTask.java:1402) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692) [?:1.8.0_275]
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:175) [?:1.8.0_275]
+...
+<snipped>
+
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-SendThread(pulsar-zookeeper-global:2281)] INFO  org.apache.zookeeper.ClientCnxn - channel for sessionid 0x100dd53f7270001 is lost, closing socket connection and attempting reconnect
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.615 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.616 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.616 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+22:35:40.616 [pulsar-ordered-OrderedExecutor-5-0-EventThread] WARN  org.apache.pulsar.zookeeper.ZooKeeperCache - Failed to refresh zookeeper-cache for /admin/policies/tenant/namespace due to -4
+
+...
+<snipped>
+22:36:04.696 [pulsar-web-46-6] ERROR org.apache.pulsar.broker.admin.impl.ClustersBase - [admin] Failed to get clusters list
+java.util.concurrent.CompletionException: org.apache.zookeeper.KeeperException$ConnectionLossException: KeeperErrorCode = ConnectionLoss
+        at java.util.concurrent.CompletableFuture.reportJoin(CompletableFuture.java:375) ~[?:1.8.0_275]
+        at java.util.concurrent.CompletableFuture.join(CompletableFuture.java:1947) ~[?:1.8.0_275]
+        at org.apache.pulsar.zookeeper.ZooKeeperChildrenCache.get(ZooKeeperChildrenCache.java:62) ~[org.apache.pulsar-pulsar-zookeeper-utils-2.7.0.jar:2.7.0]
+        at org.apache.pulsar.zookeeper.ZooKeeperChildrenCache.get(ZooKeeperChildrenCache.java:54) ~[org.apache.pulsar-pulsar-zookeeper-utils-2.7.0.jar:2.7.0]
+        at org.apache.pulsar.broker.admin.impl.ClustersBase.getClusters(ClustersBase.java:88) ~[org.apache.pulsar-pulsar-broker-2.7.0.jar:2.7.0]
+        at sun.reflect.GeneratedMethodAccessor111.invoke(Unknown Source) ~[?:?]
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_275]
+        at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_275]
+        at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory.lambda$static$0(ResourceMethodInvocationHandlerFactory.java:52) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:124) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:167) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$TypeOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:219) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:79) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:469) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:391) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:80) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:253) ~[org.glassfish.jersey.core-jersey-server-2.31.jar:?]
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248) ~[org.glassfish.jersey.core-jersey-common-2.31.jar:?]
+        at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.31.jar:?]
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:292) ~[org.glassfish.jersey.core-jersey-common-2.31.jar:?]
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:274) ~[org.glassfish.jersey.core-jersey-common-2.31.jar:?]
+        at org.glassfish.jersey.internal.Errors.process(Errors.java:244) ~[org.glassfish.jersey.core-jersey-common-2.31.jar:?]
+        at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:265) ~[org.glassfish.jersey.core-jersey-common-2.31.jar:?]
+```

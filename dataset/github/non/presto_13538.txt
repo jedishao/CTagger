@@ -1,0 +1,17 @@
+Create connector for VictoriaMetrics
+It would be great to create Presto connector for [VictoriaMetrics TSDB](https://github.com/VictoriaMetrics/VictoriaMetrics).
+
+The connector should export a table with the following fields:
+```
+accountID uint32 not null  -- used only for multi-tenant access in cluster version
+projectID uint32 not null  -- used only for multi-tenant access in cluster version
+name string not null -- time series name in Prometheus format: {__name__="foo", label1="bar", ...}
+timestamp int64 not null -- UTC timestamp in milliseconds
+value float64 not null -- time series value for the given timestamp.
+```
+
+Then PromQL time series selector could be expressed in SQL. For example, the following PromQL selector `metric{label1=~"foo.+bar"}` could be expressed with the following SQL filter: `regexp_like(name, '__name__="metric") and regexp_like(name, 'label1="foo.+bar"')`. Such SQL query is easy to transform to the corresponding PromQL selector, which then can be sent to [/api/v1/export](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/master/README.md#how-to-export-time-series) API together with `start` and `end` args obtained from SQL filters on `timestamp`.
+
+This is just an example - probably better table structure and better syntax can be used.
+
+cc'ing @dlazerka

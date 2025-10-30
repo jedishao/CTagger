@@ -1,0 +1,85 @@
+Disaggregated Coordinator - Multiple discovery servers do not seem to sync discovery information
+I have been trying out multi-coordinator setup - https://prestodb.io/blog/2022/04/15/disggregated-coordinator. This works fine with single instance of RM (Discovery server).
+
+However while testing with multiple RMs (Discovery servers) it was seen that the discovery servers were not replicating states among each other.
+
+Consider the following minimal setup
+
+**RM1**
+```
+http-server.http.port=8080
+discovery.uri=http://localhost:8080
+```
+**RM2** (announces to discovery server in RM1)
+```
+http-server.http.port=8081
+discovery.uri=http://localhost:8080
+```
+**Coordinator1** (announces to discovery server in RM1)
+```
+discovery.uri=http://localhost:8080
+```
+**Coordinator2** (announces to discovery server in RM2)
+```
+discovery.uri=http://localhost:8081
+```
+
+I added some logs in `DiscoveryNodeManager#refreshNodesInternal()` to periodically select all the services of `type=discovery` and `type=presto` - 
+```
+@ServiceType("discovery") ServiceSelector discoveryServiceSelector
+....
+....
+log.info("All known nodes to selector type: %s = %s", discoveryServiceSelector.getType(),
+        discoveryServiceSelector.selectAllServices());
+log.info("All known nodes to selector type: %s = %s", serviceSelector.getType(),
+        serviceSelector.selectAllServices());
+
+```
+
+In **RM1, RM2, coordinator1** we see following logs which suggest that they are able to see RM1, RM2, and coordinator1 as they all are querying the discovery server running in RM1.
+```
+2022-09-19T12:03:16.293+0530	INFO	node-state-poller-0	com.facebook.presto.metadata.DiscoveryNodeManager	All known nodes to selector type: discovery = [ServiceDescriptor{id=eab812ac-afa5-492d-8f74-6a7d8fbb2d8c, nodeId=presto-rm1, type=discovery, pool=general, location=/presto-rm1, state=null, properties={http=http://192.168.0.133:8080, http-external=http://192.168.0.133:8080}}, ServiceDescriptor{id=abec555a-2b37-4b52-a666-c6f705dbe7f0, nodeId=presto-rm2, type=discovery, pool=general, location=/presto-rm2, state=null, properties={http=http://192.168.0.133:8081, http-external=http://192.168.0.133:8081}}]
+2022-09-19T12:03:16.293+0530	INFO	node-state-poller-0	com.facebook.presto.metadata.DiscoveryNodeManager	All known nodes to selector type: presto = [ServiceDescriptor{id=658764a6-c7cb-4dd9-bdec-c3d7338a6197, nodeId=presto-rm2, type=presto, pool=general, location=/presto-rm2, state=null, properties={node_version=0.276.1-8c89e4f, coordinator=false, resource_manager=true, catalog_server=false, http=http://192.168.0.133:8081, http-external=http://192.168.0.133:8081, connectorIds=system, thriftServerPort=63721}}, ServiceDescriptor{id=7b91fbcc-f742-4d2f-bee2-aedffe34172f, nodeId=presto-rm1, type=presto, pool=general, location=/presto-rm1, state=null, properties={node_version=0.276.1-8c89e4f, coordinator=false, resource_manager=true, catalog_server=false, http=http://192.168.0.133:8080, http-external=http://192.168.0.133:8080, connectorIds=system, thriftServerPort=63688}}, ServiceDescriptor{id=728e847d-5371-46c7-865f-941f40bf1121, nodeId=presto-c1, type=presto, pool=general, location=/presto-c1, state=RUNNING, properties={node_version=0.276.1-8c89e4f, coordinator=true, resource_manager=false, catalog_server=false, http=http://192.168.0.133:8090, http-external=http://192.168.0.133:8090, connectorIds=hive,tpcds,system,jmx, thriftServerPort=63832}}]
+
+```
+
+However in **coordinator2**, we see that it is **only able to see itself and not others** as it is the only one announcing to discovery server running in RM2.
+```
+2022-09-19T12:03:00.819+0530	INFO	node-state-poller-0	com.facebook.presto.metadata.DiscoveryNodeManager	All known nodes to selector type: discovery = []
+2022-09-19T12:03:00.819+0530	INFO	node-state-poller-0	com.facebook.presto.metadata.DiscoveryNodeManager	All known nodes to selector type: presto = [ServiceDescriptor{id=eb96518f-c7e8-439b-8a64-89a9540503d0, nodeId=presto-c2, type=presto, pool=general, location=/presto-c2, state=RUNNING, properties={node_version=0.276.1-8c89e4f, coordinator=true, resource_manager=false, catalog_server=false, http=http://192.168.0.133:8091, http-external=http://192.168.0.133:8091, connectorIds=hive,tpcds,system,jmx, thriftServerPort=63977}}]
+```
+As a result, in coordinator2 we see an exception as well (this is just one issue, there will be others too)
+```
+2022-09-19T12:04:06.836+0530	ERROR	ResourceGroupManager	com.facebook.presto.execution.resourceGroups.InternalResourceGroupManager	Error while executing refreshAndStartQueries
+com.facebook.drift.client.UncheckedTTransportException: No hosts available
+	at com.facebook.drift.client.DriftInvocationHandler.invoke(DriftInvocationHandler.java:126)
+	at com.sun.proxy.$Proxy131.getResourceGroupInfo(Unknown Source)
+	at com.facebook.presto.resourcemanager.ResourceManagerResourceGroupService.getResourceGroupInfos(ResourceManagerResourceGroupService.java:85)
+	at com.facebook.presto.resourcemanager.ResourceManagerResourceGroupService.lambda$new$0(ResourceManagerResourceGroupService.java:70)
+	at com.facebook.presto.resourcemanager.ResourceManagerResourceGroupService.getResourceGroupInfo(ResourceManagerResourceGroupService.java:79)
+	at com.facebook.presto.execution.resourceGroups.InternalResourceGroupManager.refreshResourceGroupRuntimeInfo(InternalResourceGroupManager.java:263)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: com.facebook.drift.protocol.TTransportException: No hosts available
+	at com.facebook.drift.client.DriftMethodInvocation.fail(DriftMethodInvocation.java:331)
+	at com.facebook.drift.client.DriftMethodInvocation.nextAttempt(DriftMethodInvocation.java:161)
+	at com.facebook.drift.client.DriftMethodInvocation.createDriftMethodInvocation(DriftMethodInvocation.java:115)
+	at com.facebook.drift.client.DriftMethodHandler.invoke(DriftMethodHandler.java:97)
+	at com.facebook.drift.client.DriftInvocationHandler.invoke(DriftInvocationHandler.java:94)
+	... 12 more
+	Suppressed: com.facebook.drift.client.RetriesFailedException: No hosts available (invocationAttempts: 0, duration: 68.41us, failedConnections: 0, overloadedRejects: 0, attemptedAddresses: [])
+		at com.facebook.drift.client.DriftMethodInvocation.fail(DriftMethodInvocation.java:337)
+		... 16 more
+```
+
+
+**Questions**
+1. These discovery servers are supposed to talk to each other and replicate the information, is this a correct understanding ?
+2. Do we need to set some extra confs apart from the minimal ones [mentioned here](https://github.com/prestodb/presto/issues/15453#issuecomment-1027385074) to have the replication working ? I was seeing a conf named `service-inventory.uri` being used in the replicator code in discover server code, does that play a role here, and what does it need to point to ? 
+3. Even if we set `discovery.uri` to a load balancer URL behind which multiple discovery servers can run, then also the deployment may not be consistent - the reason is that load balancer will get hit by the announcement calls from all the nodes, and it may get to forward calls(load balancing algo does not matter) from certain nodes to one discovery server and from other nodes to different discovery servers - this will be non deterministic, and might leave cluster in a state that some nodes are known to one discovery servers while the others are know to other ones.
+4. Am I missing something here ?

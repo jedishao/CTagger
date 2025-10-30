@@ -1,0 +1,32 @@
+Include exemplars in OpenCensus instrumentation
+<!-- Please answer these questions before submitting a feature request. -->
+
+### Is your feature request related to a problem?
+<!-- A clear and concise description of what the problem is. Ex. I'm always frustrated when [...] -->
+The OpenCensus GRPC instrumentation does not attach [exemplar](https://cloud.google.com/monitoring/api/ref_v3/rest/v3/TypedValue#exemplar) spans along with the distribution stats it collects.
+
+> Exemplars are example points that may be used to annotate aggregated distribution values. They are metadata that gives information about a particular value added to a Distribution bucket, such as a trace ID that was active when a value was added. They may contain further information, such as a example values and timestamps, origin, etc.
+
+Google cloud monitoring can interpret and display these exemplars to link metrics to example spans.
+
+<!--
+Here's what it looks like in Google Cloud Monitoring when spans are associated with distribution measurements. The "Sample Trace" links to a real trace that happened to be in that distribution bucket for quickly debugging certain metric values:
+![Screen Shot 2020-10-08 at 4 02 48 PM](https://user-images.githubusercontent.com/1510004/95507665-b78e8780-097f-11eb-9649-9324babf0a51.png)
+-->
+
+### Describe the solution you'd like
+<!-- A clear and concise description of what you want to happen. -->
+Add exemplars to grcp-census instrumentation directly near this code: https://github.com/grpc/grpc-java/blob/020325617129b6ae9b25da1126ba0f98b044bb1b/census/src/main/java/io/grpc/census/CensusStatsModule.java#L647
+
+Adding something like this should work:
+```java
+ExemplarUtils.putSpanContextAttachments(measureMap, tracer.getCurrentSpan().getContext());
+```
+
+### Describe alternatives you've considered
+I don't think there is a way to do this without updating the grpc-census instrumentation code. AFAIK adding the exemplar to the `MeasureMap` directly is the only way to do it.
+
+### Additional context
+I'm not sure how to get the OpenCensus Tracer for `tracer.getCurrentSpan()` inside of `CensusStatsModule`. It may also be beneficial to check if the current span is being sampled before attaching it to the `MeasureMap`.
+
+cc @nilebox

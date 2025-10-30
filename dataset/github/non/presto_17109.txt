@@ -1,0 +1,37 @@
+OrcWriter / Raptor (legacy) and delta delete: Invalid position 1 in block with 1 positions
+When creating a simple table in Raptor using Presto 0.265.1 with delta delete enabled using `CREATE TABLE raptor.users (id varchar) WITH (organized = false, table_supports_delta_delete = true)`, it gives the following exception on worker nodes after a few INSERT and DELETE statements:
+
+```
+2021-12-15T17:07:57.069Z	INFO	shard-compaction-discovery	com.facebook.presto.raptor.storage.organization.ShardCompactionManager	Discovering shards that need compaction...
+2021-12-15T17:07:57.083Z	INFO	shard-compaction-discovery	com.facebook.presto.raptor.storage.organization.ShardCompactionManager	Created 1 compaction set(s) from 7 shards for table ID 1
+2021-12-15T17:07:57.083Z	INFO	shard-compaction-discovery	com.facebook.presto.raptor.storage.organization.ShardOrganizer	enqueue organizationSet: OrganizationSet{tableId=1, tableSupportsDeltaDelete=true, shardSize=7, deltaSize=7, priority=7}
+2021-12-15T17:07:57.100Z	WARN	shard-organizer-0	com.facebook.presto.raptor.storage.organization.ShardOrganizer	Error running organization job
+java.lang.IllegalArgumentException: Invalid position 1 in block with 1 positions
+	at com.facebook.presto.common.block.BlockUtil.checkValidPosition(BlockUtil.java:75)
+	at com.facebook.presto.common.block.DictionaryBlock.getId(DictionaryBlock.java:448)
+	at com.facebook.presto.common.block.DictionaryBlock.getRegionSizeInBytes(DictionaryBlock.java:254)
+	at com.facebook.presto.common.block.LazyBlock.getRegionSizeInBytes(LazyBlock.java:192)
+	at com.facebook.presto.common.block.Block.getApproximateRegionLogicalSizeInBytes(Block.java:228)
+	at com.facebook.presto.common.Page.getApproximateLogicalSizeInBytes(Page.java:128)
+	at com.facebook.presto.orc.OrcWriter.write(OrcWriter.java:389)
+	at com.facebook.presto.raptor.storage.OrcFileWriter.appendPages(OrcFileWriter.java:122)
+	at com.facebook.presto.raptor.storage.OrcStorageManager$OrcStoragePageSink.appendPages(OrcStorageManager.java:748)
+	at com.facebook.presto.raptor.storage.organization.ShardCompactor.compact(ShardCompactor.java:132)
+	at com.facebook.presto.raptor.storage.organization.ShardCompactor.compact(ShardCompactor.java:91)
+	at com.facebook.presto.raptor.storage.organization.OrganizationJob.performCompaction(OrganizationJob.java:117)
+	at com.facebook.presto.raptor.storage.organization.OrganizationJob.runJob(OrganizationJob.java:85)
+	at com.facebook.presto.raptor.storage.organization.OrganizationJob.runJob(OrganizationJob.java:73)
+	at com.facebook.presto.raptor.storage.organization.OrganizationJob.run(OrganizationJob.java:61)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at com.facebook.presto.raptor.util.PrioritizedFifoExecutor.executeOrMerge(PrioritizedFifoExecutor.java:79)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:630)
+	at java.base/java.lang.Thread.run(Thread.java:832)
+```
+
+When creating a table with `table_supports_delta_delete = false`, then there are not errors.
+
+Any ideas?

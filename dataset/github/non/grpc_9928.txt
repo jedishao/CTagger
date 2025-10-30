@@ -1,0 +1,33 @@
+Does multiple services have to be in the same Java package?
+I have an existing Spring Boot based GRPC service, `service_a.proto` that defines one service, `ServiceA` with a few APIs in package `a.b.c`:
+
+```
+syntax = "proto3";
+package a.b.c;
+option java_multiple_files = true;
+option java_package = "a.b.c.protogen";
+option java_outer_classname = "ServiceAProto";
+
+service ServiceA {
+  rpc Create (CreateRequest) returns (CreateResponse) {}
+}
+...
+```
+
+Now I want to add another service via a new file `service_b.proto` but this service and its implementation should be in a different java package (`a.b`):
+```
+syntax = "proto3";
+package a.b;
+option java_multiple_files = true;
+option java_package = "a.b.protogen";
+option java_outer_classname = "ServiceBProto";
+
+service ServiceB {
+  rpc CreateB (CreateBRequest) returns (CreateBResponse) {}
+}
+...
+```
+
+This does not seem to work and I get a StatusRuntimeException with Status: `Status{code=UNIMPLEMENTED, description=Method not found: a.b.ServiceB/CreateB` when I try to call this method via the client.
+
+I have looked at a few documentation and stackoverflow links but unable to find out if this is supported. Can you please confirm if this should work - if so then I will look into my build tools and see where it might be going wrong.

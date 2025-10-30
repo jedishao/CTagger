@@ -1,0 +1,52 @@
+grpc-alts 1.33.1 using old version of google-auth-library-oauth2-http, bringing vulnerable apache httpclient
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+(Currently the latest) 1.33.1
+
+### What is your environment?
+<!-- operating system (Linux, Windows,...) and version, jdk version, etc. -->
+Problem is system independent
+
+### What did you expect to see?
+I would like to see that the latest apache httpclient 4.5.13 is being used when I do a "mvn dependency:tree" in a maven based project using the (latest) java gprc library. This latest 4.5.13 version of apache httpclient is currently the only version which is not vulnerable (see e.g. https://snyk.io/vuln/SNYK-JAVA-ORGAPACHEHTTPCOMPONENTS-1016906 the first link I found when I searched it). I did not try to assess the severity of this vulnerability, just saw a security vulerability scan tool (Anchore) reporting apache httpclient 4.5.10 (version used by the grpc library currently, see below) as vulnerable.
+
+### What did you see instead?
+In a maven based project I executed "mvn dependency:tree" and this is what I found:
+
+```
+[INFO] +- io.grpc:grpc-all:jar:1.33.1:compile
+[INFO] |  +- io.grpc:grpc-auth:jar:1.33.1:compile
+[INFO] |  |  \- com.google.auth:google-auth-library-credentials:jar:0.20.0:compile
+[INFO] |  +- io.grpc:grpc-context:jar:1.33.1:compile
+[INFO] |  +- io.grpc:grpc-grpclb:jar:1.33.1:compile
+[INFO] |  +- io.grpc:grpc-okhttp:jar:1.33.1:compile
+[INFO] |  |  +- com.squareup.okhttp:okhttp:jar:2.7.4:compile
+[INFO] |  |  \- com.squareup.okio:okio:jar:1.13.0:runtime
+[INFO] |  +- io.grpc:grpc-services:jar:1.33.1:compile
+[INFO] |  \- io.grpc:grpc-xds:jar:1.33.1:compile
+[INFO] |     +- io.grpc:grpc-alts:jar:1.33.1:compile
+[INFO] |     |  +- org.conscrypt:conscrypt-openjdk-uber:jar:2.5.1:compile
+[INFO] |     |  \- com.google.auth:google-auth-library-oauth2-http:jar:0.20.0:compile
+[INFO] |     |     +- com.google.auto.value:auto-value-annotations:jar:1.7:compile
+[INFO] |     |     +- com.google.http-client:google-http-client:jar:1.34.0:compile
+[INFO] |     |     |  +- org.apache.httpcomponents:httpclient:jar:4.5.10:compile
+[INFO] |     |     |  +- org.apache.httpcomponents:httpcore:jar:4.4.12:compile
+[INFO] |     |     |  \- io.opencensus:opencensus-contrib-http-util:jar:0.24.0:compile
+[INFO] |     |     \- com.google.http-client:google-http-client-jackson2:jar:1.34.0:compile
+[INFO] |     +- org.bouncycastle:bcpkix-jdk15on:jar:1.61:compile
+[INFO] |     |  \- org.bouncycastle:bcprov-jdk15on:jar:1.61:compile
+[INFO] |     +- io.opencensus:opencensus-proto:jar:0.2.0:compile
+[INFO] |     \- io.grpc:grpc-netty-shaded:jar:1.33.1:compile (version selected from constraint [1.33.1,1.33.1])
+```
+So in short: using even the latest grpc library will bring the vulnerable apache httpclient as a transitive dependency.
+
+Probably this could be fixed easily: let grpc-alts use the latest com.google.auth:google-auth-library-oauth2-http 0.22.0, then it would use the google http client 1.37.0 (see https://github.com/googleapis/google-auth-library-java/blob/v0.22.0/pom.xml#L62), well it is not the latest google http client, but it already includes the latest apache httpclient 4.5.13 (not vulnerable) (see https://github.com/googleapis/google-http-java-client/blob/v1.37.0/pom.xml#L586).
+
+google http client library changelog: https://github.com/googleapis/google-http-java-client/releases  
+google auth librart changelog: https://github.com/googleapis/google-auth-library-java/blob/master/CHANGELOG.md
+
+### Steps to reproduce the bug
+
+<!-- Make sure you include information that can help us debug (full error message, exception listing, stack trace, logs). -->
+Again, take a look at the dependency tree above and you can see that the grpc library 1.33.1 uses the vulnerable org.apache.httpcomponents:httpclient:jar:4.5.10

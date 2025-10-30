@@ -1,0 +1,59 @@
+Flaky TestMetadataQueryOptimization.testOptimization
+```
+2022-12-19T22:44:58.9145963Z [ERROR] io.trino.plugin.iceberg.TestMetadataQueryOptimization.testOptimization  Time elapsed: 1.859 s  <<< FAILURE!
+2022-12-19T22:44:58.9146445Z java.lang.AssertionError: 
+2022-12-19T22:44:58.9146712Z Plan does not match, expected [
+2022-12-19T22:44:58.9146867Z 
+2022-12-19T22:44:58.9146983Z - anyTree
+2022-12-19T22:44:58.9147217Z     - node(ValuesNode)
+2022-12-19T22:44:58.9147641Z         ValuesMatcher{outputSymbolAliases={b=0, c=1}, expectedOutputSymbolCount=Optional[2], expectedRows=Optional[[ROW (6, 7), ROW (9, 10)]]}
+2022-12-19T22:44:58.9148111Z 
+2022-12-19T22:44:58.9148182Z ] but found [
+2022-12-19T22:44:58.9148304Z 
+2022-12-19T22:44:58.9148414Z Output[columnNames = [b, c]]
+2022-12-19T22:44:58.9153998Z │   Layout: [b:integer, c:integer]
+2022-12-19T22:44:58.9154456Z └─ LocalMerge[orderBy = [b ASC NULLS LAST]]
+2022-12-19T22:44:58.9154776Z    │   Layout: [b:integer, c:integer]
+2022-12-19T22:44:58.9155096Z    └─ Sort[orderBy = [b ASC NULLS LAST]]
+2022-12-19T22:44:58.9155486Z       │   Layout: [b:integer, c:integer]
+2022-12-19T22:44:58.9155756Z       └─ Project[]
+2022-12-19T22:44:58.9156043Z          │   Layout: [b:integer, c:integer]
+2022-12-19T22:44:58.9156422Z          └─ Aggregate[type = FINAL, keys = [b, c], hash = [$hashvalue]]
+2022-12-19T22:44:58.9156822Z             │   Layout: [b:integer, c:integer, $hashvalue:bigint]
+2022-12-19T22:44:58.9157290Z             └─ LocalExchange[partitioning = HASH, hashColumn = [$hashvalue], arguments = ["b", "c"]]
+2022-12-19T22:44:58.9157727Z                │   Layout: [b:integer, c:integer, $hashvalue:bigint]
+2022-12-19T22:44:58.9158158Z                └─ Aggregate[type = PARTIAL, keys = [b, c], hash = [$hashvalue_0]]
+2022-12-19T22:44:58.9158576Z                   │   Layout: [b:integer, c:integer, $hashvalue_0:bigint]
+2022-12-19T22:44:58.9158886Z                   └─ Project[]
+2022-12-19T22:44:58.9159245Z                      │   Layout: [b:integer, c:integer, $hashvalue_0:bigint]
+2022-12-19T22:44:58.9159949Z                      │   $hashvalue_0 := combine_hash(combine_hash(bigint '0', COALESCE("$operator$hash_code"("b"), 0)), COALESCE("$operator$hash_code"("c"), 0))
+2022-12-19T22:44:58.9160336Z                      └─ Values[]
+2022-12-19T22:44:58.9160626Z                             Layout: [b:integer, c:integer]
+2022-12-19T22:44:58.9160874Z                             (9, 10)
+2022-12-19T22:44:58.9161088Z                             (6, 7)
+2022-12-19T22:44:58.9161221Z 
+2022-12-19T22:44:58.9161289Z ]
+2022-12-19T22:44:58.9161637Z 	at io.trino.sql.planner.assertions.PlanAssert.assertPlan(PlanAssert.java:58)
+2022-12-19T22:44:58.9162125Z 	at io.trino.sql.planner.assertions.PlanAssert.assertPlan(PlanAssert.java:49)
+2022-12-19T22:44:58.9162582Z 	at io.trino.sql.planner.assertions.PlanAssert.assertPlan(PlanAssert.java:43)
+2022-12-19T22:44:58.9163196Z 	at io.trino.sql.planner.assertions.BasePlanTest.lambda$assertPlanWithSession$3(BasePlanTest.java:183)
+2022-12-19T22:44:58.9163722Z 	at io.trino.transaction.TransactionBuilder.execute(TransactionBuilder.java:150)
+2022-12-19T22:44:58.9164186Z 	at io.trino.testing.LocalQueryRunner.inTransaction(LocalQueryRunner.java:843)
+2022-12-19T22:44:58.9164710Z 	at io.trino.sql.planner.assertions.BasePlanTest.assertPlanWithSession(BasePlanTest.java:181)
+2022-12-19T22:44:58.9165251Z 	at io.trino.sql.planner.assertions.BasePlanTest.assertPlan(BasePlanTest.java:119)
+2022-12-19T22:44:58.9165841Z 	at io.trino.plugin.iceberg.TestMetadataQueryOptimization.testOptimization(TestMetadataQueryOptimization.java:96)
+2022-12-19T22:44:58.9166430Z 	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2022-12-19T22:44:58.9166960Z 	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+2022-12-19T22:44:58.9167547Z 	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2022-12-19T22:44:58.9168026Z 	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+2022-12-19T22:44:58.9168483Z 	at org.testng.internal.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:104)
+2022-12-19T22:44:58.9169060Z 	at org.testng.internal.Invoker.invokeMethod(Invoker.java:645)
+2022-12-19T22:44:58.9169446Z 	at org.testng.internal.Invoker.invokeTestMethod(Invoker.java:851)
+2022-12-19T22:44:58.9169864Z 	at org.testng.internal.Invoker.invokeTestMethods(Invoker.java:1177)
+2022-12-19T22:44:58.9170332Z 	at org.testng.internal.TestMethodWorker.invokeTestMethods(TestMethodWorker.java:129)
+2022-12-19T22:44:58.9170874Z 	at org.testng.internal.TestMethodWorker.run(TestMethodWorker.java:112)
+2022-12-19T22:44:58.9171357Z 	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+2022-12-19T22:44:58.9171866Z 	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+2022-12-19T22:44:58.9172259Z 	at java.base/java.lang.Thread.run(Thread.java:833)
+```
+cc @findepi 

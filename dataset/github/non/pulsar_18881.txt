@@ -1,0 +1,43 @@
+[Bug] incorrect Nic usage collected by pulsar 
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+all version.
+
+### Minimal reproduce step
+
+When retrieve all paths of physical NICs, **it did not filter those NICs whose state are down.**
+`org.apache.pulsar.broker.loadbalance.LinuxInfoUtils#getPhysicalNICs`
+<img width="581" alt="image" src="https://user-images.githubusercontent.com/52550727/206959079-dfe285ca-0b2c-4b44-9efa-1ebe8a68496d.png">
+
+As a consequence, we will get a wrong limit value of NIC if `loadBalancerOverrideBrokerNicSpeedGbps` is enabled. 
+<img width="609" alt="image" src="https://user-images.githubusercontent.com/52550727/206959354-f1719903-91b5-4f82-8ed7-f12486a225df.png">
+
+for example, we have 4 physical nics, but only eth0 and eth1 is enable, and both of their speed is 10Gbps.
+```
+2: eth0:  state UP 
+3: eth1: state UP 
+4: eth2: state DOWN 
+5: eth3:state DOWN 
+```
+So, the correct limit value of NIC is 20Gbps, that is 20000000 Kbps. But the limit value collected by pulsar is 40Gbps, that is 40000000 Kbps.  this is caused by the bug described above. 
+
+### What did you expect to see?
+
+correct limit value of NICs.
+
+### What did you see instead?
+
+Incorrect limit value of NICs.
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [X] I'm willing to submit a PR!

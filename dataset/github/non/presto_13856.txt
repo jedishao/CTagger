@@ -1,0 +1,45 @@
+[Design] Presto-on-Spark: A Tale of Two Computation Engines
+# Links/Resources:
+
+- Slides: https://www.slideshare.net/databricks/presto-on-apache-spark-a-tale-of-two-computation-engines
+- Spark Summit Talk: https://www.youtube.com/watch?v=obLnTw_pyDw 
+- Detailed Design Doc: https://docs.google.com/document/d/1aURQWDY1NJZ7xPS6jnsFcQY7pOIqHGkHzJrcPu-42Tk
+
+
+# Abstract
+
+The architecture tradeoff between MapReduce and parallel database has been an open discussion since the dawn of MapReduce system over a decade ago. At Facebook, we have been spent past several years in scaling Presto to Facebook-scale batch workload.
+
+
+[Presto Unlimited](https://prestodb.io/blog/2019/08/05/presto-unlimited-mpp-database-at-scale) aims at solving such scalability challenges. After revisiting the key architecture change (e.g. disaggregated shuffle)  required to further scale Presto, we decided Presto-on-Spark as the path to further scale Presto.  See the rest of the design doc for details. 
+
+We believe this is only a first step towards more confluence between the Spark and the Presto communities, and a major step towards enabling unified SQL experience between interactive and batch use cases. 
+
+# Introduction 
+
+Presto was originally designed for interactive queries but has evolved into a unified engine for both interactive and batch use cases. Scaling an MPP architecture database to batch data processing over Internet-scale datasets is known to be an extremely difficult problem [1].
+
+[Presto Unlimited](https://prestodb.io/blog/2019/08/05/presto-unlimited-mpp-database-at-scale) aims at solving such scalability challenges. To truly scale Presto Unlimited to Internet-scale batch workloads we need the following (excluding coordinator scaling and spilling):
+
+1. Scales shuffle. This requires to either implement MapReduce-style shuffle or integrate with a disaggregated shuffle service such as Cosco.
+2. Scales Presto worker execution. This includes resource isolation, straggler detection, speculative execution, etc.
+3. Scales Presto resource management. A fine grained resource management is required when a single query can take years of CPU. Such concept is known as Mapper/Reducer in MapReduce, executor in Spark, and lifespan in Presto, similar to YARN/Mesos.
+
+We realized these work lays down the foundation for a general-purpose parallel data processing system, such as Spark, FlumeJava, Dryad. Note such data processing system has its own usage and well-defined programming abstraction, and requires years to mature. 
+
+We found Presto should leverage existing well-developed systems to scale to large batch workload, instead of “embedding” such a system inside Presto. We also believe such collaboration would help the whole Big Data community to better understand the abstraction between SQL engine and data processing system, as well as evolve and refine the execution primitives to provide near-optimal performance without sacrificing the abstractions.
+
+We choose to leverage Spark as the parallel data processing system to further scale Presto Unlimited as it’s the most widely used open source system in this category. However, the design and architecture here should apply to any other parallel data processing system as well.
+
+
+# Architecture
+
+<img width="789" alt="Screen Shot 2019-12-16 at 4 19 16 PM" src="https://user-images.githubusercontent.com/799346/70953878-d81bd880-201f-11ea-84ab-034f7a8bf16a.png">
+
+1. Presto Planner needs to know it’s generating plan for Spark execution, and can thus reduce unnecessary nodes (e.g. LocalExchange)
+
+2. On Spark worker, it includes:
+Construct operator factory chain (a.k.a DriverFactory)  through LocalExecutionPlanner
+Instatinate driver by binding the input split, and run the driver
+
+3. Send the data to a SparkOutputBuffer which will emit to Spark. 

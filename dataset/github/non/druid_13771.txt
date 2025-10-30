@@ -1,0 +1,14 @@
+Ingest metrics: messageGap to show earliest and latest messages
+The messageGap metric can be a helpful way to assess the recency of incoming events.  For example, an elevated messageGap value could indicate when Druid has little or no lag consuming from a stream, yet the upstream data is delayed.  Data recency is also important for observing and planning the required overhead for segment creation during indexing (e.g., "how many segments might this task create?").  This proposal aims to better achieve objectives like these by emitting a metric that helps reflect the dynamic range of the data recency.
+
+Currently the messageGap metric maintains the state of the latest timestamp "seen" by the indexing task
+- https://github.com/apache/druid/blob/fb23e38aa716d5f57c4f89352c3e3da5a10ac502/server/src/main/java/org/apache/druid/segment/realtime/FireDepartmentMetrics.java#L275
+- https://github.com/apache/druid/blob/fb23e38aa716d5f57c4f89352c3e3da5a10ac502/server/src/main/java/org/apache/druid/segment/realtime/FireDepartmentMetrics.java#L139
+
+This "latest only" behavior conceals the range of incoming event timestamps and therefore does little if anything to represent late arriving data.  This greatly limits the utility of the metric for the purposes enumerated above.
+
+This proposal is to emit a "maximum" message gap metric which represents the greatest message gap value occurring over some time.  Note that the semantics of the proposal could be somewhat different than for the existing metric because this proposal could require maintaining state not of some event timestamp (current state) but of the computed message gap value.
+
+Outstanding questions/considerations:
+- naming: ingest/events/maxMessageGap?  (Follows pattern of ingest/kafka/lag versus ingest/kafka/maxLag)
+- existing metric name (ingest/events/messageGap): should it be phased out and replaced (eg, with ingest/events/minMessageGap)?

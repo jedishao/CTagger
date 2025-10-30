@@ -1,0 +1,10 @@
+Metadata Storage does not return all appropriate segments if its interval is outside [0000-01-01/10000-01-01]
+### Description
+
+Currently, if the metadata storage is queried for an interval inside the range [0000-01-01/10000-01-01], while the segment inside the storage has start or end outside this range, it may not be returned. 
+
+This is due to the fact that we use string comparison if the queries interval is inside the above range. 
+
+For example, if the segment on disk has an interval outside this range, [0001-01-01T00Z/19940-01-01T00Z], while the interval queried is [2020/2021], string comparison would return the result that '19940' < '2020', which excludes the segment, even though it does overlap.
+
+The PR https://github.com/apache/druid/pull/12844 addresses this issue for Eternity, however, other intervals like the example above would still have the issue.

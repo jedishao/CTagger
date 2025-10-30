@@ -1,0 +1,19 @@
+Trino-jmx can not query data for some table in jmx.history schema
+I can not query data for my metrics `trino.plugin.hive.metastore.thrift:name=hive,type=thrifthivemetastore` in `jmx.history` even if the cluster has been up for a long time.
+![image](https://user-images.githubusercontent.com/37698246/217714551-cc261a1e-3562-4875-928d-de808057e5eb.png)
+
+
+I found the table name in the `JmxHistoricalData` is `trino.plugin.hive.metastore.thrift:name=hive,type=thrifthivemetastore` but it will use the `trino.plugin.hive.metastore.thrift:type=ThriftHiveMetastore,name=hive` as its table name when I query data.
+![image](https://user-images.githubusercontent.com/37698246/217714253-a4e5cb1e-c990-433a-9cf7-d0317262abfd.png)
+
+The cause of the problem may be that the objectNames in the `TableHandle` are wrong. The table name in `JmxHistoricalData` are obtained by calling `objectName.getCanonicalName()` method, but the objectNames in tableHandle are obtained by calling `objectName.toString()` method. The inconsistency between the results obtained by the two causes this problem.
+
+tableName in `JmxHistoricalData` :
+![image](https://user-images.githubusercontent.com/37698246/217715548-9051f6b2-7d57-4729-a42c-414d609886d2.png)
+
+tableName in `TableHandle`:
+![image](https://user-images.githubusercontent.com/37698246/217715630-7eff0661-9669-461d-972e-c8f24044a9ae.png)
+
+
+
+

@@ -1,0 +1,31 @@
+Memory connector low performance with joining tables
+I recently found that the performance of memory connector is even slower than the Hive connector reading from S3, when running a query joining multiple tables.
+
+It's a join query with 3 tables:
+```
+SELECT .....
+ FROM memory.default.superset_production_logs_v01 l              (80M rows)
+ inner join memory.default.superset_production_dashboards_v01 d on dashboard_id = d.id  (12K rows)
+ inner join memory.default.superset_production_ab_user_v01 u on d.created_by_fk = u.id   (10K rows)
+ inner join memory.default.superset_production_ab_user_v01 u2 on l.user_id = u2.id
+WHERE ...
+GROUP BY ....
+```
+
+Memory connector returns in 10.09s, while Hive connector returns in 8.4s
+
+For run with memory connector, a lot of time spent between first split started and last split started (stage 7 is the large table, 8 and 9 are smaller tables). Likely indicates not enough threads to process the splits.
+![image](https://user-images.githubusercontent.com/36971524/94973897-c2e63c80-04c1-11eb-9b66-cb1e73e56017.png)
+
+
+Seems like current memory connector launch same fixed amount of splits for any table size, even for empty fragment. A lot of resource will be wasted on those splits.
+```
+Splits: 24, MemoryDataFragment{HostAddress=172.21.25.227:10734, rows=1}
+Splits: 24, MemoryDataFragment{HostAddress=172.21.25.134:10734, rows=1436}
+Splits: 24, MemoryDataFragment{HostAddress=172.21.20.156:10734, rows=16}
+Splits: 24, MemoryDataFragment{HostAddress=172.21.23.251:10734, rows=0}
+Splits: 24, MemoryDataFragment{HostAddress=172.21.31.60:10734, rows=4}
+```
+
+
+Making splits flexible (base on data size) could fix this problem.

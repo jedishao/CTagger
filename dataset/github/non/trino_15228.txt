@@ -1,0 +1,13 @@
+Rewrite LIKE patterns to string matching if pattern is constant and simple
+LIKE function will be translated into a REGEX, which is not cheap. While real in use cases, most of the patterns are constant and simple enough, which could be implemented with much cheaper String operations. 
+For instance:
+1) pattern '%xxx' could be implemented by String.endsWith('xxx')
+2) pattern 'xxx%' could be implemented by String.startsWith('xxx')
+3) pattern '%xxx%' could be implemented by String.contains('xxx')
+The String operation is about 20x faster than Regex.
+
+For implementation side, ExpressionInterpreter.visitLikePredicate() sounds like a good spot.
+
+This issue has been discussed in https://github.com/trinodb/trino/pull/4576 as well.
+
+I have already done some PoC, so if this sounds good, I will proposal a PR

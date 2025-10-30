@@ -1,0 +1,89 @@
+Flaky failure recovery tests TestMySqlTaskFailureRecoveryTest TestIcebergTaskFailureRecoveryTest testParallel
+https://github.com/trinodb/trino/actions/runs/3948992707/jobs/6760527498
+
+```
+Error:  Tests run: 24, Failures: 2, Errors: 0, Skipped: 11, Time elapsed: 458.073 s <<< FAILURE! - in TestSuite
+Error:  io.trino.plugin.mysql.TestMySqlTaskFailureRecoveryTest.testParallel[testUpdateWithSubquery](2)  Time elapsed: 4.162 s  <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting throwable message:
+  <"Encountered too many errors talking to a worker node. The node may have crashed or be under too much load. This is probably a transient issue, so please retry your query in a few minutes. (http://127.0.0.1:44923/v1/task/20230118_145705_00017_q5n4n.2.0.0/results/0/0 - 3 failures, failure duration 10.06s, total failed request time 15.06s)">
+to contain:
+  <"This connector does not support modifying table rows">
+but did not.
+
+Throwable that failed the check:
+
+	at io.trino.testing.BaseFailureRecoveryTest.testUpdateWithSubquery(BaseFailureRecoveryTest.java:246)
+	at io.trino.plugin.jdbc.BaseJdbcFailureRecoveryTest.lambda$testUpdateWithSubquery$4(BaseJdbcFailureRecoveryTest.java:80)
+	at org.assertj.core.api.ThrowableAssert.catchThrowable(ThrowableAssert.java:62)
+	at org.assertj.core.api.AssertionsForClassTypes.catchThrowable(AssertionsForClassTypes.java:877)
+	at org.assertj.core.api.Assertions.catchThrowable(Assertions.java:1306)
+	at org.assertj.core.api.Assertions.assertThatThrownBy(Assertions.java:1178)
+	at io.trino.plugin.jdbc.BaseJdbcFailureRecoveryTest.testUpdateWithSubquery(BaseJdbcFailureRecoveryTest.java:80)
+	at io.trino.testing.BaseFailureRecoveryTest$ParallelTestRunnable.run(BaseFailureRecoveryTest.java:807)
+	at io.trino.testing.BaseFailureRecoveryTest.testParallel(BaseFailureRecoveryTest.java:201)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at org.testng.internal.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:104)
+	at org.testng.internal.Invoker.invokeMethod(Invoker.java:645)
+	at org.testng.internal.Invoker.invokeTestMethod(Invoker.java:851)
+	at org.testng.internal.TestMethodWithDataProviderMethodWorker.call(TestMethodWithDataProviderMethodWorker.java:75)
+	at org.testng.internal.TestMethodWithDataProviderMethodWorker.call(TestMethodWithDataProviderMethodWorker.java:14)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+	Suppressed: java.lang.Exception: SQL: CREATE TABLE table_eb5byqjw59 AS SELECT * FROM orders
+		at io.trino.testing.DistributedQueryRunner.execute(DistributedQueryRunner.java:493)
+		... 35 more
+Caused by: io.trino.operator.PageTransportTimeoutException: Encountered too many errors talking to a worker node. The node may have crashed or be under too much load. This is probably a transient issue, so please retry your query in a few minutes. (http://127.0.0.1:44923/v1/task/20230118_145705_00017_q5n4n.2.0.0/results/0/0 - 3 failures, failure duration 10.06s, total failed request time 15.06s)
+	at io.trino.operator.HttpPageBufferClient$1.onFailure(HttpPageBufferClient.java:494)
+	at com.google.common.util.concurrent.Futures$CallbackListener.run(Futures.java:1132)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+Caused by: java.lang.RuntimeException: java.util.concurrent.TimeoutException: Idle timeout 5000 ms
+	at io.airlift.http.client.ResponseHandlerUtils.propagate(ResponseHandlerUtils.java:25)
+	at io.trino.operator.HttpPageBufferClient$PageResponseHandler.handleException(HttpPageBufferClient.java:653)
+	at io.trino.operator.HttpPageBufferClient$PageResponseHandler.handleException(HttpPageBufferClient.java:640)
+	at io.airlift.http.client.jetty.JettyResponseFuture.failed(JettyResponseFuture.java:120)
+	at io.airlift.http.client.jetty.BufferingResponseListener.onComplete(BufferingResponseListener.java:85)
+	at org.eclipse.jetty.client.ResponseNotifier.notifyComplete(ResponseNotifier.java:218)
+	at org.eclipse.jetty.client.ResponseNotifier.notifyComplete(ResponseNotifier.java:210)
+	at org.eclipse.jetty.client.HttpReceiver.terminateResponse(HttpReceiver.java:481)
+	at org.eclipse.jetty.client.HttpReceiver.terminateResponse(HttpReceiver.java:461)
+	at org.eclipse.jetty.client.HttpReceiver.abort(HttpReceiver.java:557)
+	at org.eclipse.jetty.client.HttpChannel.abortResponse(HttpChannel.java:152)
+	at org.eclipse.jetty.client.HttpChannel.abort(HttpChannel.java:145)
+	at org.eclipse.jetty.client.HttpExchange.abort(HttpExchange.java:264)
+	at org.eclipse.jetty.client.HttpConversation.abort(HttpConversation.java:164)
+	at org.eclipse.jetty.client.HttpRequest.abort(HttpRequest.java:821)
+	at org.eclipse.jetty.client.http.HttpConnectionOverHTTP.abort(HttpConnectionOverHTTP.java:214)
+	at org.eclipse.jetty.client.http.HttpConnectionOverHTTP.close(HttpConnectionOverHTTP.java:200)
+	at org.eclipse.jetty.client.http.HttpConnectionOverHTTP.onIdleExpired(HttpConnectionOverHTTP.java:160)
+	at org.eclipse.jetty.io.AbstractEndPoint.onIdleExpired(AbstractEndPoint.java:402)
+	at org.eclipse.jetty.io.IdleTimeout.checkIdleTimeout(IdleTimeout.java:171)
+	at org.eclipse.jetty.io.IdleTimeout.idleCheck(IdleTimeout.java:113)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:304)
+	... 3 more
+Caused by: java.util.concurrent.TimeoutException: Idle timeout 5000 ms
+	... 10 more
+
+[INFO] 
+Error:  Tests run: 24, Failures: 2, Errors: 0, Skipped: 11
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  07:45 min
+[INFO] Finished at: 2023-01-18T15:03:30Z
+```
+
+cc @mwd410 @arhimondr @losipiuk @linzebing 

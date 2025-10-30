@@ -1,0 +1,6 @@
+Optimize union over empty values node
+Sometimes we see a union of a table scan and an empty values node when one side of the union has a partition filter for a partition that does not exist.  This can lead to an inefficient plan, as in some circumstances it can cause the whole union stage to be executed on a single node.  The empty values node is not really needed, as it's not meaningful to union something to an empty values node (or anything where the number of rows is known to be 0)
+
+1. if it is a union with multiple nodes, and at least two aren't zero cardinality, then remove the zero cardinality children
+2. If it is a union with only one non-zero cardinality node, replace the union with the non-zero child
+3. If it is a union only of zero cardinality nodes, replace the union with an empty values node.

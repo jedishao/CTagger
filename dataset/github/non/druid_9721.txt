@@ -1,0 +1,80 @@
+Frequent calls to FileWriteOutBytes.size() will result in high sys CPU
+### Affected Version
+
+0.13.0+
+
+### Description
+
+In order to compare the disk performance between local disk and cloud disk, we replace the ```OffHeapMemorySegmentWriteOutMediumFactory``` with ```TmpFileSegmentWriteOutMediumFactory``` when instancing **INDEX_MERGER_V9** in IndexMergeBenchmark(rename to IndexMergeWithTmpFileBenchmark). However, during benchmark running, we found that the sys cpu is too high:
+
+![image](https://user-images.githubusercontent.com/8834263/79629031-90958c80-8178-11ea-89b7-878dfcbcfcff.png)
+
+
+![image](https://user-images.githubusercontent.com/8834263/79627101-11985800-8168-11ea-9734-7cf1f8629d2c.png)
+
+With the help of flame graph, we found that every time we call the size() method will trigger flush() method which call write system call. 
+
+To avoid calling flush method, we introduce a new variable ```writeOutBytes``` to record the number of bytes written:
+
+```
+final class FileWriteOutBytes extends WriteOutBytes
+{
+...
+  private long writeOutBytes;
+...
+  FileWriteOutBytes(File file, FileChannel ch)
+  {
+    this.file = file;
+    this.ch = ch;
+    this.writeOutBytes = 0L;
+  }
+...  
+  @Override
+  public void write(int b) throws IOException
+  {
+    flushIfNeeded(1);
+    buffer.put((byte) b);
+    writeOutBytes++;
+  }
+
+  @Override
+  public void writeInt(int v) throws IOException
+  {
+    flushIfNeeded(Integer.BYTES);
+    buffer.putInt(v);
+    writeOutBytes += Integer.BYTES;
+  }
+
+  @Override
+  public int write(ByteBuffer src) throws IOException
+  {
+...
+    buffer.put(src);
+    writeOutBytes += len;
+    return len;
+  }
+
+  @Override
+  public long size() throws IOException
+  {
+    return writeOutBytes;
+  }
+```
+
+Then we rerun the benchmark and sys cpu returned to normal. The benchmark report shows that the performance is improved by about 44%.
+
+* Machine info: 
+CPU: Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz
+Disk: HDD
+Command: java -Djava.io.tmpdir=/data00/tmp_dir -jar benchmarks.jar IndexMergeWithTmpFileBenchmark
+
+before optimization:
+Benchmark                               (numSegments)  (rollup)  (rowsPerSegment)  (schema)  Mode  Cnt        Score       Error  Units
+IndexMergeWithTmpFileBenchmark.mergeV9              5      true             75000     basic  avgt   25  8161891.327 ± 32636.767  us/op
+IndexMergeWithTmpFileBenchmark.mergeV9              5     false             75000     basic  avgt   25  8041137.131 ± 41477.861  us/op
+
+after optimization:
+Benchmark                               (numSegments)  (rollup)  (rowsPerSegment)  (schema)  Mode  Cnt        Score       Error  Units
+IndexMergeWithTmpFileBenchmark.mergeV9              5      true             75000     basic  avgt   25  4536098.486 ± 13668.764  us/op
+IndexMergeWithTmpFileBenchmark.mergeV9              5     false             75000     basic  avgt   25  4321243.165 ± 30293.772  us/op
+

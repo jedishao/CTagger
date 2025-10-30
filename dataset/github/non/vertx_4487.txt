@@ -1,0 +1,114 @@
+NPE when NetSocket.upgradeToSsl() is called if no TLS configuration in NetClientOptions
+### Version
+
+4.3.4-SNAPSHOT
+
+### Context
+
+When there is no TLS related configuration specified in the NetClientOptions, and user tries to call `NetSocket.upgradeToSsl(handler)`, the handler will not be called because of NPE was thrown.
+
+
+This also leads to some CI failures in other components, like: 
+
+* https://github.com/vert-x3/vertx-auth/actions/runs/3057964143/jobs/4933654463
+* https://github.com/vert-x3/vertx-mail-client/actions/runs/3057975832/jobs/4933678374
+
+The `sslProvider` in SSLHelper may be `Future.succeededFuture()` which will make `Supplier<SslContextFactory>` is null, so nothing to supply the `SslContextFactory` in this case. I think we need to decide what to do in this case.
+
+https://github.com/eclipse-vertx/vert.x/blob/e3100d67bcbe85665f7147bcc48ce6a4720367db/src/main/java/io/vertx/core/net/impl/SSLHelper.java#L196-L225
+
+### Do you have a reproducer?
+
+The following test hangs and fails:
+
+```java
+  /**
+   * Test that NetSocket.upgradeToSsl() should fail the handler if no TLS configuration was set.
+   */
+  @Test
+  public void testUpgradeToSSLIncorrectClientOptions() {
+    server.close();
+    server = vertx.createNetServer(new NetServerOptions().setSsl(true).setPort(4043)
+      .setKeyCertOptions(Cert.SERVER_JKS_ROOT_CA.get()));
+    NetClient client = vertx.createNetClient();
+    server.connectHandler(ns -> {}).listen(onSuccess(v -> {
+      client.connect(4043, "127.0.0.1", onSuccess(ns -> {
+        ns.upgradeToSsl(onFailure(err -> client.close(onSuccess(s -> testComplete()))));
+      }));
+    }));
+    await();
+  }
+```
+
+The exception is:
+
+```
+Running io.vertx.core.net.NetTest
+Starting test: NetTest#testUpgradeToSSLIncorrectClientOptions 
+Unhandled exception 
+io.vertx.core.VertxException: java.lang.NullPointerException
+	at io.vertx.core.net.impl.SSLHelper.createContext2(SSLHelper.java:304)
+	at io.vertx.core.net.impl.SSLHelper.createContext(SSLHelper.java:263)
+	at io.vertx.core.net.impl.SSLHelper.sslContext(SSLHelper.java:272)
+	at io.vertx.core.net.impl.SSLHelper.createSslHandler(SSLHelper.java:317)
+	at io.vertx.core.net.impl.NetSocketImpl.upgradeToSsl(NetSocketImpl.java:358)
+	at io.vertx.core.net.impl.NetSocketImpl.upgradeToSsl(NetSocketImpl.java:337)
+	at io.vertx.core.net.NetTest.lambda$testUpgradeToSSLIncorrectClientOptions$284(NetTest.java:3307)
+	at io.vertx.test.core.AsyncTestBase.lambda$onSuccess$2(AsyncTestBase.java:652)
+	at io.vertx.core.impl.future.FutureImpl$3.onSuccess(FutureImpl.java:141)
+	at io.vertx.core.impl.future.FutureBase.emitSuccess(FutureBase.java:60)
+	at io.vertx.core.impl.future.FutureImpl.tryComplete(FutureImpl.java:211)
+	at io.vertx.core.impl.future.PromiseImpl.tryComplete(PromiseImpl.java:23)
+	at io.vertx.core.Promise.complete(Promise.java:66)
+	at io.vertx.core.net.impl.NetClientImpl.lambda$connected$8(NetClientImpl.java:311)
+	at io.vertx.core.net.impl.VertxHandler.setConnection(VertxHandler.java:82)
+	at io.vertx.core.net.impl.VertxHandler.handlerAdded(VertxHandler.java:88)
+	at io.netty.channel.AbstractChannelHandlerContext.callHandlerAdded(AbstractChannelHandlerContext.java:938)
+	at io.netty.channel.DefaultChannelPipeline.callHandlerAdded0(DefaultChannelPipeline.java:609)
+	at io.netty.channel.DefaultChannelPipeline.addLast(DefaultChannelPipeline.java:223)
+	at io.netty.channel.DefaultChannelPipeline.addLast(DefaultChannelPipeline.java:195)
+	at io.vertx.core.net.impl.NetClientImpl.connected(NetClientImpl.java:313)
+	at io.vertx.core.net.impl.NetClientImpl.lambda$connectInternal2$2(NetClientImpl.java:271)
+	at io.vertx.core.impl.ContextInternal.dispatch(ContextInternal.java:264)
+	at io.vertx.core.net.impl.ChannelProvider.connected(ChannelProvider.java:175)
+	at io.vertx.core.net.impl.ChannelProvider.lambda$handleConnect$0(ChannelProvider.java:158)
+	at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:578)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:571)
+	at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:550)
+	at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:491)
+	at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:616)
+	at io.netty.util.concurrent.DefaultPromise.setSuccess0(DefaultPromise.java:605)
+	at io.netty.util.concurrent.DefaultPromise.trySuccess(DefaultPromise.java:104)
+	at io.netty.channel.DefaultChannelPromise.trySuccess(DefaultChannelPromise.java:84)
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.fulfillConnectPromise(AbstractNioChannel.java:300)
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.finishConnect(AbstractNioChannel.java:335)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:710)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+Caused by: java.lang.NullPointerException
+	at io.vertx.core.net.impl.SSLHelper.createContext2(SSLHelper.java:285)
+	... 42 more
+
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 120.723 sec <<< FAILURE! - in io.vertx.core.net.NetTest
+testUpgradeToSSLIncorrectClientOptions(io.vertx.core.net.NetTest)  Time elapsed: 120.717 sec  <<< ERROR!
+java.lang.IllegalStateException: Timed out in waiting for test complete
+	at io.vertx.test.core.AsyncTestBase.await(AsyncTestBase.java:133)
+	at io.vertx.test.core.AsyncTestBase.await(AsyncTestBase.java:121)
+	at io.vertx.core.net.NetTest.testUpgradeToSSLIncorrectClientOptions(NetTest.java:3310)
+
+```
+
+### Extra
+
+```
+[🎩 lgao@lins-p1 vertx]$ java -version
+java version "11.0.11" 2021-04-20 LTS
+Java(TM) SE Runtime Environment 18.9 (build 11.0.11+9-LTS-194)
+Java HotSpot(TM) 64-Bit Server VM 18.9 (build 11.0.11+9-LTS-194, mixed mode)
+
+```

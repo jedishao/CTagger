@@ -1,0 +1,29 @@
+Table structure in Presto select query is not proper when columns are masked  using AWS Lake Formation policy
+In the below AWS table , the column "address" is masked by AWS Lake Formation policy. Then the select query from presto is hiding the column "address" but values are seen under next column "city"
+presto:isl-lhservice-db> select * from "/Persons";
+ personid | lastname  | firstname | address | city 
+----------+-----------+-----------+---------+------
+        1 | Doe            | John              | abc         | TVM  
+        2 | Smith         | Rachel            | def         | EKM  
+        3 | Hernandez | Manuel         | ghi           | TSR  
+        4 | Emmanuel  | Aria               | jkl            | CLT
+
+(4 rows)
+
+After masking the column address, the column city is shifted to address column
+
+presto:isl-lhservice-db> select * from "/Persons";
+personid | lastname  | firstname | city 
+----------+-----------+-----------+------
+        2 | Smith            | Rachel         | def  
+        3 | Hernandez   | Manuel        | ghi  
+        4 | Emmanuel   | Aria             | jkl  
+        1 | Doe             | John             | abc
+
+(4 rows)
+
+Note : 
+Reference : https://docs.aws.amazon.com/lake-formation/latest/dg/limitations.html 
+The above documentation says : Although Lake Formation makes available metadata about column permissions to integrated services, the actual filtering of columns in query responses is the responsibility of the integrated service
+Presto needs to handle the Lake Formation policies . 
+ 

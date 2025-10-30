@@ -1,0 +1,36 @@
+Reading Delta Lake table from S3 is slow if _last_checkpoint does not exist
+There is a performance issue when I read newly created Delta Lake table stored on S3.
+Each delta table access requires more than 15 seconds to be done.
+
+The issue is caused by `loadMetadataFromFile(...)` method in Delta Lake Connectors project. The method expects `FileNotFoundException` if `_last_checkpoint` file is missing, which is true for tables with less then 10 updates. See [Checkpoints.scala#L133](https://github.com/delta-io/connectors/blob/master/standalone/src/main/scala/io/delta/standalone/internal/Checkpoints.scala#L133)
+
+I created the issue https://github.com/delta-io/connectors/issues/437 in Delta Lake Connectors repo where it was suggested to fix it in Presto by throwing `FileNotFoundException` if file does not exist on S3.
+
+I created the PR https://github.com/prestodb/presto/pull/18307 which was merged, but unfortunately it has not solved the issue.
+Obviously I missed something needed to be changed, i.e. the PR is not complete.
+
+Error log before the PR:
+```
+2022-09-07T13:51:16.040Z        WARN    Query-20220907_135115_00006_up6te-593   io.delta.standalone.internal.DeltaLogImpl       Failed to parse s3a://data-warehouse/my_database/my_table/_delta_log/_last_checkpoint. This may happen if there was an error during read operation, or a file appears to be partial. Sleeping and trying again.
+com.facebook.presto.hive.s3.PrestoS3FileSystem$UnrecoverableS3OperationException: com.amazonaws.services.s3.model.AmazonS3Exception: The specified key does not exist. (Service: Amazon S3; Status Code: 404; Error Code: NoSuchKey; Request ID: 1712984EA7667136; S3 Extended Request ID: 0aa37532-b31a-403d-9632-343d5975c4e9), S3 Extended Request ID: 0aa37532-b31a-403d-9632-343d5975c4e9 (Path: s3a://data-warehouse/my_database/my_table/_delta_log/_last_checkpoint)
+        at com.facebook.presto.hive.s3.PrestoS3FileSystem$PrestoS3InputStream.lambda$openStream$2(PrestoS3FileSystem.java:1114)
+        at com.facebook.presto.hive.RetryDriver.run(RetryDriver.java:139)
+        at com.facebook.presto.hive.s3.PrestoS3FileSystem$PrestoS3InputStream.openStream(PrestoS3FileSystem.java:1099)
+		...
+```
+
+Error log after the PR:
+```
+2023-01-04T16:09:56.528Z        WARN    20230104_160933_13352_s8vjw.2.0.0-0-105 io.delta.standalone.internal.DeltaLogImpl       Failed to parse s3a://data-warehouse/my_database/my_table/_delta_log/_last_checkpoint. This may happen if there was an error during read operation, or a file appears to be partial. Sleeping and trying again.
+java.io.UncheckedIOException: java.io.FileNotFoundException: File does not exist: s3a://data-warehouse/my_database/my_table/_delta_log/_last_checkpoint
+        at io.delta.storage.LineCloseableIterator.hasNext(LineCloseableIterator.java:72)
+        at io.delta.storage.LineCloseableIterator.next(LineCloseableIterator.java:78)
+        at io.delta.storage.LineCloseableIterator.next(LineCloseableIterator.java:29)
+		...
+2023-01-04T16:09:57.532Z        WARN    20230104_160933_13352_s8vjw.2.0.0-0-105 io.delta.standalone.internal.DeltaLogImpl       s3a://data-warehouse/my_database/my_table/_delta_log/_last_checkpoint is corrupted. Will search the checkpoint files directly
+java.io.UncheckedIOException: java.io.FileNotFoundException: File does not exist: s3a://data-warehouse/my_database/my_table/_delta_log/_last_checkpoint
+        at io.delta.storage.LineCloseableIterator.hasNext(LineCloseableIterator.java:72)
+        at io.delta.storage.LineCloseableIterator.next(LineCloseableIterator.java:78)
+        at io.delta.storage.LineCloseableIterator.next(LineCloseableIterator.java:29)
+		...
+```

@@ -1,0 +1,69 @@
+Jackson InvalidDefinitionException in Druid connector
+I compiled master code at commit 1e7780e7a151f43b3107267b0bdedde0686ce511, prepared a local druid 0.17 instance and loaded its sample dataset (wikiticker-2015-09-12-sampled.json.gz), then I tested the druid connector with some statements:
+
+1) "`SHOW TABLES`": worked
+2) "`DESC wikiticker`": worked
+3) "`SELECT * FROM wikiticker LIMIT 10`": didn't work.
+
+The druid datasource "wikiticker" was loaded via druid console following its "next step" wizard and the query works fine in druid console too.
+
+The druid catalog config file is like below:
+```
+connector.name=druid
+
+druid.coordinator-url=http://localhost:8081
+druid.broker-url=http://localhost:8082
+druid.schema-name=druid
+```
+
+Here is the error stack in presto log: 
+
+```
+2020-02-25T14:23:43.470+0800	ERROR	remote-task-callback-0	com.facebook.airlift.concurrent.BoundedExecutor	Task failed
+java.lang.IllegalArgumentException: com.facebook.presto.server.TaskUpdateRequest could not be converted to JSON
+	at com.facebook.airlift.json.JsonCodec.toJsonBytes(JsonCodec.java:214)
+	at com.facebook.presto.server.smile.JsonCodecWrapper.toBytes(JsonCodecWrapper.java:45)
+	at com.facebook.presto.server.remotetask.HttpRemoteTask.sendUpdate(HttpRemoteTask.java:642)
+	at com.facebook.airlift.concurrent.BoundedExecutor.drainQueue(BoundedExecutor.java:78)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: com.fasterxml.jackson.databind.exc.InvalidDefinitionException: No serializer found for class org.joda.time.Interval and no properties discovered to create BeanSerializer (to avoid exception, disable SerializationFeature.FAIL_ON_EMPTY_BEANS) (through reference chain: com.facebook.presto.server.TaskUpdateRequest["sources"]->com.google.common.collect.SingletonImmutableList[0]->com.facebook.presto.execution.TaskSource["splits"]->com.google.common.collect.SingletonImmutableSet[0]->com.facebook.presto.execution.ScheduledSplit["split"]->com.facebook.presto.metadata.Split["connectorSplit"]->com.facebook.presto.druid.DruidSplit["segmentInfo"]->com.facebook.presto.druid.metadata.DruidSegmentInfo["interval"])
+	at com.fasterxml.jackson.databind.exc.InvalidDefinitionException.from(InvalidDefinitionException.java:77)
+	at com.fasterxml.jackson.databind.SerializerProvider.reportBadDefinition(SerializerProvider.java:1191)
+	at com.fasterxml.jackson.databind.DatabindContext.reportBadDefinition(DatabindContext.java:313)
+	at com.fasterxml.jackson.databind.ser.impl.UnknownSerializer.failForEmpty(UnknownSerializer.java:71)
+	at com.fasterxml.jackson.databind.ser.impl.UnknownSerializer.serialize(UnknownSerializer.java:33)
+	at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:727)
+	at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:719)
+	at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:155)
+	at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:727)
+	at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:719)
+	at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeWithType(BeanSerializerBase.java:604)
+	at com.facebook.presto.metadata.AbstractTypedJacksonModule$InternalTypeSerializer.serialize(AbstractTypedJacksonModule.java:115)
+	at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:727)
+	at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:719)
+	at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:155)
+	at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:727)
+	at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:719)
+	at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:155)
+	at com.fasterxml.jackson.databind.ser.std.CollectionSerializer.serializeContents(CollectionSerializer.java:145)
+	at com.fasterxml.jackson.databind.ser.std.CollectionSerializer.serialize(CollectionSerializer.java:107)
+	at com.fasterxml.jackson.databind.ser.std.CollectionSerializer.serialize(CollectionSerializer.java:25)
+	at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:727)
+	at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:719)
+	at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:155)
+	at com.fasterxml.jackson.databind.ser.impl.IndexedListSerializer.serializeContents(IndexedListSerializer.java:119)
+	at com.fasterxml.jackson.databind.ser.impl.IndexedListSerializer.serialize(IndexedListSerializer.java:79)
+	at com.fasterxml.jackson.databind.ser.impl.IndexedListSerializer.serialize(IndexedListSerializer.java:18)
+	at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:727)
+	at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:719)
+	at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:155)
+	at com.fasterxml.jackson.databind.ser.DefaultSerializerProvider._serialize(DefaultSerializerProvider.java:480)
+	at com.fasterxml.jackson.databind.ser.DefaultSerializerProvider.serializeValue(DefaultSerializerProvider.java:400)
+	at com.fasterxml.jackson.databind.ObjectWriter$Prefetch.serialize(ObjectWriter.java:1392)
+	at com.fasterxml.jackson.databind.ObjectWriter._configAndWriteValue(ObjectWriter.java:1120)
+	at com.fasterxml.jackson.databind.ObjectWriter.writeValueAsBytes(ObjectWriter.java:1017)
+	at com.facebook.airlift.json.JsonCodec.toJsonBytes(JsonCodec.java:211)
+	... 6 more
+```

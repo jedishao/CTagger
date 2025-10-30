@@ -1,0 +1,15 @@
+In the aws environment, the grpc client requests the server to hang and there is no response for a long time.
+java.jdk:11
+grpc.version: 1.39.0
+netty.version:4.1.65Final
+
+background:
+We have two services a and b, both a and b provide both http interface and grpc interface;
+Among them, a depends on the grpc interface of b.
+When I access the http interface of a, everything is normal. And many visits are normal.
+When I access the grpc interface of a, the grpc interface of a accessing b hangs, and there is no return for a long time, and the withDeadlineAfter(5 seconds) setting is also invalid, and the access will not be interrupted.
+Go to the b service to check the log. The log at the interface entrance is not printed. Therefore, it is suspected that the grpc request of the a service is not sent.
+
+To add, the http interface and grpc interface of service a are the same piece of code that is finally accessed through the adapter, that is to say, no matter whether you access the http interface or grpc interface of a, you will use the grpc client to access the grpc interface of service b.
+
+Test the above scenario on the mac development computer, everything is normal

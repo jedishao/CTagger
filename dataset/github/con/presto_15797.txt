@@ -1,0 +1,10 @@
+HttpRemoteTask sendUpdate exists concurrent problem
+https://github.com/prestodb/presto/blob/1f1b1d1d0b9f625691617c4d2d5a7ed03011a762/presto-main/src/main/java/com/facebook/presto/server/remotetask/HttpRemoteTask.java#L662
+
+as above code comment，the task should start first, then update it...
+
+but actually, there may be happen that:
+the task first called noMoreSplits, then call start...the task will sendUpdate before started.
+![image](https://user-images.githubusercontent.com/5463066/110598245-80393680-81bc-11eb-95d7-73df41929562.png)
+
+The result is that, task running Driver before started in the worker node!

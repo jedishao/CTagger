@@ -1,0 +1,35 @@
+[Bug] Number of partitions metadata is not updated with replicated topics
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.10.2
+
+### Minimal reproduce step
+
+1. Have 2 pulsar clusters in 2 different regions
+2. Create a namespace and topic that is replicated in both regions with lets say 6 partitions;
+3. Notice that when you create in one region the pulsar-admin does a PUT in the other replicated cluster region of the topic
+4. Run the "pulsar-admin topics update-partitioned-topic" command and update in one of the clusters the topic to 12 partitions.
+5. Notice that this also makes a PUT in the other cluster due to replication of the topic
+6. Run the "pulsar-admin  namespaces topics" in both cluster and notice "topic-partition-0" - "topic-partition-11" created.
+7. Run the "pulsar-admin topics get-partitioned-topic-metadata" in both cluster, notice that the one that you ran the command on displays 12, and the one that the command was replicated shows 6
+
+### What did you expect to see?
+
+Both cluster after the update-partitioned-topic command should display the same number of partitions.
+
+### What did you see instead?
+
+The cluster that the command was ran displays the correct number of partitions, but the one that had the PUT command does not.
+
+### Anything else?
+
+Because consumers read from metadata, the first cluster replicates on all partitions, but on the other cluster the consumers only consume from the initial value the partitions, causing the brokers to have local backlog. You cannot run the same command in the other cluster because the topic-partitions have been created and you get a conflict exception. The only way to fix this is enter ZK and manually update the topic metadata to the new partition number.
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

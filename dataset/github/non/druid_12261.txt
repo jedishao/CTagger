@@ -1,0 +1,18 @@
+Accessing private parts of datasketches
+We have noticed this recent change https://github.com/apache/druid/commit/e648b01afba52ee5b980d28b16b636e346a86819
+
+This change introduced a piece of code which bypasses public API of DataSketches and accesses a private part of implementation.
+
+https://github.com/apache/druid/blob/033989eb1d8f4f91268b2d7d4d3dc73af7bf2c3f/extensions-core/datasketches/src/main/java/org/apache/druid/query/aggregation/datasketches/theta/SketchAggregator.java#L60
+
+We believe that it is problematic and can lead to wrong results.
+We have this in our documentation:
+/**
+  * Although the gadget object is initially an UpdateSketch, in the context of a Union it is used
+  * as a specialized buffer that happens to leverage much of the machinery of an UpdateSketch.
+  * However, in this context some of the key invariants of the sketch algorithm are intentionally
+  * violated as an optimization. As a result this object can not be considered as an UpdateSketch
+  * and should never be exported as an UpdateSketch. It’s internal state is not necessarily
+  * finalized and may contain garbage. Also its internal concept of “nominal entries” or “k” can
+  * be meaningless. It is private for very good reasons.
+  */

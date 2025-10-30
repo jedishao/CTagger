@@ -1,0 +1,85 @@
+[Bug] Pulsar Java Client is not able to read jave.time.LocalDateTime in Avro schema 
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+pulsar-client 2.10.2
+
+### Minimal reproduce step
+
+1. Produce a POJO schema with `JSR310ConversionEnabled` in AVRO with a `java.time.LocalDateTime` data type 
+
+```java
+public class Customer  {
+    public LocalDateTime dateTimeOfPurchase;
+    public Customer() {}
+    public Customer(LocalDateTime dateTimeOfPurchase) {
+        this.dateTimeOfPurchase = dateTimeOfPurchase;
+    }
+}
+
+// on the producer side
+Schema schema = Schema.AVRO(SchemaDefinition.builder().withPojo(Customer.class).withJSR310ConversionEnabled(true).build());
+Producer<Customer> producer = client.newProducer(schema)
+        .topic("persistent://marketplace/default/purchases-topic")
+        .create();
+producer.newMessage().key(UUID.randomUUID().toString()).value(new Customer(LocalDateTime.now())).send();
+```
+
+Here is the relevant schema part that would be attached to the topic:
+```
+{
+      "name": "dateTimeOfPurchase",
+      "type": [
+        "null",
+        {
+          "type": "record",
+          "name": "LocalDateTime",
+          "namespace": "java.time",
+          "fields": []
+        }
+      ],
+      "default": null
+    },
+```
+
+3. Consume the message with the same schema
+```
+Consumer<Customer> consumer = client.newConsumer(schema)
+                .topic("persistent://marketplace/default/purchases-topic")
+                .subscriptionName("my-subscription")
+                .subscriptionInitialPosition(SubscriptionInitialPosition.Latest)
+                .subscribe();
+
+Message<Customer> msg = consumer.receive(1, TimeUnit.SECONDS);
+System.out.printf("Message received: %s", msg.getValue());
+```
+
+
+
+### What did you expect to see?
+
+I'd expect the consumer to be able to read the consumer message because:
+1) The TimeConversion for `java.time.` has built supported in Avro 1.10.2. Here is the conversion for ` java.time.LocalDateTime`:  java.time.LocalDateTime
+2) Pulsar client 2.10.2 uses the 1.10.2 which supports such conversions: https://github.com/apache/pulsar/blob/branch-2.10/pom.xml#L148
+3) Technical details aside, as a Customer, I'd expect to be able to consume a message that I was able to successfully produce (especially the both the read and write paths use the same java client)
+
+
+### What did you see instead?
+
+The following exception is throw:
+
+```
+java.lang.RuntimeException: java.lang.NoSuchMethodException: java.time.LocalDateTime.<init>()
+```
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

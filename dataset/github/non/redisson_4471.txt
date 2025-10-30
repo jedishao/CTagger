@@ -1,0 +1,33 @@
+Redisson not compatible with Spring Native?
+I tried to run Redisson 3.17.5 with Spring Native 2.7.1 (https://docs.spring.io/spring-native/docs/current/reference/htmlsingle/) but facing issues, when running the build.
+Is there an official statement, whether Redisson is or will be compatible with Spring Native?
+
+**Expected behavior**
+Container should start without any errors.
+
+**Actual behavior**
+The build works. But when I try to run the native image with 
+docker run --rm -p 8099:8099 demo:0.0.1-SNAPSHOT
+I get the followin error:
+Error creating bean with name 'helloController': Unsatisfied dependency expressed through field 'redissonClient'; nested exception is org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'getRedissonClient': Unexpected exception during bean creation; nested exception is java.lang.ExceptionInInitializerError
+
+**Steps to reproduce or test case**
+Create a Spring Boot project with Redisson 3.17.5 dependency and create a Spring Native build. Then add the following annotation in e.g. a RestController:
+    @Autowired
+    RedissonClient redissonClient;
+
+**Redis version**
+redis:7.0.4
+
+**Redisson version**
+3.17.5
+
+**Redisson configuration**
+    @Bean
+    public RedissonClient getRedissonClient() {
+        Config config = new Config();
+        config.useSingleServer()
+                // use "rediss://" for SSL connection
+                .setAddress("redis://"+ redisHost + ":" + redisPort).setPassword(redisPassword);
+        return Redisson.create(config);
+    }

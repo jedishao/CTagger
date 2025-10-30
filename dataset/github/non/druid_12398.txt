@@ -1,0 +1,41 @@
+Refactor the testIsTaskCurrent test case to improve the test experience
+## Description & Motivation
+
+The test case [ testIsTaskCurrent ](https://github.com/apache/druid/blob/c557a1448d872e3aab03aec3bafb035e74583656/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3662) is testing the `supervisor.isTaskCurrent()` with 4 different scenarios (`taskFromStorage`, `taskFromStorageMismatchedDataSchema`,`taskFromStorageMismatchedTuningConfig`,`taskFromStorageMismatchedPartitionsWithTaskGroup`) in one single test case. In my humble opinion, it could be beneficial to separate the four scenarios into four individual test cases. Each test case will focus on one scenario. 
+
+The original test case is 156 lines, and after the refactoring, each test case will be around 30 lines.
+
+For example, when testing the `supervisor.isTaskCurrent()` with `taskFromStorage`, the new case will only contain the `supervisor` and the `taskFromStorage` related variable/mock setup, and will have only one assert statement. Here is how the refactored test case for `taskFromStorage` scenario looks like:
+
+```java
+DateTime minMessageTime = DateTimes.nowUtc();
+DateTime maxMessageTime = DateTimes.nowUtc().plus(10000);
+KinesisSupervisor supervisor = getSupervisor(...);
+KinesisIndexTask taskFromStorage = createKinesisIndexTask("id1", ...) // omitted some parameters to save the space
+
+EasyMock.expect(taskStorage.getTask("id1"))
+            .andReturn(Optional.of(taskFromStorage))
+            .once();
+replay();
+Assert.assertTrue(supervisor.isTaskCurrent(42, "id1"));
+verify();
+```
+
+Please see the detailed description of my proposed change below.
+
+## Proposed changes
+[ testIsTaskCurrent ](https://github.com/apache/druid/tree/master/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3885) case is aiming to test the `isTaskCurrent` function with Easymock. And the four scenarios are quite independent of each other, I suggest to :
+
+1. Extract the arrangements shared across multiple scenarios into a setup function for the test case:
+     * The arrangement from [line 3886 to line 3911](https://github.com/apache/druid/tree/master/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3886-L3911) can be extracted as a function named as `isCurrentSupervisorSetup()`.
+2. Extract the 4 test scenarios with their specific arrangements into 4 separate unit tests: 
+     * Extract [line 3887 to line 3888](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3887-L3888) and [taskFromStorage value creation](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3952-L3966) into the `testIsTaskCurrentTaskFromStorage` unit test case with the mock setup([line 4021-4023](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4021-L4023)) and isTaskCurrent assertion functions([line 4036](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4036)) for the first testing scenario.
+     * Extract [line 3887 to line 3888](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3887-L3888), [modifiedDataSchema value creation](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3913), and [taskFromStorageMismatchedDataSchema value creation](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3968-L3982) into the `testIsTaskCurrentTaskFromStorageMismatchedDataSchema` unit test case with the mock setup([line 4024-4026](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4024-L4026)) and isTaskCurrent assertion functions([line 4037](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4037)) for the second testing scenario.
+     * Extract [line 3887 to line 3888](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3887-L3888), [modifiedTuningConfig value creation](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3915-L3950), and [taskFromStorageMismatchedTuningConfig value creation](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3984-L3999) into the `testIsTaskCurrentTaskFromStorageMismatchedTuningConfig` unit test case with the mock setup([line 4027-4029](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4027-L4029)) and isTaskCurrent assertion functions([line 4038](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4038)) for the third testing scenario.
+     * Extract [line 3887 to line 3888](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L3887-L3888) and [taskFromStorageMismatchedPartitionsWithTaskGroup value creation](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4001-L4019) into the `testIsTaskCurrentTaskFromStorageMismatchedPartitionsWithTaskGroup` unit test case with the mock setup([line 4030-4032](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4030-L4032)) and isTaskCurrent assertion functions([line 4038](https://github.com/apache/druid/blob/b5195c5095a1088cb06ed602704fce110232f109/extensions-core/kinesis-indexing-service/src/test/java/org/apache/druid/indexing/kinesis/supervisor/KinesisSupervisorTest.java#L4038)) for the fourth testing scenario.
+3. Use the `isCurrentSupervisorSetup()` in the 4 test cases for common setup.
+4. Replace the `EasyMock.replayAll()` and `EasyMock.verifyAll()` functions in the original case with `EasyMock.replay()` and `EasyMock.verify()`, and put them into each of 4 test ceases.
+
+After this refactoring, all the test scenarios will belong to one unit test case and can be evaluated in one cycle of testing.
+
+Hope this proposal can be helpful, and if possible, I would be more than happy to try the refactoring. (If not, comments are still appreciated.)

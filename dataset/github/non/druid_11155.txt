@@ -1,0 +1,51 @@
+druid sql - left join woes (inconsistent behaviors)
+Trying to look into [11150](https://github.com/apache/druid/issues/11150), I got different results, but the results were very inconsistent.  Here are some examples of wrong results.  I'm not sure what the pattern is, so I tried different combinations, a laundry list follows.
+
+This was done on 0.20.0.  I used wikipedia, and a lookup with keys 0-5 and values 0,1,null, and a table with 10 rows, dimensions 1-10 and metrics 1-10.
+
+wikipedia has 24,433 rows.
+
+starting with just wikipedia:
+
+`select * from wikipedia t1 left outer join (select * from wikipedia where sum_added = 1) t2 on t1.sum_added = t2.sum_added -- returns 1 row, with the right-hand side all null`
+but
+`select count(*) from wikipedia t1 left outer join (select * from wikipedia where sum_added = 1) t2 on t1.sum_added = t2.sum_added -- returns 423,225`
+selecting a couple of columns, instead of *, works:
+`select t1.sum_added, t2.sum_added from wikipedia t1 left outer join (select * from wikipedia where sum_added=1) t2
+on t1.sum_added=t2.sum_added - returns 24,433 rows`
+
+trying to join with the lookup, joining on the key works:
+`select * from wikipedia left outer join lookup.myLookup on sum_added=k -- 24,433 results`
+but joining on the value gives an error:
+`select * from wikipedia left outer join lookup.myLookup on sum_added=v -- unknown exception, unknown type[class java.util.ArrayList] org.apache.druid.java.util.common.parsers.parseException`
+
+joining to my small "regular" table behaves the same as the joins to subqueries on wikipedia:
+
+`--select * from wikipedia left outer join oneToTen on sum_added=myDim -- one row, right side all null`
+`--select count(*) from wikipedia left outer join oneToTen on sum_added=myDim -- 24,433`
+joining on the metric gives an error:
+`select * from wikipedia left outer join oneToTen on sum_added=myMetric -- unsupported operation / java.lang.UnsupportedException`
+naming all the columns, instead of giving \*, also gives 1 result:
+`SELECT wikipedia.__time, channel, cityName, comment, "count", countryIsoCode, countryName, diffUrl, flags, isAnonymous, isMinor, isNew, isRobot, isUnpatrolled, metroCode, namespace, page, regionIsoCode, regionName, sum_added, sum_commentLength, sum_deleted, sum_delta, sum_deltaBucket, "user", oneToTen.__time, myDim, myMetric
+ FROM wikipedia LEFT OUTER JOIN oneToTen ON sum_added = myDim -- 1 result`
+Naming just the wikipedia columns, not selecting from oneToTen, gives 24,433 results:
+`SELECT wikipedia.__time, channel, cityName, comment, "count", countryIsoCode, countryName, diffUrl, flags, isAnonymous, isMinor, isNew, isRobot, isUnpatrolled, metroCode, namespace, page, regionIsoCode, regionName, sum_added, sum_commentLength, sum_deleted, sum_delta, sum_deltaBucket, "user"
+ FROM wikipedia LEFT OUTER JOIN oneToTen ON sum_added = myDim -- 24,433 results`
+Selecting wikipedia.* give 2,310 results!
+`SELECT wikipedia.* from wikipedia join oneToTen on sum_added = myDim - 2,310 results!`
+
+Not sure what's going on here.  I'll attach an ingestion spec for oneToTen.  myLookup is just a map lookup, with the following values:
+```
+{
+  "1": "0",
+  "2": "1",
+  "3": "0",
+  "4": null,
+  "5": "0"
+}
+```
+
+[ingest10data.txt](https://github.com/apache/druid/files/6362990/ingest10data.txt)
+[ingest10spec.txt](https://github.com/apache/druid/files/6362991/ingest10spec.txt)
+
+

@@ -1,0 +1,120 @@
+Some hive tables fail to query but some succeed
+# Environmental information
++ presto version : 0.248
++ hive version: 2.3.8
++ hadoop: 2.10.1
++ hudi version: 0.9
+
+# Problem description
+
+I created some external tables in hive, I query these tables through the hive client, and all the tables look normal.
+But when I use a statement like ```select * from tablex limit 10``` in the presto client to query these tables, some tables can be queried successfully, but some tables fail to query.
+I compared the tables with successful and failed queries, and found that they didn't seem to be any different except for the table structure and data.
+This problem has troubled me for several days. Thank you very much for your answers.
+
++ The configuration of the hive connector is as follows
+```properties
+connector.name=hive-hadoop2
+hive.metastore.uri=thrift://x.x.x.x:9083
+hive.config.resources=/xxx/hdfs-site.xml
+hive.metastore-cache-ttl=0s
+hive.metastore-refresh-interval=1s
+hive.parquet.use-column-names=true
+```
+
++ A sample statement to create an external table is as follows:
+
+```sql
+CREATE EXTERNAL TABLE `tabex`(
+  `_hoodie_commit_time` string,
+  `_hoodie_commit_seqno` string,
+  `_hoodie_record_key` string,
+  `_hoodie_partition_path` string,
+  `_hoodie_file_name` string,
+  `bid` bigint,
+  `create_date_time` bigint,
+   ...
+  )
+ROW FORMAT SERDE
+  'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+WITH SERDEPROPERTIES (
+  'path'='xxxx')
+STORED AS INPUTFORMAT
+  'org.apache.hudi.hadoop.HoodieParquetInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
+LOCATION
+  'hdfs://ns/xxxx'
+TBLPROPERTIES (
+  'last_commit_time_sync'='20210820033837',
+  'spark.sql.sources.provider'='hudi',
+  'spark.sql.sources.schema.numParts'='1',
+  'spark.sql.sources.schema.part.0'='{"type":"struct","fields":[{"name":"bid","type":"long","nullable":true,"metadata":{}},{"name":"create_date_time","type":"timestamp","nullable":true,"metadata":{}},...]}',
+  'transient_lastDdlTime'='1629401918')
+```
+
++ Stack trace
+
+```java
+2021-08-21T17:20:43.986+0800    DEBUG   hive-hive-51    org.apache.hadoop.ipc.ProtobufRpcEngine Call: getListing took 0ms
+2021-08-21T17:20:43.987+0800    INFO    hive-hive-51    org.apache.hudi.common.table.view.HoodieTableFileSystemView     Adding file-groups for partition :, #FileGroups=3
+2021-08-21T17:20:43.987+0800    INFO    hive-hive-51    org.apache.hudi.common.table.view.AbstractTableFileSystemView   addFilesToView: NumFiles=5, FileGroupsCreationTime=0, StoreTimeTaken=0
+2021-08-21T17:20:43.987+0800    INFO    hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  Based on hoodie metadata from base path: hdfs://ns/xxxx, caching 3 files under hdfs://ns/xxxx
+2021-08-21T17:20:43.988+0800    DEBUG   hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  hdfs://ns/xxxx/.hoodie_partition_metadata checked after cache population, accept => false
+
+2021-08-21T17:20:43.988+0800    DEBUG   hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  Checking acceptance for path hdfs://ns/xxxx/44028b6c-e34a-4fe6-a8bf-bd141e80f84b-0_0-347-624_20210820050305.parquet
+2021-08-21T17:20:43.988+0800    DEBUG   hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  hdfs://ns/xxxx/44028b6c-e34a-4fe6-a8bf-bd141e80f84b-0_0-347-624_20210820050305.parquet Hoodie path checked against cache, accept => true
+
+2021-08-21T17:20:43.989+0800    DEBUG   hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  Checking acceptance for path hdfs://ns/xxxx/ab5c1b29-d764-4f84-96e9-9b95c9f24563-0_2-347-626_20210820050305.parquet
+2021-08-21T17:20:43.989+0800    DEBUG   hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  hdfs://ns/xxxx/ab5c1b29-d764-4f84-96e9-9b95c9f24563-0_2-347-626_20210820050305.parquet Hoodie path checked against cache, accept => true
+
+2021-08-21T17:20:43.990+0800    DEBUG   hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  Checking acceptance for path hdfs://ns/xxxx/adc51a4f-745f-4aa6-8f9a-d3037edee18c-0_1-347-625_20210820050305.parquet
+2021-08-21T17:20:43.990+0800    DEBUG   hive-hive-51    org.apache.hudi.hadoop.HoodieROTablePathFilter  hdfs://ns/xxxx/adc51a4f-745f-4aa6-8f9a-d3037edee18c-0_1-347-625_20210820050305.parquet Hoodie path checked against cache, accept => true
+
+2021-08-21T17:20:44.017+0800    ERROR   remote-task-callback-190        com.facebook.presto.execution.StageExecutionStateMachine        Stage execution 20210821_092043_00005_uzj3a.1.0 failed
+com.facebook.presto.spi.PrestoException: Error opening Hive split hdfs://ns/xxxx/adc51a4f-745f-4aa6-8f9a-d3037edee18c-0_1-347-625_20210820050305.parquet (offset=0, length=6145852): null
+        at com.facebook.presto.hive.parquet.ParquetPageSourceFactory.createParquetPageSource(ParquetPageSourceFactory.java:328)
+        at com.facebook.presto.hive.parquet.ParquetPageSourceFactory.createPageSource(ParquetPageSourceFactory.java:172)
+        at com.facebook.presto.hive.HivePageSourceProvider.createHivePageSource(HivePageSourceProvider.java:394)
+        at com.facebook.presto.hive.HivePageSourceProvider.createPageSource(HivePageSourceProvider.java:184)
+        at com.facebook.presto.spi.connector.classloader.ClassLoaderSafeConnectorPageSourceProvider.createPageSource(ClassLoaderSafeConnectorPageSourceProvider.java:63)
+        at com.facebook.presto.split.PageSourceManager.createPageSource(PageSourceManager.java:80)
+        at com.facebook.presto.operator.TableScanOperator.getOutput(TableScanOperator.java:248)
+        at com.facebook.presto.operator.Driver.processInternal(Driver.java:418)
+        at com.facebook.presto.operator.Driver.lambda$processFor$9(Driver.java:301)
+        at com.facebook.presto.operator.Driver.tryWithLock(Driver.java:722)
+        at com.facebook.presto.operator.Driver.processFor(Driver.java:294)
+        at com.facebook.presto.execution.SqlTaskExecution$DriverSplitRunner.processFor(SqlTaskExecution.java:1077)
+        at com.facebook.presto.execution.executor.PrioritizedSplitRunner.process(PrioritizedSplitRunner.java:162)
+        at com.facebook.presto.execution.executor.TaskExecutor$TaskRunner.run(TaskExecutor.java:545)
+        at com.facebook.presto.$gen.Presto_0_248_0b0ce2f____20210820_050243_1.run(Unknown Source)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at java.lang.Thread.run(Thread.java:748)
+Caused by: java.nio.channels.UnresolvedAddressException
+        at sun.nio.ch.Net.checkAddress(Net.java:101)
+        at sun.nio.ch.SocketChannelImpl.connect(SocketChannelImpl.java:622)
+        at org.apache.hadoop.net.SocketIOWithTimeout.connect(SocketIOWithTimeout.java:192)
+        at org.apache.hadoop.net.NetUtils.connect(NetUtils.java:531)
+        at org.apache.hadoop.hdfs.DFSClient.newConnectedPeer(DFSClient.java:3441)
+        at org.apache.hadoop.hdfs.BlockReaderFactory.nextTcpPeer(BlockReaderFactory.java:777)
+        at org.apache.hadoop.hdfs.BlockReaderFactory.getRemoteBlockReaderFromTcp(BlockReaderFactory.java:694)
+        at org.apache.hadoop.hdfs.BlockReaderFactory.build(BlockReaderFactory.java:355)
+        at org.apache.hadoop.hdfs.DFSInputStream.actualGetFromOneDataNode(DFSInputStream.java:1161)
+        at org.apache.hadoop.hdfs.DFSInputStream.fetchBlockByteRange(DFSInputStream.java:1086)
+        at org.apache.hadoop.hdfs.DFSInputStream.pread(DFSInputStream.java:1439)
+        at org.apache.hadoop.hdfs.DFSInputStream.read(DFSInputStream.java:1402)
+        at org.apache.hadoop.fs.FSInputStream.readFully(FSInputStream.java:78)
+        at org.apache.hadoop.fs.FSDataInputStream.readFully(FSDataInputStream.java:116)
+        at com.facebook.presto.parquet.cache.MetadataReader.readFooter(MetadataReader.java:97)
+        at com.facebook.presto.parquet.cache.MetadataReader.getParquetMetadata(MetadataReader.java:318)
+        at com.facebook.presto.hive.parquet.ParquetPageSourceFactory.createParquetPageSource(ParquetPageSourceFactory.java:223)
+        ... 17 more
+
+
+2021-08-21T17:20:44.037+0800    INFO    dispatcher-query-104    com.facebook.presto.event.QueryMonitor  TIMELINE: Query 20210821_092043_00005_uzj3a :: Transaction:[46dd708d-1e43-4acd-b4b8-7d84bde8cbe8] :: elapsed 160ms :: planning 22ms :: scheduling 134ms :: running 42874ms :: finishing 0ms :: begin 2021-08-21T17:20:43.857+08:00 :: end 2021-08-21T17:20:44.017+08:00
+2021-08-21T17:20:53.987+0800    DEBUG   IPC Client (62922123) connection to node02/x.x.x.x:9000 from zhongtai   org.apache.hadoop.ipc.Client    IPC Client (62922123) connection to node02/x.x.x.x:9000from zhongtai: closed
+2021-08-21T17:20:53.987+0800    DEBUG   IPC Client (62922123) connection to node02/x.x.x.x:9000 from zhongtai   org.apache.hadoop.ipc.Client    IPC Client (62922123) connection to node02/x.x.x.x:9000from zhongtai: stopped, remaining connections 0
+```
+
+> Note: Some sensitive information such as ip, path, etc., I replaced with xx and other content

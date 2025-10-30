@@ -1,0 +1,30 @@
+Introduce journaling of realtime events in Druid
+### Motivation
+
+Druid users today can use Kafka/Kinesis indexing service for a variety of realtime usecases and the way pipelines are setup may also vary accordingly. Customers may have their application produce events directly to Kafka which is then consumed by Druid. For such usecases, once the data is ingested into Druid there isn't a way to recover the original unaggregated events without setting up a separate exporting system such as Kafka Connect that writes to a storage sink such as HDFS or S3. 
+
+Following are a couple of usecases where it would be useful to have the original unaggregated data available:
+
+- Misconfigured ingestion specs on Druid: The supervisor specs may not have the complete set of dimensions/aggregators defined or they may have incorrect transformSpecs or incorrect configuration on their inputFormat. In such cases, the events may get ingested to Druid and the customers may only realize the issue later on. By this time, the kafka retention period for those events probably expired and if reindexing from existing segments doesn't help, there isn't a way to fix the issue without having access to the raw events. 
+
+- In certain usecases, the upstream events are published into Kafka but Druid might be used for non-realtime usecases. It would be sufficient to run batch indexing here and middlemanagers dont have to be configured for query performance as with real-time ingestion. Having access to the raw data provides this flexibility.
+
+For supporting such usecases that require access to the raw events, my proposal is to add support for journaling within Druid.
+
+### Proposed changes
+
+The journaling system will basically: read events from Kafka -> write it to local files on the middlemanager -> push the journaled files periodically to the configured deep storage. It will be implemented as a druid extension that will have the following:
+
+- `Journaling Supervisor`: A supervisor implementation that will read offsets from the configured Kafka topic and spawn journaling tasks with start and end offsets that the task needs to read from.
+- `Journal tasks` will read and persist the events locally and the written files will be pushed to the configured store.
+- The journaling tasks should tap into the offset management mechanism provided by `SeekableStreamIndexTaskRunner` wherever possible.
+- Journal supervisor and associated tasks run independent of the Kafka supervisor and kafka indexing tasks. 
+- Configurable retention periods that dictate the lifetime of the journal files on deep storage.
+
+### Rationale
+
+With the journaling extension, users will have an option to store their raw events to the configured store. They wouldn't need to setup an external exporting sink to journal their data. Users will not have to increase their retention periods
+
+### Operational impact
+
+No impact to current behavior. The journaling supervisor will be independent from the Kafka supervisors and once configured, it would require task slots on the middlemanager to run the journaling tasks.

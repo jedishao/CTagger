@@ -1,0 +1,28 @@
+Union queries with group by clause failure
+### Affected Version
+0.21.1
+
+### Description
+This query is working in version  0.19.0
+SELECT count(*) as cnt
+0 as a
+0 as b
+0 as c
+FROM "datasource"
+WHERE FLOOR(__time TO HOUR) >= '2021-08-15 00:00:00' AND FLOOR(__time TO HOUR) <= '2021-08-15 23:00:00'
+GROUP BY item_id
+UNION ALL
+SELECT 0 as cnt
+sum(a) as a
+sum(b) as b
+sum(c) as c
+FROM "datasource"
+WHERE FLOOR(__time TO HOUR) >= '2021-08-15 00:00:00' AND FLOOR(__time TO HOUR) <= '2021-08-15 23:00:00'
+
+but in later version we're getting the following error:
+Error: Unknown exception
+Error while applying rule DruidQueryRule(AGGREGATE_PROJECT), args [rel#170209:LogicalProject.NONE.[
+
+Tested in various clusters from 1 data node up to 6 data nodes
+
+Thanks

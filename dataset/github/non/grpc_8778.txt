@@ -1,0 +1,31 @@
+Connection closed while performing protocol negotiation for 
+when build grpc client use h2c protocol.
+`NettyChannelBuilder.forTarget().negotiationType(NegotiationType.PLAINTEXT_UPGRADE).build();`
+
+and build grpc server like following:
+
+`NettyServerBuilder.forPort().addService(xxx).build().start(); `
+and then client request server , I got  grpc RuntimeException:
+
+```
+Caused by: io.grpc.StatusRuntimeException: UNAVAILABLE: Connection closed while performing protocol negotiation for [HttpClientCodec#0, HttpClientUpgradeHandler#0, ProtocolNegotiators$Http2UpgradeAndGrpcHandler#0, WriteBufferingAndExceptionHandler#0, DefaultChannelPipeline$TailContext#0]
+        at io.grpc.Status.asRuntimeException(Status.java:535)
+        at io.grpc.stub.ClientCalls$UnaryStreamToFuture.onClose(ClientCalls.java:533)
+        at io.grpc.internal.DelayedClientCall$DelayedListener$3.run(DelayedClientCall.java:463)
+        at io.grpc.internal.DelayedClientCall$DelayedListener.delayOrExecute(DelayedClientCall.java:427)
+        at io.grpc.internal.DelayedClientCall$DelayedListener.onClose(DelayedClientCall.java:460)
+        at io.grpc.internal.ClientCallImpl.closeObserver(ClientCallImpl.java:557)
+        at io.grpc.internal.ClientCallImpl.access$300(ClientCallImpl.java:69)
+        at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInternal(ClientCallImpl.java:738)
+        at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInContext(ClientCallImpl.java:717)
+        at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+        at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        ... 1 common frames omitted
+```
+
+I know it's seem like unreasonable: why use H2C instead of H2. I only  have to say it's business needs.
+
+So, i want to know server-side how to support PLAINTEXT_UPGRADE. 
+I note NettyServerbuilder has .protocolNegotiator() api, but I not found how to get the param of protocolNegotiator()

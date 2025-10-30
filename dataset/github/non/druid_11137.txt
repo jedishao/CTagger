@@ -1,0 +1,51 @@
+Issue building docker image
+Building Docker image locally fails with the following error:
+```
+=> ERROR [stage-2 5/7] COPY --chown=druid:druid --from=builder /opt /opt
+```
+
+### Affected Version
+
+Latest
+
+### Description
+```
+docker --version
+Docker version 20.10.5, build 55c4c88
+```
+
+OS: macOS Big Sur 11.2.3
+Apache Maven 3.6.3
+Java version: 1.8.0_265, vendor: AdoptOpenJDK
+
+Command used:
+```
+docker build -t apache/druid:0.22.0 -f distribution/docker/Dockerfile .
+```
+
+Longer log:
+```
+=> [internal] load build definition from Dockerfile                                                                                                                                                                     0.0s
+ => => transferring dockerfile: 44B                                                                                                                                                                                      0.0s
+ => [internal] load .dockerignore                                                                                                                                                                                        0.0s
+ => => transferring context: 35B                                                                                                                                                                                         0.0s
+ => [internal] load metadata for gcr.io/distroless/java:8                                                                                                                                                                0.5s
+ => [internal] load metadata for docker.io/library/maven:3-jdk-8-slim                                                                                                                                                    1.3s
+ => [internal] load metadata for docker.io/amd64/busybox:1.30.0-glibc                                                                                                                                                    1.4s
+ => [auth] library/maven:pull token for registry-1.docker.io                                                                                                                                                             0.0s
+ => [auth] amd64/busybox:pull token for registry-1.docker.io                                                                                                                                                             0.0s
+ => [busybox 1/1] FROM docker.io/amd64/busybox:1.30.0-glibc@sha256:e5940aa1c11e5802cde8174c6f4512087f4569ce9cbb115710025cfbf679a9bc                                                                                      0.0s
+ => [builder 1/6] FROM docker.io/library/maven:3-jdk-8-slim@sha256:5c821bae74464c1acdecfee91111f4ea8619970c5bf06489c99f0f2d248965dc                                                                                      0.0s
+ => [internal] load build context                                                                                                                                                                                        6.7s
+ => => transferring context: 4.88MB                                                                                                                                                                                      6.6s
+ => [stage-2 1/7] FROM gcr.io/distroless/java:8@sha256:34c3598d83f0dba27820323044ebe79e63ad4f137b405676da75a3905a408adf                                                                                                  0.0s
+ => CACHED [stage-2 2/7] COPY --from=busybox /bin/busybox /busybox/busybox                                                                                                                                               0.0s
+ => CACHED [stage-2 3/7] RUN ["/busybox/busybox", "--install", "/bin"]                                                                                                                                                   0.0s
+ => CACHED [stage-2 4/7] RUN addgroup -S -g 1000 druid  && adduser -S -u 1000 -D -H -h /opt/druid -s /bin/sh -g '' -G druid druid  && mkdir -p /opt/druid/var  && chown -R druid:druid /opt  && chmod 775 /opt/druid/va  0.0s
+ => CACHED [builder 2/6] RUN export DEBIAN_FRONTEND=noninteractive     && apt-get -qq update     && apt-get -qq -y install --no-install-recommends python3 python3-yaml                                                  0.0s
+ => [builder 3/6] COPY . /src                                                                                                                                                                                            5.1s
+ => [builder 4/6] WORKDIR /src                                                                                                                                                                                           0.0s
+ => [builder 5/6] RUN mvn -B -ff -q dependency:go-offline       install       -Pdist,bundle-contrib-exts       -Pskip-static-checks,skip-tests       -Dmaven.javadoc.skip=true                                        1290.1s
+ => [builder 6/6] RUN VERSION=$(mvn -B -q org.apache.maven.plugins:maven-help-plugin:3.1.1:evaluate       -Dexpression=project.version -DforceStdout=true     )  && tar -zxf ./distribution/target/apache-druid-${VERS  10.2s
+ => ERROR [stage-2 5/7] COPY --chown=druid:druid --from=builder /opt /opt
+ ```

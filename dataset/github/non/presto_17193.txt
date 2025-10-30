@@ -1,0 +1,34 @@
+Support SQL to replace the Materialized View
+example:
+```sql
+select l_orderkey, o_custkey, l_partkey,l_quantity*l_extendedprice
+from lineitem, orders, part
+where l_orderkey = o_orderkey
+and l_partkey  = p_partkey
+and l_partkey >= 150 and l_partkey <= 160
+and o_custkey = 123
+and o_orderdate = l_shipdate
+and p_name like ‘%abc%’
+and l_quantity*l_extendedprice > 100
+```
+
+Materialized View
+```sql
+create materialized view mview2
+as select l_orderkey, o_custkey, l_partkey,l_shipdate, o_orderdate,l_quantity*l_extendedprice as gross_revenue
+from lineitem, orders, part
+where l_orderkey = o_orderkey
+and l_partkey  = p_partkey
+and p_partkey >= 150
+and o_custkey >= 50 and o_custkey <= 500
+and p_name like ‘%abc%’
+```
+Rewrite the SQL
+```sql
+select l_orderkey, o_custkey, l_partkey, gross_revenue
+from mview2
+where l_partkey <= 160
+and o_custkey = 123
+and o_orderdate = l_shipdate
+and gross_revenue > 100
+```

@@ -1,0 +1,33 @@
+Latency Spike after Redisson Upgrade 
+Hi,
+Our service is using RLock now with redisson-3.13.6 with expected behavior. Recently, we upgraded our Redisson version to use redisson-3.16.2, and couple issues happened afterward (No other code changes, just version upgrade):
+1. Although our acquireLock has 50ms waiting time, but somehow it wait up to ~1000ms before return after upgrading version. 
+2. We noticed latency increase(~20ms -> ~75ms) when doing fastPut to RCachedMap after upgrading version.
+
+Our Redission client config is as below:
+```
+            Config config = new Config();
+            
+            config.setNettyThreads(128)
+                  .useClusterServers()
+                  .addNodeAddress(String.format("rediss://%s:%s", CONTACT_POOL_EC_ADDRESS, CONTACT_POOL_EC_PORT))
+                  .setTimeout(8000)
+                  .setRetryInterval(50)
+                  .setMasterConnectionPoolSize(256)
+                  .setMasterConnectionMinimumIdleSize(16)
+                  .setSlaveConnectionPoolSize(256)
+                  .setSlaveConnectionMinimumIdleSize(16)
+                  .setKeepAlive(true)
+                  .setPingConnectionInterval(10000)
+                  .setUsername( "default");
+
+            config.setLockWatchdogTimeout(200);
+
+           return Redisson.create(config);
+```
+
+More context about our usage:
+Our service has a scheduled job to use RExectutorService to send job to worker. Multiple host will register worker to consume the job, but each worker will leverage RLock to limit only 1 active job running. In each job running, it will read/write data into Redis RCachedMap. 
+
+
+Can you help here? Is there anything else we should do before upgrading the version?

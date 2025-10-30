@@ -1,0 +1,51 @@
+Dockerfile 0.21.0 fixes - build and push to DockerHub
+### Affected Version
+
+0.21.0
+
+### Description
+
+The DockerHub image for version 0.21.0 fails while running the entrypoint script due to /opt/druid/var being owned by root. The Dockerfile was corrected in commit #11167, but the image on DockerHub has not been updated yet. 
+
+Steps to reproduce the issue:
+```
+docker pull apache/druid:0.21.0
+docker run -it apache/druid:0.21.0
+```
+
+Issue output:
+```
+2021-05-12T21:28:23+0000 startup service
+Setting 172.17.0.2= in /tmp/conf/druid/cluster/misc/druid.host/runtime.properties
+cat: can't open '/tmp/conf/druid/cluster/misc//jvm.config': No such file or directory
+mkdir: can't create directory 'var/tmp': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+mkdir: can't create directory 'var/druid/': Permission denied
+```
+
+Steps to debug:
+```
+docker run -it --entrypoint /bin/sh apache/druid:0.21.0
+$ ls -l
+```
+
+Debug output:
+```
+total 196
+-rw-r--r--    1 druid    druid        70924 Apr 26 17:28 LICENSE
+-rw-r--r--    1 druid    druid        71187 Apr 26 17:28 NOTICE
+-rw-r--r--    1 druid    druid         8228 Apr 26 17:28 README
+drwxr-xr-x    2 druid    druid         4096 Apr 26 17:32 bin
+drwxr-xr-x    5 druid    druid         4096 Apr 26 17:32 conf
+drwxr-xr-x   51 druid    druid         4096 Apr 26 17:32 extensions
+drwxr-xr-x    3 druid    druid         4096 Apr 26 17:32 hadoop-dependencies
+drwxr-xr-x    2 druid    druid        12288 Apr 26 17:32 lib
+drwxr-xr-x    4 druid    druid         4096 Apr 26 17:13 licenses
+drwxr-xr-x    4 druid    druid         4096 Apr 26 17:32 quickstart
+drwxr-xr-x    2 root     root          4096 May 12 21:27 var
+```
+
+Please build and push the updated image to DockerHub. Thank you!

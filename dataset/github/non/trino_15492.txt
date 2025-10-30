@@ -1,0 +1,17 @@
+Iceberg "Received metrics report" flooding logs
+Today i observed that `ci / test (testing/trino-tests)` CI job runs out of Github log threshold so the logs get truncated in the web UI. 
+
+in the logs i noticed entries like 
+
+> `2022-12-21T08:30:34.832-0600	INFO	pool-5-thread-1	org.apache.iceberg.BaseTableScan	Scanning table "tpcds_sf1000_orc".customer snapshot 8464312436443445418 created at 2022-03-23T09:12:20.803+00:00 with filter true`
+> `2022-12-21T08:30:34.851-0600	INFO	pool-5-thread-1	org.apache.iceberg.metrics.LoggingMetricsReporter	Received metrics report: ScanReport{tableName="tpcds_sf1000_orc".customer, snapshotId=8464312436443445418, filter=true, schemaId=0, projectedFieldIds=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18], projectedFieldNames=[c_customer_sk, c_customer_id, c_current_cdemo_sk, c_current_hdemo_sk, c_current_addr_sk, c_first_shipto_date_sk, c_first_sales_date_sk, c_salutation, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_day, c_birth_month, c_birth_year, c_birth_country, c_login, c_email_address, c_last_review_date_sk], scanMetrics=ScanMetricsResult{totalPlanningDuration=TimerResult{timeUnit=NANOSECONDS, totalDuration=PT0.018656073S, count=1}, resultDataFiles=CounterResult{unit=COUNT, value=6}, resultDeleteFiles=CounterResult{unit=COUNT, value=0}, totalDataManifests=CounterResult{unit=COUNT, value=1}, totalDeleteManifests=CounterResult{unit=COUNT, value=0}, scannedDataManifests=CounterResult{unit=COUNT, value=1}, skippedDataManifests=CounterResult{unit=COUNT, value=0}, totalFileSizeInBytes=CounterResult{unit=BYTES, value=441790655}, totalDeleteFileSizeInBytes=CounterResult{unit=BYTES, value=0}, skippedDataFiles=CounterResult{unit=COUNT, value=0}, skippedDeleteFiles=CounterResult{unit=COUNT, value=0}, scannedDeleteManifests=CounterResult{unit=COUNT, value=0}, skippedDeleteManifests=CounterResult{unit=COUNT, value=0}, indexedDeleteFiles=CounterResult{unit=COUNT, value=0}, equalityDeleteFiles=CounterResult{unit=COUNT, value=0}, positionalDeleteFiles=CounterResult{unit=COUNT, value=0}}, metadata={}}`
+
+the first one, "Scanning table" is something i recognize. It's unfortunate that the library logs something at INFO level per query table touched in a query
+the second one, "Received metrics report" is something i don't remember seeing before. It's also at INFO level but it's way way more verbose.
+
+
+I don't think it was the case before, so it may have been caused by the recent Iceberg library update 
+https://github.com/trinodb/trino/pull/15079
+
+this is a problem in tests
+but it's also going to be a production problem, if production clusters' log will now be rotating too fast (or exceeding disk space)

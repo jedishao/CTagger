@@ -1,0 +1,26 @@
+grpc-default-executor threads stop processing tasks: how can we troubleshoot in such situation?
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+Do you know a good way to troubleshoot "grpc-default-executor" threads' status?
+
+In https://github.com/apache/beam/pull/14768#issuecomment-840576342, when I tried to upgrade Beam's vendored (shaded) gRPC dependency to 1.37.0 (or [1.36](https://github.com/apache/beam/pull/14474)) from gRPC 1.26.0, I observed that some tests (GrpcLoggingServiceTest or BeamFnLoggingServiceTest randomly) do not finish. Borrowing [Kenn's words](https://lists.apache.org/thread.html/rb6babdf847c5f1fbfcb36716d769b5c94d3754fbb4eae53d7e25ceab%40%3Cdev.beam.apache.org%3E), BeamFnLoggingServiceTest does the followings:
+
+- start a logging service
+- set up some stub clients, each with onError wired up to release a countdown latch
+- send error responses to all three of them (actually it sends the error in the same task it creates the stub)
+- each task waits on the latch
+
+(GrpcLoggingServiceTest has similar structure)
+
+Unfortunately it occurs only in Beam's CI Jenkins environment (which takes ~1 hour to finish). I cannot reproduce the problem locally.
+
+From the observation of [the trace log](https://github.com/apache/beam/pull/14768#issuecomment-840576342) and [the previous thread dump](https://gist.github.com/suztomo/64b36fd7c7e011666cbc8f99d1079ed7), it seems that grpc-default-executor threads stop processing tasks (the thread dump showed no "grpc-default-executor" threads in the JVM when the test was waiting for the them to count down a CountDownLatch) and one of the latches are not counted down. This results in the test threads waiting forever for the remaining latch. I cannot tell why the "grpc-default-executor" threads stop working (disappear?).
+
+
+Do you know how to troubleshot such situation?
+

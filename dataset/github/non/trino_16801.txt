@@ -1,0 +1,39 @@
+When the string is converted to timestamp, an error occurs if there is a null value
+version:410
+
+hive connector
+
+```
+select count(1)
+from tmp.tb1
+where ptime>=20230327133000
+and ptime<20230327133500
+and btime>=timestamp '2023-03-27 13:30:00'
+and btime<timestamp '2023-03-27 13:35:00';
+```
+If btime is null in the query data set, an error occurs:
+`Query ... failed: Error opening Hive split hdfs://ns/user/hive/warehouse/tmp.db/tb1/ptime=20230327133000/1149649d418e3408-9e313ae500000002_1249039613_data.0.parq (offset=0, length=30682): null value in entry: [btime]=null`
+
+trino log:
+```
+Caused by: java.lang.NullPointerException: null value in entry: [btime]=null
+        at com.google.common.collect.CollectPreconditions.checkEntryNotNull(CollectPreconditions.java:33)
+        at com.google.common.collect.ImmutableMapEntry.<init>(ImmutableMapEntry.java:54)
+        at com.google.common.collect.ImmutableMap.entryOf(ImmutableMap.java:339)
+        at com.google.common.collect.ImmutableMap$Builder.put(ImmutableMap.java:449)
+        at com.google.common.collect.CollectCollectors.lambda$toImmutableMap$6(CollectCollectors.java:185)
+        at java.base/java.util.stream.ReduceOps$3ReducingSink.accept(ReduceOps.java:169)
+        at java.base/java.util.Collections$2.tryAdvance(Collections.java:4853)
+        at java.base/java.util.Collections$2.forEachRemaining(Collections.java:4861)
+        at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)
+        at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)
+        at java.base/java.util.stream.ReduceOps$ReduceOp.evaluateSequential(ReduceOps.java:921)
+        at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+        at java.base/java.util.stream.ReferencePipeline.collect(ReferencePipeline.java:682)
+        at io.trino.parquet.reader.TrinoColumnIndexStore.loadIndexes(TrinoColumnIndexStore.java:147)
+        at io.trino.parquet.reader.TrinoColumnIndexStore.getColumnIndex(TrinoColumnIndexStore.java:103)
+        at io.trino.parquet.predicate.TupleDomainParquetPredicate.matches(TupleDomainParquetPredicate.java:210)
+        at io.trino.parquet.predicate.PredicateUtils.predicateMatches(PredicateUtils.java:157)
+        at io.trino.plugin.hive.parquet.ParquetPageSourceFactory.createPageSource(ParquetPageSourceFactory.java:261)
+        ... 32 more
+```

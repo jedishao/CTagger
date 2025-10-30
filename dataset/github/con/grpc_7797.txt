@@ -1,0 +1,54 @@
+NettyClientTransport shutdown race: throws RejectedExecutionException 
+Discovered when investigating Metadata Applier behaviour with #6283
+### Steps to reproduce the bug
+1. delay [getRequestMetadata](https://github.com/googleapis/google-auth-library-java/blob/master/credentials/java/com/google/auth/Credentials.java#L98) executable, e.g.
+```
+  protected final void blockingGetToCallback(URI uri, RequestMetadataCallback callback) {
+    Map<String, List<String>> result;
+    try {
++    Thread.sleep(5000);
+      result = getRequestMetadata(uri);
+    } catch (Throwable e) {
+      callback.onFailure(e);
+      return;
+    }
+    callback.onSuccess(result);
+  }
+```
+
+2. run server and client RPC call:
+```
+$ ./run-test-server.sh
+```
+```
+$ ./run-test-client.sh  --server_host_override=foo.test.google.fr --use_test_ca=true --test_case=oauth2_auth_token --service_account_key_file="/Users/zivy/.config/google-credentials/tensorflow-credential.json" --oauth_scope="https://www.googleapis.com/auth/cloud-platform"
+```
+
+3.  Constantly observed:
+```
+Exception in thread "grpc-default-executor-0" java.util.concurrent.RejectedExecutionException: event executor terminated
+	at io.netty.util.concurrent.SingleThreadEventExecutor.reject(SingleThreadEventExecutor.java:926)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.offerTask(SingleThreadEventExecutor.java:353)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.addTask(SingleThreadEventExecutor.java:346)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:828)
+	at io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:818)
+	at io.grpc.netty.WriteQueue.scheduleFlush(WriteQueue.java:67)
+	at io.grpc.netty.WriteQueue.enqueue(WriteQueue.java:87)
+	at io.grpc.netty.NettyClientStream$Sink.writeHeadersInternal(NettyClientStream.java:165)
+	at io.grpc.netty.NettyClientStream$Sink.writeHeaders(NettyClientStream.java:121)
+	at io.grpc.internal.AbstractClientStream.start(AbstractClientStream.java:159)
+	at io.grpc.internal.DelayedStream.internalStart(DelayedStream.java:280)
+	at io.grpc.internal.DelayedStream.setStream(DelayedStream.java:159)
+	at io.grpc.internal.MetadataApplierImpl.finalizeWith(MetadataApplierImpl.java:104)
+	at io.grpc.internal.MetadataApplierImpl.apply(MetadataApplierImpl.java:79)
+	at io.grpc.CallCredentials2$1.apply(CallCredentials2.java:61)
+	at io.grpc.auth.GoogleAuthLibraryCallCredentials$1.onSuccess(GoogleAuthLibraryCallCredentials.java:134)
+	at com.google.auth.Credentials.blockingGetToCallback(Credentials.java:127)
+	at com.google.auth.Credentials$1.run(Credentials.java:105)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+### RCA
+`NettyClientTransport` creates `newStream()` when the channel is already closed. The exception is thrown when submit to eventloop at writeQueue. Transport was closed too early before the accepted RPC is finished.

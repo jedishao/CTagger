@@ -1,0 +1,27 @@
+Coordinator loads all the data only in few historicals of a tier, leaving the rest almost empty
+### Affected Version
+
+0.20.0
+
+### Description
+
+Coordinator picks only few historicals of a tier and fills all the data in them. Rest of them are left almost empty.
+
+### Series of events
+ - We have a tier which had four historicals to begin with. All the four reached 88% disk storage.
+ - We added two historicals of exactly same configuration. Rebalancing started to happen, observed that max (disk storage on any instance) = 67%. This took 40 minutes
+ - In the next 40 minutes, it continued to rebalanced by draining data from existing historicals and adding to the newly added two historicals. This was the percentage of disk usage on the historicals 40%, 32%, 99.4%, 99.5%, 48%, 37%. It didn't stop at 99.4%, it continued to keep adding data to the same two instances which were almost 100%
+ - We added two more instances. Rebalancing started to happen again
+ - Now we have in total 8 instances. In Current configuration 4 instances have 84%, rest of the 4 have 5% data
+ - We observed that Coordinator was draining segments from four of the instances and distributing them among the rest of the four instances.
+
+### Balancing Strategy
+We were reading about coordinator balancing strategy and we have question on that
+- Why did coordinator add most of the data only on 4 historicals when we have 8 historicals in total.
+- Under Balancing segment load section in the [Coordinator documentation page](https://druid.apache.org/docs/latest/design/coordinator.html), we have the following sentence
+`For every Historical process tier in the cluster, the Coordinator process will determine the Historical process with the highest utilization and the Historical process with the lowest utilization. The percent difference in utilization between the two processes is computed, and if the result exceeds a certain threshold, a number of segments will be moved from the highest utilized process to the lowest utilized process.`
+Can you please explain what that threshold is and where we can find this value? Tried to go through the Druid code on GitHub but could not find it.
+Is this the reason why only 4 instances have most of the data?
+- We did not apply specific configuration for `druid.coordinator.balancer.strategy`. So we must be using the default which is 'cost' on version 0.20.0
+- We know that cachingCost and diskNormalized are two other options. If we want equal distribution of segments, we might have to use diskNormalized. Are there any problems with this configuration? Do we need to change other configurations so that diskNormalized works well?
+- I see that cachingCost is the recommended option and the only difference between cachingCost and cost is cachingCost is CPU efficient on large instances. So cachingCost also might provide the same imbalanced experience. If yes, is cachingCost still recommended in our case?

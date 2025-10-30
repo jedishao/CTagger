@@ -1,0 +1,23 @@
+UDF Suggestions: ARRAY_NORMALIZE and ARRAY_AGG_SUM / ARRAY_AGG_AVERAGE
+This issue proposes adding two different, but vaguely related UDFs to presto. If it makes more sense to split these up for discussion purposes, I can do that too.
+
+### `ARRAY_NORMALIZE`
+
+Computing the array norm in presto is relatively easy, e.g. the two norm can be done with `REDUCE(array, 0, (a, v) -> a + v * v, a -> SQRT(a))`, but actually normalizing an array is more difficult. Say the previous implementation is called `ARRAY_NORM` then naive normalizing would be `TRANSFORM(array, v -> v / ARRAY_NORM(array))` (note this doesn't account for the norm being 0), however this naive implementation is O(n²), and the only really feasibly way to get around that is to compute the norm in one select and then in a sub-select, actually normalize the array.
+
+This practice is very common for me, but seems generally common overall, so I think it'd be a useful UDF, especially for saving computation from the naive implementation.
+
+ I propose adding `ARRAY_NORMALIZE(array ARRAY<DOUBLE>, p DOUBLE)` and `ARRAY_NORMALIZE(array ARRAY<REAL>, p REAL)` for all p > 0 using the standard p norm definition, leaving arrays with 0 norm as they are (versus returning null)
+
+### `ARRAY_AGG_SUM`
+
+Computing the sum / average of an aggregation of arrays is nontrivial in presto. You can implement it as `REDUCE(ARRAY_AGG(...))` but this has linear size in the number of aggregations. `REDUCE_AGG` would work, but it doesn't allow non-primitive states, and it's not clear to me how hard that would be to implement as I found no discussion of it here. It can be done in linear state if the array cardinality is know by doing something like
+```
+SELECT
+    ARRAY[SUM(IF(i = 1, v, NULL)), SUM(IF(i = 2, v, NULL)), ...]
+FROM _
+CROSS JOIN UNNEST(array) WITH ORDINALITY AS _ (v, i)
+```
+but this seems inefficient in its own way, and I'm not really sure how presto would handle it. It's also very verbose.
+
+Not seeing any conventional solutions, implementing ARRAY_AGG_SUM / AVERAGE natively seems like a reasonable solution.

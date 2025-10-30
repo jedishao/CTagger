@@ -1,0 +1,46 @@
+OpenCensus stats not being incremented
+Possibly related to #7037
+
+<!-- Please answer these questions before submitting a bug report. -->
+
+### What version of gRPC-Java are you using?
+1.48.1
+
+### What is your environment?
+1. Linux (Debian Bookworm), JDK 11
+2. Distroless Java 11 (gcr.io/distroless/java11-debian11:nonroot)
+
+### What did you expect to see?
+
+zPages to be updated with OpenCensus stats from grpc-census.
+
+### What did you see instead?
+
+`/rpcz` and `/tracez` are empty. `/statz` shows that views are registered, but none are incremented.
+
+### Steps to reproduce the bug
+
+1. Start gRPC server
+2. Send requests to gRPC server
+3. Visit zPages in browser
+
+Sample code (Kotlin):
+
+```kotlin
+    NettyServerBuilder.forPort(port)
+      .apply {
+        executor(executor)
+        sslContext(sslContext)
+        services.forEach { addService(it) }
+      }
+      .build()
+      .start()
+```
+
+```kotlin
+RpcViews.registerServerGrpcViews()
+RpcViews.registerRealTimeMetricsViews()
+ZPageHandlers.registerAllToHttpServer(httpServer)
+
+httpServer.start()
+```

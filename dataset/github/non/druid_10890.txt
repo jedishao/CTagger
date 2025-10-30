@@ -1,0 +1,108 @@
+Using columns in Flatten Spec for Spatial indexing leads to null value.
+### Affected Version
+
+0.20.1
+
+### Description
+
+This is the spec:
+
+{
+  "type": "index_parallel",
+  "spec": {
+    "ioConfig": {
+      "type": "index_parallel",
+      "inputSource": {
+        "type": "local",
+        "filter": "*.json",
+        "baseDir": "/home/sunithaselvan/Documents/iudx/surat/file"
+      },
+      "inputFormat": {
+        "type": "json",
+        "flattenSpec": {
+          "fields": [
+            {
+              "name": "latitude",
+              "type": "path",
+              "expr": "$.location.coordinates[1]"
+            },
+            {
+              "name": "longitude",
+              "type": "path",
+              "expr": "$.location.coordinates[0]"
+            }
+          ]
+        }
+      }
+    },
+    "tuningConfig": {
+      "type": "index_parallel",
+      "partitionsSpec": {
+        "type": "dynamic"
+      }
+    },
+    "dataSchema": {
+      "dataSource": "flatten",
+      "granularitySpec": {
+        "type": "uniform",
+        "queryGranularity": "NONE",
+        "rollup": false,
+        "segmentGranularity": "MONTH"
+      },
+      "timestampSpec": {
+        "column": "actual_trip_start_time",
+        "format": "iso"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "id",
+          "last_stop_arrival_time",
+          {
+            "type": "long",
+            "name": "last_stop_id"
+          },
+          {
+            "type": "double",
+            "name": "latitude"
+          },
+          "license_plate",
+          {
+            "type": "double",
+            "name": "longitude"
+          },
+          "observationDateTime",
+          "route_id",
+          {
+            "type": "long",
+            "name": "speed"
+          },
+          {
+            "type": "long",
+            "name": "trip_delay"
+          },
+          "trip_direction",
+          {
+            "type": "long",
+            "name": "trip_id"
+          },
+          "vehicle_label"
+        ],
+        "spatialDimensions": [
+          {
+            "dimName": "coordinates",
+            "dims": [
+              "latitude",
+              "longitude"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+
+I flatten out my coordinates using the flatten spec and use it for spatial indexing. However, in the resulting table , I have latitude and longitude columns with value 0. The coordinates field has the correct values.
+
+![image](https://user-images.githubusercontent.com/25410832/107907716-6ec48c00-6f7a-11eb-8265-3ab301ec7bba.png)
+
+I noticed that if I do a spatial indexing on these columns (by flattening them externally and not using the flatten spec), the lat and long columns are dropped and is replaced by coordinates column.

@@ -1,0 +1,36 @@
+[Feature Request] Configurable default ingest column type
+### Description
+
+Per https://druid.apache.org/docs/latest/ingestion/ingestion-spec.html#inclusions-and-exclusions, all dimensions not otherwise specified are assumed to be strings
+
+>Schemaless interpretation occurs when both dimensions and spatialDimensions are empty or null. In this case, the set of dimensions is determined in the following way:
+>
+> 1. ...
+> ... 
+> 7. All other fields are ingested as string typed dimensions with the default settings.
+
+It would be convenient to be able to specify a different type to be used as the default, e.g.
+
+```json
+"dimensionsSpec" : {
+    "defaultType": "double"
+}
+```
+
+or perhaps even specify default values for all fields for a dimension object
+
+```json
+"dimensionsSpec" : {
+    "defaultConfig": {
+        "type": "double",
+        "createBitmapIndex": false,
+        "multiValueHandling": "array"
+    }
+}
+```
+
+### Motivation
+
+We are currently evaluating Druid as a more scalable, modern replacement for a data warehousing application for storing historical data, where the equivalent of datasources have 10,000's of dimensions, and are soon to scale to 100,000's of dimensions. All of these dimensions are known ahead of time to be numeric, so currently, we are required to use a script to generate the ingest spec including the types for every single dimension. If it were possible to specify the default type of dimensions, this could be made much simpler, and would also reduce the amount of space taken up by the task metadata.
+
+We are also building some custom extensions for data formats which supply these numeric values, if the IngestFormat or InputEntityReader could provide some sort of "schema hint" to the ingest task, that would also solve the issue, and could also possibly be used by JSON, CSV, and other common format extensions.

@@ -1,0 +1,50 @@
+Datasource Autocompaction stuck 'Awaiting First Run'
+### Affected Version
+0.22.1
+
+### Description
+I'm opening a ticket after having no luck with my druidforum post: https://www.druidforum.org/t/datasource-autocompaction-awaiting-first-run/7087.
+
+I’m trying to use Autocompaction to update a datasource segmentGranularity from ‘HOUR’ to ‘WEEK’. I’m testing with a small datasource (15mb / ~400,000 rows) which has many segments (5,000+).
+
+I submit a compaction config like:
+
+```
+{
+  "dataSource": "my_datasource",
+  "taskPriority": 25,
+  "inputSegmentSizeBytes": 419430400,
+  "skipOffsetFromLatest": "P1M",
+  "tuningConfig": {
+    "partitionsSpec": {
+      "type": "dynamic",
+      "maxRowsPerSegment": 5000000
+    },
+    "type": "index_parallel",
+    "forceGuaranteedRollup": false
+  },
+  "granularitySpec": {
+    "segmentGranularity": "WEEK"
+  }
+}
+```
+
+- Both the web console and curl against the api (e.g. curl get against /druid/coordinator/v1/config/compaction/ ) show that my compaction config has been set/accepted.
+- There are segments going back to 2021-05, so there are plenty of candidate segments to compact based on `skipOffsetFromLatest`.
+- There are 3 worker slots available and relevant compaction TaskSlot variables are: `"compactionTaskSlotRatio" : 0.7, "maxCompactionTaskSlots" : 2147483647`
+
+I’m expecting autocompaction to start compacting based on this config.
+
+Instead, I find that in the unified-console, the dataSource Compaction column shows Awaiting first run and has been stuck like this for 24h+. Reviewing Coordinator logs, I don’t see any indication that compaction is even being attempted. No errors. If I grep “compact” in coordinator logs, nothing is returned except for a single line at startup indicating the coordinator is scheduling compaction tasks.
+
+I made a [branch in my fork](https://github.com/gitmstoute/druid/commit/cb33ed6d2dfaadf0af48287ff21f271d52612a67) with a docker-compose, ingestion spec, and compaction spec which seems to reproduce the issue. Steps:
+
+1. run it: `docker-compose up`
+2. submit the ingestion spec: `curl -H 'Content-Type:application/json' -d "@ingestion-spec.json" -X POST http://localhost:8081/druid/indexer/v1/task`
+3. Let the datasource become fully available
+4. submit the compaction spec: `curl -H 'Content-Type:application/json' -d "@compaction-spec.json" -X POST http://localhost:8081/druid/coordinator/v1/config/compaction`
+
+
+I have tried many tweaks to the compaction config (e.g. segmentGranularity to day instead of week) but haven't been able to get compaction to start. There do not seem to be any logs indicating autocompaction tasks are being created / attempted. We have also tried restarting our cluster (and restarting the docker-compose also does not resolve the issue).
+
+If there are any more details I can provide, please let me know!

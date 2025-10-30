@@ -1,0 +1,92 @@
+Java-client costs 5-6s for the first request
+### What version of gRPC-Java are you using?
+3.17.2
+
+### What is your environment?
+jdk version - 1.8
+OS - macOS 11.5.2
+client in java to server in go
+
+### What did you expect to see?
+Stub (async) finishes sending "This is my txt" to server in 1- second, especially the first sending time.
+
+### What did you see instead?
+1. Stub finishes the first request in 5-6 seconds. (content is **This is my text**)
+2. Stub finished the follow-up requests in 1 second. (content is still **This is my text**)
+
+### Steps to reproduce the bug
+1. Generate go server. It does not matter what implementation the server logic is. Because the duration is my focus, which is between the last call  to grpc api in client and sending to server. Start server just for client works.
+```
+syntax = "proto3";
+
+package spec.proto.runtime.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/any.proto";
+
+service Runtime {
+rpc PutFile(stream PutFileRequest) returns (google.protobuf.Empty) {}
+}
+
+message PutFileRequest {
+  // The data will be store.
+  bytes data = 3;
+}
+```
+2. Generate go client.
+```
+
+   ManagedChannel channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
+   MosnRuntimeGrpc.MosnRuntimeBlockingStub mosnBlockingStub = MosnRuntimeGrpc.newBlockingStub(channel);
+
+    // feed ByteArraryStream("This is my txt".getBytes()) for reproduce
+    public void putFile(InputStream stream) throws Exception {
+
+        CountDownLatch uploadLatch = new CountDownLatch(1);
+
+        StreamObserver<RuntimeProto.PutFileRequest> observer = asyncStub.putFile(
+
+                new StreamObserver<Empty>() {
+
+                    @Override
+                    public void onNext(Empty value) {
+                        logger.info("putFile successfully");
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        logger.error("putFile error");
+                        uploadLatch.countDown();
+                    }
+
+                    @Override
+                    public void onCompleted() {
+                        logger.info("putFile complete");
+                        uploadLatch.countDown();
+                    }
+                });
+
+        // empty call
+        observer.onNext(RuntimeProto.PutFileRequest.newBuilder().build());
+
+        byte[] buf = new byte[4096];
+        for (int size = stream.read(buf); size > 0; size = stream.read(buf)) {
+            observer.onNext(buildPutFileDataRequest(buf, size));
+        }
+
+        observer.onCompleted();
+
+       // it costs 5-6 seconds !
+        uploadLatch.await();
+    }
+```
+### Reuse stub is Fine
+```
+// repeat putting file 20 times, with same async stub
+putFile(stream1); // cost 5-6 seconds
+
+// others are fast, finished in 1 seconds
+putFile(stream1); // 2nd request
+...
+putFile(stream1); // 20th request
+```

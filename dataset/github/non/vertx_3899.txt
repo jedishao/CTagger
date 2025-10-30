@@ -1,0 +1,90 @@
+upgrading from 3.9.4 to 3.9.7 got NullPointerException for test case
+### Version
+
+upgrading from 3.9.4 to 3.9.7
+
+### Context
+
+A unit test case to deploy two vertical
+
+```
+    VertxUtils
+        .blockDeploy(SharedVertxFactory.getSharedVertx(), TestServerVerticle.class, new DeploymentOptions());
+    VertxUtils
+        .blockDeploy(SharedVertxFactory.getSharedVertx(), TestClientVerticle.class, new DeploymentOptions());
+```
+
+got NullPointerException
+
+```
+java.lang.NullPointerException: cause
+	at io.netty.util.internal.ObjectUtil.checkNotNull(ObjectUtil.java:33)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeExceptionCaught(AbstractChannelHandlerContext.java:278)
+	at io.netty.channel.DefaultChannelPipeline.fireExceptionCaught(DefaultChannelPipeline.java:907)
+	at io.vertx.core.net.impl.VertxHandler.fail(VertxHandler.java:88)
+	at io.vertx.core.net.impl.ConnectionBase.fail(ConnectionBase.java:86)
+	at io.vertx.core.http.impl.Http1xServerConnection.handleError(Http1xServerConnection.java:495)
+	at io.vertx.core.http.impl.Http1xServerConnection.handleError(Http1xServerConnection.java:488)
+	at io.vertx.core.http.impl.Http1xServerConnection.handleMessage(Http1xServerConnection.java:121)
+	at io.vertx.core.impl.ContextImpl.executeTask(ContextImpl.java:366)
+	at io.vertx.core.impl.EventLoopContext.execute(EventLoopContext.java:43)
+	at io.vertx.core.impl.ContextImpl.executeFromIO(ContextImpl.java:229)
+	at io.vertx.core.net.impl.VertxHandler.channelRead(VertxHandler.java:164)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:93)
+	at io.netty.handler.codec.http.websocketx.extensions.WebSocketServerExtensionHandler.channelRead(WebSocketServerExtensionHandler.java:102)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.vertx.core.http.impl.Http1xUpgradeToH2CHandler.channelRead(Http1xUpgradeToH2CHandler.java:109)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:324)
+	at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:311)
+	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:432)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.vertx.core.http.impl.Http1xOrH2CHandler.end(Http1xOrH2CHandler.java:61)
+	at io.vertx.core.http.impl.Http1xOrH2CHandler.channelRead(Http1xOrH2CHandler.java:38)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:719)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:655)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:581)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+and cause application hang in second deployment.
+
+### Do you have a reproducer?
+
+https://github.com/apache/servicecomb-java-chassis/blob/master/metrics/metrics-core/src/test/java/org/apache/servicecomb/metrics/core/TestVertxMetersInitializer.java
+
+### Steps to reproduce
+
+see above
+
+### Extra
+
+Check the lastest version, seems related to this change in the latest version:  https://github.com/eclipse-vertx/vert.x/commit/957e9a54def7ab378f8e54137d4c19a2d34a856f#diff-6066745d72c6f938f3c9b5b7f76471ede6d87c6372f30f2e104e62d083637e4a
+
+```
+if (request.decoderResult() != DecoderResult.SUCCESS) {
+```
+
+got true.

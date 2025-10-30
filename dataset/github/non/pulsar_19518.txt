@@ -1,0 +1,80 @@
+[Bug] OAuth credentials flow fails when using oauth-authorization-server endpoint
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+2.10.3
+
+### Minimal reproduce step
+
+Use pulsar-perf to hit an OAuth2 provider with the AuthenticationOAuth2 plugin, like this:
+
+`bin/pulsar-perf produce -r 1000 --size 1024 --auth-plugin "org.apache.pulsar.client.impl.auth.oauth2.AuthenticationOAuth2" --auth-params '{"privateKey":"/pulsar/conf/creds.json","issuerUrl":"https://dev-42506116.okta.com/oauth2/aus3thh6rqs3FU45X697","scope":"pulsar_client_m2m","audience":"api://pulsarClient"}' --service-url pulsar://pulsar-proxy.pulsar.svc.cluster.local:6650/ persistent://public/default/test`
+
+with `/pulsar/conf/creds.json` containing contents (with actual credentials):
+
+`{"client_id":"0oa7ypwv...d5d7","client_secret":"CL08ZNhF...7gLY01tF2bP","grant_type": "client_credentials"}`
+
+will reproduce the issue if the OAuth2 provider (Okta in this case) is configured with a metadata URI ending in `.well-known/oauth-authorization-server` instead of `/.well-known/openid-configuration`
+
+### What did you expect to see?
+
+I need to be able to either provide the metadata URI as one of the auth-params in the client, or I need to be able to specify a different metadata resolver. It doesn't appear that the metadata resolver or this parameter are currently configurable. 
+See https://github.com/apache/pulsar/blob/04aa9e8e51869d1621a7e25402a656084eebfc09/pulsar-client/src/main/java/org/apache/pulsar/client/impl/auth/oauth2/AuthenticationOAuth2.java#L67
+
+
+### What did you see instead?
+
+In DefaultMetadataResolver, the metadata URL is hard-coded:
+```
+    public static URL getWellKnownMetadataUrl(URL issuerUrl) {
+        try {
+            return URI.create(issuerUrl.toExternalForm() + "/.well-known/openid-configuration").normalize().toURL();
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+```
+(https://github.com/apache/pulsar/blob/d11147616aa6cc7888420f6325bb71cd7f7ab065/pulsar-client/src/main/java/org/apache/pulsar/client/impl/auth/oauth2/protocol/DefaultMetadataResolver.java#L107)
+
+When the Pulsar client is using an OAuth provider with the endpoint `.well-known/oauth-authorization-server`, the implementation breaks and throws this exception:
+
+```
+2023-02-14T01:39:33,221+0000 [pulsar-perf-producer-exec-1-1] ERROR org.apache.pulsar.client.impl.auth.oauth2.FlowBase - Unable to retrieve OAuth 2.0 server metadata
+java.io.IOException: Cannot obtain authorization metadata from https://dev-42506116.okta.com/oauth2/aus3thh6rqs3FU45X697/.well-known/openid-configuration
+	at org.apache.pulsar.client.impl.auth.oauth2.protocol.DefaultMetadataResolver.resolve(DefaultMetadataResolver.java:85) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.client.impl.auth.oauth2.FlowBase.initialize(FlowBase.java:50) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.client.impl.auth.oauth2.ClientCredentialsFlow.initialize(ClientCredentialsFlow.java:72) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.client.impl.auth.oauth2.AuthenticationOAuth2.start(AuthenticationOAuth2.java:96) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:192) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.client.impl.PulsarClientImpl.<init>(PulsarClientImpl.java:150) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.client.impl.ClientBuilderImpl.build(ClientBuilderImpl.java:67) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.testclient.PerformanceProducer.runProducer(PerformanceProducer.java:498) ~[com.datastax.oss-pulsar-testclient-2.10.3.1.jar:2.10.3.1]
+	at org.apache.pulsar.testclient.PerformanceProducer.lambda$main$1(PerformanceProducer.java:384) ~[com.datastax.oss-pulsar-testclient-2.10.3.1.jar:2.10.3.1]
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515) ~[?:?]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:264) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) ~[?:?]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) ~[?:?]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[io.netty-netty-common-4.1.86.Final.jar:4.1.86.Final]
+	at java.lang.Thread.run(Thread.java:829) ~[?:?]
+Caused by: java.io.FileNotFoundException: https://dev-42506116.okta.com/oauth2/aus3thh6rqs3FU45X697/.well-known/openid-configuration
+	at sun.net.www.protocol.http.HttpURLConnection.getInputStream0(HttpURLConnection.java:1920) ~[?:?]
+	at sun.net.www.protocol.http.HttpURLConnection.getInputStream(HttpURLConnection.java:1520) ~[?:?]
+	at sun.net.www.protocol.https.HttpsURLConnectionImpl.getInputStream(HttpsURLConnectionImpl.java:250) ~[?:?]
+	at org.apache.pulsar.client.impl.auth.oauth2.protocol.DefaultMetadataResolver.resolve(DefaultMetadataResolver.java:79) ~[com.datastax.oss-pulsar-client-original-2.10.3.1.jar:2.10.3.1]
+	... 14 more
+```
+
+
+
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

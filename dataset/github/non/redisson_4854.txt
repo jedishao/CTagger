@@ -1,0 +1,118 @@
+ClassCastException: org.redisson.RedissonListMultimap cannot be cast to  org.redisson.api.RSetMultimap
+<!--
+Try Redisson PRO https://redisson.pro with ultra-fast performance and support by SLA.
+-->
+
+Hi, I'm using Redisson's Reactive API and I ran into a problem with `RSetMultimapReactive`.
+
+**Expected behavior**
+
+Redisson retrieves the size of the set using the following minimal working example:
+
+```java
+class CacheService {
+    
+    private final RSetMultimapReactive<String, String> backend;
+
+    CacheService() {
+        final Config config = new Config();
+        config.useSingleServer()
+                .setAddress("redis://127.0.0.1:6379");
+        final RedissonReactiveClient redisson = Redisson.create(config).reactive();
+        this.backend = redisson.getSetMultimap("test");
+    }
+     
+    public Mono<Integer> getSize(String key) {
+        return backend.get(key).size();
+    }
+}
+````
+
+**Actual behavior**
+
+Stacktrace: 
+```
+reactor.core.Exceptions$ErrorCallbackNotImplemented: java.lang.reflect.UndeclaredThrowableException
+Caused by: java.lang.reflect.UndeclaredThrowableException: null
+	at jdk.proxy2/jdk.proxy2.$Proxy103.get(Unknown Source) ~[na:na]
+	at com.mycompany.service.cache.CacheService.lambda$getSize$3(CacheService.java:59) ~[main/:na]
+	at reactor.core.publisher.MonoFlatMap$FlatMapMain.onNext(MonoFlatMap.java:125) ~[reactor-core-3.4.21.jar:3.4.21]
+	at reactor.core.publisher.MonoNext$NextSubscriber.onNext(MonoNext.java:82) ~[reactor-core-3.4.21.jar:3.4.21]
+	at reactor.core.publisher.FluxCreate$BufferAsyncSink.drain(FluxCreate.java:814) ~[reactor-core-3.4.21.jar:3.4.21]
+	at reactor.core.publisher.FluxCreate$BufferAsyncSink.next(FluxCreate.java:739) ~[reactor-core-3.4.21.jar:3.4.21]
+	at reactor.core.publisher.FluxCreate$SerializedFluxSink.next(FluxCreate.java:161) ~[reactor-core-3.4.21.jar:3.4.21]
+	at org.redisson.reactive.CommandReactiveService.lambda$reactive$1(CommandReactiveService.java:65) ~[redisson-3.19.3.jar:3.19.3]
+	at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147) ~[na:na]
+	at org.redisson.RedissonLock.lambda$tryLockAsync$9(RedissonLock.java:439) ~[redisson-3.19.3.jar:3.19.3]
+	at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147) ~[na:na]
+	at org.redisson.command.CommandBatchService.lambda$executeAsync$7(CommandBatchService.java:322) ~[redisson-3.19.3.jar:3.19.3]
+	at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147) ~[na:na]
+	at org.redisson.command.RedisCommonBatchExecutor.handleResult(RedisCommonBatchExecutor.java:163) ~[redisson-3.19.3.jar:3.19.3]
+	at org.redisson.command.RedisExecutor.checkAttemptPromise(RedisExecutor.java:540) ~[redisson-3.19.3.jar:3.19.3]
+	at org.redisson.command.RedisExecutor.lambda$execute$5(RedisExecutor.java:191) ~[redisson-3.19.3.jar:3.19.3]
+	at java.base/java.util.concurrent.CompletableFuture.uniWhenComplete(CompletableFuture.java:863) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture$UniWhenComplete.tryFire(CompletableFuture.java:841) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture.complete(CompletableFuture.java:2147) ~[na:na]
+	at org.redisson.client.handler.CommandDecoder.decodeCommandBatch(CommandDecoder.java:325) ~[redisson-3.19.3.jar:3.19.3]
+	at org.redisson.client.handler.CommandDecoder.decodeCommand(CommandDecoder.java:217) ~[redisson-3.19.3.jar:3.19.3]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:144) ~[redisson-3.19.3.jar:3.19.3]
+	at org.redisson.client.handler.CommandDecoder.decode(CommandDecoder.java:120) ~[redisson-3.19.3.jar:3.19.3]
+	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:510) ~[netty-codec-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.handler.codec.ReplayingDecoder.callDecode(ReplayingDecoder.java:366) ~[netty-codec-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:279) ~[netty-codec-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:166) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:722) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:658) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:584) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:496) ~[netty-transport-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.79.Final.jar:4.1.79.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.79.Final.jar:4.1.79.Final]
+	at java.base/java.lang.Thread.run(Thread.java:833) ~[na:na]
+Caused by: java.lang.reflect.InvocationTargetException: null
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568) ~[na:na]
+	at org.redisson.misc.ProxyBuilder$1.invoke(ProxyBuilder.java:103) ~[redisson-3.19.3.jar:3.19.3]
+	... 52 common frames omitted
+Caused by: java.lang.ClassCastException: class org.redisson.RedissonListMultimap cannot be cast to class org.redisson.api.RSetMultimap (org.redisson.RedissonListMultimap and org.redisson.api.RSetMultimap are in unnamed module of loader 'app')
+	at org.redisson.reactive.RedissonSetMultimapReactive.get(RedissonSetMultimapReactive.java:51) ~[redisson-3.19.3.jar:3.19.3]
+	... 57 common frames omitted
+```
+
+**Steps to reproduce or test case**
+
+See the minimal working example.
+
+**Redis version**
+
+7.0.8
+
+**Redisson version**
+
+3.19.1
+
+**Redisson configuration**
+
+Default reactive.
+
+I assume the problem might be caused due to the fact that you're using  `RedissonListMultimap` instead of 
+ `RedissonSetMultimap`  in here https://github.com/redisson/redisson/blob/master/redisson/src/main/java/org/redisson/reactive/RedissonSetMultimapReactive.java#L39

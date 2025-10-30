@@ -1,0 +1,33 @@
+Broadcast the larger side during join if colA + colB >5 condition is specified
+we are suing trino version 377, and found that it generates very inefficient plan, broadcasting the much larger table, if a condition like `colA + colB >5` is given.
+
+Below is the query:
+
+> select account_id,
+    sum(read_time_web + read_time_smart) as score
+  from
+     hive_ad.ml.sn_result_hourly b
+ join
+    hive_ad.ml.sn_articles_export_hourly a
+ using (dt, edition, link_id)
+ where dt between
+     format_datetime(date_add('day', -3, now()), 'YYYY-MM-dd')
+     and
+     format_datetime(date_add('day', -1, now()), 'YYYY-MM-dd')
+  and a.hh = '23' and edition = 'en_US'
+  and b.hh='23'
+  and (read_time_web + read_time_smart) >= 5 -- this line matters
+ group by 1
+
+
+
+Table sn_result_hourly is much larger, but the query plan shows it broadcast this larger table during join. But if remove the condition `and (read_time_web + read_time_smart) >= 5`, then the plan looks good.
+Please find the incorrect query plan in the attached file.
+
+[broadcast_larger_side_plan.txt](https://github.com/trinodb/trino/files/10349090/broadcast_larger_side_plan.txt)
+
+for your convenience, here is the key part of the plan:
+
+<img width="1341" alt="截屏2023-01-05 11 35 19" src="https://user-images.githubusercontent.com/12639959/210696278-252f01a1-092c-4082-aaa8-5dc3f387f99d.png">
+
+

@@ -1,0 +1,42 @@
+[Bug][txn] txn consume easily make high cpu usage
+### Search before asking
+
+- [X] I searched in the [issues](https://github.com/apache/pulsar/issues) and found nothing similar.
+
+
+### Version
+
+pulsar-2.9.4
+
+
+### Minimal reproduce step
+
+1. use pulsar-perf to do txn produce, rate is 100MB/s, 100000msg/s, batch is 10msg/batch
+whole configs are: -txn -nmt 20000 -time 0 -s 1024 -i 60 -bm 10 -b 1000 -bb 4194304 -r 100000 -mk random -threads 
+2. use pulsar-perf to do txn consume latest message, rate is 100MB/s , 100000 msg/s
+whole configs are: -txn -nmt 20000 -time 0 -sp Latest -ioThreads 1 -n 1
+
+### What did you expect to see?
+
+cpu usage should not be so high when do txn consume
+
+### What did you see instead?
+
+After add txn consume, I found that the cpu usage become high, from 25% to 93%. And I found that bookie client add entry metric is largely improved, from 10000/s to 110000/s.
+
+<img width="1362" alt="image" src="https://user-images.githubusercontent.com/13505225/209748136-b2ca6a08-d5e6-402b-9df4-d3aee40b7a58.png">
+<img width="1351" alt="image" src="https://user-images.githubusercontent.com/13505225/209748202-5d15953c-0acb-45d4-944f-3c5d8571b159.png">
+<img width="1344" alt="image" src="https://user-images.githubusercontent.com/13505225/209748330-903f52a1-b485-46c5-b582-dab53328fb72.png">
+
+
+After diving into the code, I found this is mainly because txn consume would do add entry when doIndividualAck. However, if the consume rate is 100000msg/s, add entry would also become 100000/s, which put heavy load to cpu. 
+<img width="965" alt="image" src="https://user-images.githubusercontent.com/13505225/209748649-2f1f9966-4c57-4e57-ba6f-0275647fd800.png">
+
+
+### Anything else?
+
+_No response_
+
+### Are you willing to submit a PR?
+
+- [ ] I'm willing to submit a PR!

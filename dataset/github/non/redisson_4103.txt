@@ -1,0 +1,61 @@
+Redisson Snappy Codec failed decompress value
+Hi,
+
+I am working on a project which uses a **python** app to **write** data to the Redis cluster, and another **Java** app **reads** it. 
+
+The issue happens when I try to use Snappy to compress the data write into the Redis. And the Redisson client start to give "Unable to decode data" exception while trying to read it. 
+
+========== Detail and Sample Code =============
+Here is the detail of the python app where I use to write the data:
+
+**Main Library**:
+Python snappy 0.6.0 - https://github.com/andrix/python-snappy
+Redis-py-cluster 2.1.3 - https://github.com/Grokzen/redis-py-cluster
+
+**Sample Code**:
+```
+from rediscluster import RedisCluster
+import snappy
+
+redis_client = RedisCluster(startup_nodes=[{"host": "<Redis_host>", "port": "<Port>"}], decode_responses=True)
+r = snappy.compress("hello world")
+redis_client.set("test", r)
+```
+
+Here is the detail of the java app where I use to read and decode the data:
+
+**Main Library**:
+Redisson 3.15.1
+
+**Sample Code**: 
+```
+public class RedissonTest {
+
+    public static void main(String[] args) throws Exception {
+
+        try {
+            Config config = new Config();
+            config.useClusterServers().addNodeAddress("redis://<Redis_host:port>");
+            RedissonClient redisson = Redisson.create(config);
+
+            RBucket<String> bucket = redisson.getBucket("test", new SnappyCodec());
+            String res = bucket.get();
+            System.out.println(res);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+}
+```
+
+Here is the exception I encountered:
+```
+[redisson-netty-2-6] ERROR org.redisson.client.handler.CommandDecoder - Unable to decode data. channel: [id: 0x55df68ae, L:/10.152.7.135:54608 - R:/10.24.87.48:6360], reply: ReplayingDecoderByteBuf(ridx=20, widx=20), command: (GET), params: [test]
+java.lang.IndexOutOfBoundsException: readerIndex(4) + length(187197541) exceeds writerIndex(13): UnpooledSlicedByteBuf(ridx: 4, widx: 13, cap: 13/13, unwrapped: PooledUnsafeDirectByteBuf(ridx: 20, widx: 20, cap: 1024))
+```
+=================================
+
+I am new to use the data serialization in Redis, and I didn't find too much example or guidance about how to utilize these Codec listed in here (https://github.com/redisson/redisson/wiki/4.-data-serialization). So I would like to ask which part I implemented incorrectly in the code above?
+
+Thanks for your time!

@@ -1,0 +1,152 @@
+SQL GROUP BY GROUPING SETs don't work correctly when using useApproximateCountDistinct: false, but native queries return the correct information
+It seems like the SQL translation layer doesn't correctly add subtotalsSpec to the native query, at least when `useApproximateCountDistinct` is false.
+
+### Affected Version
+`0.23`
+
+### Description
+Lets take a datasource that looks like the following:
+![image](https://user-images.githubusercontent.com/696340/191108890-b3f215dc-303b-49d2-a053-383aa6882d55.png)
+
+If we make a query against it with `GROUPING SETS ((field), ())` it doesn't work as expected. Notably, the "null" row isn't returned.
+![image](https://user-images.githubusercontent.com/696340/191109017-28f607ea-339f-458d-8973-dfeaa0a2c659.png)
+
+*It does work if you use approximate distinct*
+
+![image](https://user-images.githubusercontent.com/696340/191109111-f06d22dc-4604-4a35-8c50-2cad60dd31af.png)
+
+Lets take a look at the generated native query for the query that doesn't work (this is copied directly from the "explain" functionality in the UI)
+
+```json
+{
+  "queryType": "groupBy",
+  "dataSource": {
+    "type": "query",
+    "query": {
+      "queryType": "groupBy",
+      "dataSource": {
+        "type": "table",
+        "name": "events"
+      },
+      "intervals": {
+        "type": "intervals",
+        "intervals": [
+          "2022-08-01T00:00:00.001Z/146140482-04-24T15:36:27.903Z"
+        ]
+      },
+      "filter": {
+        "type": "selector",
+        "dimension": "client_id",
+        "value": "11db091c-975b-4908-9f67-b1ceb126acdf"
+      },
+      "granularity": {
+        "type": "all"
+      },
+      "dimensions": [
+        {
+          "type": "default",
+          "dimension": "customer_id",
+          "outputName": "d0",
+          "outputType": "STRING"
+        },
+        {
+          "type": "default",
+          "dimension": "transaction_id",
+          "outputName": "d1",
+          "outputType": "STRING"
+        }
+      ],
+      "limitSpec": {
+        "type": "NoopLimitSpec"
+      },
+      "context": {
+        "sqlOuterLimit": 1001,
+        "sqlQueryId": "5ab4448b-95ee-4878-85a4-7e327e6970e1",
+        "useApproximateCountDistinct": false,
+        "useApproximateTopN": false,
+        "useNativeQueryExplain": true
+      }
+    }
+  },
+  "intervals": {
+    "type": "intervals",
+    "intervals": [
+      "-146136543-09-08T08:23:32.096Z/146140482-04-24T15:36:27.903Z"
+    ]
+  },
+  "granularity": {
+    "type": "all"
+  },
+  "dimensions": [
+    {
+      "type": "default",
+      "dimension": "d0",
+      "outputName": "_d0",
+      "outputType": "STRING"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "filtered",
+      "aggregator": {
+        "type": "count",
+        "name": "a0"
+      },
+      "filter": {
+        "type": "not",
+        "field": {
+          "type": "selector",
+          "dimension": "d1",
+          "value": null
+        }
+      },
+      "name": "a0"
+    }
+  ],
+  "limitSpec": {
+    "type": "default",
+    "columns": [],
+    "limit": 1001
+  },
+  "context": {
+    "sqlOuterLimit": 1001,
+    "sqlQueryId": "5ab4448b-95ee-4878-85a4-7e327e6970e1",
+    "useApproximateCountDistinct": false,
+    "useApproximateTopN": false,
+    "useNativeQueryExplain": true
+  }
+}
+```
+
+Now, lets add *subtotalsSpec*.
+
+```diff
+@@ -76,20 +76,21 @@
+         "type": "not",
+         "field": {
+           "type": "selector",
+           "dimension": "d1",
+           "value": null
+         }
+       },
+       "name": "a0"
+     }
+   ],
++  "subtotalsSpec": [["_d0"], []],
+   "limitSpec": {
+     "type": "default",
+     "columns": [],
+     "limit": 1001
+   },
+   "context": {
+     "sqlOuterLimit": 1001,
+     "sqlQueryId": "5ab4448b-95ee-4878-85a4-7e327e6970e1",
+     "useApproximateCountDistinct": false,
+     "useApproximateTopN": false,
+```
+
+![](https://user-images.githubusercontent.com/696340/190484064-975854d5-c1c2-47c7-a7dd-3fd356ebc0e0.png)
+
+
+# Summary
+My naive read here is that the SQL translation layer (calcite?) doesn't correctly add `subtotalsSpec`, at least for `useApproximateCountDistinct` false.

@@ -1,0 +1,14 @@
+Reordering of predicates and filters (pushing up and/or pushing down) in JOINs to get the most performant plan
+### Description
+
+Currently, Druid does not support pushing down predicates (condition and filter) pass a Join (i.e. into Join's children). Druid only supports pushing predicates into the join if they originated from above the join. Hence, the location of predicates and filters in your Druid SQL is very important. 
+
+Since Druid cannot reliably push up / push down filters smartly (pushing up is NOT always the best and pushing down is NOT always the best but Druid is not smart enough to figure this out), the PR https://github.com/apache/druid/pull/9773 disabled pushing down predicates (condition and filter) pass a Join (i.e. into Join's children) altogether. 
+
+We should rethink how we do the following: 
+1) Apply and write rules for JOIN (especially around pushing up/down predicates such as Rule that pushes predicates from a Filter into the Join below them and Rule that pushes predicates in a Join into the inputs to the join)
+2) how we calculate cost for JOIN.
+
+### Motivation
+
+Druid should be able to smartly reorder predicates and filters (pushing up and/or pushing down)  in JOINS to get the most performant plan.

@@ -1,0 +1,24 @@
+xds: reuse load balancer instances across priorities
+Hi!
+
+We are currently experimenting with overriding round_robin with a custom leaf/child load balancer when using xDS (since neither grpc nor the control plane supports custom LB policies yet).
+Our custom load balancer keeps track of additional state about each subchannel and tends to work better with more captured state.
+While overriding round_robin seems to work, I've noticed an issue where our load balancer instances get periodically recreated (and thus loosing important state).
+
+I've read through the code and my understanding is that the current implementation works something like this:
+
+1. [PriorityLoadBalancer](https://github.com/grpc/grpc-java/blob/master/xds/src/main/java/io/grpc/xds/PriorityLoadBalancer.java) creates a [WeightedTargetLoadBalancer](https://github.com/grpc/grpc-java/blob/master/xds/src/main/java/io/grpc/xds/WeightedTargetLoadBalancer.java) for every priority in the EDS response and partitions the groups of endpoints to each `WeightedTargetLoadBalancer` accordingly.
+2. The `WeightedTargetLoadBalancer` looks at the target locality of each endpoint group and creates a child LB (like round_robin) for every such target if it doesn't already exist in this `WeightedTargetLoadBalancer` instance.
+3. After that, the `WeightedTargetLoadBalancer` will remove all child LBs that target endpoint groups that are no longer present to it.
+4. When the child LBs are removed in this case, all subchannels and underlying TCP connections get torn down and removed as well.
+
+Since the control plane we use will move endpoint groups (targets) up and down in priority level during normal operation, this means that we also loose all load balancer state for those groups when this happens.
+I've noticed a `TODO` comment [here](https://github.com/grpc/grpc-java/blob/f6ce672369a26fc4eca56360ec4683cd48a5848b/xds/src/main/java/io/grpc/xds/WeightedTargetLoadBalancer.java#L95) which would address the immediate issue by caching child LBs instead of removing them.
+While I think this type of caching would help us a lot, I think there is an edge case where you'll have multiple load balancer instances targeting the same thing but from different `WeightedTargetLoadBalancer` instances.
+This means that if fallback to a higher priority ever occurs, the load balancer wont have the state captured by load balancers in lower/higher priorities. Also, it could lead to redundant TCP connections since load balancers in lower/higher priorities already might have active and ready connections to the endpoints in some group.
+
+So I think a more optimal solution is to only create and cache one Load balancer instance for every target and then reuse them across multiple priority levels. This would reduce overhead and help us persist important load balancer state both when priorities change but also if we ever need to fallback to another priority.
+
+As to how exactly that would look I'm not entirely sure and it still might make sense to implement caching in `WeightedTargetLoadBalancer` as a first step regardless.
+For this I might be able to help as well since this is fairly high priority for us.
+We could probably implement some shared cache in our custom load balancer provider but it seems like it would make more sense to instead help with implementing some caching logic here.

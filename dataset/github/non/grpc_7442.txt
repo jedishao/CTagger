@@ -1,0 +1,25 @@
+De I need to shutdown and re-create a ManagedChannel.shutdown() for recovery from StreamObserver.onError()
+Hey, thanks for looking this question!
+
+In our java application, we create a `ManagedChannel`, and an async stub from that channel, in order to do streaming calls.
+
+When `StreamObserver.onError()` is called, we did some recovery work, including:
+1. call `ManagedChannel.shutdown()`
+2. re-create the channel from `NettyChannelBuilder`
+3. re-create the async stub from the channel.
+4. re-create a `StreamObserver<OurRequest>` from the async stub.
+
+However, according to the doc of channel: 
+`
+A virtual connection to a conceptual endpoint, to perform RPCs. A channel is free to have zero or
+many actual connections to the endpoint based on configuration, load, etc.
+`
+
+And the question:
+https://github.com/grpc/grpc-java/issues/3268#issuecomment-317484178
+
+shutdown and re-create channel seems not very necessary.
+
+My question is, when `StreamObserver.onError()` is invoked, are `step 1,2,3`  needed for the recovery? or We can reuse the the channel and stub, just need `step 4` to re-create the `StreamObserver`, which means starting a new RPC on a previously opened channel by re-creating a `StreamObserver `?
+
+Thanks!

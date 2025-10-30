@@ -1,0 +1,43 @@
+Windows packaging cannot find the config file running on Linux
+### Questions
+
+I do development on Windows,  then when I deploy the jar onto linux system (wsl2), the `ConfigCenter` got null value.
+```java
+ConfigStoreOptions store = new ConfigStoreOptions()
+		.setType("file")
+		.setFormat("yaml")
+		.setConfig(new JsonObject().put("path", "xxx-xxx.yml"));
+
+ConfigRetriever retriever = ConfigRetriever.create(vertx, new ConfigRetrieverOptions().addStore(store));
+
+retriever.getConfig(r -> {
+	if (r.succeeded()) {
+		ConfigCenter.me().init(r.result());
+		handler.handle(true);
+	} else {
+		log.error("read transfer-engine.yml failed.", r.cause());
+	}
+	
+});
+```
+I noticed that, The config file ‘xxx-xxx.yml’ is copyed to user-home `vertx-cache-xxxx`, so I guess maybe the package build on 
+ windows contains path like `home\AppData\Local\Temp\vertx-cache-xxxx`. make it not work on linux???
+
+### Version
+
+4.3.0
+
+### Extra
+```pom
+<!-- 核心模块 -->
+<dependency>
+        <groupId>io.vertx</groupId>
+        <artifactId>vertx-core</artifactId>
+</dependency>
+<!-- config 模块 -->
+<dependency>
+	<groupId>io.vertx</groupId>
+	<artifactId>vertx-config-yaml</artifactId>
+</dependency>
+```
+* win11, 1.8.0_333

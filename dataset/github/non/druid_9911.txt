@@ -1,0 +1,35 @@
+Sorting on the value of an injective lookup returns incorrect order
+### Affected Version
+
+0.17.0
+
+### Description
+
+We have been using injective lookups to perform a one-to-one mapping between an ID and some model data. However, when we construct a query to order results by the mapped value, the results are returned ordered by the original dimension value.
+
+For example, if injective lookups perform this mapping:
+
+```
+// key -> value
+1 -> C
+2 -> B
+3 -> A
+```
+
+Then when making a query ordering by `value`, we would expect to see:
+```
+A
+B
+C
+```
+But what we actually see is:
+```
+C
+B
+A
+```
+The results are ordered by the value of key, not value. This issue does not seem to occur for non-injective lookups. However when we change to use a non-injective lookup, we see a performance hit and a considerable increase in heap usage and GC time on the historical while the query is running.
+
+Given how injective lookups are processed, this might be expected behaviour. However as far as I can tell this behaviour is not mentioned in the documentation.
+
+Issue seems to occur for both groupBy and topN.

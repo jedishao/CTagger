@@ -1,0 +1,14 @@
+Incomplete numbered shard specs partition when index task fails and retries
+### Affected Version
+
+0.21.1
+
+### Description
+
+Loaded a large dataset using the native parallel index. The load ran for 4 hrs, during that some tasks failed and retried. 
+Noticed that the numbered shards generated for the interval were not continuous and were missing in between overall max(partition_num) was 2289, however, the total shard count was 2263. 
+On a quick look it seems that on a subtask failure, it may happen that some partition numbers were allocated to a task and are never pushed, on a retry, the new task gets newer partition numbers. 
+
+The overall result was that the ingestion completed successfully with retries and the coordinator loaded the data.
+The broker segment timeline was incomplete due to missing partition numbers and the data was never queryable. 
+ 

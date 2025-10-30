@@ -1,0 +1,129 @@
+RPC seems to hang indefinitely
+<!-- For questions not directly related to gRPC-Java, please use [stackoverflow](https://stackoverflow.com/questions/tagged/grpc-java).
+Also, if question is not gRPC-Java implementation specific, consider using [grpc.io](https://groups.google.com/forum/#!forum/grpc-io).
+
+Make sure you include information that can help us understand your question. -->
+
+<!-- Your question below this line. -->
+
+Hey! I'm hoping you might have some insights into what could be going on here, or any tips for debugging it better. We have a grpc client on version `1.36.2` and it seems like after some amount of time, threads that issued RPCs hang indefinitely. The calls are being issued with a blocking stub, and in this particular instance they are being wrapped in kotlin coroutines. Here's two traces:
+
+```
+"DefaultDispatcher-worker-2" #2112 daemon prio=5 os_prio=0 cpu=77.71ms elapsed=2721.52s tid=0x00007f292c027000 nid=0xd2 waiting on condition  [0x00007f28870f0000]
+   java.lang.Thread.State: WAITING (parking)
+        at jdk.internal.misc.Unsafe.park(java.base@11.0.11/Native Method)
+        - parking to wait for  <0x000000074e238a18> (a java.util.concurrent.CompletableFuture$Signaller)
+        at java.util.concurrent.locks.LockSupport.park(java.base@11.0.11/LockSupport.java:194)
+        at java.util.concurrent.CompletableFuture$Signaller.block(java.base@11.0.11/CompletableFuture.java:1796)
+        at java.util.concurrent.ForkJoinPool.managedBlock(java.base@11.0.11/ForkJoinPool.java:3128)
+        at java.util.concurrent.CompletableFuture.waitingGet(java.base@11.0.11/CompletableFuture.java:1823)
+        at java.util.concurrent.CompletableFuture.get(java.base@11.0.11/CompletableFuture.java:1998)
+        at io.p8e.proxy.PermissionUpdaterKt.threadedMap(PermissionUpdater.kt:62)
+        at io.p8e.proxy.PermissionUpdater.saveConstructorArguments(PermissionUpdater.kt:24)
+        at io.p8e.proxy.Contract.packageContract(Contract.kt:460)
+        at io.p8e.proxy.Contract.execute(Contract.kt:719)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager$execute$3.invoke(P8e.kt:162)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager$execute$3.invoke(P8e.kt:161)
+        at com.figure.retry.RetryKt.runTaskWithRetryPolicy(Retry.kt:104)
+        at com.figure.retry.RetryKt.retrying(Retry.kt:132)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager.execute$suspendImpl(P8e.kt:157)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager.execute(P8e.kt)
+        at com.figure.p8e.servicing.fsm.contractstate.AssignLoanToServicingContractFSM.advanceContract(AssignLoanToServicingContract.kt:376)
+        at com.figure.p8e.servicing.fsm.contractstate.AssignLoanToServicingContractFSM.access$advanceContract(AssignLoanToServicingContract.kt:54)
+        at com.figure.p8e.servicing.fsm.contractstate.AssignLoanToServicingContractFSM$FirstStepAdvanced$nextState$$inlined$invoke$1.invokeSuspend(Effect.kt:49)
+        at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+        at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:106)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:571)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:750)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:678)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:665)
+
+
+
+"DefaultDispatcher-worker-3" #2111 daemon prio=5 os_prio=0 cpu=227.25ms elapsed=2721.52s tid=0x00007f2998028800 nid=0xd1 waiting on condition  [0x00007f28871f1000]
+   java.lang.Thread.State: WAITING (parking)
+        at jdk.internal.misc.Unsafe.park(java.base@11.0.11/Native Method)
+        - parking to wait for  <0x0000000748280000> (a io.grpc.stub.ClientCalls$ThreadlessExecutor)
+        at java.util.concurrent.locks.LockSupport.park(java.base@11.0.11/LockSupport.java:194)
+        at io.grpc.stub.ClientCalls$ThreadlessExecutor.waitAndDrain(ClientCalls.java:731)
+        at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:149)
+        at io.p8e.proto.EnvelopeServiceGrpc$EnvelopeServiceBlockingStub.getByExecutionUuid(EnvelopeServiceGrpc.java:488)
+        at io.p8e.grpc.client.EnvelopeClient.getByExecutionUuid(EnvelopeClient.kt:37)
+        at io.p8e.client.EventMonitorClient.getContract(EngineClient.kt:126)
+        at io.p8e.ContractManager.loadContract(ContractManager.kt:348)
+        at io.p8e.ContractManager.loadContract(ContractManager.kt:367)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager$loadContract$3.invoke(P8e.kt:172)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager$loadContract$3.invoke(P8e.kt:171)
+        at com.figure.retry.RetryKt.runTaskWithRetryPolicy(Retry.kt:104)
+        at com.figure.retry.RetryKt.retrying(Retry.kt:132)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager.loadContract-zdnXTc8$suspendImpl(P8e.kt:167)
+        at com.figure.p8e.servicing.service.RetryingP8eContractManager.loadContract-zdnXTc8(P8e.kt)
+        at com.figure.p8e.servicing.fsm.contractstate.AssignLoanToServicingContractFSM$FirstStepAdvanced$nextState$$inlined$invoke$1.invokeSuspend(Effect.kt:41)
+        at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+        at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:106)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:571)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:750)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:678)
+        at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:665)
+```
+
+Somewhat ironically, they both have the same elapsed time which seems to mean something happened to cause the whole client to stop processing RPCs. The above are colocated in the logs with GOAWAYs like such
+
+```
+Either.Left(PreExecutionError(t=io.grpc.StatusRuntimeException: UNAVAILABLE: Abrupt GOAWAY closed sent stream. HTTP/2 error code:
+```
+
+Some added background notes as well:
+- A deadline of 60s is on all of these RPCs which doesn't help in this particular instance.
+- Datadog APM is attached so they are dynamically injecting some interceptors.
+- We have a jwt client interceptor which will make a blocking RPC call for authentication. I've always thought this wasn't the best thing to do, but I've tried to inject faults with it and can't reproduce this blocking behavior.
+
+```
+class ChallengeResponseInterceptor(
+    private val keyPair: KeyPair,
+    private val authenticationClient: AuthenticationClient,
+    private val toleranceSeconds: Long = 3
+): ClientInterceptor {
+    private val jwt = AtomicReference("")
+
+    override fun <ReqT : Any, RespT : Any> interceptCall(
+        method: MethodDescriptor<ReqT, RespT>,
+        callOptions: CallOptions,
+        next: Channel
+    ): ClientCall<ReqT, RespT> {
+        return object: ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
+            override fun start(
+                responseListener: Listener<RespT>,
+                headers: Metadata
+            ) {
+                if (Constant.JWT_CTX_KEY.get() == null) {
+                    headers.put(
+                        Constant.JWT_METADATA_KEY,
+                        jwt.get()
+                            .takeIf { it.isNotEmpty() && !it.isExpired() }
+                        ?: authenticate())
+                }
+                super.start(
+                    responseListener,
+                    headers
+                )
+            }
+        }
+    }
+
+    private fun authenticate(): String {
+        // blocking RPC call
+    }
+
+    private fun String.isExpired(): Boolean {
+        return JWT.decode(this)
+            .expiresAt
+            .toInstant()
+            .atOffset(ZoneOffset.UTC)
+            .minusSeconds(toleranceSeconds)    // Give some tolerance
+            .isBefore(OffsetDateTime.now())
+    }
+}
+```
+
+Any thoughts or debugging help would be much appreciated!

@@ -1,0 +1,23 @@
+Added a new JDBC driver parameter - 'TimeZoneID'
+Timestamp which is created with UTC timezone is not reflecting the same timezone when queried from Tableau. Instead, tableau gives a timezone local to the machine where it is running.
+
+Repro steps:
+
+1. Create a table with timestamp column defaulted to UTC in mysql
+
+```
+CREATE TABLE `msgs` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `msg` VARCHAR(256),
+    `ts_create` TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+```
+
+Insert a sample value insert into msgs (msg) values('test');
+
+2. If queried via presto cli it shows local timezone but when forced to use UTC as shown below then the correct value appears
+
+`java -Duser.timezone=UTC -jar presto --server https://preddy.ahana-test.cp.ahana.cloud:443 --catalog ttt --user prabhakar --password --debug`
+
+3. Query this table from Tableau via Presto will not return timestamp in UTC.
+
+Adding a new JDBC driver parameter - 'TimeZoneID' similar to trino PR 7252 may fix this issue. 

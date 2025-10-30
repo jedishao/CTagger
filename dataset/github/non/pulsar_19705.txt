@@ -1,0 +1,85 @@
+PIP-254: Support configuring client version with a description suffix
+### Motivation
+
+In the `CommandConnect` of the Pulsar API protocol, there is a `client_version` field, which is configured by the client with a string that describes the client SDK. This description can be queried via the `pulsar-admin topics stats` command.
+
+https://github.com/apache/pulsar/blob/0e6ef109322058e7834ca23d968f66f5632cf2b1/pulsar-common/src/main/proto/PulsarApi.proto#L269
+
+However, this field is hard-coded (though generated according to the version) in each client AFAIK. It could bring an issue that if client SDK B depends on client SDK A directly, the `client_version` field is still the description of SDK A.
+
+Currently the issue exists in the Python and the Node.js clients, which are both based on the C++ client. It means that when an application written in the Python or Node.js Pulsar SDK connects to Pulsar, the stats show that they are C++ client.
+
+Further more, the Java client can also be called by other languages directly, including JVM languages like Scala, and script languages like JRuby. Here is an example that a Scala Pulsar client uses the official Java client as the dependency:
+
+https://github.com/CleverCloud/pulsar4s/blob/e16d5cc778e4038efed030b6d74ba2b1b06172d4/build.sbt#L187
+
+However, the `PulsarVersion` class is generated automatically and the version is fixed. It would be meaningful to differ the wrapper and the base library.
+
+### Goal
+
+Make the client version string configurable for each `PulsarClientImpl` instance. Then the library that depends on the `pulsar-client` dependency can wrap the `PulsarClientImpl` with its own client version.
+
+### API Changes
+
+Add the following method to `ClientBuilderImpl`:
+
+```java
+    /**
+     * Set the description.
+     *
+     * <p> By default, when the client connects to the broker, a version string like "Pulsar-Java-v<x.y.z>" will be
+     * carried and saved by the broker. The client version string could be queried from the topic stats.
+     *
+     * <p> This method provides a way to add more description to a specific PulsarClient instance. If it's configured,
+     * the description will be appended to the original client version string, with '-' as the separator.
+     *
+     * <p>For example, if the client version is 3.0.0, and the description is "forked", the final client version string
+     * will be "Pulsar-Java-v3.0.0-forked".
+     *
+     * @param description the description of the current PulsarClient instance
+     * @throws IllegalArgumentException if the length of description exceeds 64
+     */
+    public ClientBuilder description(String description) { /* ... */ }
+```
+
+Then the library provider should cast the `ClientBuilder` to `ClientBuilderImpl` before setting other fields:
+
+```java
+var client = ((ClientBuilderImpl) PulsarClient.builder()).description("xxx").serviceUrl(url).build();
+```
+
+### Implementation
+
+The implementation could be trivial. In `ClientCnx#newConnectCommand`, append the non-blank description to the version string.
+
+### Alternatives
+
+#### Configure the client version with a static method
+
+See https://lists.apache.org/thread/l9xqj92tx3ocvdts0y9yldyzzlp11zmc
+
+> 1) there may be multiple usages of the Java client in the same JVM, and you
+> want each client to report correctly its version
+>
+> 2) we would need to use the Java security Manager in order to prevent
+> malicious code to modify the version or some other mechanism to prevent
+> overriding the version.
+
+#### Configure the client version for each `PulsarClient`
+
+This way could override the original client version string. For example, if a client uses official the Pulsar Client 3.0.0 that might have a bug as the dependency, we might not know the original client version if it's overriden.
+
+#### Configure the description string for `PulsarClient`
+
+See https://lists.apache.org/thread/jhscs12xdzc641wvmdnpygmgprbc6753
+
+>  We cannot prevent a custom library from serializing
+> whatever they would like in the field, but making this field easily
+> available to application code could be confusing and might decrease
+> the value of the version information. 
+
+Generally users should not set this description, the client version string is used to identify a specific implementation of the Pulsar API.  If there is a strong demand to configure the description for the API layer (`PulsarClient`), we can open a new PIP later.
+
+### Anything else?
+
+_No response_

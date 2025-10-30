@@ -1,0 +1,29 @@
+Why druid-sql not support Filtered DimensionSpecs
+### Motivation
+we use multi-value column in project, when use sql `group by` that column, we get more value exceeded our expectation. the document:
+https://druid.apache.org/docs/latest/querying/multi-value-dimensions.html
+so we have to filter value in application, it not a good solution because we have a lot of multi-value column in a multi-dimition table and lots of `group by` query.
+
+so we try to resolve it. add three UDF (prefix_filter, regex_filter, list_filter) translate DefaultDimensionSpec to FilteredDimensionSpec, udf use  as follows:
+```
+select list_filter(singer_ids, '1', '2'), sum(index)
+from table
+where singer_ids in ('1', '2')
+GROUP BY singer_ids
+```
+singer_ids is multi-value column, the sql query sum index of singer_id 1, 2. `list_filter(singer_ids, '1', '2')` translate to :
+```
+"dimension" : {
+  "type": "listFiltered",
+  "delegate": {
+    "type": "default",
+    "dimension": "d0",
+    "outputName": "d0",
+    "outputType": "STRING"
+  },
+  "values": ["1", "2"]
+}
+```
+we want to commit a PR but not sure this is a good solution. hope some advice.
+
+ 

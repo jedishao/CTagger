@@ -1,0 +1,21 @@
+Avoid allocating and copying humongous byte[] slice for the whole Parquet Rowgroup
+The current ParquetReader would copy the whole RowGroup from the input file into a Slice in memory and pass it to PageReader as the input of the decompressors and decoders. 
+```
+// class ParquetReader
+private ColumnChunk readPrimitive(PrimitiveField field)
+{
+    ...
+                byte[] buffer = allocateBlock(totalSize);    // Allocate a buffer of the whole ColumnChunk(column in the RowGroup) size
+                dataSource.readFully(startingPosition, buffer);   // Copies the whole ColumnChunk from the file into the buffer
+                PageReader pageReader = createPageReader(buffer, totalSize, metadata, columnDescriptor);   // buffer used as input for pageReader
+                columnReader.init(pageReader, field, null);
+}
+```
+
+It may contain many pages and be very big. In the following heap dump from a customer's cluster, we found that a single such slice could take over 100MB. This caused GC pressure and reliability problems.
+
+<img width="1481" alt="Screen Shot 2023-01-21 at 11 17 43 PM" src="https://user-images.githubusercontent.com/33299678/213905063-4321bcf7-21da-46b9-b1f6-ff0c8f6f0dcb.png">
+
+The decompressors usually maintains some internal buffers too. This may incur another memory copy from the Slice input to the decompressor's internal buffers. After decompression, the decoders need to read the decompressed data, decode it and copy to the output values array. For the plain value decoder, this is the 3rd memory copy. 
+
+It is possible to remove this humongous slice and avoid at least one memory copy, if we can make the input of the decompressors directly hook into the underlying input. Or we can at least use smaller buffers, e.g. 8MB buffers or the size of one data page, whichever is less. There is no need to read the whole RowGroup into a single buffer all at once.

@@ -1,0 +1,10 @@
+Multiple sql functions called on arrays from table scans fail
+set session inline_sql_functions=false;
+
+create table if not exists test_array_temp as select sequence(1, 10) x;
+
+   SELECT
+    "array_sum"("transform"(x, (y) -> "cardinality"(x)))
+    , "array_sum"("transform"(x, (y) -> "array_sum"("transform"(x, (check) -> IF((NOT random(10) > 10), 1, 0)))))
+   FROM
+   test_array_temp;

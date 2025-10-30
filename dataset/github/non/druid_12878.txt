@@ -1,0 +1,26 @@
+when CDPATH environment variable is set running /bin/start-micro-quickstart fails 
+### Affected Version
+
+druid-0.23.0
+
+### Description
+
+when `CDPATH` environment variable is set example scripts like `/bin/start-micro-quickstart` do not run because the below lines in `run-druid` and `run-zk` scripts
+
+```
+CONFDIR="$(cd "$CONFDIR" && pwd)"
+WHEREAMI="$(cd "$WHEREAMI" && pwd)"
+```
+expects `cd` command to return no output. however when `CDPATH` environment variable is set  the `cd` command returns the current directory path as output. This causes the `CONFDIR `and `WHEREAMI` variables to have the directory path twice ( the output from cd command gets concatenated to the output from pwd command)
+
+below is a quick test to validate the issue.
+
+```
+CDPATH=".:~"
+T=$(cd Temp && pwd)
+echo $T
+```
+
+the output will be `~/Temp ~/Temp` instead of `~/Temp`
+assuming there is Temp dir under the home directory
+

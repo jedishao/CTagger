@@ -1,0 +1,17 @@
+Handling Time Zone Not Support
+I am using presto through AWS Athena and trying to take user generated events in UTC and convert them to the users own time zone. I am not sure if it's due to Athena's version of presto not being up to date, but some users have time zones that presto doesn't recognize. In my case it's `'Asia/Yangon'`
+
+```
+SELECT at_timezone(timestamp '2020-01-01', 'Asia/Yangon')
+```
+> NOT_SUPPORTED: Time zone not supported: Asia/Yangon
+
+Unfortunately, I don't have the ability to update Athena's version of presto if that would solve this. Even if I were able to, it's possible a user reports a new or non-existing time zone at any time, breaking any query that uses `at_timezone` that happen to include their events.
+
+I tried using a `try` here but it doesn't catch this type of error.
+
+```
+SELECT try(at_timezone(timestamp '2020-01-01', 'Asia/Yangon'))
+```
+
+Is there a way I can safely attempt to change the time zone of a timestamp, or is there a list of valid time zones for presto I can filter on?

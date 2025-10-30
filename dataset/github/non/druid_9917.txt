@@ -1,0 +1,22 @@
+record sql executed on meta storage to log file
+### Description
+
+As described in #9899, there're some performance issues for druid to get all used segments metadata info from the underlying database.
+
+To help us easily monitor the sql performance, it's useful to log the sql and its execution time to log files so that we can analyze the sql performance.
+
+Fortunately,  DBI used by druid provides a logger to allow user to record sql and its execution time, and the code in metadata storage related to sql operation has already calls that logger to log those info.
+
+But, DBI's default logger is `NoOpLog`,  which is an empty implementation and does nothing. So here's a proposal to output the sql being executed and its execution time to log files
+
+### Changes
+
+Since the DBI is instantiated in meta storage implementation, and DBI is heavily used in druid-server module, my proposal here is to put the change in meta storage implementations.
+
+In `MySQLConnector`/`PostgreSQLConnector`/`SQLServerConnector`, after the instantiation of `DBI`, change the logger of DBI from `NoOpLog` to `SLF4JLog`
+
+Currently I think it's no need to provide a configuration item to allow user whether or not to enable this small feature, because druid does not access to the meta storage very frequently, which means this change won't introduce very large amount of logs to the log file. 
+
+But if we do need such a configuration,  according to current arch and implementation, we could define a property named as 'enabledSqlProfile` in `MetadataStorageConnectorConfig`.
+
+I will later make a PR.

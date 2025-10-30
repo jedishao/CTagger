@@ -1,0 +1,6 @@
+Lazy Block loading is not utilized efficiently in case of nested column project pushdown on Parquet tables
+The main issue is we read all subfields in one column. We should separate each subfield into its own column in Scan.
+
+For example `select msg.a, msg.b, msg.c from tbl where msg.a=10`. In the existing implementation on 217 at Uber, we were reading the `msg.a`, `msg.b` and `msg.c` as separate blocks. In 230, we read the entire `msg.[a,b,c]` as one Block. This doesn’t utilize the lazy block loading during filter evaluation for `msg.a=10`. In 217 we were just loading the `msg.a` first and decide whether to load `msg.b` and `msg.c`, but in 230 we are loading all `msg.[abc]` at once as part of the filter evaluation.
+
+This causes too much IO pressure.

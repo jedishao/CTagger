@@ -1,0 +1,20 @@
+Presto is not supported in Mac OS with Apple Silicon
+Hi,
+
+I was trying to install Presto under my M1 Macbook Pro, and got error message "Presto requires x86_64 on Mac OS X (found aarch64)" when service was launched.
+I found the issue was from the method '**verifyOsArchitecture**' under class **PrestoSystemRequirements.java** of package com.facebook.presto.server.
+
+I currently fork the repo and build my version to avoid the issue by changing the method as below:
+
+`
+else if ("Mac OS X".equals(osName)) {
+       if (!"x86_64".equals(osArch) && !"aarch64".equals(osArch)) {
+                failRequirement("Presto requires x86_64 or aarch64 on Mac OS X (found %s)", osArch);
+      }
+}
+`
+Also, presto-cli is not compatible with arm yet. I got error like this.
+
+Exception in thread "main" java.lang.UnsatisfiedLinkError: Could not load library. Reasons: [no jansi64-0.269-SNAPSHOT-ce338f0 in java.library.path, no jansi-0.269-SNAPSHOT-ce338f0 in java.library.path, no jansi in java.library.path, /private/var/folders/n2/gmyyclln46b7zb4q0t885wyr0000gn/T/libjansi-64-0-4225468188239448006.269-SNAPSHOT-ce338f0: dlopen(/private/var/folders/n2/gmyyclln46b7zb4q0t885wyr0000gn/T/libjansi-64-0-4225468188239448006.269-SNAPSHOT-ce338f0, 0x0001): tried: '/private/var/folders/n2/gmyyclln46b7zb4q0t885wyr0000gn/T/libjansi-64-0-4225468188239448006.269-SNAPSHOT-ce338f0' (fat file, but missing compatible architecture (have 'x86_64,i386', need 'arm64e')), '/usr/lib/libjansi-64-0-4225468188239448006.269-SNAPSHOT-ce338f0' (no such file)]
+
+It would be great if it can be fixed and released in next version.

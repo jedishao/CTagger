@@ -1,0 +1,83 @@
+Manual Flow Control
+Hi,
+
+I was experimenting with the manual flow control example and by reading the logs at debug level I'm under the impression that the client sends the request before request(1) at the server is called.
+
+Logs from the server:
+
+```
+[grpc-nio-worker-ELG-3-1] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler  - [id: 0xc603dca3, L:/127.0.0.1:50051 - R:/127.0.0.1:61910] INBOUND DATA: streamId=3 padding=0 endStream=true length=13 bytes=00000000080a06536f70686961**
+[grpc-nio-worker-ELG-3-1] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler  - [id: 0xc603dca3, L:/127.0.0.1:50051 - R:/127.0.0.1:61910] OUTBOUND PING: ack=false bytes=1234
+[grpc-default-executor-0] INFO  grpc.test.docum.ManualFlowControlServer  - READY
+**[grpc-default-executor-0] INFO  grpc.test.docum.ManualFlowControlServer  - request(1)
+[grpc-nio-worker-ELG-3-1] DEBUG io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler  - [id: 0xc603dca3, L:/127.0.0.1:50051 - R:/127.0.0.1:61910] INBOUND PING: ack=true bytes=1234
+[grpc-default-executor-0] INFO  grpc.test.docum.ManualFlowControlServer  - --> Sophia
+```
+
+My understanding is that manual flow control required `serverCallStreamObserver.request(1)` to be called in order for data to flow from producer (client) to consumer (server). **Is that understanding incorrect?**
+
+A follow up question about how a grpc server with manual flow control behaves under load: I've created my own manual client and server, following the example available at the repository. It's slightly modified:
+
+1 - The client sends 1 request when ready and completes (code is abridged)
+
+```java
+  public void beforeStart(ClientCallStreamObserver<Request> requestStream) {
+                      this.requestStream = requestStream;
+                      this.requestStream.disableAutoRequestWithInitial(1);
+
+                      requestStream.setOnReadyHandler(
+                          () -> {
+                            while (requestStream.isReady()) {
+                                if (!requestWasSent) {
+                                  requestStream.onNext(request);
+                                  requestWasSent = true;
+                                  log.info("request is ready: onNext() executed [send request]");
+                              } else {
+                                  requestStream.onCompleted();
+                                  log.info("request is ready: request.onCompleted() executed [complete request]");
+                              }
+                            }
+                          });
+                    }
+                  };
+```
+
+2 - The server requests(1) when ready and sends 1 response when it gets the request from the client  (code is abridged)
+
+```java
+public StreamObserver<Request> getAd(StreamObserver<Response> responseObserver) {
+        ServerCallStreamObserver<Request> scsResponseObserver =  (ServerCallStreamObserver<Response>) responseObserver;
+        scsResponseObserver.disableAutoRequest();
+
+        class OnReadyHandler implements Runnable {
+            @Override
+            public void run() {
+                if (scsResponseObserver.isReady()) {
+                    log.info("request(1)");
+                    scsResponseObserver.request(1);
+                }
+            }
+        }
+
+        final OnReadyHandler onReadyHandler = new OnReadyHandler();
+        scsResponseObserver.setOnReadyHandler(onReadyHandler);
+
+        return new StreamObserver<>() {
+            @Override
+            public void onNext(Request value) {
+                log.info("-> request");
+                responseObserver.onNext(Response.newBuilder().build());
+                log.info("<- response");
+                responseObserver.onCompleted();
+            }
+
+```
+It works and generates logs (at the server side) similar to the ones pasted above.
+
+I was curious to verify how the server would behave in a strenuous situation, so as an experiment I ran the server at very low memory (xmx=50mb) and modified the producer to scale up to 2000 requests per second.
+
+My expectation was that a buffer would build on the producer's side, potentially causing it to run out of memory, and that the direct buffer memory on the server's side would peak but it would remain operational as it explicitly requests only when buffer memory is available. The server, however, ran out of heap memory.
+
+My question here is - is there any way to ensure that the server won't crash even under strenuous situations like this? I was hoping this would be achieved by using isReady() + request(1). Is isReady() aware of how much heap is available? Also, what is the suggested solution for a case like this - e.g., would it be advisable to use a rate limiter on the onReady handler?
+
+Appreciate any help! Kind regards

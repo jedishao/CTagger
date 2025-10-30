@@ -1,0 +1,37 @@
+expireAsync lua script error
+ Error Info:
+
+`Caused by: org.redisson.client.RedisException: ERR bad lua script for redis cluster, redis.call/pcall, wrong number of arguments for 'pexpire' command. channel: [id: 0x69747857, L:/10.65.195.105:55663 - R:10.73.225.162/10.73.225.162:6379] command: (EVAL), promise: java.util.concurrent.CompletableFuture@47e523e6[Not completed, 1 dependents], params: [local result = 0;for j = 1, #KEYS, 1 do local expireSet; if ARGV[2] ~= '' then expireSet = redis.cal..., 1, TEST20220927, 172800000, ]`
+
+After commit edab5ecd666001cf0eb4644460c71d5ab8eb43b1
+
+```
++ "if ARGV[2] ~= '' then "
++ "expireSet = redis.call('pexpireat', KEYS[j], ARGV[1], ARGV[2]); "
++ "else "
++ "expireSet = redis.call('pexpireat', KEYS[j], ARGV[1]); "
+```
+
+=========My Redis & Code =======
+
+Redis version: 4.0.11
+
+Redisson version: 3.17.0
+
+Redisson configuration:
+```
+val config: Config = new Config
+    config.useSingleServer.setAddress("redis://xxx.xxx.com:6379")
+      .setDatabase(0)
+      .setPassword("xxxxx")
+      .setConnectionMinimumIdleSize(1)
+      .setKeepAlive(true)
+      .setConnectionPoolSize(1)
+    val redisson: RedissonClient = Redisson.create(config)
+
+val sc: RBucket[String] = redisson.getBucket("TEST20220927")
+
+sc.set("999")
+
+val r: RFuture[java.lang.Boolean] = sc.expireAsync(Duration.ofHours(48))
+```

@@ -1,0 +1,47 @@
+io.grpc.xds.SharedCallCounterMap.cleanQueue() NullPointerException
+Version: v1.38.1
+Env: Linux, Jdk8
+
+It happened to grpc client with xds enabled:
+```
+io.grpc.StatusRuntimeException: INTERNAL: Panic! This is a bug!
+        at io.grpc.stub.ClientCalls.toStatusRuntimeException(ClientCalls.java:262)
+        at io.grpc.stub.ClientCalls.getUnchecked(ClientCalls.java:243)
+        at io.grpc.stub.ClientCalls.blockingUnaryCall(ClientCalls.java:156)
+        ......
+Caused by: java.lang.NullPointerException: null
+        at io.grpc.xds.SharedCallCounterMap.cleanQueue(SharedCallCounterMap.java:76)
+        at io.grpc.xds.SharedCallCounterMap.getOrCreate(SharedCallCounterMap.java:67)
+        at io.grpc.xds.ClusterImplLoadBalancer.handleResolvedAddresses(ClusterImplLoadBalancer.java:124)
+        at io.grpc.util.ForwardingLoadBalancer.handleResolvedAddresses(ForwardingLoadBalancer.java:46)
+        at io.grpc.xds.PriorityLoadBalancer$ChildLbState.updateResolvedAddresses(PriorityLoadBalancer.java:269)
+        at io.grpc.xds.PriorityLoadBalancer.tryNextPriority(PriorityLoadBalancer.java:136)
+        at io.grpc.xds.PriorityLoadBalancer.handleResolvedAddresses(PriorityLoadBalancer.java:102)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState.handleEndpointResourceUpdate(ClusterResolverLoadBalancer.java:246)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState.access$1600(ClusterResolverLoadBalancer.java:157)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState$EdsClusterState$1EndpointsUpdated.run(ClusterResolverLoadBalancer.java:427)
+        at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+        at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+        at io.grpc.xds.ClusterResolverLoadBalancer$ClusterResolverLbState$EdsClusterState.onChanged(ClusterResolverLoadBalancer.java:431)
+        at io.grpc.xds.ClientXdsClient$ResourceSubscriber.notifyWatcher(ClientXdsClient.java:1562)
+        at io.grpc.xds.ClientXdsClient$ResourceSubscriber.onData(ClientXdsClient.java:1515)
+        at io.grpc.xds.ClientXdsClient.handleResourcesAccepted(ClientXdsClient.java:1379)
+        at io.grpc.xds.ClientXdsClient.handleEdsResponse(ClientXdsClient.java:982)
+        at io.grpc.xds.AbstractXdsClient$AbstractAdsStream.handleRpcResponse(AbstractXdsClient.java:504)
+        at io.grpc.xds.AbstractXdsClient$AdsStreamV3$1$1.run(AbstractXdsClient.java:663)
+        at io.grpc.SynchronizationContext.drain(SynchronizationContext.java:95)
+        at io.grpc.SynchronizationContext.execute(SynchronizationContext.java:127)
+        at io.grpc.xds.AbstractXdsClient$AdsStreamV3$1.onNext(AbstractXdsClient.java:655)
+        at io.grpc.xds.AbstractXdsClient$AdsStreamV3$1.onNext(AbstractXdsClient.java:652)
+        at io.grpc.stub.ClientCalls$StreamObserverToCallListenerAdapter.onMessage(ClientCalls.java:465)
+        at io.grpc.internal.DelayedClientCall$DelayedListener.onMessage(DelayedClientCall.java:447)
+        at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1MessagesAvailable.runInternal(ClientCallImpl.java:652)
+        at io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1MessagesAvailable.runInContext(ClientCallImpl.java:637)
+        at io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+        at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:123)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        ... 1 common frames omitted
+```
+
+I failed to find the exact steps to reproduce this exception. But it almost always happens in my long-running server application.

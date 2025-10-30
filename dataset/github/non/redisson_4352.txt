@@ -1,0 +1,51 @@
+Issue with sticky sessions
+Hi All,
+
+Basically we are running Java application using Tomcat Docker image which is deployed on kubernetes. Everything works fine when there is only 1 replica. When we try to run 2 replicas for instance, at first there was a problem where user was not able to log in the application, this was kind of fixed by using kubernetes nginx-ingress sticky sessions using cookie as affinity. It basically forced user to access the same tomcat POD all the time and user was able to log in. But this is not ideal as whenever new POD is deployed, user needs to log in again. Thats when we started to look around for some session management and came upon Redisson for Tomcat and it sounded exactly what we needed so I decided to try it out.
+
+So first I added this to context.xml file
+```
+<Manager className="org.redisson.tomcat.RedissonSessionManager"
+        configPath="${catalina.base}/redisson.conf"
+        readMode="REDIS" updateMode="DEFAULT" broadcastSessionEvents="false"
+        keyPrefix=""/>
+```
+and redisson.conf looks like this (redis single master node deployed on kubernetes as well)
+```
+---
+singleServerConfig:
+  idleConnectionTimeout: 10000
+  connectTimeout: 10000
+  timeout: 3000
+  retryAttempts: 3
+  retryInterval: 1500
+  password: null
+  subscriptionsPerConnection: 5
+  clientName: null
+  address: "redis://redis-master:6379"
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionConnectionPoolSize: 50
+  connectionMinimumIdleSize: 24
+  connectionPoolSize: 64
+  database: 0
+  dnsMonitoringInterval: 5000
+threads: 16
+nettyThreads: 32
+codec: !<org.redisson.codec.MarshallingCodec> {}
+transportMode: "NIO"
+```
+Added also both `redisson-all-3.17.3.jar` and `redisson-tomcat-9-3.17.3.jar` files to lib folder.
+Tomcat version is `9.0.20`
+
+When first accessing my application, in catalina log file I saw message 
+```
+INFO [http-nio-8080-exec-10] org.redisson.tomcat.RedissonSessionManager.findSession Session 43903E22A6119519F53C530A5EA2C3B4 can't be found
+```
+and I was never able to log in my app, even using single POD. Although from redis-cli I saw that keys like `"redisson:tomcat_session:5555BC7641D738082FD1087373A8816B"` are being stored
+
+Then I changed `readMode="MEMORY"` in redisson.conf file and I was able to log in my app, as for my surprise even after deleting PODs and/or scaling to 2 or 3 PODs, I was still logged in my app after refreshing the browser, awesome, exactly what I wanted.
+The issue right now is that whenever there are 2 or more PODs (for example POD-1 and POD-2) and I try to log in my app, from the POD logs I can see that when first accessing the login screen, it goes through POD-1 and when trying to log in, request goes through POD-2, thus never logging user in. Then again when logging in on POD-2, request goes through POD-1. After several tries, once the request goes through the same POD, I am able to log in and use the application even if PODs are being recreated/deleted afterwards, I am still logged in.
+
+So the question - is it somehow possible for the user on the first log in stay at the same tomcat POD even after login request is sent? Similarly as with nginx-ingress sticky sessions when requests are sent to the same POD.
+
+Thanks in advance!

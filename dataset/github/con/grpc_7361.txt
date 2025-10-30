@@ -1,0 +1,39 @@
+Observer setOnReadyHandler semantics wrt GRPC thread
+I've got a situation where I think I'm using the observer setOnReadyHandler correctly, but may be running into potential concurrency issues due to running on the GRPC thread.
+
+```java
+    private final ServerCallStreamObserver<Response> observer;
+
+    public Demonstrate(ServerCallStreamObserver<Response> observer) {
+      this.observer = observer;
+    }
+
+    /** must be done on the GRPC thread before returning */
+    void init() {
+      observer.setOnReadyHandler(this::onReady);
+    }
+
+    void execute() throws InterruptedException {
+      waitForReady();
+      observer.onNext(Response.newBuilder().build());
+      
+      waitForReady();
+      observer.onNext(Response.newBuilder().build());
+      
+      observer.onCompleted();
+    }
+
+    synchronized void onReady() {
+      notify();
+    }
+
+    synchronized void waitForReady() throws InterruptedException {
+      while (!observer.isReady()) {
+        wait();
+      }
+    }
+```
+
+If `execute()` is run on the GRPC thread, it gets stuck on the second call to `waitForReady()`. It works correctly if executing on a new thread. For testing, I'm using the *default* and not the direct executor, since `waitForReady()` is a blocking op.
+
+I've got a full test rig setup. https://github.com/devinrsmith/grpc-handlers

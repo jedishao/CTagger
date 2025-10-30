@@ -1,0 +1,22 @@
+HttpClient handles HTTP/2 connection closing more gracefully
+#### Describe the feature
+
+We are using Vertx HttpClient and we noticed that when a server closes the connection via a GOAWAY frame, the in flight streams with id lower than the Last-Stream-Id returned in the GOAWAY frame are closed and a CONNECTION_CLOSED exception is thrown for each one of them.
+
+As from our understanding this flow is triggered also from Netty's `channelInactive` method, so from a high level it is not clear if there was an actual error, such as an ECONNRESET, our it is just normal operation of HTTP/2 connection closing.
+
+So, we are thinking of 2 options:
+1. Maybe the HttpClient should retry these requests itself? i.e. sending them on another connection, as it is normal operation, no exceptional behaviour.
+2. Or at least to throw another exception which will clearly state the reason why the given stream was not correctly processed. This is important because it will let the developer know that it can safely retry it, as the stream was not processed by the other part. Where in case of an ECONNRESET you cannot know if the other part received the stream and processed it successfully.
+
+What do you think?
+
+#### Use cases
+
+Depending on the chosen solution:
+- providing more clarity
+- easier developer implementation by not requiring retry for normal HTTP/2 operation
+
+#### Contribution
+
+Happy to contribute

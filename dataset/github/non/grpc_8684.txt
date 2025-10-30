@@ -1,0 +1,3 @@
+status code for unclean connection termination
+When the TCP connection underlying a netty server connection is abruptly closed by the client, grpc-java goes through all active call streams and closes them as `UNAVAILABLE`:
+https://github.com/grpc/grpc-java/blob/6518d7bd6dc496c89ff320e06c73424f26af364a/netty/src/main/java/io/grpc/netty/NettyServerHandler.java#L613-L625 A problem we've seen with this arrangement is that there is no way for to distinguish `UNAVAILABLE` call failures due to "real" server unavailability and due to the client uncleanly closing their connections (probably due to abrupt process death). What do you think about changing the status in this situation to `CANCELLED`?

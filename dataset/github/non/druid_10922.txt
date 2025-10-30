@@ -1,0 +1,26 @@
+Streaming indexing task failures in a new datasource can lead to data loss
+### Affected Version
+
+Tested in Druid 0.20.0
+
+### Description
+
+There's an edge case during Streaming indexing which can cause data loss in druid. When streaming indexing tasks checkpoint their offsets in the metadata store there are steps in place to ensure that there are no gaps in the sequences. 
+
+This is done by [ensuring](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/metadata/IndexerSQLMetadataStorageCoordinator.java#L1125-L1130) that the checkpoint being committed starts at the end of the previous checkpoint in the database. However this validation only occurs if there is already a checkpoint in the database i.e after the first successful publish.
+
+When a datasource is newly created there is [no checkpoint in the metadata store](https://github.com/apache/druid/blob/master/server/src/main/java/org/apache/druid/metadata/IndexerSQLMetadataStorageCoordinator.java#L1122) so any task that successfully publishes will be allowed to write its checkpoint into the metadata store.
+
+We've identified an edge case where if a task fails after reporting its end offsets but before publishing its segments, the supervisor will queue new tasks that start reading from the next sequence of offsets and if they successfully publish their segments then it will cause a gap in the offsets and lead to data loss.
+
+### Steps to reproduce:
+
+1. Create a new datasource that ingests from kafka, to simplify the example we used one kafka partition and one task with no replicas.
+2. Ensure that the first task (task 1) fails before it can publish its segments. We did this by creating a completion timeout that was too low for the task to be able to complete.
+3. The Supervisor will continue to schedule tasks that read from offsets that are ahead of the end offsets from task 1.
+4. The next task to successfully complete checkpoints its offsets
+5. Supervisor continues to queue tasks and never rescheduled work for the missing data in task 1.
+
+We've tested this out using kafka indexing but the problem likely applies to all streaming ingestion. 
+
+One potential way to solve this issue would be to ensure that the first checkpoint that is committed to the metadata store is from where the supervisor started ingestion in the stream. Might also be possible to have the supervisor initialize the datasource metadata in the metadata store prior to queuing tasks ?.
