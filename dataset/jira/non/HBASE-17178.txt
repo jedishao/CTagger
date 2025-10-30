@@ -1,0 +1,15 @@
+Add region balance throttling
+Our online cluster serves dozens of  tables and different tables serve for different services. If the balancer moves too many regions in the same time, 
+it will decrease the availability for some table or some services. So we add region balance throttling on our online serve cluster. 
+We introduce a new config hbase.balancer.max.balancing.regions, which means the max number of regions in transition when balancing.
+If we config this to 1 and a table have 100 regions, then the table will have 99 regions available at any time. It helps a lot for our use case and it has been running a long time
+our production cluster.
+But for some use case, we need the balancer run faster. If a cluster has 100 regionservers, then it add 50 new regionservers for peak requests. Then it need balancer run as soon as
+possible and let the cluster reach a balance state soon. Our idea is compute max number of regions in transition by the max balancing time and the average time of region in transition.
+Then the balancer use the computed value to throttling.
+Examples for understanding.
+A cluster has 100 regionservers, each regionserver has 200 regions and the average time of region in transition is 1 seconds, we config the max balancing time is 10 * 60 seconds.
+Case 1. One regionserver crash, the cluster at most need balance 200 regions. Then 200 / (10 * 60s / 1s) < 1, it means the max number of regions in transition is 1 when balancing. Then the balancer can move region one by one and the cluster will have high availability  when balancing.
+Case 2. Add other 100 regionservers, the cluster at most need balance 10000 regions. Then 10000 / (10 * 60s / 1s) = 16.7, it means the max number of regions in transition is 17 when balancing. Then the cluster can reach a balance state within the max balancing time.
+Any suggestions are welcomed.
+Review board: https://reviews.apache.org/r/54191/

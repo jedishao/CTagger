@@ -1,0 +1,109 @@
+Cannot read decimal from avro file created with HIVE
+Hi,
+When we export decimal data from a hive managed table to a hive avro external table (as bytes with decimal logicalType) the value from avro file cannot be read with any other tools (ex: avro-tools, spark, datastage..)
+Scenario:
+create hive managed table an insert a decimal record:
+
+create table test_decimal (col1 decimal(20,2));
+insert into table test_decimal values (3.12);
+
+
+create avro schema /tmp/test_decimal.avsc with below content:
+
+{
+  "type" : "record",
+  "name" : "decimal_test_avro",
+  "fields" : [ {
+    "name" : "col1",
+    "type" : [ "null", {
+      "type" : "bytes",
+      "logicalType" : "decimal",
+      "precision" : 20,
+      "scale" : 2
+    } ],
+    "default" : null,
+    "columnName" : "col1",
+    "sqlType" : "2"
+  }],
+  "tableName" : "decimal_test_avro"
+}
+
+
+create an hive external table stored as avro:
+
+create external table test_decimal_avro
+STORED AS AVRO
+LOCATION '/tmp/test_decimal'
+TBLPROPERTIES (
+  'avro.schema.url'='/tmp/test_decimal.avsc',
+  'orc.compress'='SNAPPY');
+
+
+insert data in avro external table from hive managed table:
+
+set hive.exec.compress.output=true;
+set hive.exec.compress.intermediate=true;
+set avro.output.codec=snappy; 
+insert overwrite table test_decimal_avro select * from test_decimal;
+
+
+successfully reading data from hive avro table through hive cli:
+
+select * from test_decimal_avro;
+OK
+3.12
+
+
+avro schema from avro created file is ok:
+
+hadoop jar /avro-tools.jar getschema /tmp/test_decimal/000000_0
+{
+  "type" : "record",
+  "name" : "decimal_test_avro",
+  "fields" : [ {
+    "name" : "col1",
+    "type" : [ "null", {
+      "type" : "bytes",
+      "logicalType" : "decimal",
+      "precision" : 20,
+      "scale" : 2
+    } ],
+    "default" : null,
+    "columnName" : "col1",
+    "sqlType" : "2"
+  } ],
+  "tableName" : "decimal_test_avro"
+}
+
+
+read data from avro file with avro-tools error, got "\u00018" value instead of the correct one:
+
+hadoop jar avro-tools.jar tojson /tmp/test_decimal/000000_0
+{"col1":{"bytes":"\u00018"}}
+
+
+Read data in a spark dataframe error, got [01 38] and 8 when converted to string instead of correct "3.12" value :
+
+
+val df = sql.read.avro("/tmp/test_decimal")
+df: org.apache.spark.sql.DataFrame = [col1: binary]
+
+scala> df.show()
++-------+
+|   col1|
++-------+
+|[01 38]|
++-------+
+
+
+scala> df.withColumn("col2", 'col1.cast("String")).select("col2").show()
++----+
+|col2|
++----+
+|  8|
++----+
+
+
+
+Is this a Hive bug or there is anything else I can do in order to get correct values in the avro file created by Hive?
+Thanks,

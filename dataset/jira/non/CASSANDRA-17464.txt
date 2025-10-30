@@ -1,0 +1,24 @@
+Performance regression in range queries with per partition limit
+Since upgrading from 2.2 to 3.11, we've noticed a large number of timeouts on partition range queries. We use these range queries to retrieve all data from some small tables (usually a few hundred partitions, outliers to ~3k partitions), so that we can cache this data at the application level.
+After investigation we noticed a large number of extra requests from short read protection, even though the initial range query had returned all data. It turns out that when a per partition limit is used, the fix for CASSANDRA-13911 causes a short read protection request for every partition that has less rows/cells than the specified limit.
+I've attached a query trace of this occurring for a very small table (12 single-row partitions):
+
+A RANGE_SLICE is executed, which returns all 12 live rows (and 0 tombstones).
+For each partition, an extra query for 100 rows (the per-partition limit) is triggered from ShortReadRowsProtection.
+An additional RANGE_SLICE query is executed from ShortReadPartitionsProtection in an attempt to fill the total limit (1M). 
+
+So an additional 13 queries per node are executed, even though the initial query returned all available data. For larger tables we are seeing hundreds or thousands of extra queries.
+We first encountered this issue in Thrift (which supports per-partition limits on 2.2), but confirmed it occurs in CQL as well when using PER PARTITION LIMIT.
+This occurs whenever a partition contains less rows than the per-partition limit:
+
+Less rows than the limit means that ShortReadRowsProtection.moreContents() is called.
+None of the conditions for skipping short read protection are true:
+	
+The per partition count is not NO_LIMIT.
+The current partition is not empty.
+The clustering is not equal to Clustering.EMPTY as it's a clustered table.
+lastQueried is 0.
+
+
+
+From my understanding, the issue fixed in CASSANDRA-13911 can only occur when the data returned in a partition is limited by the total limit (which may or may not coincide with the per-partition limit for that partition). If rows in previous partitions are skipped while merging because of the per-partition limit and out-of-sync nodes, the single result counter for that node may undercount the actual returned data, causing isExhausted() to give a false positive. The patch in CASSANDRA-13911 fixes the false positives (which cause incorrect query responses in some edge cases) but introduces many false negatives (which trigger unnecessary short read protection queries).

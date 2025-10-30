@@ -1,0 +1,76 @@
+Join query with STREAMTABLE fails by java.lang.IndexOutOfBoundsException
+Steps to reproduce this issue: 
+STEP 1. Create test tables and insert some data 
+
+hive> create table test1(x int, y int, z int);
+hive> create table test2(x int, y int, z int);
+
+
+
+hive> insert into table test1 values(1,1,1), (2,2,2);
+hive> insert into table test2 values(1,5,5), (2,6,6);
+
+
+STEP 2. Disable MapJoin
+
+hive> set hive.auto.convert.join = false;
+
+
+STEP 3. Run query
+
+select /*+ STREAMTABLE(test1) */ test1.*, test2.x from test1 left join test2 on test1.x = test2.x and test1.x > 1;
+
+
+EXPECTED RESULT: 
+
+OK
+1	1	1	NULL
+2	2	2	2
+
+
+ACTUAL RESULT:
+
+ 
+2017-08-17 00:36:46,305 Stage-1 map = 0%,  reduce = 0%
+2017-08-17 00:36:51,708 Stage-1 map = 50%,  reduce = 0%, Cumulative CPU 1.25 sec
+2017-08-17 00:36:52,761 Stage-1 map = 100%,  reduce = 0%, Cumulative CPU 2.35 sec
+2017-08-17 00:37:17,137 Stage-1 map = 100%,  reduce = 100%, Cumulative CPU 2.35 sec
+MapReduce Total cumulative CPU time: 2 seconds 350 msec
+Ended Job = job_1502889241527_0005 with errors
+Error during job, obtaining debugging information...
+Examining task ID: task_1502889241527_0005_m_000000 (and more) from job job_1502889241527_0005
+
+Task with the most failures(4): 
+-----
+Task ID:
+  task_1502889241527_0005_r_000000
+
+-----
+Diagnostic Messages for this Task:
+Error: java.lang.RuntimeException: org.apache.hadoop.hive.ql.metadata.HiveException: Hive Runtime Error while processing row (tag=0) {"key":{"reducesinkkey0":1},"value":null}
+	at org.apache.hadoop.hive.ql.exec.mr.ExecReducer.reduce(ExecReducer.java:257)
+	at org.apache.hadoop.mapred.ReduceTask.runOldReducer(ReduceTask.java:444)
+	at org.apache.hadoop.mapred.ReduceTask.run(ReduceTask.java:392)
+	at org.apache.hadoop.mapred.YarnChild$2.run(YarnChild.java:163)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:415)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1595)
+	at org.apache.hadoop.mapred.YarnChild.main(YarnChild.java:158)
+Caused by: org.apache.hadoop.hive.ql.metadata.HiveException: Hive Runtime Error while processing row (tag=0) {"key":{"reducesinkkey0":1},"value":null}
+	at org.apache.hadoop.hive.ql.exec.mr.ExecReducer.reduce(ExecReducer.java:245)
+	... 7 more
+Caused by: org.apache.hadoop.hive.ql.metadata.HiveException: java.lang.IndexOutOfBoundsException: Index: 0, Size: 0
+	at org.apache.hadoop.hive.ql.exec.JoinOperator.process(JoinOperator.java:138)
+	at org.apache.hadoop.hive.ql.exec.mr.ExecReducer.reduce(ExecReducer.java:236)
+	... 7 more
+Caused by: java.lang.IndexOutOfBoundsException: Index: 0, Size: 0
+	at java.util.ArrayList.rangeCheck(ArrayList.java:635)
+	at java.util.ArrayList.get(ArrayList.java:411)
+	at org.apache.hadoop.hive.ql.exec.JoinUtil.isFiltered(JoinUtil.java:248)
+	at org.apache.hadoop.hive.ql.exec.CommonJoinOperator.getFilteredValue(CommonJoinOperator.java:420)
+	at org.apache.hadoop.hive.ql.exec.JoinOperator.process(JoinOperator.java:91)
+	... 8 more
+
+
+FAILED: Execution Error, return code 2 from org.apache.hadoop.hive.ql.exec.mr.MapRedTask
+MapReduce Jobs Launched:

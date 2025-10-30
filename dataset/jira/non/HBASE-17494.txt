@@ -1,0 +1,16 @@
+Guard against cloning family of all cells if no data need be replicated
+The replication is enabled by default, so we try to clone the family of all cells even if there is no replication at all.
+
+  family = CellUtil.cloneFamily(cell);
+  // Unexpected, has a tendency to happen in unit tests
+  assert htd.getFamily(family) != null;
+
+  if (!scopes.containsKey(family)) {
+  int scope = htd.getFamily(family).getScope();
+  if (scope != REPLICATION_SCOPE_LOCAL) {
+  scopes.put(family, scope);
+  }
+  }
+
+
+HBASE-15205 had resolved this issue, but it is committed to master only.

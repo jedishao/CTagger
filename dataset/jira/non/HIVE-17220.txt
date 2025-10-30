@@ -1,0 +1,37 @@
+Bloomfilter probing in semijoin reduction is thrashing L1 dcache
+gopalv observed perf profiles showing bloomfilter probes as bottleneck for some of the TPC-DS queries and resulted L1 data cache thrashing. 
+This is because of the huge bitset in bloom filter that doesn't fit in any levels of cache, also the hash bits corresponding to a single key map to different segments of bitset which are spread out. This can result in K-1 memory access (K being number of hash functions) in worst case for every key that gets probed because of locality miss in L1 cache. 
+Ran a JMH microbenchmark to verify the same. Following is the JMH perf profile for bloom filter probing
+
+Perf stats:
+--------------------------------------------------
+
+       5101.935637      task-clock (msec)         #    0.461 CPUs utilized
+               346      context-switches          #    0.068 K/sec
+               336      cpu-migrations            #    0.066 K/sec
+             6,207      page-faults               #    0.001 M/sec
+    10,016,486,301      cycles                    #    1.963 GHz                      (26.90%)
+     5,751,692,176      stalled-cycles-frontend   #   57.42% frontend cycles idle     (27.05%)
+   <not supported>      stalled-cycles-backend
+    14,359,914,397      instructions              #    1.43  insns per cycle
+                                                  #    0.40  stalled cycles per insn  (33.78%)
+     2,200,632,861      branches                  #  431.333 M/sec                    (33.84%)
+         1,162,860      branch-misses             #    0.05% of all branches          (33.97%)
+     1,025,992,254      L1-dcache-loads           #  201.099 M/sec                    (26.56%)
+       432,663,098      L1-dcache-load-misses     #   42.17% of all L1-dcache hits    (14.49%)
+       331,383,297      LLC-loads                 #   64.952 M/sec                    (14.47%)
+           203,524      LLC-load-misses           #    0.06% of all LL-cache hits     (21.67%)
+   <not supported>      L1-icache-loads
+         1,633,821      L1-icache-load-misses     #    0.320 M/sec                    (28.85%)
+       950,368,796      dTLB-loads                #  186.276 M/sec                    (28.61%)
+       246,813,393      dTLB-load-misses          #   25.97% of all dTLB cache hits   (14.53%)
+            25,451      iTLB-loads                #    0.005 M/sec                    (14.48%)
+            35,415      iTLB-load-misses          #  139.15% of all iTLB cache hits   (21.73%)
+   <not supported>      L1-dcache-prefetches
+           175,958      L1-dcache-prefetch-misses #    0.034 M/sec                    (28.94%)
+
+      11.064783140 seconds time elapsed
+
+
+This shows 42.17% of L1 data cache misses. 
+This jira is to use cache efficient bloom filter for semijoin probing.

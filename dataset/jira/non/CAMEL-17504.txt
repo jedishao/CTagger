@@ -1,0 +1,29 @@
+BridgeExceptionHandlerToErrorHandler broken with DefaultErrorHandler
+Using BridgeExceptionHandlerToErrorHandler marks new Exchange as delivery exhausted
+
+
+exchange.adapt(ExtendedExchange.class).setRedeliveryExhausted(true);
+
+
+Link to Code
+but SimpleTask in RedeliveryErrorHandler must be not exhausted.
+
+
+boolean failure = exchange.getException() != null
+    && !ExchangeHelper.isFailureHandled(exchange)
+    && !exchange.isRedeliveryExhausted();
+
+if (failure) {
+    // previous processing cause an exception
+    handleException();
+    onExceptionOccurred();
+    prepareExchangeAfterFailure(exchange);
+    // we do not support redelivery so continue callback
+    AsyncCallback cb = callback;
+    taskFactory.release(this);
+    reactiveExecutor.schedule(cb);
+}
+
+
+Link to Code
+Seems to be broken somewhere after 3.7.x

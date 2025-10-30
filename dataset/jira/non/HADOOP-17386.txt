@@ -1,0 +1,7 @@
+fs.s3a.buffer.dir to be under Yarn container path on yarn applications
+fs.s3a.buffer.dir defaults to hadoop.tmp.dir which is /tmp or similar
+we use this for storing file blocks during upload
+staging committers use it for all files in a task, which can be a lot more
+a lot of systems don't clean up /tmp until reboot -and if they stay up for a long time then they accrue files written through s3a staging committer from spark containers which fail
+
+Fix: use ${env.LOCAL_DIRS:-${hadoop.tmp.dir}}/s3a as the option so that if env.LOCAL_DIRS is set is used over hadoop.tmp.dir. YARN-deployed apps will use that for the buffer dir. When the app container is destroyed, so is the directory.

@@ -1,0 +1,44 @@
+camel-openapi-java ignores server.servlet.context-path when generating api doc
+In my configuration I have defined both server.servlet.context-path and camel.rest.context-path properties. Part of my application.yml file:
+
+
+server:
+  port: 8080
+  servlet:
+    context-path: /camel
+
+camel:
+  rest:
+    component: servlet
+    context-path: /api
+    binding-mode: json
+    data-format-property: { prettyPrint: "true" }
+    api-context-path: /api-doc
+    api-component: openapi
+    api-property: { api.title: "Camel Component API",
+                    api.version: "1.0.0",
+                    api.cors: "true" }
+    api-vendor-extension: false
+
+servlet:
+  mapping:
+    context-path: ${camel.rest.context-path}/*
+
+
+I've checked the generated api-doc YAML and the servers/url objects contains invalid entries, for exampe:
+
+
+"servers" : [ {
+    "url" : "/api"
+  } ],
+
+
+instead of
+
+
+"servers" : [ {
+    "url" : "/camel/api"
+  } ],
+
+
+This causes issues when using Swagger UI - all endpoint URLs are invalid and I can't use the "Try it out" functionality for my services.

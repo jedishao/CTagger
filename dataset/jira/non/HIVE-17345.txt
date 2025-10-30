@@ -1,0 +1,46 @@
+Invalid error message for absent function
+For test purposes let have any table, e.g. like this one with two columns:
+
+create table test (x int, y int);
+insert into test values (0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (1, 2);
+
+
+If we try to query using not existent aggregate function QQQ, then get descriptive error message:
+
+SELECT QQQ(y)
+FROM test;
+
+
+
+FAILED: SemanticException [Error 10011]: Line 1:7 Invalid function 'QQQ'
+
+
+But if I use this function with group by clause, I get confusing message about wrong query structure:
+
+SELECT x,
+       QQQ(y)
+FROM test
+GROUP BY x;
+
+
+
+FAILED: SemanticException [Error 10025]: Line 1:10 Expression not in GROUP BY key 'y'
+
+
+For queries with having clauses error message is more confusing. It is regarding to zero value which is absolutely correct:
+
+SELECT x,
+       QQQ(y) AS q
+FROM test
+GROUP BY x HAVING q > 0;
+
+
+
+FAILED: SemanticException [Error 10025]: Line 4:7 Expression not in GROUP BY key '0'
+
+
+Expected result: the same error message 
+
+ "FAILED: SemanticException [Error 10011]: Line 1:7 Invalid function 'QQQ'"
+
+ for all listed queries.

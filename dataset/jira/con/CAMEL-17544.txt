@@ -1,0 +1,27 @@
+ServicePool.doStop still hangs during shutdown
+{{ServicePool.doStop}} still hangs during shutdown with optimized fix of CAMEL-17536. {{LinkedHashMap}} in cache is corrupted not only because of race condtion between {{acquire}} and {{doStop}} but also between concurrent invocations of {{acquire}} during parallel routing of exchanges (see attached {{{}repeatTestRecipientList{}}}).
+
+ 
+The root cause is that {{LinkedHashMap}} used by {{SimpleLRUCache}} is *not* thread-safe but access is not synchronized. Even reads may modify it as it has LRU policy. And access to {{{}LinkedHashMap{}}}/\{{ SimpleLRUCache }} is possible during routing (so concurrently) not only during start/stop.
+
+ 
+
+Uses of {{SimpleLRUCache}} in other places in Camel may also exhibit race conditions. It is hard to demonstrate them reliably but I have another example ({{{}repeatEndpointsTest{}}}). This one usually crashes due to {{OutOfMemory}} when converting corrupted (looping) {{SimpleLRUCache}} in  {{EndpointRegistry}} to array, but I got also other exceptions.
+
+ 
+{noformat}
+java.lang.OutOfMemoryError: Java heap space
+    at java.base/java.util.Arrays.copyOf(Arrays.java:3480)
+    at java.base/java.util.AbstractCollection.finishToArray(AbstractCollection.java:227)
+    at java.base/java.util.AbstractCollection.toArray(AbstractCollection.java:148)
+    at java.base/java.util.ArrayList.<init>(ArrayList.java:181)
+    at org.apache.camel.impl.engine.AbstractCamelContext.shutdownServices(AbstractCamelContext.java:3582)
+    at org.apache.camel.impl.engine.AbstractCamelContext.shutdownServices(AbstractCamelContext.java:3576)
+    at org.apache.camel.impl.engine.AbstractCamelContext.doStop(AbstractCamelContext.java:3414)
+    at org.apache.camel.support.service.BaseService.stop(BaseService.java:160)
+    at org.apache.camel.impl.engine.AbstractCamelContext.stop(AbstractCamelContext.java:2658)
+    at org.apache.camel.component.http.ServicePoolShutdownTest.testEndpoints(ServicePoolShutdownTest.java:129)
+    at org.apache.camel.component.http.ServicePoolShutdownTest.repeatEndpointsTest(ServicePoolShutdownTest.java:135){noformat}
+ 
+
+Caffeine, which used to be default cache implementation until CAMEL-16093 is thread-safe. Enabling caffeine-lrucache might be a workaround.

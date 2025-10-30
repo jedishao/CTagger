@@ -1,0 +1,34 @@
+Where condition with 1=0 should be treated similar to limit 0
+In some cases, queries may get executed with where condition mentioning to "1=0" to get schema. E.g 
+
+SELECT * FROM (select avg(d_year) as  y from date_dim where d_year>1999) q WHERE 1=0
+
+
+Currently hive executes the query; it would be good to consider this similar to "limit 0" which does not execute the query.
+
+hive> explain SELECT * FROM (select avg(d_year) as  y from date_dim where d_year>1999) q WHERE 1=0;
+OK
+Plan optimized by CBO.
+
+Vertex dependency in root stage
+Reducer 2 <- Map 1 (CUSTOM_SIMPLE_EDGE)
+
+Stage-0
+  Fetch Operator
+    limit:-1
+    Stage-1
+      Reducer 2 vectorized, llap
+      File Output Operator [FS_13]
+        Group By Operator [GBY_12] (rows=1 width=76)
+          Output:["_col0"],aggregations:["avg(VALUE._col0)"]
+        <-Map 1 [CUSTOM_SIMPLE_EDGE] vectorized, llap
+          PARTITION_ONLY_SHUFFLE [RS_11]
+            Group By Operator [GBY_10] (rows=1 width=76)
+              Output:["_col0"],aggregations:["avg(d_year)"]
+              Filter Operator [FIL_9] (rows=1 width=0)
+                predicate:false
+                TableScan [TS_0] (rows=1 width=0)
+                  default@date_dim,date_dim,Tbl:PARTIAL,Col:NONE,Output:["d_year"]
+
+
+It does generate 0 splits, but does send a DAG plan to the AM and receive 0 rows as output.

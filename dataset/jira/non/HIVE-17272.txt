@@ -1,0 +1,38 @@
+when hive.vectorized.execution.enabled is true, query on empty partitioned table fails with NPE
+{noformat}
+set hive.vectorized.execution.enabled=true;
+CREATE TABLE `tab`(`x` int) PARTITIONED BY ( `y` int) stored as parquet;
+select * from tab t1 join tab t2 where t1.x=t2.x;
+{noformat}
+
+The query fails with the following exception.
+{noformat}
+Caused by: java.lang.NullPointerException
+        at org.apache.hadoop.hive.ql.exec.vector.VectorMapOperator.createAndInitPartitionContext(VectorMapOperator.java:386) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.exec.vector.VectorMapOperator.internalSetChildren(VectorMapOperator.java:559) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.exec.vector.VectorMapOperator.setChildren(VectorMapOperator.java:474) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.exec.mr.ExecMapper.configure(ExecMapper.java:106) ~[hive-exec-2.3.0.jar:2.3.0]
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_101]
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:1.8.0_101]
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_101]
+        at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_101]
+        at org.apache.hadoop.util.ReflectionUtils.setJobConf(ReflectionUtils.java:106) ~[hadoop-common-2.6.0.jar:?]
+        at org.apache.hadoop.util.ReflectionUtils.setConf(ReflectionUtils.java:75) ~[hadoop-common-2.6.0.jar:?]
+        at org.apache.hadoop.util.ReflectionUtils.newInstance(ReflectionUtils.java:133) ~[hadoop-common-2.6.0.jar:?]
+        at org.apache.hadoop.mapred.MapRunner.configure(MapRunner.java:34) ~[hadoop-core-2.6.0-mr1-cdh5.4.2.jar:?]
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_101]
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:1.8.0_101]
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_101]
+        at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_101]
+        at org.apache.hadoop.util.ReflectionUtils.setJobConf(ReflectionUtils.java:106) ~[hadoop-common-2.6.0.jar:?]
+        at org.apache.hadoop.util.ReflectionUtils.setConf(ReflectionUtils.java:75) ~[hadoop-common-2.6.0.jar:?]
+        at org.apache.hadoop.util.ReflectionUtils.newInstance(ReflectionUtils.java:133) ~[hadoop-common-2.6.0.jar:?]
+        at org.apache.hadoop.mapred.MapTask.runOldMapper(MapTask.java:413) ~[hadoop-core-2.6.0-mr1-cdh5.4.2.jar:?]
+        at org.apache.hadoop.mapred.MapTask.run(MapTask.java:332) ~[hadoop-core-2.6.0-mr1-cdh5.4.2.jar:?]
+        at org.apache.hadoop.mapred.LocalJobRunner$Job$MapTaskRunnable.run(LocalJobRunner.java:268) ~[hadoop-core-2.6.0-mr1-cdh5.4.2.jar:?]
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) ~[?:1.8.0_101]
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266) ~[?:1.8.0_101]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142) ~[?:1.8.0_101]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617) ~[?:1.8.0_101]
+        at java.lang.Thread.run(Thread.java:745) ~[?:1.8.0_101]
+{noformat}

@@ -1,0 +1,18 @@
+ListStatus on ViewFS root (ls "/") should list the linkFallBack root (configured target root).
+As part of the design doc HDFS-15289, sanjay.radia and me discussed the following scenarios when fallback enabled.
+Behavior when fallback enabled:
+       Assume FS trees and mount mappings like below:
+           mount link /a/b/c/d  → hdfs://nn1/a/b
+           mount link /a/p/q/r  → hdfs://nn2/a/b    
+           fallback → hdfs://nn3/  $  /a/c
+                                                 /x/z
+
+Open(/x/y) then it goes to nn3 (fallback)      - WORKS
+Create(/x/foo) then foo is created in nn3 in dir /x   - WORKS
+ls /  should list   /a  /x .Today this does not work and IT IS A BUG!!! Because it conflicts with the open(/x/y)
+Create /y  : fails  - also fails when not using  fallback  - WORKS
+Create /a/z : fails - also fails when not using  fallback - WORKS
+ls /a should list /b /p  as expected and will not show fallback in nn3 - WORKS
+
+ 
+This Jira will fix issue of #3. So, when fallback enabled it should show merged ls view with mount links + fallback root. ( this will only be at root level)

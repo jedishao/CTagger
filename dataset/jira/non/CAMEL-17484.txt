@@ -1,0 +1,54 @@
+RouteTemplates: A flexible builder
+I sometimes use a RouteTemplate:
+https://camel.apache.org/manual/route-template.html
+Then I create a route as follows:
+TemplatedRouteBuilder.builder(context, "myTemplate")
+    .parameter("name", "one")
+    .parameter("greeting", "Hello")
+    .add();
+    
+I am wondering if generating a route could be more flexible? 
+For example to use routeTemplates as "blocks" to create one route from multiple routeTemplates. 
+TemplatedRouteBuilder.builder(context, "myTemplate,myTemplate2")
+    .parameter("name", "one")
+    .parameter("greeting", "Hello")
+    .add();
+Say in myTemplate is like this:
+.from("timer:name?period=myPeriod")
+    .setBody(simple("greeting ${body}"))
+And I have second template myTemplate2:
+    .log("${body}");
+Then the resulted  route would be:
+.from("timer:name?period=myPeriod")
+    .setBody(simple("greeting ${body}"))
+    .log("${body}");
+This would make it more flexible to use a template or not, combine templates and so on. Thus, with 10 templates there would be all kind of configurations possible. 
+There could also be the option to combine the templates into one route or with into multiple routes with endpoint between them . 
+For example, direct / direct-vm / seda / vm as connecting endpoint. 
+If for example, the user would choose "direct" 
+TemplatedRouteBuilder.builder(context, "myTemplate,myTemplate2")
+    .connectingEndpoint("direct")
+    .parameter("name", "one")
+    .parameter("greeting", "Hello")
+    .add();
+ 
+then the result would be:
+.from("timer:name?period=myPeriod")
+    .setBody(simple("greeting ${body}"))
+    .to("direct:myTemplate2")
+    
+.from("direct:myTemplate2")
+    .log("${body}");
+Probably some id would also be need to make the endpoints unique.
+The last idea is to use one file or an object to put all the parameters at once. For example by
+
+file (a xml or json file with properties)
+object (like a map, treemap or properties) --> https://camel.apache.org/components/3.14.x/properties-component.html
+
+TemplatedRouteBuilder.builder(context, "myTemplate,myTemplate2")
+    .parameterFile(myJson)
+    .add();
+TemplatedRouteBuilder.builder(context, "myTemplate,myTemplate2")
+    .parameterMap(myMap)
+    .add();
+This would be convenient with lots of parameters.

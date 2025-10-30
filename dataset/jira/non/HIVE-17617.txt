@@ -1,0 +1,17 @@
+Rollup of an empty resultset should contain the grouping of the empty grouping set
+running
+
+drop table if exists tx1;
+create table tx1 (a integer,b integer,c integer);
+
+select  sum(c),
+        grouping(b)
+from    tx1
+group by rollup (b);
+
+
+returns 0 rows; however 
+according to the standard:
+The <empty grouping set> is regarded as the shortest such initial sublist. For example, “ROLLUP ( (A, B), (C, D) )”
+is equivalent to “GROUPING SETS ( (A, B, C, D), (A, B), () )”.
+so I think the totals row (the grouping for () should be present)  - psql returns it.

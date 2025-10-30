@@ -1,0 +1,31 @@
+Region left unassigned due to AM and SSH each thinking others would do the assignment work
+Another Assignment Manager and SSH issue.  This issue is similar to HBASE-13330, except this time the code path goes through ClosedRegionHandler and we should apply the same fix of HBASE-13330 to ClosedRegionHandler.
+Basically, the AssignmentManager thinks the ServerShutdownHandler would assign the region and the ServerShutdownHandler thinks that the AssignmentManager would assign the region. The region (23e0186c4d2b5cc09f25de35fe174417) ultimately never gets assigned. Below is an analysis from the logs that captures the flow of events.
+1. The AssignmentManager had initially assigned this region to rs42.prod.foo.com,16020,1476293566365.
+2. The rs42.prod.foo.com,16020,1476293566365 stops and sends the CLOSE request to master.
+3. ServerShutdownHandler(SSH) runs to assign this region to rs44.prod.foo.com,16020,1476294287692, but assign failed.
+4. When the master restarted it did a scan of the meta to learn about the regions in the cluster. It found this region still being assigned to
+{{rs42} from the meta record.
+5. However, this rs42 server was not alive anymore. So, the AssignmentManager queued up a ServerShutdownHandling task for this (that asynchronously executes):
+6. In the meantime, the AssignmentManager proceeded to read the RIT nodes from ZK. It found this region as well is in RS_ZK_REGION_FAILED_OPEN in the rs44 RS.
+7. The region was moved to CLOSED state:
+
+2016-10-12 17:45:11,637 DEBUG [AM.ZK.Worker-pool2-t6] master.AssignmentManager: Handling RS_ZK_REGION_FAILED_OPEN, server=rs44.prod.foo.com,16020,1476294287692, region=23e0186c4d2b5cc09f25de35fe174417, current_state={23e0186c4d2b5cc09f25de35fe174417 state=PENDING_OPEN, ts=1476294311564, server=rs44.prod.foo.com,16020,1476294287692}
+2016-10-12 17:45:11,637 INFO  [AM.ZK.Worker-pool2-t6] master.RegionStates: Transition {23e0186c4d2b5cc09f25de35fe174417 state=PENDING_OPEN, ts=1476294311564, server=rs44.prod.foo.com,16020,1476294287692} to {23e0186c4d2b5cc09f25de35fe174417 state=CLOSED, ts=1476294311637, server=rs44.prod.foo.com,16020,1476294287692}
+2016-10-12 17:45:11,637 WARN  [AM.ZK.Worker-pool2-t6] master.RegionStates: 23e0186c4d2b5cc09f25de35fe174417 moved to CLOSED on rs44.prod.foo.com,16020,1476294287692, expected rs42.prod.foo.com,16020,1476293566365
+
+
+8. After that the AssignmentManager tried to assign it again. However, the assignment didn't happen because the ServerShutdownHandling task queued earlier didn't yet execute:
+
+2016-10-12 17:45:11,637 DEBUG [AM.ZK.Worker-pool2-t6] master.AssignmentManager: Found an existing plan for table1,3025965238305402_2,1468091325259.23e0186c4d2b5cc09f25de35fe174417. destination server is rs44.prod.foo.com,16020,1476294287692 accepted as a dest server = false
+2016-10-12 17:45:11,697 DEBUG [AM.ZK.Worker-pool2-t6] master.AssignmentManager: No previous transition plan found (or ignoring an existing plan) for table1,3025965238305402_2,1468091325259.23e0186c4d2b5cc09f25de35fe174417.; generated random plan=hri=table1,3025965238305402_2,1468091325259.23e0186c4d2b5cc09f25de35fe174417., src=, dest=rs28.prod.foo.com,16020,1476294291314; 10 (online=11) available servers, forceNewPlan=true
+2016-10-12 17:45:11,697 DEBUG [AM.ZK.Worker-pool2-t6] handler.ClosedRegionHandler: Handling CLOSED event for 23e0186c4d2b5cc09f25de35fe174417
+2016-10-12 17:45:11,697 WARN  [AM.ZK.Worker-pool2-t6] master.RegionStates: 23e0186c4d2b5cc09f25de35fe174417 moved to CLOSED on rs44.prod.foo.com,16020,1476294287692, expected rs42.prod.foo.com,16020,1476293566365
+2016-10-12 17:45:11,697 INFO  [AM.ZK.Worker-pool2-t6] master.AssignmentManager: Skip assigning table1,3025965238305402_2,1468091325259.23e0186c4d2b5cc09f25de35fe174417., it's host rs42.prod.foo.com,16020,1476293566365 is dead but not processed yet
+
+2016-10-12 17:45:11,884 INFO  [MASTER_SERVER_OPERATIONS-server01:16000-3] master.RegionStates: Transitioning {23e0186c4d2b5cc09f25de35fe174417 state=CLOSED, ts=1476294311697, server=rs44.prod.foo.com,16020,1476294287692} will be handled by SSH for rs42.prod.foo.com,16020,1476293566365
+
+
+9. When the ServerShutdownHandling task reaches to this region, it also skipped the region in question. This was because this region was in RIT, and the ServerShutdownHandling task thinks that the AssignmentManager would assign it as part of handling the RIT nodes:
+
+2016-10-12 17:45:11,892 INFO  [MASTER_SERVER_OPERATIONS-server01:16000-3] handler.ServerShutdownHandler: Skip assigning region in transition on other server{23e0186c4d2b5cc09f25de35fe174417 state=CLOSED, ts=1476294311697, server=rs44.prod.foo.com,16020,1476294287692}

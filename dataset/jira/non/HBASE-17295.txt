@@ -1,0 +1,17 @@
+The namespace table has two regions
+From the codes, hbase namespace meta table should not allowed to be split.
+HRegion#checkSplit
+public byte[] checkSplit() {
+    // Can't split META
+    if (this.getRegionInfo().isMetaTable() ||
+        TableName.NAMESPACE_TABLE_NAME.equals(this.getRegionInfo().getTable())) {
+      if (shouldForceSplit()) {
+        LOG.warn("Cannot split meta region in HBase 0.20 and above");
+      }
+      return null;
+    }
+    //.....
+}
+
+
+But recently,  I see two namespace regions  in our production deployment. It may be cased by restarting when cluster is in certain state.

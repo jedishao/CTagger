@@ -1,0 +1,40 @@
+Data loss in CONCATENATE ORC created by Spark
+Hive concatenation causes data loss if the ORC files in the table were written by Spark.
+Here are the steps to reproduce the problem:
+
+create a table;
+
+hive
+hive> create table aa (a string, b int) stored as orc;
+
+
+insert 2 rows using Spark;
+
+spark-shell
+scala> case class AA(a:String, b:Int)
+scala> val df = sc.parallelize(Array(AA("b",2),AA("c",3) )).toDF
+scala> df.write.insertInto("aa")
+
+
+change table schema;
+
+hive
+hive> alter table aa add columns(aa string, bb int);
+
+
+insert other 2 rows with Spark
+
+spark-shell
+scala> case class BB(a:String, b:Int, aa:String, bb:Int)
+scala> val df = sc.parallelize(Array(BB("b",2,"b",2),BB("c",3,"c",3) )).toDF
+scala> df.write.insertInto("aa")
+
+
+at this point, running a select statement with Hive returns correctly 4 rows in the table; then run the concatenation
+
+hive
+hive> alter table aa concatenate;
+
+
+
+At this point, a select returns only 3 rows, ie. a row is missing.

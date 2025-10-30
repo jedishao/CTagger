@@ -1,0 +1,21 @@
+Hive should merge empty files
+Currently if merging file option is turned on and the dest dir contains large number of empty files, Hive will not trigger merge task:
+
+  private long getMergeSize(FileSystem inpFs, Path dirPath, long avgSize) {
+    AverageSize averageSize = getAverageSize(inpFs, dirPath);
+    if (averageSize.getTotalSize() <= 0) {
+      return -1;
+    }
+
+    if (averageSize.getNumFiles() <= 1) {
+      return -1;
+    }
+
+    if (averageSize.getTotalSize()/averageSize.getNumFiles() < avgSize) {
+      return averageSize.getTotalSize();
+    }
+    return -1;
+  }
+
+
+This logic doesn't seem right as the it seems better to combine these empty files into one.

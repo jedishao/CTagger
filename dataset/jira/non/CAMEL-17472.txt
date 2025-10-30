@@ -1,0 +1,18 @@
+camel-smpp: Consumer reconnect no longer works after updating to 3.14.0
+We using camel-smpp with Spring Boot.
+After updating the version from 3.13.0 to 3.14.0 reconnecting (at least for the consumer, do not know if the producer is also affected) does not seem to work anymore.
+We use the default values for maxReconnect and initialReconnectDelay. We set reconnectDelay to 60000.
+With version 3.13.0 and before camel tried to reconnect for a long time. With camel 3.14.0 there does not seem to be any reconnect attempts:
+
+
+Jan 11, 2022 @ 04:20:11.499 - SmppConsumer - Lost connection to: smpp://XXX:YYY - trying to reconnect...
+Jan 11, 2022 @ 04:20:16.516 - BackgroundTask - The task smpp-reconnect does not have more budget to continue running
+Jan 11, 2022 @ 04:20:17.516 - BackgroundTask - The task smpp-reconnect does not have more budget to continue running
+Jan 11, 2022 @ 04:20:18.516 - BackgroundTask - The task smpp-reconnect does not have more budget to continue running
+Jan 11, 2022 @ 04:20:19.516 - BackgroundTask - The task smpp-reconnect does not have more budget to continue running
+Jan 11, 2022 @ 04:20:20.516 - BackgroundTask - The task smpp-reconnect does not have more budget to continue running
+Jan 11, 2022 @ 04:20:21.516 - BackgroundTask - The task smpp-reconnect does not have more budget to continue running
+... (endless repeat of the last log message)
+
+
+I guess this was caused by https://issues.apache.org/jira/browse/CAMEL-17121

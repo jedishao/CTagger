@@ -1,0 +1,33 @@
+IPV6 support in Netutils#createSocketAddress
+Currently NetUtils#createSocketAddress not supporting if target is IPV6 ip. If target is IPV6 ip then it throw "Does not contain a valid host:port authority: ".
+This need be support.
+public static InetSocketAddress createSocketAddr(String target,
+ int defaultPort,
+ String configName,
+ boolean useCacheIfPresent) {
+ String helpText = "";
+ if (configName != null)
+
+{ helpText = " (configuration property '" + configName + "')"; }
+
+if (target == null)
+
+{ throw new IllegalArgumentException("Target address cannot be null." + helpText); }
+
+target = target.trim();
+ boolean hasScheme = target.contains("://");
+ URI uri = createURI(target, hasScheme, helpText, useCacheIfPresent);
+String host = uri.getHost();
+ int port = uri.getPort();
+ if (port == -1)
+
+{ port = defaultPort; }
+
+String path = uri.getPath();
+if ((host == null) || (port < 0) ||
+ (!hasScheme && path != null && !path.isEmpty()))
+
+{ throw new IllegalArgumentException( *"Does not contain a valid host:port authority: " + target + helpText* ); }
+
+return createSocketAddrForHost(host, port);
+ }

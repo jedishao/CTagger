@@ -1,0 +1,18 @@
+Improve cryptic error message "Memstore size is" on region close
+while grepping my RS log for ERROR I found a cryptic
+
+ERROR [RS_CLOSE_REGION-u1604vm:35021-1] regionserver.HRegion(1601): Memstore size is 33744
+
+
+from the code looks like we seems to want to notify the user about the fact that on close the rs was not able to flush and there were things in the RS. 
+https://github.com/apache/hbase/blob/c3685760f004450667920144f926383eb307de53/hbase-server/src/main/java/org/apache/hadoop/hbase/regionserver/HRegion.java#L1601
+
+if (!canFlush) {
+  this.decrMemstoreSize(new MemstoreSize(memstoreDataSize.get(), getMemstoreHeapOverhead()));
+} else if (memstoreDataSize.get() != 0) {
+  LOG.error("Memstore size is " + memstoreDataSize.get());
+}
+
+
+this should probably not even be an error but a warn or even info, unless we have puts that specifically asked to not be written to the wal,  otherwise the data in the memstore should be safe in the wals. 
+In any case it will be nice to have a message describing what is going on and why we are notifying about the memstore size.

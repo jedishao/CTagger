@@ -1,0 +1,51 @@
+DefaultMemStore gets the wrong heap size after rollback
+We should calculate the size of “found” rather than “cell” because the offset value may cause the difference heap size between “cell” and “found”.
+DefaultMemStore.java
+  @Override
+  public void rollback(Cell cell) {
+    // If the key is in the memstore, delete it. Update this.size.
+    found = this.cellSet.get(cell);
+    if (found != null && found.getSequenceId() == cell.getSequenceId()) {
+      removeFromCellSet(cell);
+      long s = heapSizeChange(cell, true);
+      this.size.addAndGet(-s);
+    }
+  }
+
+
+KeyValue.java
+  @Override
+  public long heapSize() {
+    return ClassSize.align(sum) +
+        (offset == 0
+          ? ClassSize.sizeOf(bytes, length) // count both length and object overhead
+          : length);                        // only count the number of bytes
+  }
+
+
+The wrong heap size of store will block the HRegion#doClose because the HRegion#memstoreSize will always be bigger than zero even if we flush the store.
+HRegion.java
+        while (this.memstoreSize.get() > 0) {
+          try {
+            if (flushCount++ > 0) {
+              int actualFlushes = flushCount - 1;
+              if (actualFlushes > 5) {
+                // If we tried 5 times and are unable to clear memory, abort
+                // so we do not lose data
+                throw new DroppedSnapshotException("Failed clearing memory after " +
+                  actualFlushes + " attempts on region: " +
+                    Bytes.toStringBinary(getRegionInfo().getRegionName()));
+              }
+              LOG.info("Running extra flush, " + actualFlushes +
+                " (carrying snapshot?) " + this);
+            }
+            internalFlushcache(status);
+          } catch (IOException ioe) {
+            status.setStatus("Failed flush " + this + ", putting online again");
+            synchronized (writestate) {
+              writestate.writesEnabled = true;
+            }
+            // Have to throw to upper layers.  I can't abort server from here.
+            throw ioe;
+          }
+        }

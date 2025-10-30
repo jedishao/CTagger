@@ -1,0 +1,24 @@
+authUsername and authPassword parameters not passed to the underlaying endpoint
+This is related to CAMEL-17043. The parameters authUsername and authPassword needs to be available then the endpoints is created which the aren't even after the changes in CAMEL-17043. In the method createProducer in HttpComponent the endpoint is created like this:
+
+
+HttpEndpoint endpoint = camelContext.getEndpoint(url, HttpEndpoint.class);
+setProperties(endpoint, parameters);
+
+
+Then setProperties is called it's to late because the authentication is already set on the endpoint. The signature of the getEndpoint used looks like this:
+
+
+<T extends Endpoint> T getEndpoint(String name, Class<T> endpointType);
+
+
+It feels a bit strange to use the url as name for the endpoint. So I found this variant for getEndpoint:
+
+
+Endpoint getEndpoint(String uri, Map<String, Object> parameters);
+
+
+Replacing the two lines above with this one solves the problem:
+
+
+HttpEndpoint endpoint = (HttpEndpoint) camelContext.getEndpoint(url, parameters);

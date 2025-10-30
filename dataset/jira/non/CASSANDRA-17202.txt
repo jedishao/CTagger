@@ -1,0 +1,17 @@
+Avoid unnecessary String.format in QueryProcessor when getting stored prepared statement
+In the QueryProcessor#getStoredPreparedStatement if the statement is found in the prepared statements cache, there is always unnecessary string creation using String.format in order to execute the checkTrue assertion. The string construction is necessary only when the queries are not equal.
+
+
+public static ResultMessage.Prepared getStoredPreparedStatement(String queryString, String clientKeyspace)
+throws InvalidRequestException
+{
+    MD5Digest statementId = computeId(queryString, clientKeyspace);
+    Prepared existing = preparedStatements.getIfPresent(statementId);
+    if (existing == null)
+        return null;
+
+    checkTrue(queryString.equals(existing.rawCQLStatement),
+            String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+ 
+
+Hopefully the JIT can optimize this once the checkTrue is inlined, but it's getting on my nerves as it's popping up on my flame graphs all the time.

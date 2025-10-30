@@ -1,0 +1,28 @@
+Broken test_rolling_upgrade - upgrade_tests.upgrade_through_versions_test.TestUpgrade_indev_3_0_x_To_indev_4_0_x
+The tests "test_rolling_upgrade" fail with the below error. 
+ 
+https://app.circleci.com/pipelines/github/yifan-c/cassandra/279/workflows/6340cd42-0b27-42c2-8418-9f8b56c57bea/jobs/1990
+ 
+I am able to alway produce it by running the test locally too. 
+$ pytest --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --cassandra-version=4.0 upgrade_tests/upgrade_through_versions_test.py::TestUpgrade_indev_3_11_x_To_indev_4_0_x::test_rolling_upgrade
+ 
+
+
+self = <upgrade_tests.upgrade_through_versions_test.TestUpgrade_indev_3_0_x_To_indev_4_0_x object at 0x7ffba4242fd0>
+subprocs = [<Process(Process-1, stopped[SIGKILL] daemon)>, <Process(Process-2, stopped[1] daemon)>]
+
+    def _check_on_subprocs(self, subprocs):
+        """
+            Check on given subprocesses.
+    
+            If any are not alive, we'll go ahead and terminate any remaining alive subprocesses since this test is going to fail.
+            """
+        subproc_statuses = [s.is_alive() for s in subprocs]
+        if not all(subproc_statuses):
+            message = "A subprocess has terminated early. Subprocess statuses: "
+            for s in subprocs:
+                message += "{name} (is_alive: {aliveness}), ".format(name=s.name, aliveness=s.is_alive())
+            message += "attempting to terminate remaining subprocesses now."
+            self._terminate_subprocs()
+>           raise RuntimeError(message)
+E           RuntimeError: A subprocess has terminated early. Subprocess statuses: Process-1 (is_alive: True), Process-2 (is_alive: False), attempting to terminate remaining subprocesses now.

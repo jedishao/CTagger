@@ -1,0 +1,4 @@
+Use less threads to read WAL in replication
+Now for each peer and each failover source we use different threads to read WAL, which means one WAL file will be read many times if we have many peers. We can read logs in one thread and push them to peers concurrently.
+Some cases should be considered. For example, if one of peers is stuck, the reading thread should kick it out of concurrent peers and use an independent thread to read logs for this peer just like old style. If finally this peer's progress catch up other peers, they can be merged back.
+Of course, failover threads should still be independent because they read different WAL files.

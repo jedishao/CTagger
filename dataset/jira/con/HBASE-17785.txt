@@ -1,0 +1,89 @@
+RSGroupBasedLoadBalancer fails to assign new table regions when cloning snapshot
+A novice starting out with RSGroupBasedLoadBalancer will want to enable it and, before assigning tables to groups, may want to create some test tables. Currently that does not work when creating a table by cloning a snapshot, in a surprising way. All regions of the table fail to open yet it is moved into ENABLED state. The client hangs indefinitely. 
+
+{noformat}
+2017-03-14 19:25:49,833 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] snapshot.CloneSnapshotHandler: Clone snapshot=seed on table=test_1 completed!
+2017-03-14 19:25:49,871 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] hbase.MetaTableAccessor: Added 25
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,875 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group for table test_1 is null
+2017-03-14 19:25:49,876 DEBUG [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] rsgroup.RSGroupBasedLoadBalancer: Group Information found to be null. Some regions might be unassigned.
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close d090e1601e01c69d1fcc032e614fb6d1 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {d090e1601e01c69d1fcc032e614fb6d1 state=OFFLINE, ts=1489519549871, server=null} to {d090e1601e01c69d1fcc032e614fb6d1 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 84923d2d514e03e55ab154c92157ccb1 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {84923d2d514e03e55ab154c92157ccb1 state=OFFLINE, ts=1489519549871, server=null} to {84923d2d514e03e55ab154c92157ccb1 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 963f7e4edacc84963287ded0b18df6fa on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {963f7e4edacc84963287ded0b18df6fa state=OFFLINE, ts=1489519549871, server=null} to {963f7e4edacc84963287ded0b18df6fa state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close fc7490f9b10706e7a56879861159dbcd on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {fc7490f9b10706e7a56879861159dbcd state=OFFLINE, ts=1489519549871, server=null} to {fc7490f9b10706e7a56879861159dbcd state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 049f6fc952ab01e72f33bba1bc5dd65d on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {049f6fc952ab01e72f33bba1bc5dd65d state=OFFLINE, ts=1489519549871, server=null} to {049f6fc952ab01e72f33bba1bc5dd65d state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 94ce90589fd4149b5f88bc8e6ef888f2 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {94ce90589fd4149b5f88bc8e6ef888f2 state=OFFLINE, ts=1489519549871, server=null} to {94ce90589fd4149b5f88bc8e6ef888f2 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 0e53c04d48073b8d2f7750f0e25036de on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {0e53c04d48073b8d2f7750f0e25036de state=OFFLINE, ts=1489519549871, server=null} to {0e53c04d48073b8d2f7750f0e25036de state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 9cea3e97118fd9d5d911cb6a713fe92c on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {9cea3e97118fd9d5d911cb6a713fe92c state=OFFLINE, ts=1489519549871, server=null} to {9cea3e97118fd9d5d911cb6a713fe92c state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 2dcfc3c3797f63e9612c7f06cd43ef09 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {2dcfc3c3797f63e9612c7f06cd43ef09 state=OFFLINE, ts=1489519549871, server=null} to {2dcfc3c3797f63e9612c7f06cd43ef09 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 08172bfac46deaa38cd1b53fe3a6da15 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {08172bfac46deaa38cd1b53fe3a6da15 state=OFFLINE, ts=1489519549871, server=null} to {08172bfac46deaa38cd1b53fe3a6da15 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close f1f7d7992fe87a90f83b89160e872e1c on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {f1f7d7992fe87a90f83b89160e872e1c state=OFFLINE, ts=1489519549871, server=null} to {f1f7d7992fe87a90f83b89160e872e1c state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 5b0ffe069c7fb61532a007dcccdceeed on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {5b0ffe069c7fb61532a007dcccdceeed state=OFFLINE, ts=1489519549872, server=null} to {5b0ffe069c7fb61532a007dcccdceeed state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close f2b05bace075fd0af582b1556dfd9424 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {f2b05bace075fd0af582b1556dfd9424 state=OFFLINE, ts=1489519549872, server=null} to {f2b05bace075fd0af582b1556dfd9424 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close ddeae8251147c720f2bfb31f5c4f38ea on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {ddeae8251147c720f2bfb31f5c4f38ea state=OFFLINE, ts=1489519549872, server=null} to {ddeae8251147c720f2bfb31f5c4f38ea state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 36bd37cbf02b1e774df09a713ed73f39 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {36bd37cbf02b1e774df09a713ed73f39 state=OFFLINE, ts=1489519549872, server=null} to {36bd37cbf02b1e774df09a713ed73f39 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 60199e589af842ae1b468bc59225896c on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {60199e589af842ae1b468bc59225896c state=OFFLINE, ts=1489519549872, server=null} to {60199e589af842ae1b468bc59225896c state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 78988f15ae27088228dc6b343e78bb22 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {78988f15ae27088228dc6b343e78bb22 state=OFFLINE, ts=1489519549872, server=null} to {78988f15ae27088228dc6b343e78bb22 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close dc3f7144432876d8c9638dddaeab9a4b on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {dc3f7144432876d8c9638dddaeab9a4b state=OFFLINE, ts=1489519549873, server=null} to {dc3f7144432876d8c9638dddaeab9a4b state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 86042d73e77f8f4600f72f5e40402ee0 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {86042d73e77f8f4600f72f5e40402ee0 state=OFFLINE, ts=1489519549873, server=null} to {86042d73e77f8f4600f72f5e40402ee0 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close c5d04d3d9539f872f6ea3ba439039c92 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,878 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {c5d04d3d9539f872f6ea3ba439039c92 state=OFFLINE, ts=1489519549873, server=null} to {c5d04d3d9539f872f6ea3ba439039c92 state=FAILED_OPEN, ts=1489519549878, server=null}
+2017-03-14 19:25:49,878 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 6cd6f1ee48a5c4c984a1669f5479bebb on null, set to FAILED_OPEN
+2017-03-14 19:25:49,879 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {6cd6f1ee48a5c4c984a1669f5479bebb state=OFFLINE, ts=1489519549873, server=null} to {6cd6f1ee48a5c4c984a1669f5479bebb state=FAILED_OPEN, ts=1489519549879, server=null}
+2017-03-14 19:25:49,879 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 6d93918ba17b9c9c8c6ce8dd7f80faa9 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,879 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {6d93918ba17b9c9c8c6ce8dd7f80faa9 state=OFFLINE, ts=1489519549873, server=null} to {6d93918ba17b9c9c8c6ce8dd7f80faa9 state=FAILED_OPEN, ts=1489519549879, server=null}
+2017-03-14 19:25:49,879 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 0916b60e63a12117338729422ccce167 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,879 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {0916b60e63a12117338729422ccce167 state=OFFLINE, ts=1489519549874, server=null} to {0916b60e63a12117338729422ccce167 state=FAILED_OPEN, ts=1489519549879, server=null}
+2017-03-14 19:25:49,879 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 986d43427be51aa346487a7ffb2fcd45 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,879 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {986d43427be51aa346487a7ffb2fcd45 state=OFFLINE, ts=1489519549874, server=null} to {986d43427be51aa346487a7ffb2fcd45 state=FAILED_OPEN, ts=1489519549879, server=null}
+2017-03-14 19:25:49,879 WARN  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Failed to open/close 6eb76d90c9a07fff51b1fa1d9dabfef4 on null, set to FAILED_OPEN
+2017-03-14 19:25:49,879 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.RegionStates: Transition {6eb76d90c9a07fff51b1fa1d9dabfef4 state=OFFLINE, ts=1489519549874, server=null} to {6eb76d90c9a07fff51b1fa1d9dabfef4 state=FAILED_OPEN, ts=1489519549879, server=null}
+2017-03-14 19:25:49,879 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.AssignmentManager: Bulk assigning 25 region(s) across 5 server(s), round-robin=true
+2017-03-14 19:25:49,880 DEBUG [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.GeneralBulkAssigner: Timeout-on-RIT=61000
+2017-03-14 19:25:49,880 DEBUG [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.GeneralBulkAssigner: bulk assigning total 0 regions to 0 servers, took 0ms, successfully
+2017-03-14 19:25:49,880 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] master.AssignmentManager: Bulk assigning done
+2017-03-14 19:25:49,880 INFO  [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] zookeeper.ZKTableStateManager: Moving table test_1 state from ENABLING to ENABLED
+2017-03-14 19:25:49,886 DEBUG [MASTER_TABLE_OPERATIONS-ip-172-31-5-95:8100-0] lock.ZKInterProcessLockBase: Released /hbase/table-lock/test_1/write-master:81000000000004
+{noformat}

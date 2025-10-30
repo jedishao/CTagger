@@ -1,0 +1,11 @@
+Simplify ssh and 'Operation Not Permitted' issues when our IT tests execute monkeys
+Executing remote command: ps ux | grep proc_regionserver | grep -v grep | tr -s ' ' | cut -d ' ' -f2 | xargs kill -s SIGKILL , hostname:appy2-5.vpc.cloudera.com
+util.Shell: Executing full command [/usr/bin/ssh  appy2-5.vpc.cloudera.com "sudo -u hbase ps ux | grep proc_regionserver | grep -v grep | tr -s ' ' | cut -d ' ' -f2 | xargs kill -s SIGKILL"]
+
+
+The issue with above command is:
+
+kill commands runs as the ssh'ed user, and if it's not hbase, it has to be root
+which means, that either hbase or root needs to have passwordless access setup to all the other hosts of the cluster, which may not be true in many cases.
+
+Generalizing it a bit so that it can also work with a setup when there is a user (*any* user) in the cluster with passwordless access to other nodes, and sudo permissions.

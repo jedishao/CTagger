@@ -1,0 +1,59 @@
+unread messages in TCP connections - possible connection leak
+We are running HBase 1.2.0-cdh5.7.1 (Cloudera distribution).
+On our Hadoop cluster, we are seeing that each HBase region server has large number of TCP connections to all the HDFS data nodes and all these connections have unread data in socket buffers. Some of these connections are also in CLOSE_WAIT or FIN_WAIT1 state while the rest are in ESTABLISHED state.
+Looks like HBase is creating some connections requesting data from HDFS, but its forgetting about those connections before it could read the data. Thus the connections are left lingering around with large data stuck in their receive buffers. Also, it seems HDFS closes these connections after a while, but since there is data in receive buffer the connection is left in CLOSE_WAIT/FIN_WAIT1 states.
+Below is a snapshot from one of the region servers:
+
+
+
+Total number of connections to HDFS  (pid of region server is 143722)
+[bda@md-bdadev-42 hbase]$ sudo netstat -anp|grep 143722 | wc -l
+827
+
+
+
+
+
+
+Connections that are not in ESTABLISHED state
+[bda@md-bdadev-42 hbase]$ sudo netstat -anp|grep 143722 | grep -v ESTABLISHED | wc -l
+344
+
+
+
+##Snapshot of some of these connections:
+tcp   133887      0 146.1.180.43:48533          146.1.180.40:50010          ESTABLISHED 143722/java
+tcp    82934      0 146.1.180.43:59647          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp        0      0 146.1.180.43:50761          146.1.180.27:2181           ESTABLISHED 143722/java
+tcp   234084      0 146.1.180.43:58335          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp   967667      0 146.1.180.43:56136          146.1.180.68:50010          ESTABLISHED 143722/java
+tcp   156037      0 146.1.180.43:59659          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp   212488      0 146.1.180.43:56810          146.1.180.48:50010          ESTABLISHED 143722/java
+tcp    61871      0 146.1.180.43:53593          146.1.180.35:50010          ESTABLISHED 143722/java
+tcp   121216      0 146.1.180.43:35324          146.1.180.38:50010          ESTABLISHED 143722/java
+tcp        1      0 146.1.180.43:32982          146.1.180.42:50010          CLOSE_WAIT  143722/java
+tcp    82934      0 146.1.180.43:42359          146.1.180.54:50010          ESTABLISHED 143722/java
+tcp   159422      0 146.1.180.43:59731          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp   134573      0 146.1.180.43:60210          146.1.180.76:50010          ESTABLISHED 143722/java
+tcp    82934      0 146.1.180.43:59713          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp   135765      0 146.1.180.43:44412          146.1.180.29:50010          ESTABLISHED 143722/java
+tcp   161655      0 146.1.180.43:43117          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp    75990      0 146.1.180.43:59729          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp    78583      0 146.1.180.43:59971          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp        1      0 146.1.180.43:39893          146.1.180.67:50010          CLOSE_WAIT  143722/java
+tcp        1      0 146.1.180.43:38834          146.1.180.47:50010          CLOSE_WAIT  143722/java
+tcp        1      0 146.1.180.43:40707          146.1.180.50:50010          CLOSE_WAIT  143722/java
+tcp   106102      0 146.1.180.43:48208          146.1.180.75:50010          ESTABLISHED 143722/java
+tcp   332013      0 146.1.180.43:34795          146.1.180.37:50010          ESTABLISHED 143722/java
+tcp        1      0 146.1.180.43:57644          146.1.180.67:50010          CLOSE_WAIT  143722/java
+tcp    79119      0 146.1.180.43:54438          146.1.180.70:50010          ESTABLISHED 143722/java
+tcp    77438      0 146.1.180.43:35259          146.1.180.38:50010          ESTABLISHED 143722/java
+tcp        1      0 146.1.180.43:57579          146.1.180.41:50010          CLOSE_WAIT  143722/java
+tcp   318091      0 146.1.180.43:60124          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp        1      0 146.1.180.43:51715          146.1.180.70:50010          CLOSE_WAIT  143722/java
+tcp   126519      0 146.1.180.43:36389          146.1.180.49:50010          ESTABLISHED 143722/java
+tcp        1      0 146.1.180.43:45656          146.1.180.75:50010          CLOSE_WAIT  143722/java
+tcp   113720      0 146.1.180.43:59741          146.1.180.42:50010          ESTABLISHED 143722/java
+tcp    74599      0 146.1.180.43:44192          146.1.180.60:50010          ESTABLISHED 143722/java
+tcp   131224      0 146.1.180.43:53708          146.1.180.44:50010          ESTABLISHED 143722/java
+tcp   1433915      0 146.1.180.43:57140          146.1.180.67:50010          ESTABLISHED 143722/java

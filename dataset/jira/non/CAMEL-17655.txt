@@ -1,0 +1,58 @@
+OpenTracing throw NPE using onCompletion definition
+Hello! I am trying to use openTracing with kafka component. And find some strange behaviour when route have onCompletion definition. 
+
+Pretty simple code example:
+{code:java}
+from("kafka:someTopic")
+        .onCompletion()
+            .process(exchange -> {
+               // some code
+            })
+        .end()
+.to("log:" + logger.getName() + "?{{logging-params.error}}"); {code}
+Another one:
+{code:java}
+from("timer://foo?repeatCount=1")
+        .onCompletion()
+            .process(exchange -> {                 
+               // some code
+             })
+        .end()
+.to("log:" + logger.getName() + "?{{logging-params.error}}"); {code}
+Stacktrace for example:
+{code:java}
+java.lang.NullPointerException: null
+    at org.apache.camel.opentracing.TagProcessor.process(TagProcessor.java:55)
+    at org.apache.camel.processor.errorhandler.RedeliveryErrorHandler$SimpleTask.run(RedeliveryErrorHandler.java:471)
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.executeFromQueue(DefaultReactiveExecutor.java:218)
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor.executeFromQueue(DefaultReactiveExecutor.java:82)
+    at org.apache.camel.impl.engine.DefaultAsyncProcessorAwaitManager.await(DefaultAsyncProcessorAwaitManager.java:96)
+    at org.apache.camel.impl.engine.DefaultAsyncProcessorAwaitManager.process(DefaultAsyncProcessorAwaitManager.java:85)
+    at org.apache.camel.support.AsyncProcessorSupport.process(AsyncProcessorSupport.java:41)
+    at org.apache.camel.processor.OnCompletionProcessor.doProcess(OnCompletionProcessor.java:189)
+    at org.apache.camel.processor.OnCompletionProcessor$OnCompletionSynchronizationAfterConsumer.onComplete(OnCompletionProcessor.java:318)
+    at org.apache.camel.support.UnitOfWorkHelper.doneSynchronization(UnitOfWorkHelper.java:104)
+    at org.apache.camel.support.UnitOfWorkHelper.doneSynchronizations(UnitOfWorkHelper.java:93)
+    at org.apache.camel.impl.engine.DefaultUnitOfWork.done(DefaultUnitOfWork.java:238)
+    at org.apache.camel.support.UnitOfWorkHelper.doneUow(UnitOfWorkHelper.java:61)
+    at org.apache.camel.impl.engine.CamelInternalProcessor$UnitOfWorkProcessorAdvice.after(CamelInternalProcessor.java:777)
+    at org.apache.camel.impl.engine.CamelInternalProcessor$UnitOfWorkProcessorAdvice.after(CamelInternalProcessor.java:712)
+    at org.apache.camel.impl.engine.CamelInternalProcessor$AsyncAfterTask.done(CamelInternalProcessor.java:263)
+    at org.apache.camel.AsyncCallback.run(AsyncCallback.java:44)
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.schedule(DefaultReactiveExecutor.java:187)
+    at org.apache.camel.impl.engine.DefaultReactiveExecutor.scheduleMain(DefaultReactiveExecutor.java:64)
+    at org.apache.camel.processor.Pipeline.process(Pipeline.java:184)
+    at org.apache.camel.impl.engine.CamelInternalProcessor.process(CamelInternalProcessor.java:398)
+    at org.apache.camel.impl.engine.DefaultAsyncProcessorAwaitManager.process(DefaultAsyncProcessorAwaitManager.java:83)
+    at org.apache.camel.support.AsyncProcessorSupport.process(AsyncProcessorSupport.java:41)
+    at org.apache.camel.component.kafka.consumer.support.KafkaRecordProcessor.processExchange(KafkaRecordProcessor.java:152)
+    at org.apache.camel.component.kafka.KafkaFetchRecords.processRecord(KafkaFetchRecords.java:409)
+    at org.apache.camel.component.kafka.KafkaFetchRecords.processPolledRecords(KafkaFetchRecords.java:361)
+    at org.apache.camel.component.kafka.KafkaFetchRecords.startPolling(KafkaFetchRecords.java:182)
+    at org.apache.camel.component.kafka.KafkaFetchRecords.run(KafkaFetchRecords.java:101)
+    at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+    at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+    at java.lang.Thread.run(Thread.java:745){code}
+without using onCompletion definition everything is OK.

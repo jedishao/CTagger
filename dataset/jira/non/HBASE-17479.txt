@@ -1,0 +1,64 @@
+Add one more unittest case about supporting customer filters over hbase REST
+Plan to add another unittest case and update hbase book about how to use customer filters over hbase REST.
+
++    conf.set(Constants.CUSTOM_FILTERS, "CustomSingleColumnValueFilter:" + CustomSingleColumnValueFilter.class.getName());
++
++  @Test
++  public void testCustomSingleColumnValueFilter() throws IOException, JAXBException {
++    StringBuilder builder = new StringBuilder();
++    builder = new StringBuilder();
++    builder.append("/*");
++    builder.append("?");
++    builder.append(Constants.SCAN_FILTER + "=" +
++        URLEncoder.encode("CustomSingleColumnValueFilter('a', '1', =, 'binary:abc')", "UTF-8"));
++    Response response =
++        client.get("/" + TABLE + builder.toString(), Constants.MIMETYPE_XML);
++    assertEquals(200, response.getCode());
++    JAXBContext ctx = JAXBContext.newInstance(CellSetModel.class);
++    Unmarshaller ush = ctx.createUnmarshaller();
++    CellSetModel model = (CellSetModel) ush.unmarshal(response.getStream());
++    int count = TestScannerResource.countCellSet(model);
++    assertEquals(1, count);
++    assertEquals("abc", new String(model.getRows().get(0).getCells().get(0).getValue()));
++  }
++
++  public static class CustomSingleColumnValueFilter extends SingleColumnValueFilter {
++
++    public CustomSingleColumnValueFilter(final byte [] family, final byte [] qualifier,
++        final CompareOp compareOp,
++        final org.apache.hadoop.hbase.filter.ByteArrayComparable comparator) {
++      super(family, qualifier, compareOp, comparator);
++    }
++
++
++    public static Filter createFilterFromArguments(ArrayList<byte []> filterArguments) {
++      Preconditions.checkArgument(filterArguments.size() == 4 || filterArguments.size() == 6,
++          "Expected 4 or 6 but got: %s", filterArguments.size());
++      byte [] family = ParseFilter.removeQuotesFromByteArray(filterArguments.get(0));
++      byte [] qualifier = ParseFilter.removeQuotesFromByteArray(filterArguments.get(1));
++      CompareOp compareOp = ParseFilter.createCompareOp(filterArguments.get(2));
++      org.apache.hadoop.hbase.filter.ByteArrayComparable comparator = ParseFilter.createComparator(
++          ParseFilter.removeQuotesFromByteArray(filterArguments.get(3)));
++
++      if (comparator instanceof RegexStringComparator ||
++          comparator instanceof SubstringComparator) {
++        if (compareOp != CompareOp.EQUAL &&
++            compareOp != CompareOp.NOT_EQUAL) {
++          throw new IllegalArgumentException ("A regexstring comparator and substring comparator " +
++              "can only be used with EQUAL and NOT_EQUAL");
++        }
++      }
++
++      CustomSingleColumnValueFilter filter = new CustomSingleColumnValueFilter(family, qualifier,
++          compareOp, comparator);
++
++      if (filterArguments.size() == 6) {
++        boolean filterIfMissing = ParseFilter.convertByteArrayToBoolean(filterArguments.get(4));
++        boolean latestVersionOnly = ParseFilter.convertByteArrayToBoolean(filterArguments.get(5));
++        filter.setFilterIfMissing(filterIfMissing);
++        filter.setLatestVersionOnly(latestVersionOnly);
++      }
++      return filter;
++    }
++  }
++

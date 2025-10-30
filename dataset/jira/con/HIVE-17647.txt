@@ -1,0 +1,13 @@
+DDLTask.generateAddMmTasks(Table tbl) and other random code should not start transactions
+This method (and other places) have 
+
+      if (txnManager.isTxnOpen()) {
+        mmWriteId = txnManager.getCurrentTxnId();
+      } else {
+        mmWriteId = txnManager.openTxn(new Context(conf), conf.getUser());
+        txnManager.commitTxn();
+      }
+
+
+this should throw if there is no open transaction.  It should never open one.
+In general the logic seems suspect.  Looks like the intent is to move all existing files into a delta_x_x/ when a plain table is converted to MM table.  This seems like something that needs to be done from under an Exclusive lock to prevent concurrent Insert operations writing data under table/partition root.  But this is too late to acquire locks which should be done from the Driver.acquireLocks()  (or else have deadlock detector since acquiring them here would bread all-or-nothing lock acquisition semantics currently required w/o deadlock detector)

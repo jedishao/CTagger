@@ -1,0 +1,589 @@
+Failed With Exception java.io.IOException:java.lang.ArrayIndexOutOfBoundsException: 1 Using Java UDTF for Hive
+This is the Java code I am using: 
+I am trying to take in a row and return either the same row split into two rows or only of the the two rows from the split. 
+package com;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTF;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import info.debatty.java.stringsimilarity.*;
+public class similarity_report extends GenericUDTF 
+{
+	  private PrimitiveObjectInspector stringOI = null;
+	  @Override
+	  public StructObjectInspector initialize(ObjectInspector[] args) throws UDFArgumentException
+	  {
+	    //if (args.length != 1) 
+	   // 
+{
+	 //     throw new UDFArgumentException("similarityReport() takes exactly one argument");
+	//    }
+
+	    if (args[0].getCategory() != ObjectInspector.Category.PRIMITIVE
+	        && ((PrimitiveObjectInspector) args[0]).getPrimitiveCategory() != PrimitiveObjectInspector.PrimitiveCategory.STRING) 
+	    {
+	      throw new UDFArgumentException("similarityReport() takes a string as a parameter");
+	    }
+
+	    stringOI = (PrimitiveObjectInspector) args[0];
+	    List<String> fieldNames = new ArrayList<String>(41);
+	    List<ObjectInspector> fieldOIs = new ArrayList<ObjectInspector>(41);
+	    fieldNames.add("NAME_x");
+	    fieldNames.add("VOTER ID_x");
+	    fieldNames.add("FATHERS' NAME_x");
+	    fieldNames.add("PIN CODE_x");
+	    fieldNames.add("AREA_x");
+	    fieldNames.add("TEHSIL_x");
+	    fieldNames.add("DISTRICT_x");
+	    fieldNames.add("POLICE STATION_x");
+	    fieldNames.add("AGE_x");
+	    fieldNames.add("Y-O-B_x");
+	    fieldNames.add("GENDER_x");
+	    fieldNames.add("HOUSE NUMBER_x");
+	    fieldNames.add("STREET ADDRESS_x");
+	    fieldNames.add("UNIQUE ID_x");
+	    fieldNames.add("EDIT MAX_x");
+	    fieldNames.add("MATCH ID_x");
+	    fieldNames.add("FAKE MAX_x");
+	    fieldNames.add("NAME_y");
+	    fieldNames.add("VOTER ID_y");
+	    fieldNames.add("FATHERS' NAME_y");
+	    fieldNames.add("PIN CODE_y");
+	    fieldNames.add("AREA_y");
+	    fieldNames.add("TEHSIL_y");
+	    fieldNames.add("DISTRICT_y");
+	    fieldNames.add("POLICE STATION_y");
+	    fieldNames.add("AGE_y");
+	    fieldNames.add("Y-O-B_y");
+	    fieldNames.add("GENDER_y");
+	    fieldNames.add("HOUSE NUMBER_y");
+	    fieldNames.add("STREET ADDRESS_y");
+	    fieldNames.add("UNIQUE ID_y");
+	    fieldNames.add("EDIT MAX_y");
+	    fieldNames.add("MATCH ID_y");
+	    fieldNames.add("FAKE MAX_y");
+	    fieldNames.add("NAME SCORE");
+	    fieldNames.add("ADDRESS SCORE");
+	    fieldNames.add("CITY MATCH");
+	    fieldNames.add("ZIP MATCH");
+	    fieldNames.add("RELATIVE NAME SCORE");
+	    fieldNames.add("VOTER ID MATCH");
+	    fieldNames.add("KEY");
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+	    return ObjectInspectorFactory.getStandardStructObjectInspector(fieldNames, fieldOIs);
+	  }
+	  public ArrayList<Object[]> processInputRecord(String row)
+	  {
+		    ArrayList<Object[]> result = new ArrayList<Object[]>();
+		    //ensure none of the fields are empty
+		    String[] tokens = row.split("\t");
+		    String Name_x = tokens[0];
+		    String VoterID_x = tokens[1];
+		    String FathersName_x = tokens[2];
+		    String PinCode_x = tokens[3];
+		    String Area_x = tokens[4];
+		    String Tehsil_x = tokens[5];
+		    String District_x = tokens[6];
+		    String PoliceStation_x = tokens[7];
+		    String Age_x = tokens[8];
+		    String YOB_x = tokens[9];
+		    String Gender_x = tokens[10];
+		    String HouseNumber_x = tokens[11];
+		    String StreetAddress_x = tokens[12];
+		    String UniqueID_x = tokens[1];
+		    String EditMax_x = tokens[14];
+		    String MatchID_x = tokens[15];
+		    String FakeMax_x = tokens[16];
+		    String Name_y = tokens[17];
+		    String VoterID_y = tokens[18];
+		    String FathersName_y = tokens[19];
+		    String PinCode_y = tokens[20];
+		    String Area_y = tokens[21];
+		    String Tehsil_y = tokens[22];
+		    String District_y = tokens[23];
+		    String PoliceStation_y = tokens[24];
+		    String Age_y = tokens[25];
+		    String YOB_y = tokens[26];
+		    String Gender_y = tokens[27];
+		    String HouseNumber_y = tokens[28];
+		    String StreetAddress_y = tokens[29];
+		    String UniqueID_y = tokens[18];
+		    String EditMax_y = tokens[31];
+		    String MatchID_y = tokens[32];
+		    String FakeMax_y = tokens[33];
+		    String NameScore = tokens[34];
+		    String AddressScore = tokens[35];
+		    String CityMatch = tokens[36];
+		    String ZipMatch = tokens[37];
+		    String RelativeNameScore = tokens[38];
+		    String VoterIDMatch = tokens[39];
+		    String Key = tokens[40];
+		    String Address_x;
+		    String Address_y;
+		    String matchType = "";
+		    if (HouseNumber_x != null) 
+		    {
+		    	 Address_x = HouseNumber_x + StreetAddress_x;
+		    }
+		    else
+		    {
+		    	 Address_x = StreetAddress_x;
+		    }
+
+		    if (HouseNumber_y != null) 
+		    {
+		    	 Address_y = HouseNumber_y + StreetAddress_y;
+		    }
+		    else
+		    {
+		    	 Address_y = StreetAddress_y;
+		    }
+
+		    NormalizedLevenshtein l = new NormalizedLevenshtein();
+		    double lDistance = l.distance(Name_x, Name_y);
+		    double lSimilarity = 1 - lDistance;
+		    NameScore = Double.toString(lSimilarity);
+		    double lRDistance = l.distance(FathersName_x, FathersName_y);
+		    double lRSimilarity = 1 - lRDistance;
+		    RelativeNameScore = Double.toString(lRSimilarity);
+		    NGram twogram = new NGram(2);
+		    double biGramDistance = twogram.distance(Address_x, Address_y);
+		    AddressScore = Double.toString(biGramDistance);
+		    if (Area_x != null && Area_y != null)
+		    {
+		    	if (Area_x == Area_y)
+		    	{
+		    		CityMatch = "1";
+		    	}
+		    	else 
+		    	{
+		    		CityMatch = "0";
+		    	}
+
+		    }
+		    else if (District_x != null && District_y != null)
+		    {
+		    	if (District_x == District_y)
+		    	{		    		CityMatch = "1";		    	}
+		    	else 
+		    	{
+		    		CityMatch = "0";
+		    	}
+		    }
+		    if (PinCode_x != null && PinCode_y != null)
+		    {
+		    	if (PinCode_x == PinCode_y)
+		    	{
+		    		ZipMatch = "1";
+		    	}
+		    	else 
+		    	{
+		    		ZipMatch = "0";
+		    	}
+
+		    }
+		    if (VoterID_x != null && VoterID_y != null)
+		    {
+		    	if (VoterID_x == VoterID_y)
+		    	{
+		    		VoterIDMatch = "1";
+		    	}
+		    	else 
+		    	{
+		    		VoterIDMatch = "0";
+		    	}
+
+		    }
+		    //rule 1
+		    if (Name_x != null && Name_y != null && Address_x != null && Address_y != null && FathersName_x != null && FathersName_y != null && VoterID_x != null && VoterID_y != null && PinCode_x != null && PinCode_y != null)
+		    {	//returns both rows with max
+		    	if (Integer.parseInt(NameScore) >= 0.85 && Integer.parseInt(AddressScore) >= 0.45 && Integer.parseInt(RelativeNameScore) >= 0.85 && Integer.parseInt(VoterIDMatch) == 1 && Integer.parseInt(ZipMatch) == 1)
+		    	{
+		    		EditMax_x = "1";
+		    		EditMax_y = "1";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "similar";
+		    		
+		    	}
+		    	//if identical match, only return one row with low max
+		    	if (Integer.parseInt(NameScore) == 1 && Integer.parseInt(AddressScore) == 1 && Integer.parseInt(RelativeNameScore) == 1 && Integer.parseInt(VoterIDMatch) == 1 && Integer.parseInt(ZipMatch) == 1)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "identical";
+		    		
+		    	}
+		    	//if non-similar rows, return both rows with low max
+		    	if (Integer.parseInt(NameScore) < 0.85 && Integer.parseInt(AddressScore) < 0.45 && Integer.parseInt(RelativeNameScore) < 0.85 && Integer.parseInt(VoterIDMatch) == 0 && Integer.parseInt(ZipMatch) == 0)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		MatchID_x = Long.toString(n);
+		    		MatchID_y = Long.toString(m);
+		    		
+		    		FakeMax_x = "0";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "different";
+		    		
+		    	}
+
+		    }
+		    //rule 2
+		    else if (Name_x != null && Name_y != null && Address_x != null && Address_y != null && FathersName_x != null && FathersName_y != null && VoterID_x != null && VoterID_y != null)
+		    {	//returns both rows with max
+		    	if (Integer.parseInt(NameScore) >= 0.85 && Integer.parseInt(AddressScore) >= 0.45 && Integer.parseInt(RelativeNameScore) >= 0.85 && Integer.parseInt(VoterIDMatch) == 1)
+		    	{		    		EditMax_x = "1";		    		EditMax_y = "1";		    				    		Random rnd = new Random();		    		int n = 100000000 + rnd.nextInt(900000000);		    		int m = 100000000 + rnd.nextInt(900000000);		    		long rand = n + m;		    		MatchID_x = Long.toString(rand);		    		MatchID_y = MatchID_x;		    				    		FakeMax_x = "1";		    		FakeMax_y = "0";		    				    		matchType = "similar";		    				    	}
+		    	//if identical match, only return one row with low max
+		    	if (Integer.parseInt(NameScore) == 1 && Integer.parseInt(AddressScore) == 1 && Integer.parseInt(RelativeNameScore) == 1 && Integer.parseInt(VoterIDMatch) == 1)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "identical";
+		    		
+		    	}
+		    	//if non-similar rows, return both rows with low max
+		    	if (Integer.parseInt(NameScore) < 0.85 && Integer.parseInt(AddressScore) < 0.45 && Integer.parseInt(RelativeNameScore) < 0.85 && Integer.parseInt(VoterIDMatch) == 0)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		MatchID_x = Long.toString(n);
+		    		MatchID_y = Long.toString(m);
+		    		
+		    		FakeMax_x = "0";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "different";
+		    		
+		    	}
+
+		    }
+		    //rule 3
+		    else if (Name_x != null && Name_y != null && Address_x != null && Address_y != null && FathersName_x != null && FathersName_y != null)
+		    {	//returns both rows with max
+		    	if (Integer.parseInt(NameScore) >= 0.85 && Integer.parseInt(AddressScore) >= 0.45 && Integer.parseInt(RelativeNameScore) >= 0.85)
+		    	{
+		    		EditMax_x = "1";
+		    		EditMax_y = "1";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "similar";
+		    		
+		    	}
+		    	//if identical match, only return one row with low max
+		    	if (Integer.parseInt(NameScore) == 1 && Integer.parseInt(AddressScore) == 1 && Integer.parseInt(RelativeNameScore) == 1)
+		    	{		    		EditMax_x = "0";		    		EditMax_y = "0";		    				    		Random rnd = new Random();		    		int n = 100000000 + rnd.nextInt(900000000);		    		int m = 100000000 + rnd.nextInt(900000000);		    		long rand = n + m;		    		MatchID_x = Long.toString(rand);		    		MatchID_y = MatchID_x;		    				    		FakeMax_x = "1";		    		FakeMax_y = "0";		    				    		matchType = "identical";		    				    	}
+		    	//if non-similar rows, return both rows with low max
+		    	if (Integer.parseInt(NameScore) < 0.85 && Integer.parseInt(AddressScore) < 0.45 && Integer.parseInt(RelativeNameScore) < 0.85)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		MatchID_x = Long.toString(n);
+		    		MatchID_y = Long.toString(m);
+		    		
+		    		FakeMax_x = "0";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "different";
+		    		
+		    	}
+
+		    }
+		  //rule 4
+		    else if (Name_x != null && Name_y != null && Address_x != null && Address_y != null)
+		    {	//returns both rows with max
+		    	if (Integer.parseInt(NameScore) >= 0.85 && Integer.parseInt(AddressScore) >= 0.45)
+		    	{
+		    		EditMax_x = "1";
+		    		EditMax_y = "1";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "similar";
+		    		
+		    	}
+		    	//if identical match, only return one row with low max
+		    	if (Integer.parseInt(NameScore) == 1 && Integer.parseInt(AddressScore) == 1)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "identical";
+		    		
+		    	}
+		    	//if non-similar rows, return both rows with low max
+		    	if (Integer.parseInt(NameScore) < 0.85 && Integer.parseInt(AddressScore) < 0.45)
+		    	{		    		EditMax_x = "0";		    		EditMax_y = "0";		    				    		Random rnd = new Random();		    		int n = 100000000 + rnd.nextInt(900000000);		    		int m = 100000000 + rnd.nextInt(900000000);		    		MatchID_x = Long.toString(n);		    		MatchID_y = Long.toString(m);		    				    		FakeMax_x = "0";		    		FakeMax_y = "0";		    				    		matchType = "different";		    				    	}
+
+		    }
+		  //rule 5
+		    else if (Name_x != null && Name_y != null && Address_x != null && Address_y != null && VoterID_x != null && VoterID_y != null)
+		    {	//returns both rows with max
+		    	if (Integer.parseInt(NameScore) >= 0.85 && Integer.parseInt(AddressScore) >= 0.45 && Integer.parseInt(VoterIDMatch) == 1)
+		    	{
+		    		EditMax_x = "1";
+		    		EditMax_y = "1";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "similar";
+		    		
+		    	}
+		    	//if identical match, only return one row with low max
+		    	if (Integer.parseInt(NameScore) == 1 && Integer.parseInt(AddressScore) == 1 && Integer.parseInt(VoterIDMatch) == 1)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		long rand = n + m;
+		    		MatchID_x = Long.toString(rand);
+		    		MatchID_y = MatchID_x;
+		    		
+		    		FakeMax_x = "1";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "identical";
+		    		
+		    	}
+		    	//if non-similar rows, return both rows with low max
+		    	if (Integer.parseInt(NameScore) < 0.85 && Integer.parseInt(AddressScore) < 0.45 && Integer.parseInt(VoterIDMatch) == 0)
+		    	{
+		    		EditMax_x = "0";
+		    		EditMax_y = "0";
+		    		
+		    		Random rnd = new Random();
+		    		int n = 100000000 + rnd.nextInt(900000000);
+		    		int m = 100000000 + rnd.nextInt(900000000);
+		    		MatchID_x = Long.toString(n);
+		    		MatchID_y = Long.toString(m);
+		    		
+		    		FakeMax_x = "0";
+		    		FakeMax_y = "0";
+		    		
+		    		matchType = "different";
+		    		
+		    	}
+
+		    }
+		    if (matchType == "similar")
+		    {
+		    	result.add(new Object[] 
+{ Name_x, VoterID_x, FathersName_x, PinCode_x, Area_x, Tehsil_x, District_x,
+		    			PoliceStation_x, Age_x, YOB_x, Gender_x, HouseNumber_x, StreetAddress_x, UniqueID_x,
+		    			EditMax_x, MatchID_x, FakeMax_x, NameScore, AddressScore, CityMatch, ZipMatch, RelativeNameScore,
+		    			VoterIDMatch, Key});
+		    	result.add(new Object[] { Name_y, VoterID_y, FathersName_y, PinCode_y, Area_y, Tehsil_y, District_y,
+		    			PoliceStation_y, Age_y, YOB_y, Gender_y, HouseNumber_y, StreetAddress_y, UniqueID_y,
+		    			EditMax_y, MatchID_y, FakeMax_y, NameScore, AddressScore, CityMatch, ZipMatch, RelativeNameScore,
+		    			VoterIDMatch, Key});
+
+		    }
+
+		    else if (matchType == "identical")
+		    {
+
+		    	result.add(new Object[] { Name_x, VoterID_x, FathersName_x, PinCode_x, Area_x, Tehsil_x, District_x,		    			PoliceStation_x, Age_x, YOB_x, Gender_x, HouseNumber_x, StreetAddress_x, UniqueID_x,		    			EditMax_x, MatchID_x, FakeMax_x, NameScore, AddressScore, CityMatch, ZipMatch, RelativeNameScore,		    			VoterIDMatch, Key}
+);
+		    }
+		    else if (matchType == "different")
+		    {
+		    	result.add(new Object[] 
+{ Name_x, VoterID_x, FathersName_x, PinCode_x, Area_x, Tehsil_x, District_x,
+		    			PoliceStation_x, Age_x, YOB_x, Gender_x, HouseNumber_x, StreetAddress_x, UniqueID_x,
+		    			EditMax_x, MatchID_x, FakeMax_x, NameScore, AddressScore, CityMatch, ZipMatch, RelativeNameScore,
+		    			VoterIDMatch, Key}
+);
+		    	result.add(new Object[] 
+{ Name_y, VoterID_y, FathersName_y, PinCode_y, Area_y, Tehsil_y, District_y,
+		    			PoliceStation_y, Age_y, YOB_y, Gender_y, HouseNumber_y, StreetAddress_y, UniqueID_y,
+		    			EditMax_y, MatchID_y, FakeMax_y, NameScore, AddressScore, CityMatch, ZipMatch, RelativeNameScore,
+		    			VoterIDMatch, Key}
+);
+		    }
+		    return result;
+	  }
+     @Override
+      public void process(Object[] record) throws HiveException 
+    {
+    	 final String row = stringOI.getPrimitiveJavaObject(record[0]).toString();
+    	 ArrayList<Object[]> results = processInputRecord(row);
+    	 Iterator<Object[]> it = results.iterator();
+    	 while (it.hasNext())
+    	 {
+ 
+    		 Object[] r = it.next();
+ 
+    		 forward(r);
+ 
+    	 }
+
+     }
+     @Override
+      public void close() throws HiveException 
+{
+ 
+    	 // do nothing
+ 
+     }
+
+}
+This is the Hive Code to Process above code on a hive table:
+set mapred.job.queue.name=buanlst;
+CREATE DATABASE IF NOT EXISTS saihieldb;
+USE saihieldb;
+CREATE TABLE datafile_to_dedupe (name_x String, voterid_x String, fathersname_x String, pincode_x String, area_x String, tehsil_x String, district_x String, policestation_x String, age_x String, yob_x String, gender_x String, housenumber_x String, streetaddress_x String)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE;
+LOAD DATA LOCAL INPATH '/idn/home/sbaks31/APRIORI_MUMBAI_SAMPLE_TAB_DELIMITED.txt' OVERWRITE INTO TABLE datafile_to_dedupe;
+ALTER TABLE datafile_to_dedupe ADD COLUMNS (uniqueid_x String, editmax_x String, matchid_x String, fakemax_x String);
+CREATE TABLE datafile_to_dedupe1 (name_y String, voterid_y String, fathersname_y String, pincode_y String, area_y String, tehsil_y String, district_y String, policestation_y String, age_y String, yob_y String, gender_y String, housenumber_y String, streetaddress_y String)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE;
+LOAD DATA LOCAL INPATH '/idn/home/sbaks31/APRIORI_MUMBAI_SAMPLE_TAB_DELIMITED.txt' OVERWRITE INTO TABLE datafile_to_dedupe1;
+ALTER TABLE datafile_to_dedupe ADD COLUMNS (uniqueid_y String, editmax_y String, matchid_y String, fakemax_y String);
+CREATE TABLE crossed (name_x String, voterid_x String, fathersname_x String, pincode_x String, area_x String, tehsil_x String, district_x String, policestation_x String, age_x String, yob_x String, gender_x String, housenumber_x String, streetaddress_x String, uniqueid_x String, editmax_x String, matchid_x String, fakemax_x String, name_y String, voterid_y String, fathersname_y String, pincode_y String, area_y String, tehsil_y String, district_y String, policestation_y String, age_y String, yob_y String, gender_y String, housenumber_y String, streetaddress_y String, uniqueid_y String, editmax_y String, matchid_y String, fakemax_y String)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE;
+INSERT OVERWRITE TABLE crossed SELECT * FROM saihieldb.datafile_to_dedupe CROSS JOIN saihieldb.datafile_to_dedupe1 on (datafile_to_dedupe.name_x = datafile_to_dedupe1.name_y);
+ALTER TABLE crossed ADD COLUMNS (namescore String, addressscore String, citymatch String, zipmatch String, relativenamescore String, voteridmatch String, Key String);
+add jar /idn/home/sbaks31/DedupeFinal1.jar.filepart;
+create temporary function fun3 as 'com.similarity_report';
+CREATE VIEW newview4 AS select fun3(name_x, voterid_x, fathersname_x, pincode_x, area_x, tehsil_x, district_x, policestation_x, age_x, yob_x, gender_x, housenumber_x, streetaddress_x, uniqueid_x, editmax_x, matchid_x, fakemax_x, name_y, voterid_y, fathersname_y, pincode_y, area_y, tehsil_y, district_y, policestation_y, age_y, yob_y, gender_y, housenumber_y, streetaddress_y, uniqueid_y, editmax_y, matchid_y, fakemax_y, namescore, addressscore, citymatch, zipmatch, relativenamescore, voteridmatch, Key) from saihieldb.crossed;
+select * from newview4 limit 10;
+^^This is where i recieve the error.  please let me know what is going wrong??

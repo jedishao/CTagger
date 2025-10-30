@@ -1,0 +1,29 @@
+races/leaks in SSTableReader::GlobalTidy
+In Cassandra 4.0/3.11 there are at least two races in SSTableReader::GlobalTidy
+
+One is a get/get race, explicitly handled as an assertion in:
+
+[http://github.com/apache/cassandra/blob/c22accc46458d0a583afcf6a980f731cdcc94465/src/java/org/apache/cassandra/io/sstable/format/SSTableReader.java#L2199-L2204]
+
+and it looks like "ok, it's a problem, but let's just not fix it"
+
+The other one is get/tidy race between 
+
+[http://github.com/apache/cassandra/blob/c22accc46458d0a583afcf6a980f731cdcc94465/src/java/org/apache/cassandra/io/sstable/format/SSTableReader.java#L2194-L2196]
+
+and
+
+[http://github.com/apache/cassandra/blob/c22accc46458d0a583afcf6a980f731cdcc94465/src/java/org/apache/cassandra/io/sstable/format/SSTableReader.java#L2174-L2175]
+
+ 
+
+The second one can be easily hit by adding a small delay at the beginning of `tidy()` method (say, 20ms) and running `LongStreamingTest` (and actually such failure is what prompted the investigation of GlobalTidy correctness)
+
+There was an attempt on `trunk` to fix these two races.
+The details are not clear to me, and it all looks quite weird. I might be mistaken, but as far as I can see the relevant changes were introduced in:
+[https://github.com/apache/cassandra/commit/31bea0b0d41e4e81095f0d088094f03db14af490]
+that is piggybacked on a huge change in CASSANDRA-17008, without a separate ticket or any sort of qa.
+
+As far as I can see this attempt changes the first race into a leak, and the second race to another race, this time allowing to have multiple GlobalTidy objects for the same sstable (and, as a result, a premature running of obsoletion code).
+
+I'll follow up with PRs for relevant branches etc etc

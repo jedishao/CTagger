@@ -1,0 +1,10 @@
+ResultBoundedCompletionService's cancel() needs to interrupt the working thread and free it to the thread-pool
+We run into one case with read-replica, when the server hosting the primary region is shutdown, we see Get did not go to replica region and it paused for about 50 seconds before Get was resumed. 
+
+More debugging finds out that when the server is down, one of the threads was stuck at the write, it holds lock at 
+https://github.com/apache/hbase/blob/branch-1.3/hbase-client/src/main/java/org/apache/hadoop/hbase/ipc/RpcClientImpl.java#L916.
+The later write threads were waiting on this lock until all threads in the connection's thread pool were stuck on this lock. At that moment, no work will be done. After socket write times out, it frees up all threads and it continues.
+
+When QueueingFuture#cancel() is called, it does not interrupt the working thread and return the thread to the pool.
+
+Attaching the jstack trace.

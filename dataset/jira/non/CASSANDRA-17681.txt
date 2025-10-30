@@ -1,0 +1,17 @@
+CQL function writetime should not be allowed to apply on UDT columns
+The CQL function writetime is disallowed to be applied to multi-cell columns, since no meaningful writetime can be determined from the cells. 
+Inspecting the code (i.e. WritetimeOrTTL#newSelectorFactory), it only check whether the column type is collection, ignoring the case of UDT. See the example below. 
+It should be fixed. 
+
+
+[cqlsh 6.1.0 | Cassandra 4.2-SNAPSHOT | CQL spec 3.4.5 | Native protocol v5]
+cqlsh> CREATE TYPE test.my_udt (a int, b int);
+cqlsh> CREATE TABLE test.tbl_wt (k int primary key, t test.my_udt);
+cqlsh> INSERT INTO test.tbl_wt (k, t) VALUES (1, { a: 1, b: 1 } );
+cqlsh> SELECT writetime(t) FROM test.tbl_wt WHERE k = 1;
+
+writetime(t)
+--------------
+-1
+
+(1 rows)

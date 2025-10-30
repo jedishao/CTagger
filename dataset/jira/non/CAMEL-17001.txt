@@ -1,0 +1,32 @@
+<threads> behavior change in Camel 3
+Hello everyone,
+
+I just noticed a behavior change when using the <threads> tag in Camel 3.x compared to Camel 2.x.
+
+The code snippet is the following
+{code}
+    <route>
+        <from uri="timer:foo?repeatCount=1"/>
+        <log message="Before threads"/>
+        <threads poolSize="5">
+            <log message="In threads"/>
+        </threads>
+        <log message="After threads"/>
+    </route>
+{code}
+
+In Camel 2.x, the "In threads" message is displayed which is not the case in 3.x. This is due to [this commit|https://github.com/apache/camel/commit/2724f9aa30025752dcea85b1f41aeaae6ca4c989].
+
+In fact in Camel 2.x the following snippet (defined in the documentation) doesn't work
+{code}
+    <route>
+        <from uri="timer:foo?repeatCount=1"/>
+        <log message="Before threads"/>
+        <threads poolSize="5" />
+        <log message="After threads"/>
+    </route>
+{code}
+
+I don't know if the new behavior is the right one or not. It's either a bug in 3.x or a missing information in the [migration guide|https://camel.apache.org/manual/latest/camel-3-migration-guide.html] (searched from "threads" but couldn't find anything).
+
+Can you have a look? Thanks

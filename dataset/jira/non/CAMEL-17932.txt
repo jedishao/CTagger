@@ -1,0 +1,32 @@
+camel-spring-boot - EndpointInject happens before CamelContextConfiguration#beforeApplicationStart
+Currently something like this fails in camel-spring-boot tests:
+
+
+@EndpointInject("mock:result")
+MockEndpoint mock;
+
+@Test
+public void testComponentConfigured() {
+    // this fails
+    assertTrue(mock.isLog());
+}
+
+@Bean
+CamelContextConfiguration contextConfiguration() {
+    return new CamelContextConfiguration() {
+        @Override
+        public void beforeApplicationStart(CamelContext context) {
+            MockComponent mock = new MockComponent(context);
+            mock.setLog(true);
+            context.addComponent("mock", mock);
+        }
+
+        @Override
+        public void afterApplicationStart(CamelContext camelContext) {
+            //do nothing here
+        }
+    };
+}
+
+
+This is because the wiring for @EndpointInject happens before CamelContextConfiguration#beforeApplicationStart. Workaround is to configure the component via @Bean

@@ -1,0 +1,15 @@
+Dropbox: long-lived access tokens are retired, must use refresh token
+The API used to access dropbox currently only supports the parameter "accesstoken"
+for ex. in the route:
+.to("dropbox://put?accessToken={{dropbox.accessToken}}"
+                    + "&clientIdentifier={{dropbox.clientIdentifier}}"
+                    + "&uploadMode=force"
+                    + "&remotePath=/to_cellular/")
+(by the way, the last '/' at remotePath is needed, otherwise the upload fails with 'KO')
+After creating an access token inside the dropbox console and use it inside the route, the API works, but it will only work for 4 hours, after that, the following error message will be thrown:
+InvalidAccessTokenException: {"error_summary": "expired_access_token/...", "error": {".tag": "expired_access_token"}}
+Dropbox did change their strategy and not supporting long-lived access tokens anymore.
+From the dropbox documentation: On September 30th, 2021, Dropbox will retire the creation of long-lived access tokens. Apps that require background (“offline”) access but have not yet implemented refresh tokens will be impacted.
+Implement refresh tokens: For apps that want to interact with the Dropbox API when a user isn’t actively interacting with the app (“offline” access)", we offer a long-lived refresh_token that can be used to request a new, short-lived access token.
+see here: https://dropbox.tech/developers/migrating-app-permissions-and-access-tokens
+Therefore I think there must be an adjustment in the API Camel is using.

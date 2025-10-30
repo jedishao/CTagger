@@ -1,0 +1,33 @@
+Couldn't load manifest attributes.
+org.apache.hive.jdbc.HiveDriver load menifest, if the codesource is already jar protocol URL, it will failed to load manifest.
+  private static synchronized void loadManifestAttributes() throws IOException {
+    if (manifestAttributes != null) 
+{
+      return;
+    }
+    Class<?> clazz = HiveDriver.class;
+    String classContainer = clazz.getProtectionDomain().getCodeSource()
+        .getLocation().toString();
+    URL manifestUrl = new URL("jar:" + classContainer
+        + "!/META-INF/MANIFEST.MF");
+    Manifest manifest = new Manifest(manifestUrl.openStream());
+    manifestAttributes = manifest.getMainAttributes();
+  }
+Caused by: java.net.MalformedURLException: no !/ in spec
+	at java.net.URL.<init>(URL.java:620)
+	at java.net.URL.<init>(URL.java:483)
+	at java.net.URL.<init>(URL.java:432)
+	at java.net.JarURLConnection.parseSpecs(JarURLConnection.java:175)
+	at java.net.JarURLConnection.<init>(JarURLConnection.java:158)
+	at sun.net.www.protocol.jar.JarURLConnection.<init>(JarURLConnection.java:81)
+	at sun.net.www.protocol.jar.Handler.openConnection(Handler.java:41)
+	at java.net.URL.openConnection(URL.java:972)
+	at java.net.URL.openStream(URL.java:1038)
+	at org.apache.hive.jdbc.HiveDriver.loadManifestAttributes(HiveDriver.java:278)
+	at org.apache.hive.jdbc.HiveDriver.fetchManifestAttribute(HiveDriver.java:293)
+	... 57 more
+Caused by: java.lang.NullPointerException: no !/ in spec
+	at sun.net.www.protocol.jar.Handler.parseAbsoluteSpec(Handler.java:171)
+	at sun.net.www.protocol.jar.Handler.parseURL(Handler.java:151)
+	at java.net.URL.<init>(URL.java:615)
+	... 67 more

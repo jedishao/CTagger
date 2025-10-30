@@ -1,0 +1,24 @@
+Text value containing "/*" interpreted as multiline comment in cqlsh
+I use CQLSH command line utility to load some DDLs. The version of utility I use is this:
+
+[cqlsh 6.0.0 | Cassandra 4.0.0.47 | CQL spec 3.4.5 | Native protocol v5]
+
+Command that loads DDL.cql:
+
+cqlsh -u username -p password cassandra.example.com 65503 --ssl -f DDL.cql
+
+
+I have a line in CQL script that breaks the syntax.
+
+INSERT into tablename (key,columnname1,columnname2) VALUES ('keyName','value1','/value2/*/value3');
+
+/* here is interpreted as start of multi-line comment. It used to work on older versions of cqlsh. The error I see looks like this:
+
+SyntaxException: line 4:2 mismatched input 'Update' expecting ')' (...,'value1','/value2INSERT into tablename(INSERT into tablename (key,columnname1,columnname2)) VALUES ('[Update]-...) SyntaxException: line 1:0 no viable alternative at input '(' ([(]...)
+
+
+Same behavior while running in interactive mode too. /* inside a CQL statement should not be interpreted as start of multi-line comment.
+With schema:
+
+
+CREATE TABLE tablename ( key text primary key, columnname1 text, columnname2 text);

@@ -1,0 +1,69 @@
+Dtests failing intermittently on Jolokia agent
+Some apparently unrealeted Python dtests fail with an output of the form:
+{code:java}
+Error Message
+subprocess.CalledProcessError: Command '('/usr/lib/jvm/java-8-openjdk-amd64/bin/java', '-cp', '/usr/lib/jvm/java-8-openjdk-amd64/lib/tools.jar:/home/cassandra/cassandra/cassandra-dtest/tools/../lib/jolokia-jvm-1.7.1-agent.jar', 'org.jolokia.jvmagent.client.AgentLauncher', '--host', '127.0.0.1', 'start', '706')' returned non-zero exit status 1.
+Stacktrace
+self = <auth_test.TestAuthRoles object at 0x7fc6cb4313a0>
+
+(...)
+
+    
+        mbean = make_mbean('auth', type='RolesCache')
+>       with JolokiaAgent(self.cluster.nodelist()[0]) as jmx:
+
+auth_test.py:1888: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tools/jmxutils.py:309: in __enter__
+    self.start()
+tools/jmxutils.py:187: in start
+    subprocess.check_output(args, stderr=subprocess.STDOUT)
+/usr/lib/python3.8/subprocess.py:415: in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = False, timeout = None, check = True
+popenargs = (('/usr/lib/jvm/java-8-openjdk-amd64/bin/java', '-cp', '/usr/lib/jvm/java-8-openjdk-amd64/lib/tools.jar:/home/cassandr...t/tools/../lib/jolokia-jvm-1.7.1-agent.jar', 'org.jolokia.jvmagent.client.AgentLauncher', '--host', '127.0.0.1', ...),)
+kwargs = {'stderr': -2, 'stdout': -1}
+process = <subprocess.Popen object at 0x7fc6c9afb910>
+stdout = b"Couldn't start agent for PID 706\nPossible reason could be that port '8778' is already occupied.\nPlease check the standard output of the target process for a detailed error message.\n"
+stderr = None, retcode = 1
+
+(...)
+
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '('/usr/lib/jvm/java-8-openjdk-amd64/bin/java', '-cp', '/usr/lib/jvm/java-8-openjdk-amd64/lib/tools.jar:/home/cassandra/cassandra/cassandra-dtest/tools/../lib/jolokia-jvm-1.7.1-agent.jar', 'org.jolokia.jvmagent.client.AgentLauncher', '--host', '127.0.0.1', 'start', '706')' returned non-zero exit status 1.
+
+/usr/lib/python3.8/subprocess.py:516: CalledProcessError
+{code}
+Here is a of bunch hits in different tests across multiple branches:
+ * [https://app.circleci.com/pipelines/github/adelapena/cassandra/2035/workflows/1e06bd6d-8bd6-4703-85db-2b41e964134e/jobs/20403]
+ * [https://ci-cassandra.apache.org/job/Cassandra-3.11/387/testReport/dtest-novnode.thrift_hsha_test/TestThriftHSHA/test_closing_connections/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.0/454/testReport/dtest-novnode.transient_replication_test/TestTransientReplicationRepairLegacyStreaming/test_transient_incremental_repair/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.0/461/testReport/dtest-novnode.read_repair_test/TestSpeculativeReadRepair/test_failed_read_repair/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.0/461/testReport/dtest-novnode.transient_replication_test/TestTransientReplication/test_cheap_quorums/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.0/464/testReport/dtest-offheap.repair_tests.incremental_repair_test/TestIncRepair/test_parent_repair_session_cleanup/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.0/465/testReport/dtest-novnode.transient_replication_test/TestTransientReplicationRepairLegacyStreaming/test_transient_incremental_repair/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.0/465/testReport/dtest-offheap.repair_tests.incremental_repair_test/TestIncRepair/test_repaired_tracking_with_partition_deletes/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.1/135/testReport/dtest-novnode.transient_replication_test/TestTransientReplicationRepairStreamEntireSSTable/test_primary_range_repair/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.1/135/testReport/dtest.auth_test/TestNetworkAuth/test_revoked_login/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.1/145/testReport/dtest-novnode.transient_replication_test/TestTransientReplicationRepairLegacyStreaming/test_primary_range_repair/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.1/148/testReport/dtest-novnode.auth_test/TestAuthRoles/test_role_caching_authenticated_user/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.1/151/testReport/dtest-novnode.read_repair_test/TestSpeculativeReadRepair/test_speculative_data_request/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-4.1/151/testReport/dtest.read_repair_test/TestSpeculativeReadRepair/test_quorum_requirement_on_speculated_read/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1288/testReport/dtest.jmx_test/TestJMX/test_mv_metric_mbeans_release/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1295/testReport/dtest-novnode.client_request_metrics_local_remote_test/TestClientRequestMetricsLocalRemote/test_paxos/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1295/testReport/dtest-offheap.read_repair_test/TestSpeculativeReadRepair/test_quorum_requirement/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1296/testReport/dtest-novnode.transient_replication_test/TestTransientReplicationRepairStreamEntireSSTable/test_speculative_write_repair_cycle/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1296/testReport/dtest-offheap.configuration_test/TestConfiguration/test_change_durable_writes/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1300/testReport/dtest-novnode.read_repair_test/TestSpeculativeReadRepair/test_failed_read_repair/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1300/testReport/dtest-novnode.transient_replication_test/TestTransientReplicationRepairStreamEntireSSTable/test_optimized_primary_range_repair/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1301/testReport/dtest-novnode.client_request_metrics_local_remote_test/TestClientRequestMetricsLocalRemote/test_batch_and_slice/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1301/testReport/dtest-novnode.client_request_metrics_local_remote_test/TestClientRequestMetricsLocalRemote/test_write_and_read/]
+ * [https://ci-cassandra.apache.org/job/Cassandra-trunk/1302/testReport/dtest-upgrade.upgrade_tests.regression_test/TestForRegressionsUpgrade_current_3_11_x_To_indev_trunk/test13294/]
+
+Note the common {{with JolokiaAgent(self.cluster.nodelist()[0])}} and {{"Possible reason could be that port '8778' is already occupied."}} parts.
+
+So far, the issue doesn't seem to reproduce on 3.0.

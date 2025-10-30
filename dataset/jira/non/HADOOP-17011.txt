@@ -1,0 +1,52 @@
+Tolerate leading and trailing spaces in fs.defaultFS
+*Problem:*
+
+Currently, `getDefaultUri` is using `conf.get` to get the value of `fs.defaultFS`, which means that the trailing whitespace after a valid URI won’t be removed and could stop namenode and datanode from starting up.
+
+ 
+
+*How to reproduce (Hadoop-2.8.5):*
+
+Set the configuration
+{code:java}
+<property>
+     <name>fs.defaultFS</name>
+     <value>hdfs://localhost:9000 </value>
+</property>{code}
+In core-site.xml (there is a whitespace after 9000) and start HDFS.
+
+Namenode and datanode won’t start and the log message is:
+{code:java}
+2020-04-23 11:09:48,198 ERROR org.apache.hadoop.hdfs.server.namenode.NameNode: Failed to start namenode.
+java.lang.IllegalArgumentException: Illegal character in authority at index 7: hdfs://localhost:9000 
+    at java.net.URI.create(URI.java:852)
+    at org.apache.hadoop.hdfs.server.namenode.NameNode.setClientNamenodeAddress(NameNode.java:440)
+    at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:897)
+    at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:885)
+    at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1626)
+    at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1694)
+Caused by: java.net.URISyntaxException: Illegal character in authority at index 7: hdfs://localhost:9000 
+    at java.net.URI$Parser.fail(URI.java:2848)
+    at java.net.URI$Parser.parseAuthority(URI.java:3186)
+    at java.net.URI$Parser.parseHierarchical(URI.java:3097)
+    at java.net.URI$Parser.parse(URI.java:3053)
+    at java.net.URI.<init>(URI.java:588)
+    at java.net.URI.create(URI.java:850)
+    ... 5 more
+{code}
+ 
+
+*Solution:*
+
+Use `getTrimmed` instead of `get` for `fs.defaultFS`:
+{code:java}
+public static URI getDefaultUri(Configuration conf) {
+  URI uri =
+    URI.create(fixName(conf.getTrimmed(FS_DEFAULT_NAME_KEY, DEFAULT_FS)));
+  if (uri.getScheme() == null) {
+    throw new IllegalArgumentException("No scheme in default FS: " + uri);
+  }
+  return uri;
+}
+{code}
+I have submitted a patch for trunk about this.

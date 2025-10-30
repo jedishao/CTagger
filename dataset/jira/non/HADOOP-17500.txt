@@ -1,0 +1,29 @@
+S3A doesn't calculate Content-MD5 on uploads
+Hadoop doesn't specify the Content-MD5 of an object when uploading it to an S3 Bucket. This prevents uploads to buckets with Object Lock, that require the Content-MD5 to be specified.
+ 
+
+
+com.amazonaws.services.s3.model.AmazonS3Exception: Content-MD5 HTTP header is required for Put Part requests with Object Lock parameters (Service: Amazon S3; Status Code: 400; Error Code: InvalidRequest; Request ID: ****************; S3 Extended Request ID: ****************************************************************************; Proxy: null), S3 Extended Request ID: ****************************************************************************
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.handleErrorResponse(AmazonHttpClient.java:1819)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.handleServiceErrorResponse(AmazonHttpClient.java:1403)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeOneRequest(AmazonHttpClient.java:1372)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeHelper(AmazonHttpClient.java:1145)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.doExecute(AmazonHttpClient.java:802)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.executeWithTimer(AmazonHttpClient.java:770)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.execute(AmazonHttpClient.java:744)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutor.access$500(AmazonHttpClient.java:704)
+	at com.amazonaws.http.AmazonHttpClient$RequestExecutionBuilderImpl.execute(AmazonHttpClient.java:686)
+	at com.amazonaws.http.AmazonHttpClient.execute(AmazonHttpClient.java:550)
+	at com.amazonaws.http.AmazonHttpClient.execute(AmazonHttpClient.java:530)
+	at com.amazonaws.services.s3.AmazonS3Client.invoke(AmazonS3Client.java:5248)
+	at com.amazonaws.services.s3.AmazonS3Client.invoke(AmazonS3Client.java:5195)
+	at com.amazonaws.services.s3.AmazonS3Client.doUploadPart(AmazonS3Client.java:3768)
+	at com.amazonaws.services.s3.AmazonS3Client.uploadPart(AmazonS3Client.java:3753)
+	at org.apache.hadoop.fs.s3a.S3AFileSystem.uploadPart(S3AFileSystem.java:2230)
+	at org.apache.hadoop.fs.s3a.WriteOperationHelper.lambda$uploadPart$8(WriteOperationHelper.java:558)
+	at org.apache.hadoop.fs.s3a.Invoker.once(Invoker.java:110)
+	... 15 more
+
+ 
+Similar to https://issues.apache.org/jira/browse/JCLOUDS-1549
+Related to https://issues.apache.org/jira/browse/HADOOP-13076

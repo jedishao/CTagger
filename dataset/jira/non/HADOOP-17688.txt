@@ -1,0 +1,33 @@
+Potenail NPE in org.apache.hadoop.classification.tools
+Hello,
+Our code analyses found the following potential NPE:
+
+
+  private static Object process(Object obj, Class<?> type) {
+    if (obj == null) {
+      return null;
+    }
+
+
+
+  public static boolean start(RootDoc root) {
+    System.out.println(
+        ExcludePrivateAnnotationsStandardDoclet.class.getSimpleName());
+    RootDoc excludedDoc = RootDocProcessor.process(root);
+    if (excludedDoc.specifiedPackages().length == 0) { // NPE
+      return true;
+    }
+
+
+ 
+Full Trace:
+ 
+1. Return null to caller
+https://github.com/apache/hadoop/blob/f40e3eb0590f85bb42d2471992bf5d524628fdd6/hadoop-common-project/hadoop-annotations/src/main/java/org/apache/hadoop/classification/tools/RootDocProcessor.java#L61
+2. Return the return value of function process to caller
+https://github.com/apache/hadoop/blob/f40e3eb0590f85bb42d2471992bf5d524628fdd6/hadoop-common-project/hadoop-annotations/src/main/java/org/apache/hadoop/classification/tools/RootDocProcessor.java#L56
+3. Function process executes and stores the return value to excludedDoc (excludedDoc can be null)
+https://github.com/apache/hadoop/blob/f40e3eb0590f85bb42d2471992bf5d524628fdd6/hadoop-common-project/hadoop-annotations/src/main/java/org/apache/hadoop/classification/tools/ExcludePrivateAnnotationsStandardDoclet.java#L41
+4. excludedDoc is passed as the this pointer to function com.sun.javadoc.RootDoc.specifiedPackages (excludedDoc can be null)
+https://github.com/apache/hadoop/blob/f40e3eb0590f85bb42d2471992bf5d524628fdd6/hadoop-common-project/hadoop-annotations/src/main/java/org/apache/hadoop/classification/tools/ExcludePrivateAnnotationsStandardDoclet.java#L42
+Commit: f40e3eb0590f85bb42d2471992bf5d524628fdd6

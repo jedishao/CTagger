@@ -1,0 +1,32 @@
+camel-olingo2 : I/O Dispatcher threads leak
+Discussion thread:
+
+[https://camel.zulipchat.com/#narrow/stream/257298-camel/topic/camel-olingo2.20.3A.20I.2FO.20Dispatcher.20threads.20leak]
+
+ 
+
+Details:
+
+While using camel-onlingo2 to read from ODataV2 endpoint in Java, the "I/O Dispatcher" threads are left running even after closing the camel context.
+
+Camel version: 3.15.0/3.16.0
+With camel version 2.24.1, the issue was not reproducible.
+
+Attaching a demo project to show the issue. Run ODataReaderTest.java to reproduce the issue
+
+[^CamelOData.zip]
+
+-> With 3.15.0/3.16.0 version, there are 12 I/O Dispatcher threads which keeps running after every execution. So, every time the odata call is made the *number of left over threads are piling up. This is eating up the resources on the server.*
+-> If camel version is changed to 2.24.1 ( build.gradle file, change value of camelVersion ), then with camel context stop, all the I/O Dispatcher threads are also closed. The same test case (ODataReaderTest) will pass with 2.24.1 version.
+
+*Analysis:*
+The below code is getting called twice for every execution and because of the IF condition multiple instances of Olingo2AppWrapper (apiProxy) are getting created.
+
+[https://github.com/apache/camel/blob/camel-3.15.0/components/camel-olingo2/camel-olingo2-component/src/main/java/org/apache/camel/component/olingo2/Olingo2Component.java#L121]
+
+And each of this instance creates 12 I/O Dispatcher threads. When camel context is closed only one of the instance of apiProxy ( the one which is created last) is closed, which leaves threads created by first instance as it is in RUNNING state.
+
+With older version (2.24.1), only one instance of Olingo2AppWrapper (apiProxy) was getting created.
+
+There is configuration variable defined in newer version which didn't exist in older version. This seems to be impacting the IF conditions and leading to multiple apiProxy instances.
+Olingo2Configuration configuration;

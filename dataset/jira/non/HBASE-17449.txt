@@ -1,0 +1,22 @@
+Add explicit document on different timeout settings
+Currently we have more than one timeout settings, mainly includes:
+
+hbase.rpc.timeout
+hbase.client.operation.timeout
+hbase.client.scanner.timeout.period
+
+And in latest branch-1 or master branch code, we will have two other properties:
+
+hbase.rpc.read.timeout
+hbase.rpc.write.timeout
+
+However, in current refguid we don't have explicit instruction on the difference of these timeout settings (there're explanations for each property, but no instruction on when to use which)
+In my understanding, for RPC layer timeout, or say each rpc call:
+
+Scan (openScanner/next): controlled by hbase.client.scanner.timeout.period
+Other operations:
+   1. For released versions: controlled by hbase.rpc.timeout
+   2. For 1.4+ versions: read operation controlled by hbase.rpc.read.timeout, write operation controlled by hbase.rpc.write.timeout, or hbase.rpc.timeout if the previous two are not set.
+
+And hbase.client.operation.timeout is a higher-level control counting retry in, or say the overall control for one user call.
+After this JIRA, I hope when users ask questions like "What settings I should use if I don't want to wait for more than 1 second for a single put/get/scan.next call", we could give a neat answer.

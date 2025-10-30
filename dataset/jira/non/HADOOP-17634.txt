@@ -1,0 +1,11 @@
+Fedbalance only copies data partially when there's existing opened file
+If there are opened files when fedbalance is run and data is being written to these files, fedbalance might skip the newly written data.
+Steps to recreate the issue:
+
+Create a dummy file /test/file with some data: echo "start" | hdfs dfs -appendToFile /test/file
+Start writing to the file: hdfs dfs -appendToFile /test/file but do not stop writing
+Run fedbalance: hadoop fedbalance submit hdfs://ns1/test hdfs://ns2/test
+Write something to the file while fedbalance is running, "end" for example, then stop writing
+After fedbalance is done, hdfs://ns2/test/file should only contain "start" while hdfs://ns1/user/hadoop/.Trash/Current/test/file contains "start\nend"
+
+Fedbalance is run with default configs and arguments so no diff should happen.

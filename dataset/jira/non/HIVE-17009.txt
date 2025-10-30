@@ -1,0 +1,45 @@
+ifnull() compatibility with explain or use of constants
+Error "Invalid function 'nullif'" thrown if nullif() used in conjunction with certain other commands, but equivalently behaving  CASE WHEN ... END block behaves fine.
+Example:
+(note the use of `dual` table)
+This throws an "Invalid function 'nullif'" error seemingly due to the presence of operators (date_sub()) in the WHERE clause:
+
+select
+ coalesce(nullif('a','a'),'b') result_value 
+from
+workspace_t886880.dual
+where current_date > date_sub(current_date,1); 
+
+
+As well as simply attaching 'EXPLAIN' like this (throws the same error):
+
+EXPLAIN select
+ coalesce(nullif('a','a'),'b') result_value 
+from
+workspace_t886880.dual
+
+
+However, this similarly behaving CASE..WHEN block does not throw an error, even with the same where clause as above:
+
+select
+ coalesce(case when 'a' = 'a' then null else 'a' end,'b') result_value
+from
+workspace_t886880.dual
+where current_date > date_sub(current_date,1);
+
+
+Similarly, omitting any where clause returns functionality to normal, as does removing any _operations _from the where clause also allows the query to execute:
+
+/* this works */
+select
+ coalesce(nullif('a','a'),'b') result_value 
+from
+workspace_t886880.dual;
+/* no where clause! */
+
+/* and this works too */
+select
+ coalesce(nullif('a','a'),'b') result_value 
+from
+workspace_t886880.dual
+where DATE '2016-01-02' > DATE '2016-01-01'

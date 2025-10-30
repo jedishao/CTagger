@@ -1,0 +1,232 @@
+Mapred/YARN job fails due to kms-dt can't be found in cache with LoadBalancingKMSClientProvider + Kerberos
+I deployed Hadoop 3.2.2 cluster with KMS in HA using LoadBalancingKMSClientProvider with Kerberos authentication. KMS instances are configured with ZooKeeper for storing the shared secret.
+I have created an encryption key and an encryption zone in `/test` directory and executed `randomtextwriter` from mapreduce examples passing it a sub-directory in the encryption zone:
+
+
+hadoop jar hadoop-mapreduce-examples-3.2.2.jar randomtextwriter /test/randomtextwriter
+
+
+Unfortunately the job keeps failing with errors like:
+
+
+java.io.IOException: org.apache.hadoop.security.authentication.client.AuthenticationException: org.apache.hadoop.security.token.SecretManager$InvalidToken: token (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615146155993, maxDate=1615750955993, sequenceNumber=1, masterKeyId=2) can't be found in cache
+	at org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider.decryptEncryptedKey(LoadBalancingKMSClientProvider.java:363)
+	at org.apache.hadoop.crypto.key.KeyProviderCryptoExtension.decryptEncryptedKey(KeyProviderCryptoExtension.java:532)
+	at org.apache.hadoop.hdfs.HdfsKMSUtil.decryptEncryptedDataEncryptionKey(HdfsKMSUtil.java:212)
+	at org.apache.hadoop.hdfs.DFSClient.createWrappedOutputStream(DFSClient.java:972)
+	at org.apache.hadoop.hdfs.DFSClient.createWrappedOutputStream(DFSClient.java:952)
+	at org.apache.hadoop.hdfs.DistributedFileSystem$8.doCall(DistributedFileSystem.java:536)
+	at org.apache.hadoop.hdfs.DistributedFileSystem$8.doCall(DistributedFileSystem.java:530)
+	at org.apache.hadoop.fs.FileSystemLinkResolver.resolve(FileSystemLinkResolver.java:81)
+	at org.apache.hadoop.hdfs.DistributedFileSystem.create(DistributedFileSystem.java:544)
+	at org.apache.hadoop.hdfs.DistributedFileSystem.create(DistributedFileSystem.java:471)
+	at org.apache.hadoop.fs.FileSystem.create(FileSystem.java:1125)
+	at org.apache.hadoop.io.SequenceFile$Writer.<init>(SequenceFile.java:1168)
+	at org.apache.hadoop.io.SequenceFile.createWriter(SequenceFile.java:285)
+	at org.apache.hadoop.io.SequenceFile.createWriter(SequenceFile.java:542)
+	at org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat.getSequenceWriter(SequenceFileOutputFormat.java:64)
+	at org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat.getRecordWriter(SequenceFileOutputFormat.java:75)
+	at org.apache.hadoop.mapred.MapTask$NewDirectOutputCollector.<init>(MapTask.java:659)
+	at org.apache.hadoop.mapred.MapTask.runNewMapper(MapTask.java:779)
+	at org.apache.hadoop.mapred.MapTask.run(MapTask.java:347)
+	at org.apache.hadoop.mapred.YarnChild$2.run(YarnChild.java:174)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapred.YarnChild.main(YarnChild.java:168)
+Caused by: org.apache.hadoop.security.authentication.client.AuthenticationException: org.apache.hadoop.security.token.SecretManager$InvalidToken: token (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615146155993, maxDate=1615750955993, sequenceNumber=1, masterKeyId=2) can't be found in cache
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+	at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+	at java.lang.reflect.Constructor.newInstance(Constructor.java:423)
+	at org.apache.hadoop.util.HttpExceptionUtils.validateResponse(HttpExceptionUtils.java:154)
+	at org.apache.hadoop.crypto.key.kms.KMSClientProvider.call(KMSClientProvider.java:592)
+	at org.apache.hadoop.crypto.key.kms.KMSClientProvider.call(KMSClientProvider.java:540)
+	at org.apache.hadoop.crypto.key.kms.KMSClientProvider.decryptEncryptedKey(KMSClientProvider.java:833)
+	at org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider$5.call(LoadBalancingKMSClientProvider.java:356)
+	at org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider$5.call(LoadBalancingKMSClientProvider.java:352)
+	at org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider.doOp(LoadBalancingKMSClientProvider.java:174)
+	at org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider.decryptEncryptedKey(LoadBalancingKMSClientProvider.java:352)
+
+
+ 
+I've injected a few logs on my own and it seems that the client gets 403 on "decrypt" request:
+
+
+2021-03-07 21:26:23,009 INFO [main] org.apache.hadoop.hdfs.HdfsKMSUtil: DD: decrypting encrypted data encryption key
+2021-03-07 21:26:23,012 INFO [main] org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider: DD: decryptEncryptedKey called
+2021-03-07 21:26:23,012 INFO [main] org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider: DD: trying out all providers providers.length=2
+2021-03-07 21:26:23,012 INFO [main] org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider: DD: Trying out provider=0, i=0
+2021-03-07 21:26:23,028 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: Current UGI: packer (auth:SIMPLE)
+2021-03-07 21:26:23,028 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: mapreduce.job, Service: 10.9.4.227:38684, Ident: (org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier@6b5966e1)
+2021-03-07 21:26:23,028 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: HDFS_DELEGATION_TOKEN, Service: 10.9.4.140:8020, Ident: (token for packer: HDFS_DELEGATION_TOKEN owner=packer/node-10-9-4-175.bdcluster@SOME_REALM, renewer=packer, realUser=, issueDate=1615152335661, maxDate=1615757135661, sequenceNumber=23, masterKeyId=42)
+2021-03-07 21:26:23,029 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: HDFS_DELEGATION_TOKEN, Service: ha-hdfs:sacluster, Ident: (token for packer: HDFS_DELEGATION_TOKEN owner=packer/node-10-9-4-175.bdcluster@SOME_REALM, renewer=packer, realUser=, issueDate=1615152335661, maxDate=1615757135661, sequenceNumber=23, masterKeyId=42)
+2021-03-07 21:26:23,029 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: kms-dt, Service: kms://http@node-10-9-4-175.bdcluster;node-10-9-4-140.bdcluster:16000/kms, Ident: (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)
+2021-03-07 21:26:23,029 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: HDFS_DELEGATION_TOKEN, Service: 10.9.4.175:8020, Ident: (token for packer: HDFS_DELEGATION_TOKEN owner=packer/node-10-9-4-175.bdcluster@SOME_REALM, renewer=packer, realUser=, issueDate=1615152335661, maxDate=1615757135661, sequenceNumber=23, masterKeyId=42)
+2021-03-07 21:26:23,029 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: Login UGI: packer (auth:SIMPLE)
+2021-03-07 21:26:23,029 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: mapreduce.job, Service: 10.9.4.227:38684, Ident: (org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier@65e61854)
+2021-03-07 21:26:23,029 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: HDFS_DELEGATION_TOKEN, Service: ha-hdfs:sacluster, Ident: (token for packer: HDFS_DELEGATION_TOKEN owner=packer/node-10-9-4-175.bdcluster@SOME_REALM, renewer=packer, realUser=, issueDate=1615152335661, maxDate=1615757135661, sequenceNumber=23, masterKeyId=42)
+2021-03-07 21:26:23,029 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: +token:Kind: kms-dt, Service: kms://http@node-10-9-4-175.bdcluster;node-10-9-4-140.bdcluster:16000/kms, Ident: (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)
+2021-03-07 21:26:23,030 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: Searching for KMS delegation token in user packer (auth:SIMPLE)'s credentials
+2021-03-07 21:26:23,030 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: selected by alias=10.9.4.175:16000 token=Kind: kms-dt, Service: kms://http@node-10-9-4-175.bdcluster;node-10-9-4-140.bdcluster:16000/kms, Ident: (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)
+2021-03-07 21:26:23,031 DEBUG [main] org.apache.hadoop.security.UserGroupInformation: PrivilegedAction as:packer (auth:SIMPLE) from:org.apache.hadoop.crypto.key.kms.KMSClientProvider.createConnection(KMSClientProvider.java:506)
+2021-03-07 21:26:23,037 DEBUG [main] org.apache.hadoop.security.token.delegation.web.DelegationTokenAuthenticatedURL: Connecting to url http://node-10-9-4-175.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt with token  as null
+2021-03-07 21:26:23,038 DEBUG [main] org.apache.hadoop.security.token.delegation.web.DelegationTokenAuthenticatedURL: Token not set, looking for delegation token. Creds:[Kind: mapreduce.job, Service: 10.9.4.227:38684, Ident: (org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier@674c583e), Kind: HDFS_DELEGATION_TOKEN, Service: ha-hdfs:sacluster, Ident: (token for packer: HDFS_DELEGATION_TOKEN owner=packer/node-10-9-4-175.bdcluster@SOME_REALM, renewer=packer, realUser=, issueDate=1615152335661, maxDate=1615757135661, sequenceNumber=23, masterKeyId=42), Kind: kms-dt, Service: kms://http@node-10-9-4-175.bdcluster;node-10-9-4-140.bdcluster:16000/kms, Ident: (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)], size:3
+2021-03-07 21:26:23,039 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: Looking for delegation token. creds: [Kind: mapreduce.job, Service: 10.9.4.227:38684, Ident: (org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier@25f7391e), Kind: HDFS_DELEGATION_TOKEN, Service: ha-hdfs:sacluster, Ident: (token for packer: HDFS_DELEGATION_TOKEN owner=packer/node-10-9-4-175.bdcluster@SOME_REALM, renewer=packer, realUser=, issueDate=1615152335661, maxDate=1615757135661, sequenceNumber=23, masterKeyId=42), Kind: kms-dt, Service: kms://http@node-10-9-4-175.bdcluster;node-10-9-4-140.bdcluster:16000/kms, Ident: (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)]
+2021-03-07 21:26:23,039 DEBUG [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: selected by alias=10.9.4.175:16000 token=Kind: kms-dt, Service: kms://http@node-10-9-4-175.bdcluster;node-10-9-4-140.bdcluster:16000/kms, Ident: (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)
+2021-03-07 21:26:23,039 DEBUG [main] org.apache.hadoop.security.token.delegation.web.DelegationTokenAuthenticator: Authenticated from delegation token. url=http://node-10-9-4-175.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt, token=
+2021-03-07 21:26:23,057 INFO [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: DD: calling decrypt key at http://node-10-9-4-175.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt
+2021-03-07 21:26:27,325 INFO [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: DD: Got response to url=http://node-10-9-4-175.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt, code=403, message=Forbidden
+2021-03-07 21:26:27,326 INFO [main] org.apache.hadoop.crypto.key.kms.KMSClientProvider: DD: Validating response
+2021-03-07 21:26:27,346 ERROR [main] org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider: DD: Re-throwing: 
+org.apache.hadoop.security.authentication.client.AuthenticationException: org.apache.hadoop.security.token.SecretManager$InvalidToken: token (kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2) can't be found in cache
+
+
+and the exception is thrown from: 
+
+
+org.apache.hadoop.crypto.key.kms.KMSClientProvider#call(java.net.HttpURLConnection, java.lang.Object, int, java.lang.Class<T>, int)
+   ...
+   LOG.info("DD: Validating response");
+   HttpExceptionUtils.validateResponse(conn, expectedResponse);
+   LOG.info("DD: Response passed validation");
+   ...
+
+It seems that the delegation token is not shared between both KMS instances and when the request hits the KMS instance that does not have the delegation token it responds with `AuthenticationException`, from:
+
+
+org.apache.hadoop.security.token.delegation.web.DelegationTokenAuthenticationHandler#authenticate
+
+
+which makes the client not retry the request with the other KMS instance.
+ 
+Here are a few relevant lines from the failing KMS log:
+
+
+2021-03-07 21:28:18,823 DEBUG AuthenticationFilter - Request [http://node-10-9-4-175.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt] triggering authentication. handler: class org.apache.hadoop.security.token.delegation
+.web.KerberosDelegationTokenAuthenticationHandler
+2021-03-07 21:28:18,824 DEBUG DelegationTokenAuthenticationHandler - Authenticating with dt param: IAAGcGFja2VyBnBhY2tlcgCKAXgOlNA2igF4MqFUNgECFNcBZ7fbjrLRO4-ekukipzAQdh1DBmttcy1kdEhrbXM6Ly9odHRwQG5vZGUtMTAtOS00LTE3NS5iZGNsdXN0ZXI7bm9kZS0xMC05LTQtMTQwLmJk
+Y2x1c3RlcjoxNjAwMC9rbXM
+2021-03-07 21:28:18,824 DEBUG ManagedSelector - Destroyed SocketChannelEndPoint@343bb301{/10.9.4.140:52258<->/10.9.4.175:16000,CLOSED,fill=-,flush=-,to=705/1000}{io=0/0,kio=-1,kro=-1}->HttpConnection@4ff601bb[p=HttpParser{s=CLOSED,0 of -1},g=HttpGenerator
+@26bc00ff{s=START}]=>HttpChannelOverHttp@11f7d1d3{r=1,c=false,c=false/false,a=IDLE,uri=null,age=0}
+2021-03-07 21:28:18,827 DEBUG AbstractDelegationTokenSecretManager - DD: Looking for token id=(kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)
+2021-03-07 21:28:18,827 DEBUG HttpConnection - HttpConnection@4ff601bb::SocketChannelEndPoint@343bb301{/10.9.4.140:52258<->/10.9.4.175:16000,CLOSED,fill=-,flush=-,to=705/1000}{io=0/0,kio=-1,kro=-1}->HttpConnection@4ff601bb[p=HttpParser{s=CLOSED,0 of -1},g
+=HttpGenerator@26bc00ff{s=START}]=>HttpChannelOverHttp@11f7d1d3{r=1,c=false,c=false/false,a=IDLE,uri=null,age=0} parsed false HttpParser{s=CLOSED,0 of -1}
+2021-03-07 21:28:18,828 DEBUG HttpChannel - sendResponse info=null content=DirectByteBuffer@7daa9fd5[p=0,l=413,c=32768,r=413]={<<<{\n  "RemoteExcept...xception"\n  }\n}>>>z-6-ZywrRKw",\n   ...hdfs_root_dir_k} complete=true committing=true callback=Blocker
+@119c9686{null}
+2021-03-07 21:28:18,829 DEBUG HttpChannel - COMMIT for /kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek on HttpChannelOverHttp@47d8dfbe{r=1,c=true,c=false/false,a=DISPATCHED,uri=//node-10-9-4-175.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_di
+r_key%400/_eek?eek_op=decrypt,age=53}
+403 null HTTP/1.1
+Date: Sun, 07 Mar 2021 21:28:18 GMT
+Cache-Control: no-cache
+Expires: Sun, 07 Mar 2021 21:28:18 GMT
+Date: Sun, 07 Mar 2021 21:28:18 GMT
+Pragma: no-cache
+Content-Type: application/json
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+
+
+
+and here are corresponding lines from succeeding KMS log:
+
+
+2021-03-07 21:27:43,639 DEBUG AuthenticationFilter - Request [http://node-10-9-4-140.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt] triggering authentication. handler: class org.apache.hadoop.security.token.delegation
+.web.KerberosDelegationTokenAuthenticationHandler
+2021-03-07 21:27:43,640 DEBUG DelegationTokenAuthenticationHandler - Authenticating with dt param: IAAGcGFja2VyBnBhY2tlcgCKAXgOlNA2igF4MqFUNgECFNcBZ7fbjrLRO4-ekukipzAQdh1DBmttcy1kdEhrbXM6Ly9odHRwQG5vZGUtMTAtOS00LTE3NS5iZGNsdXN0ZXI7bm9kZS0xMC05LTQtMTQwLmJk
+Y2x1c3RlcjoxNjAwMC9rbXM
+2021-03-07 21:27:43,648 DEBUG AbstractDelegationTokenSecretManager - DD: Looking for token id=(kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)
+2021-03-07 21:27:43,648 DEBUG AbstractDelegationTokenSecretManager - DD: token id=(kms-dt owner=packer, renewer=packer, realUser=, issueDate=1615152336950, maxDate=1615757136950, sequenceNumber=1, masterKeyId=2)
+2021-03-07 21:27:43,668 DEBUG AuthenticationFilter - Request [http://node-10-9-4-140.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt] user [packer] authenticated
+2021-03-07 21:27:43,668 DEBUG ServletHandler - call filter MDCFilter@5a7fe64f==org.apache.hadoop.crypto.key.kms.server.KMSMDCFilter,inst=true,async=false
+2021-03-07 21:27:43,687 DEBUG ServletHandler - call servlet webservices-driver@79e80ea3==com.sun.jersey.spi.container.servlet.ServletContainer,jsp=null,order=1,inst=true,async=false
+2021-03-07 21:27:44,252 DEBUG IdleTimeout - SocketChannelEndPoint@78a5b977{/10.9.4.227:34860<->/10.9.4.140:16000,OPEN,fill=-,flush=-,to=1039/1000}{io=0/0,kio=0,kro=1}->HttpConnection@4ef7005[p=HttpParser{s=CONTENT,0 of 122},g=HttpGenerator@51540fee{s=STAR
+T}]=>HttpChannelOverHttp@661cde57{r=1,c=false,c=false/false,a=DISPATCHED,uri=//node-10-9-4-140.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt,age=758} idle timeout check, elapsed: 1039 ms, remaining: -39 ms
+2021-03-07 21:27:44,260 DEBUG IdleTimeout - SocketChannelEndPoint@78a5b977{/10.9.4.227:34860<->/10.9.4.140:16000,OPEN,fill=-,flush=-,to=1041/1000}{io=0/0,kio=0,kro=1}->HttpConnection@4ef7005[p=HttpParser{s=CONTENT,0 of 122},g=HttpGenerator@51540fee{s=START}]=>HttpChannelOverHttp@661cde57{r=1,c=false,c=false/false,a=DISPATCHED,uri=//node-10-9-4-140.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt,age=759} idle timeout expired
+2021-03-07 21:27:44,264 DEBUG FillInterest - onFail FillInterest@51ba8df5{null}
+java.util.concurrent.TimeoutException: Idle timeout expired: 1039/1000 ms
+...
+2021-03-07 21:27:44,527 DEBUG KMSACLs - User: [packer], OpType: DECRYPT_EEK, KeyName: dotdata_hdfs_root_dir_key Result: true
+2021-03-07 21:27:44,607 DEBUG PerformanceAdvisory - Crypto codec org.apache.hadoop.crypto.OpensslAesCtrCryptoCodec is not available.
+2021-03-07 21:27:44,652 DEBUG PerformanceAdvisory - Using crypto codec org.apache.hadoop.crypto.JceAesCtrCryptoCodec.
+2021-03-07 21:27:44,768 DEBUG HttpChannel - sendResponse info=null content=DirectByteBuffer@2d84038a[p=0,l=107,c=32768,r=107]={<<<{\n  "material" : ...nName" : "EK"\n}>>>"><doc xmlns:jers...hdfs_root_dir_k} complete=true committing=true callback=Blocker@1e52a824{null}
+2021-03-07 21:27:44,768 DEBUG HttpChannel - COMMIT for /kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek on HttpChannelOverHttp@661cde57{r=1,c=true,c=false/false,a=DISPATCHED,uri=//node-10-9-4-140.bdcluster:16000/kms/v1/keyversion/dotdata_hdfs_root_dir_key%400/_eek?eek_op=decrypt,age=1274}
+200 OK HTTP/1.1
+Date: Sun, 07 Mar 2021 21:27:43 GMT
+Cache-Control: no-cache
+Expires: Sun, 07 Mar 2021 21:27:43 GMT
+Date: Sun, 07 Mar 2021 21:27:43 GMT
+Pragma: no-cache
+Content-Type: application/json
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+
+When I shutdown one of the KMS instances before launching the job then the job succeeds.
+I thought it might have something to do with https://issues.apache.org/jira/browse/HADOOP-16199 so I tried the same setup with 3.3.0 but, unfortunately, with the same result.
+I also run exactly the same job on CDH 5.16.1, which is my current deployment and which I am considering to replace with 3.2.2. The job did succeed on CDH 5.16.1.
+I can provide more logs if that is needed, the issue is deterministic in my environment.
+ 
+Here is configuration of one of the KMS instances (they are both identical - down to the host part of the KMS principal):
+ 
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property>
+        <name>hadoop.kms.key.provider.uri</name>
+        <value>jceks://file@/opt/sa/kms/kms.keystore</value>
+    </property>
+    <property>
+        <name>hadoop.kms.http.port</name>
+        <value>16000</value>
+    </property>
+    <property>
+        <name>hadoop.kms.proxyuser.packer.users</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hadoop.kms.proxyuser.packer.hosts</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hadoop.kms.proxyuser.packer.groups</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hadoop.kms.authentication.type</name>
+        <value>kerberos</value>
+    </property>
+    <property>
+        <name>hadoop.kms.authentication.kerberos.keytab</name>
+        <value>/tmp/keytab</value>
+    </property>
+    <property>
+        <name>hadoop.kms.authentication.kerberos.principal</name>
+        <value>HTTP/node-10-9-4-175.bdcluster@SOME_REALM</value>
+    </property>
+    <property>
+        <name>hadoop.kms.authentication.kerberos.name.rules</name>
+        <value>DEFAULT</value>
+   </property>
+  <property>
+    <name>hadoop.kms.authentication.signer.secret.provider</name>
+    <value>zookeeper</value>
+  </property>
+  <property>
+    <name>hadoop.kms.authentication.signer.secret.provider.zookeeper.path</name>
+    <value>/hadoop-kms/hadoop-auth-signature-secret</value>
+  </property>
+  <property>
+    <name>hadoop.kms.authentication.signer.secret.provider.zookeeper.connection.string</name>
+    <value>node-10-9-4-175.bdcluster:2181,node-10-9-4-227.bdcluster:2181,node-10-9-4-140.bdcluster:2181</value>
+  </property>
+</configuration>
+
+
+ and here is how KMS is configured in `core-site.xml` in my cluster:
+
+
+<property>
+  <name>hadoop.security.key.provider.path</name>
+  <value>kms://http@node-10-9-4-175.bdcluster;node-10-9-4-140.bdcluster:16000/kms</value>
+</property>

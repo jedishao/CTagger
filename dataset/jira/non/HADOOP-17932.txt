@@ -1,0 +1,30 @@
+Distcp file length comparison have no effect
+the params for compareFileLengthsAndChecksums in RetriableFileCopyCommand have no effect
+
+current is
+{code:java}
+        DistCpUtils.compareFileLengthsAndChecksums(source.getLen(), sourceFS,
+                sourcePath, sourceChecksum, targetFS,
+                targetPath, skipCrc, source.getLen());{code}
+{code:java}
+public static void compareFileLengthsAndChecksums(long srcLen,
+           FileSystem sourceFS, Path source, FileChecksum sourceChecksum,
+           FileSystem targetFS, Path target, boolean skipCrc,
+           long targetLen) throws IOException {
+  if (srcLen != targetLen) {
+    throw new IOException(
+        DistCpConstants.LENGTH_MISMATCH_ERROR_MSG + source + " (" + srcLen
+            + ") and target:" + target + " (" + targetLen + ")");
+  }
+{code}
+so, compare source.getLen() with source.getLen()...
+
+It should be like below in history view
+{code:java}
+        DistCpUtils.compareFileLengthsAndChecksums(source.getLen(), sourceFS,
+                sourcePath, sourceChecksum, targetFS,
+                targetPath, skipCrc, offset + bytesRead);
+{code}
+ 
+
+ 

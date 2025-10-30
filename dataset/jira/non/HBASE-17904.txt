@@ -1,0 +1,30 @@
+Get runs into NoSuchElementException when using Read Replica, with hbase. ipc.client.specificThreadForWriting to be true and hbase.rpc.client.impl to be org.apache.hadoop.hbase.ipc.RpcClientImpl
+When testing read replica with 2.0.0 code, with the following config
+{code}
+  <property>
+    <name>hbase.ipc.client.specificThreadForWriting</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>hbase.rpc.client.impl</name>
+    <value>org.apache.hadoop.hbase.ipc.RpcClientImpl</value>
+  </property>
+{code}
+
+The hbase client runs into the following exception
+{code}
+Exception in thread "main" java.util.NoSuchElementException
+        at java.util.ArrayDeque.removeFirst(ArrayDeque.java:280)
+        at java.util.ArrayDeque.remove(ArrayDeque.java:447)
+        at org.apache.hadoop.hbase.ipc.BlockingRpcConnection$CallSender.remove(BlockingRpcConnection.java:159)
+        at org.apache.hadoop.hbase.ipc.BlockingRpcConnection$3.run(BlockingRpcConnection.java:760)
+        at org.apache.hadoop.hbase.ipc.HBaseRpcControllerImpl.startCancel(HBaseRpcControllerImpl.java:229)
+        at org.apache.hadoop.hbase.client.CancellableRegionServerCallable.cancel(CancellableRegionServerCallable.java:86)
+        at org.apache.hadoop.hbase.client.ResultBoundedCompletionService$QueueingFuture.cancel(ResultBoundedCompletionService.java:106)
+        at org.apache.hadoop.hbase.client.ResultBoundedCompletionService.cancelAll(ResultBoundedCompletionService.java:274)
+        at org.apache.hadoop.hbase.client.RpcRetryingCallerWithReadReplicas.call(RpcRetryingCallerWithReadReplicas.java:224)
+        at org.apache.hadoop.hbase.client.HTable.get(HTable.java:445)
+        at org.apache.hadoop.hbase.client.HTable.get(HTable.java:409)
+        at HBaseThreadedGet.doWork(HBaseThreadedGet.java:45)
+        at HBaseThreadedGet.main(HBaseThreadedGet.java:19)
+{code}

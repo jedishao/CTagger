@@ -1,0 +1,68 @@
+Fix StorageService.getNativeaddress handling of IPv6 addresses
+StorageService.getNativeaddress does not account for IPv6 addresses in the case NATIVE_ADDRESS_AND_PORT is not present in gossip state for an endpoint
+While upgrading a cluster using IPv6 addresses from 3.0 to 4.0 I noticed the following in logs for upgraded nodes when processing down events for 3.0 nodes that are going down as part of an upgrade:
+ 
+
+2022-09-28 20:18:48,244 ERROR [GossipStage:1] org.apache.cassandra.transport.Server - Problem retrieving RPC address for /[0:0:0:0:0:0:0:d9]:7000
+java.net.UnknownHostException: 0:0:0:0:0:0:0:d9:9042: invalid IPv6 address
+at java.net.InetAddress.getAllByName(InetAddress.java:1355) ~[?:?]
+at java.net.InetAddress.getAllByName(InetAddress.java:1306) ~[?:?]
+at java.net.InetAddress.getByName(InetAddress.java:1256) ~[?:?]
+at org.apache.cassandra.locator.InetAddressAndPort.getByNameOverrideDefaults(InetAddressAndPort.java:227) 
+at org.apache.cassandra.locator.InetAddressAndPort.getByName(InetAddressAndPort.java:212) 
+at org.apache.cassandra.transport.Server$EventNotifier.getNativeAddress(Server.java:377) 
+at org.apache.cassandra.transport.Server$EventNotifier.onDown(Server.java:438) 
+at org.apache.cassandra.service.StorageService.notifyDown(StorageService.java:2651) 
+at org.apache.cassandra.service.StorageService.onDead(StorageService.java:3516) 
+at org.apache.cassandra.gms.Gossiper.markDead(Gossiper.java:1347) 
+at org.apache.cassandra.gms.Gossiper.markAsShutdown(Gossiper.java:590) 
+at org.apache.cassandra.gms.GossipShutdownVerbHandler.doVerb(GossipShutdownVerbHandler.java:39) 
+at org.apache.cassandra.net.InboundSink.lambda$new$0(InboundSink.java:78) 
+at org.apache.cassandra.net.InboundSink.accept(InboundSink.java:97) 
+at org.apache.cassandra.net.InboundSink.accept(InboundSink.java:45) 
+at org.apache.cassandra.net.InboundMessageHandler$ProcessMessage.run(InboundMessageHandler.java:433) 
+at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515) [?:?]
+at java.util.concurrent.FutureTask.run(FutureTask.java:264) [?:?]
+at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) [?:?]
+at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) [?:?]
+at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) [netty-all-4.1.58.Final.jar:4.1.58.Final]
+at java.lang.Thread.run(Thread.java:829) [?:?]
+
+It appears that StorageService.getNativeaddress does not account for the fact that an endpoint may be an IPv6 address, which required brackets when specified with a port:
+ 
+https://github.com/apache/cassandra/blob/cassandra-4.0.6/src/java/org/apache/cassandra/service/StorageService.java#L1978-L1981
+ 
+ 
+
+
+    /**
+     * Return the native address associated with an endpoint as a string.
+     * @param endpoint The endpoint to get rpc address for
+     * @return the native address
+     */
+    public String getNativeaddress(InetAddressAndPort endpoint, boolean withPort)
+    {
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(withPort);
+        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) != null)
+        {
+            try
+            {
+                InetAddressAndPort address = InetAddressAndPort.getByName(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT).value);
+                return address.getHostAddress(withPort);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
+            return endpoint.address.getHostAddress() + ":" + DatabaseDescriptor.getNativeTransportPort();
+        else
+            return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value + ":" + DatabaseDescriptor.getNativeTransportPort();
+    }
+
+In the two final else cases, the endpoint address and port are delimited with a colon.  For IPv6 addresses this creates an invalid address (0:0:0:0:0:0:0:d9:9042), IPv6 addresses must be enclosed in brackets (e.g. [0:0:0:0:0:0:0:d9]:9042) per 
+https://datatracker.ietf.org/doc/html/rfc2732#section-2
+Once a cluster is fully upgraded to 4.0, this error no longer occurs as all endpoints will have NATIVE_ADDRESS_AND_PORT in their gossip state.  This only appears to be an issue during a mixed version case, and the impact of this seems low (4.0 nodes miss on down events for 3.0 nodes).
+I'll have a proposed PR for this up shortly.

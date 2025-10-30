@@ -1,0 +1,15 @@
+cleanup cqlshlib unit test failures and warnings
+The cqlshlib unit tests have some regular failures and warnings.
+
+test_copyutil.py fails with too many open files when ulimit is 256
+cassconnect.py:39: DeprecationWarning: Legacy execution parameters
+sslhandling.py:42: DeprecationWarning: The SafeConfigParser class has been renamed to ConfigParser 
+remove unused reference to nosetests.xml in Jenkinsfile
+
+ 
+The cqlshlib test test_copyutil.py fails on MacOS with 
+E           OSError: [Errno 24] Too many open files
+This happens because the test does not close the file descriptors after use.  The default ulimit on MacOS is small, 256:
+     % ulimit -n
+     256
+The simple fix is to close the pipe after use.  Increasing ulimit nofiles works also, but shouldn't be necessary.

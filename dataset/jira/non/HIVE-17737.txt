@@ -1,0 +1,21 @@
+ObjectStore.getNotificationEventsCount may cause NPE
+In ObjectStore.getNotificationEventsCount():
+
+ public NotificationEventsCountResponse getNotificationEventsCount(NotificationEventsCountRequest rqst) {
+    Long result = 0L;
+    try {
+      openTransaction();
+      long fromEventId = rqst.getFromEventId();
+      String inputDbName = rqst.getDbName();
+      String queryStr = "select count(eventId) from " + MNotificationLog.class.getName()
+                + " where eventId > fromEventId && dbName == inputDbName";
+      query = pm.newQuery(queryStr);
+      query.declareParameters("java.lang.Long fromEventId, java.lang.String inputDbName");
+      result = (Long) query.execute(fromEventId, inputDbName); // <- Here
+      commited = commitTransaction();
+      return new NotificationEventsCountResponse(result.longValue());
+    }
+  }
+
+
+It is possible that query.execute will return null in which case rsult.longValue() may throw NPE.

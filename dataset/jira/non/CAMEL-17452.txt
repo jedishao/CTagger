@@ -1,0 +1,22 @@
+camel-util - URISupport#sanitizeUri sanitizes passwords incorrectly if remaining uri contains expression ${<expr>}
+The following unit test demonstrates the problem with URISupport#sanitize:
+
+
+    @Test
+    public void testSanitizeUriWithRawPasswordAndSimpleExpression() {
+        String uriPlain = "http://foo?username=me&password=RAW(me#@123)&foo=bar&port=21&tempFileName=${file:name.noext}.tmp&anotherOption=true";
+        String uriCurly = "http://foo?username=me&password=RAW{me#@123}&foo=bar&port=21&tempFileName=${file:name.noext}.tmp&anotherOption=true";
+        String expected = "http://foo?username=me&password=xxxxxx&foo=bar&port=21&tempFileName=${file:name.noext}.tmp&anotherOption=true";
+        // "http://foo?username=me&password=xxxxxx.tmp&anotherOption=true" is the actual result
+        assertEquals(expected, URISupport.sanitizeUri(uriPlain));
+        assertEquals(expected, URISupport.sanitizeUri(uriCurly));
+    }
+
+
+The problem is that the SECRETS pattern in URISupport eagerly eats everything up until the ending of ${file:name.noext}.
+It can be resolved by changing the regex-pattern, like so:
+
+
+private static final Pattern SECRETS = Pattern.compile(
+            "([?&][^=]*(?:passphrase|password|secretKey|accessToken|clientSecret|authorizationToken|saslJaasConfig)[^=]*)=(RAW(([{][^}]*[}])|([(][^)]*[)]))|[^&]*)",
+            Pattern.CASE_INSENSITIVE);

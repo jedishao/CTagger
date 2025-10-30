@@ -1,0 +1,13 @@
+Reduce memory footprint of RegionLoads kept by StochasticLoadBalancer
+Currently StochasticLoadBalancer uses the following fields of RegionLoad :
+
+      return rl.getReadRequestsCount();
+      return rl.getWriteRequestsCount();
+      return rl.getMemStoreSizeMB();
+      return rl.getStorefileSizeMB();
+
+
+However, RegionLoad refers to ClusterStatusProtos.RegionLoad which has 18 fields.
+This means we keep hbase.master.balancer.stochastic.numRegionLoadsToRemember (default value 15) RegionLoad's in memory but only use a small portion of them.
+This JIRA is to consider creating POJO which wraps the above 4 fields so that the memory footprint can be lowered.
+Lowering memory footprint would allow wider sliding window to be configured for load balancer while limiting the impact to heap consumption.

@@ -1,0 +1,31 @@
+Add support for PEM based key material for SSL
+Scope
+Currently Cassandra supports standard keystore types for SSL keys/certificates. The scope of this enhancement is to add support for PEM based key material (keys/certificate) given that PEM is widely used common format for the same. We intend to add support for Unencrypted and Password Based Encrypted (PBE) PKCS#8 formatted Private Keys in PEM format with standard algorithms (RSA, DSA and EC) along with the certificate chain for the private key and PEM based X509 certificates. The work here is going to be built on top of CEP-9: Make SSLContext creation pluggable for which the code is merged for Apache Cassandra 4.1 release.
+We intend to support the key material be configured as direct PEM values input OR via the file (configured with keystore and truststore configurations today). We are not going to model PEM as a valid 'store_type' given that 'store_type' has a specific definition. 
+Approach
+Create an implementation for ISslContextFactory extending FileBasedSslContextFactory implementation to add PEM formatted key/certificates.
+Motivation
+PEM is a widely used format for encoding Private Keys and X.509 Certificates and Apache Cassandra's current implementation lacks the support for specifying the PEM formatted key material for SSL configurations. This means operators have to re-create the key material to comply to the supported formats (using key/trust store types - jks, pkcs12 etc) and deal with an operational task for managing it. This is an operational overhead we can avoid by supporting the PEM format making Apache Cassandra even more customer friendly and drive more adoption.
+Proposed Changes
+
+A new implementation for ISslContextFactory - PEMBasedSslContextFactory with the following supported configuration
+New configurations
+
+
+
+encryption_options:  
+    ssl_context_factory:
+        class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+        parameters:
+          private_key: <PEM Formatted private key with the certificate chain>
+          private_key_password: <Password for the private key if it is encrypted>
+          trusted_certificates: <PEM formatted trusted certificates>
+
+
+
+
+
+NOTE: We could reuse 'keystore_password' instead of the 'private_key_password'. However PEM encoded private key is not a 'keystore' in itself hence it would be inappropriate to piggyback on that other than avoid duplicating similar fields.
+
+The PEMBasedSslContextFactory will also support file based key material (and the corresponding HOT Reloading based on file timestamp updates) for the PEM format via existing  'keystore' and 'truststore' encryption options. However in that case the 'truststore_password' configuration won't be used since generally PEM formatted certificates for truststore don't get encrypted with a password.
+The PEMBasedSslContextFactory will internally create PKCS12 keystore for private key and the trusted certificates. However, this doesn't impact the user of the implementation in anyway and it is mentioned for clarity only.

@@ -1,0 +1,53 @@
+client fails forever when namenode ipaddr changed
+For machine replacement, I replace my standby namenode with a new ipaddr and keep the same hostname. Also update the client's hosts to make it resolve correctly
+When I try to run failover to transite the new namenode(let's say nn2), the client will fail to read or write forever until it's restarted.
+That make yarn nodemanager in sick state. Even the new tasks will encounter this exception  too. Until all nodemanager restart.
+ 
+
+
+20/06/02 15:12:25 WARN ipc.Client: Address change detected. Old: nn2-192-168-1-100/192.168.1.100:9000 New: nn2-192-168-1-100/192.168.1.200:9000
+20/06/02 15:12:25 DEBUG ipc.Client: closing ipc connection to nn2-192-168-1-100/192.168.1.200:9000: Connection refused
+java.net.ConnectException: Connection refused
+        at sun.nio.ch.SocketChannelImpl.checkConnect(Native Method)
+        at sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:717)
+        at org.apache.hadoop.net.SocketIOWithTimeout.connect(SocketIOWithTimeout.java:206)
+        at org.apache.hadoop.net.NetUtils.connect(NetUtils.java:530)
+        at org.apache.hadoop.net.NetUtils.connect(NetUtils.java:494)
+        at org.apache.hadoop.ipc.Client$Connection.setupConnection(Client.java:608)
+        at org.apache.hadoop.ipc.Client$Connection.setupIOstreams(Client.java:707)
+        at org.apache.hadoop.ipc.Client$Connection.access$2800(Client.java:368)
+        at org.apache.hadoop.ipc.Client.getConnection(Client.java:1517)
+        at org.apache.hadoop.ipc.Client.call(Client.java:1440)
+        at org.apache.hadoop.ipc.Client.call(Client.java:1401)
+        at org.apache.hadoop.ipc.ProtobufRpcEngine$Invoker.invoke(ProtobufRpcEngine.java:232)
+        at com.sun.proxy.$Proxy9.addBlock(Unknown Source)
+        at org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolTranslatorPB.addBlock(ClientNamenodeProtocolTranslatorPB.java:399)
+        at sun.reflect.GeneratedMethodAccessor8.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.io.retry.RetryInvocationHandler.invokeMethod(RetryInvocationHandler.java:193)
+        at org.apache.hadoop.io.retry.RetryInvocationHandler.invoke(RetryInvocationHandler.java:102)
+
+
+ 
+We can see the client has Address change detected, but it still fails. I find out that's because when method updateAddress() return true,  the handleConnectionFailure() thow an exception that break the next retry with the right ipaddr.
+Client.java: setupConnection()
+
+
+        } catch (ConnectTimeoutException toe) {
+          /* Check for an address change and update the local reference.
+           * Reset the failure counter if the address was changed
+           */
+          if (updateAddress()) {
+            timeoutFailures = ioFailures = 0;
+          }
+          handleConnectionTimeout(timeoutFailures++,
+              maxRetriesOnSocketTimeouts, toe);
+        } catch (IOException ie) {
+          if (updateAddress()) {
+            timeoutFailures = ioFailures = 0;
+          }
+// because the namenode ip changed in updateAddress(), the old namenode ipaddress cannot be accessed now
+// handleConnectionFailure will thow an exception, the next retry never have a chance to use the right server updated in updateAddress()
+          handleConnectionFailure(ioFailures++, ie);
+        }

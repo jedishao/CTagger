@@ -1,0 +1,37 @@
+java.lang.IllegalArgumentException during Cassandra 4.x upgrade
+This has happened only twice so far and only on the first node being upgraded in a large cluster, so not sure it would be easy to repro, but the steps took to hit this were the following on an existing Cassandra 3.11.6 cluster:
+ * nodetool drain
+ * stop Cassandra
+ * install Cassandra 4.0.1 binaries
+ * start Cassandra
+
+Upon starting the first node, it failed with the following log entry and nothing more:
+{code:java}
+INFO  [main] 2022-04-28 13:06:27,978 SystemKeyspace.java:1470 - Detected version upgrade from 3.11.6 to 4.0.1, snapshotting system keyspaces
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,981 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in compaction_history
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,988 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in IndexInfo
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,989 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in repairs
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,990 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in size_estimates
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,992 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in table_estimates
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,992 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in paxos
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,994 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in built_views
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,994 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in peer_events
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,995 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in peers_v2
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,995 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in peers
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,998 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in peer_events_v2
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,998 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in batches
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,999 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in transferred_ranges
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:27,999 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in transferred_ranges_v2
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:28,000 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in view_builds_in_progress
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:28,000 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in local
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:28,002 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in sstable_activity
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:28,005 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in available_ranges_v2
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:28,005 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in available_ranges
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:28,007 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in prepared_statements
+DEBUG [MemtablePostFlush:1] 2022-04-28 13:06:28,011 ColumnFamilyStore.java:933 - forceFlush requested but everything is clean in columns
+ERROR [main] 2022-04-28 13:06:28,016 CassandraDaemon.java:909 - Exception encountered during startupjava.lang.IllegalArgumentException: Requested permits (0) must be positive        at com.google.common.base.Preconditions.checkArgument(Preconditions.java:189)        at com.google.common.util.concurrent.RateLimiter.checkPermits(RateLimiter.java:430)        at com.google.common.util.concurrent.RateLimiter.reserve(RateLimiter.java:285)        at com.google.common.util.concurrent.RateLimiter.acquire(RateLimiter.java:273)        at org.apache.cassandra.db.ColumnFamilyStore.snapshotWithoutFlush(ColumnFamilyStore.java:1849)        at org.apache.cassandra.db.ColumnFamilyStore.snapshot(ColumnFamilyStore.java:2029)        at org.apache.cassandra.db.ColumnFamilyStore.snapshot(ColumnFamilyStore.java:2005)        at org.apache.cassandra.db.Keyspace.snapshot(Keyspace.java:258)        at org.apache.cassandra.db.SystemKeyspace.snapshotOnVersionChange(SystemKeyspace.java:1475)        at org.apache.cassandra.service.CassandraDaemon.setup(CassandraDaemon.java:266)        at org.apache.cassandra.service.CassandraDaemon.activate(CassandraDaemon.java:763)        at org.apache.cassandra.service.CassandraDaemon.main(CassandraDaemon.java:887) {code}
+The default snapshot_links_per_second is used.
+
+The system_schema directory was removed, then the node started, but failed to import it from the nodes running 3.11.6, so Cassandra was stopped, the data was copied back, and the node started.
+
+The majority of nodes upgraded without incident, this has only happened a couple of times so far.

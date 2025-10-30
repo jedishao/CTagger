@@ -1,0 +1,9 @@
+Add a MkdirOperation for chained S3 operations during mkdir
+on S3A mkdirs is implemented as a walk up the tree looking for any parent dir, exiting fast when found; failing if a file is found.
+Proposed: pull this out into its own MkDir operation with the goals of efficiency, track duration and isolate/test
+
+specific callbacks to getFileStatus and  createFakeDirectory(key);
+Move from simple getFileStatus call to probes assuming dir exists before looking for a file: HEAD + path /, LIST path,
+the probe for a file  HEAD path will only succeed in a failure mode where higher cost is a detail
+
+I think I'd also like to start looking at what we can do with some context tracking/telemetry where something provides an operation ID and ability to attach this to the requests

@@ -1,0 +1,27 @@
+GZipCodec doesn't handle zip files
+Attempting to read a zip file using GZip Coded created by:
+ >echo "abcdef" | zip > /tmp/a.zip 
+fails, while the same gzip succeeds.
+Code below is scala, run in spark-shell ( 2.1):
+import org.apache.hadoop.io.compress.zlib._
+org.apache.hadoop.io.compress.zlib.ZlibFactory.isNativeZlibLoaded(spark.sparkContext.hadoopConfiguration)
+val in = new java.io.FileInputStream("/tmp/a.zip")
+val gcode = new org.apache.hadoop.io.compress.GzipCodec
+gcode.setConf(spark.sparkContext.hadoopConfiguration)
+val giz = gcode.createInputStream(in)
+val lr = new org.apache.hadoop.util.LineReader(giz)
+val text = new org.apache.hadoop.io.Text
+scala> lr.readLine(text)
+java.io.IOException: incorrect header check
+  at org.apache.hadoop.io.compress.zlib.ZlibDecompressor.inflateBytesDirect(Native Method)
+  at org.apache.hadoop.io.compress.zlib.ZlibDecompressor.decompress(ZlibDecompressor.java:227)
+  at org.apache.hadoop.io.compress.DecompressorStream.decompress(DecompressorStream.java:91)
+  at org.apache.hadoop.io.compress.DecompressorStream.read(DecompressorStream.java:85)
+  at java.io.InputStream.read(InputStream.java:101)
+  at org.apache.hadoop.util.LineReader.readDefaultLine(LineReader.java:211)
+  at org.apache.hadoop.util.LineReader.readLine(LineReader.java:174)
+  at org.apache.hadoop.util.LineReader.readLine(LineReader.java:365)
+  ... 43 elided
+Repeating the same with file created by:
+echo "abcdef" |  gzip > /tmp/a.gz 
+Works as expected

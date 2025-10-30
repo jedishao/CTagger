@@ -1,0 +1,25 @@
+Sudo in hadoop-functions.sh should preserve environment variables 
+Steps to reproduce:
+1. Set {{HDFS_NAMENODE_USER=hdfs}} in {{/etc/default/hadoop-hdfs-namenode}} to enable user check (and switch to {{hdfs}} to start/stop NameNode daemon)
+2. Stop NameNode with: {{service hadoop-hdfs-namenode stop}}
+3. Got an error and NameNode is not stopped
+{noformat}
+ERROR: Cannot execute /usr/lib/hadoop-hdfs/bin/../libexec/hdfs-config.sh.
+Failed to stop Hadoop namenode. Return value: 1. [FAILED]
+{noformat}
+
+The root cause is that after sudo, {{HADOOP_HOME=/usr/lib/hadoop}} is not preserved, and {{/usr/lib/hadoop-hdfs/bin/hdfs}} locates libexec by the following logic:
+
+{noformat}
+# let's locate libexec...
+if [[ -n "${HADOOP_HOME}" ]]; then
+  HADOOP_DEFAULT_LIBEXEC_DIR="${HADOOP_HOME}/libexec"
+else
+  bin=$(cd -P -- "$(dirname -- "${MYNAME}")" >/dev/null && pwd -P)
+  HADOOP_DEFAULT_LIBEXEC_DIR="${bin}/../libexec"
+fi
+{noformat}
+
+I believe the key point here is that we should preserve environment variables when doing sudo.
+
+Note that this bug is not introduced by HDFS-15353, before which {{su -l}} is used, which will also discard environment variables.

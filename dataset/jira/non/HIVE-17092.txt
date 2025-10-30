@@ -1,0 +1,37 @@
+NoSuchMethodError exception thrown in AcidUtils.lambda$getAcidState$0(AcidUtils.java)
+{noformat}
+Caused by: java.util.concurrent.ExecutionException: java.lang.NoSuchMethodError: org.apache.hadoop.fs.FileStatus.compareTo(Lorg/apache/hadoop/fs/FileStatus;)I
+        at java.util.concurrent.FutureTask.report(FutureTask.java:122)
+        at java.util.concurrent.FutureTask.get(FutureTask.java:192)
+        at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat.generateSplitsInfo(OrcInputFormat.java:1661)
+        ... 15 more
+Caused by: java.lang.NoSuchMethodError: org.apache.hadoop.fs.FileStatus.compareTo(Lorg/apache/hadoop/fs/FileStatus;)I
+        at org.apache.hadoop.hive.ql.io.AcidUtils.lambda$getAcidState$0(AcidUtils.java:931)
+        at java.util.TimSort.countRunAndMakeAscending(TimSort.java:355)
+        at java.util.TimSort.sort(TimSort.java:220)
+        at java.util.Arrays.sort(Arrays.java:1512)
+        at java.util.ArrayList.sort(ArrayList.java:1454)
+        at java.util.Collections.sort(Collections.java:175)
+        at org.apache.hadoop.hive.ql.io.AcidUtils.getAcidState(AcidUtils.java:929)
+        at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$FileGenerator.callInternal(OrcInputFormat.java:1095)
+        at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$FileGenerator.access$1500(OrcInputFormat.java:1056)
+        at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$FileGenerator$1.run(OrcInputFormat.java:1086)
+        at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$FileGenerator$1.run(OrcInputFormat.java:1083)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at javax.security.auth.Subject.doAs(Subject.java:422)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1724)
+        at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$FileGenerator.call(OrcInputFormat.java:1083)
+        at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$FileGenerator.call(OrcInputFormat.java:1056)
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+        ... 4 more
+{noformat}
+
+JDK: jdk1.8.0_77
+Env: Hive master + Tez master
+Query: Q14 at 1 TB scale
+
+https://github.com/apache/hive/blob/master/ql/src/java/org/apache/hadoop/hive/ql/io/AcidUtils.java?utf8=%E2%9C%93#L929
+
+Changing it to {{return o1.getFileStatus().getPath().compareTo(o2.getFileStatus().getPath());}} works without issues.
+

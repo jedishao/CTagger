@@ -1,0 +1,27 @@
+Broken Pipe exception while replacing a failed node
+We are encountering the following error:
+{code:java}
+ERROR [STREAM-OUT-/NewNode] 2021-09-26 14:44:06,554 StreamSession.java:470 - [Stream #23a2c560-1ed5-11ec-8351-2f2e5cc09cec] Streaming error occurred
+java.io.IOException: Broken pipe
+	at sun.nio.ch.FileChannelImpl.transferTo0(Native Method) ~[na:1.7.0_67]
+	at sun.nio.ch.FileChannelImpl.transferToDirectly(FileChannelImpl.java:433) ~[na:1.7.0_67]
+	at sun.nio.ch.FileChannelImpl.transferTo(FileChannelImpl.java:565) ~[na:1.7.0_67]
+	at org.apache.cassandra.streaming.compress.CompressedStreamWriter.write(CompressedStreamWriter.java:74) ~[apache-cassandra-2.1.1.jar:2.1.1]
+	at org.apache.cassandra.streaming.messages.OutgoingFileMessage$1.serialize(OutgoingFileMessage.java:56) ~[apache-cassandra-2.1.1.jar:2.1.1]
+	at org.apache.cassandra.streaming.messages.OutgoingFileMessage$1.serialize(OutgoingFileMessage.java:40) ~[apache-cassandra-2.1.1.jar:2.1.1]
+	at org.apache.cassandra.streaming.messages.StreamMessage.serialize(StreamMessage.java:45) ~[apache-cassandra-2.1.1.jar:2.1.1]
+	at org.apache.cassandra.streaming.ConnectionHandler$OutgoingMessageHandler.sendMessage(ConnectionHandler.java:346) [apache-cassandra-2.1.1.jar:2.1.1]
+	at org.apache.cassandra.streaming.ConnectionHandler$OutgoingMessageHandler.run(ConnectionHandler.java:318) [apache-cassandra-2.1.1.jar:2.1.1]
+	at java.lang.Thread.run(Thread.java:745) [na:1.7.0_67]
+INFO  [STREAM-OUT-/NewNode] 2021-09-26 14:44:06,559 StreamResultFuture.java:180 - [Stream #23a2c560-1ed5-11ec-8351-2f2e5cc09cec] Session with /NewNode is complete
+WARN  [STREAM-OUT-/NewNode] 2021-09-26 14:44:06,560 StreamResultFuture.java:207 - [Stream #23a2c560-1ed5-11ec-8351-2f2e5cc09cec] Stream failed
+{code}
+approximately 15 minutes into bootstrapping a replacement for a failed node into our 10 node ring. This appears to be preventing the new node from successfully joining the ring. When one of the nodes it is streaming data from encounters the aforementioned broken pipe exception, there are no corresponding errors logged by the new node. We're wondering if this might be related to, or a duplicate of [CASSANDRA-10961|https://issues.apache.org/jira/browse/CASSANDRA-10961] however we are not seeing the "Not enough bytes" error on the new node.
+
+ Context:
+ * All nodes in the cluster are running 2.1.1 currently
+ * The cluster is currently down a node, leaving patch upgrade options to verify a fix by the linked (and possibly related) issue unclear, as this would require a simultaneous bootstrap and upgrade on the new node
+ * We've restarted this process numerous times with the same result
+ * The replication factor is set to 3
+ * Reads and writes both require quorum
+ * Each node has about 1.5TB of data

@@ -1,0 +1,7 @@
+abfs incremental listing to support many active listings
+Each incremental iterator submits an async fetcher operation into the JVM's common ForkJoin thread pool, which defaults to # of cores -1., unless set iin "java.util.concurrent.ForkJoinPool.common.parallelism";
+Given the LIST calls are going to be blocking, this may puts a limit on the performance of listing if you have many threads executing list requests, e.g spark workers.
+Reviewing the code, the maximum number of list operations which can collect results will be limited to the #of cores -the others are going to block until the lists have been processed.
+Which may also means: if you have multiple incremental iterators in the same thread (e.g. treewalking) there's a risk that you could actually deadlock. 
+I'm not convinced this will happen, as once each listing has reached the end of its directory or there are 10 pages in the result queue, the submitted operation will complete.
+But: we need a test for this. Is there any public abfs store with many, many objects we could use as a source for listings, similar to the AWS landsat repo we (ab)use for such purposes in the s3a ITests?

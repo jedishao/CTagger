@@ -1,0 +1,16 @@
+Canonical-ize hostnames for Hive metastore, and HS2 servers.
+Currently, the {{HiveMetastoreClient}} and {{HiveConnection}} do not canonical-ize the hostnames of the metastore/HS2 servers. In deployments where there are multiple such servers behind a VIP, this causes a number of inconveniences:
+# The client-side configuration (e.g. {{hive.metastore.uris}} in {{hive-site.xml}}) needs to specify the VIP's hostname, and cannot use a simplified CNAME, in the thrift URL. If the {{hive.metastore.kerberos.principal}} is specified using {{_HOST}}, one sees GSS failures as follows:
+{noformat}
+hive --hiveconf hive.metastore.kerberos.principal=hive/_HOST@GRID.MYTH.NET --hiveconf hive.metastore.uris="thrift://simplified-hcat-cname.grid.myth.net:56789"
+...
+Exception in thread "main" java.lang.RuntimeException: java.lang.RuntimeException: Unable to instantiate org.apache.hadoop.hive.ql.metadata.SessionHiveMetaStoreClient
+        at org.apache.hadoop.hive.ql.session.SessionState.start(SessionState.java:542)
+        at org.apache.hadoop.hive.cli.CliDriver.run(CliDriver.java:677)
+        at org.apache.hadoop.hive.cli.CliDriver.main(CliDriver.java:621)
+...
+{noformat}
+This is because {{_HOST}} is filled in with the CNAME, and not the canonicalized name.
+# Oozie workflows that use HCat {{<credential>}} have to always use the VIP hostname, and can't use {{_HOST}}-based service principals, if the CNAME differs from the VIP name.
+
+If the client-code simply canonical-ized the hostnames, it would enable the use of both simplified CNAMEs, and _HOST in service principals.

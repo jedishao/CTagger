@@ -1,0 +1,60 @@
+No error handler invoked on exception with multipleConsumer=true and POJO @Consume Annotation
+I've been trying to figure out how route errors to my own error handler with the following, seemingly simple configuration, but Camel is swallowing the exception without routing it to any error handler I configure. I've run out of ideas. Any help would be much appreciated.
+I've got a seda route that supports multiple consumers:
+
+
+@Component
+public class MessageGenerator {
+public static final String ERROR_GENERATOR_CHANNEL = "seda:my-error-generator?multipleConsumers=true&concurrentConsumers=3";
+  private final FluentProducerTemplate producerTemplate;
+  public MessageGenerator(FluentProducerTemplate producerTemplate) {
+    this.producerTemplate = producerTemplate;
+  }
+  public void generateMessage() {
+    producerTemplate
+        .to(ERROR_GENERATOR_CHANNEL)
+        .withBody("Hello World")
+        .asyncSend();
+  }
+}
+
+ 
+I've got two separate POJO consumers:
+
+
+@Configuration
+public class MessageConsumer1 {
+  @Consume(ERROR_GENERATOR_CHANNEL)
+  void receiveMessage(String message) {
+    System.out.println("Received message 1: " + message);
+    throw new NullPointerException("Error generated");
+  }
+}
+
+
+
+@Configuration
+public class MessageConsumer2 {
+
+  @Consume(ERROR_GENERATOR_CHANNEL)
+  void receiveMessage(String message) {
+    System.out.println("Received message 2: " + message);
+  }
+
+}
+
+ 
+When I run the following example, the `NullPointerException` gets swallowed by the underlying Camel `MulticastProcessor` as we can see in the debug logs:
+
+
+Received message 2: Hello World
+Received message 1: Hello World
+2022-01-15 13:40:23.711 DEBUG 32945 — [error-generator] o.a.camel.processor.MulticastProcessor   : Message exchange has failed: Multicast processing failed for number 0 for exchange: Exchange[] Exception: java.lang.NullPointerException: Error generated
+2022-01-15 13:40:23.711 DEBUG 32945 — [error-generator] o.a.camel.processor.MulticastProcessor   : Message exchange has failed: Multicast processing failed for number 0 for exchange: Exchange[] Exception: java.lang.NullPointerException: Error generated 
+
+ 
+The exception only gets logged as debug and never gets propagated to any error handler I set up.
+Any thoughts on how I could receive the error in my own error handler rather than Camel swallowing the exception as a debug statement? Seems like there may be a bug here.
+Note1: I've attempted many variations on both default error handling and default dead letter handling to no avail. I could just be doing it wrong...
+Note2: that I'm using Spring[Boot] here too, hence the `@Configuration` annotation.
+Note3: I've created a stack overflow question for this[ here|https://stackoverflow.com/questions/70725713/camel-no-error-handler-invoked-on-exception-with-multipleconsumer-true-and-pojo].

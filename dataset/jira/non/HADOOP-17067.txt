@@ -1,0 +1,15 @@
+AuthenticatedURL.Token does not store the token if there are redirects.
+When a http call which requires SPNEGO auth is redirected to another server which also required SPNEGO auth. The token is overwritten in second call which invalidates the token in the first call. This causes a performance impact in all redirect cases and the authentication to fail in some cases.
+
+
+    AuthenticatedURL.Token token = new AuthenticatedURL.Token();
+    // Is this right, can you have spnego over http, which would mean we'll have sslFactory for all cases.
+    AuthenticatedURL authenticatedURL = new AuthenticatedURL(null, sslFactory);
+    conn = authenticatedURL.openConnection(url, token);
+
+
+The above code results in 2 OPTION calls to the server, the first call gets the token for first server and stores it into cookieHandler in token and then then the client redirects to server2, which overwrites the token first call made. When getInputStream is called on the conn, the jdk does a SPNEGO auth again since the tokens sent to the servers are not valid anymore. This mean the KerberosAuthenticator authenticate method is skipped for the second call and works only with the jdk call. I believe the fix should be to make the cookie handler multi-domain aware and also add APIs to extract token for a given domain.
+ 
+I've attached the logs where I saw this behavior. There is another issue which can be seen in the log, where the token type is sent as alt-kerberos by the server, which is ignore by the handler and make a call again.
+ 
+Effectively, we are making 6 http calls, whereas with token reuse it should have been 2 calls, except for the first call which will be 4 calls.

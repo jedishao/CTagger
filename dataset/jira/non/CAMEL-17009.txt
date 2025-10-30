@@ -1,0 +1,10 @@
+camel-core - Camel does not clear MDC correctly
+Unfortunately it looks that when MDC logging is enabled Camel does not clear MDC correctly.
+After a Camel message is processed by a thread MDC fields like camel.breadcrumbId are not cleared. It causes a mess in application logs. For example after Jetty thread processes a Camel message then other HTTP requests may be included in logs filtered by specific camel.breadcrumbId, camel.exchangeId etc.
+
+I've prepared a patch with a test that reproduces this problem (for branch main - Camel version 3.12.0-SNAPSHOT).
+
+This test is working (after small changes to be able to compile test with specific version) in Camel 2.25.3. Two tests out of three are passing in Camel versions between 3.0.0 and 3.8.0 (shouldPropagateAndClearMdcInSyncRoute() and shouldPropagateAndClearMdcInAsyncRoute()). Starting from Camel 3.9.0 all three tests are failing.
+
+It seems that tests shouldPropagateAndClearMdcInSyncRoute() and shouldPropagateAndClearMdcInAsyncRoute() started failing
+because of a change in class UnitOfWorkHelper in commit 22c7af56 (CAMEL-16222: camel-core - ExchangeFactory SPI to allow to use exchange pooling).

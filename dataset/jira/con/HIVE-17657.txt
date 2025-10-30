@@ -1,0 +1,6 @@
+export/import for MM tables is broken
+there is mm_exim.q but it's not clear from the tests what file structure it creates 
+On import the txnids in the directory names would have to be remapped if importing to a different cluster.  Perhaps export can be smart and export highest base_x and accretive deltas (minus aborted ones).  Then import can ...?  It would have to remap txn ids from the archive to new txn ids.  This would then mean that import is made up of several transactions rather than 1 atomic op.  (all locks must belong to a transaction)
+One possibility is to open a new txn for each dir in the archive (where start/end txn of file name is the same) and commit all of them at once (need new TMgr API for that).  This assumes using a shared lock (if any!) and thus allows other inserts (not related to import) to occur.
+What if you have delta_6_9, such as a result of concatenate?  If we stipulate that this must mean that there is no delta_6_6 or any other "obsolete" delta in the archive we can map it to a new single txn delta_x_x.
+Add read_only mode for tables (useful in general, may be needed for upgrade etc) and use that to make the above atomic.

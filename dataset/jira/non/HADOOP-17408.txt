@@ -1,0 +1,17 @@
+Optimize NetworkTopology while sorting of block locations
+In NetworkTopology, I noticed that there are some hanging fruits to improve the performance.
+Inside sortByDistance, collections.shuffle is performed on the list before calling secondarySort.
+
+
+Collections.shuffle(list, r);
+if (secondarySort != null) {
+  secondarySort.accept(list);
+}
+
+
+However, in different call sites, collections.shuffle is passed as the secondarySort to sortByDistance. This means that the shuffle is executed twice on each list.
+Also, logic wise, it is useless to shuffle before applying a tie breaker which might make the shuffle work obsolete.
+In addition, daryn reported that:
+
+topology is unnecessarily locking/unlocking to calculate the distance for every node
+shuffling uses a seeded Random, instead of ThreadLocalRandom, which is heavily synchronized

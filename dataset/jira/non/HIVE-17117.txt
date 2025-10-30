@@ -1,0 +1,11 @@
+Metalisteners are not notified when threadlocal metaconf is cleanup
+Meta listeners are not notified of meta-conf cleanup. This could potentially leave stale values on listeners objects. For e.g.
+Request1
+a. HS2 -> HMS : HMSHandler#setMetaConf
+     MetaListeners are notified of the ConfigChangeEvent.
+b. HS2 -> HMS : HMSHandler#shutdown / HiveMetaStore#deleteContext (if shutdown is not invoked)
+    MetaConf is cleaned up in HiveMetaStore#cleanupRawStore, but meta listeners are not notified
+Request 2
+3. HS2->HMS : AlterPartition
+     MetaListeners are notified of AlterPartitionEvent. If any listener has taken dependency on the meta conf value, it will still be having stale value from Request1 and would potentially be having issues.
+The correct behavior should be to notify meta listeners on cleanup as well.

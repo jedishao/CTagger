@@ -1,0 +1,21 @@
+MultiRowRangeFilter not working correctly if given same start and stop RowKey
+try (final Connection conn = ConnectionFactory.createConnection(conf);
+	    		 final Table scanTable = conn.getTable(table)){
+        	ArrayList<MultiRowRangeFilter.RowRange> rowRangesList = new ArrayList<>();	
+   	    	  String startRowkey="abc";
+   	    	  String stopRowkey="abc";
+   	    	rowRangesList.add(new MultiRowRangeFilter.RowRange(startRowkey, true, stopRowkey, true));
+   	 	Scan scan = new Scan();
+		scan.setFilter(new MultiRowRangeFilter(rowRangesList));
+   	     ResultScanner scanner=scanTable.getScanner(scan);
+   	  for (Result result : scanner) 
+{
+	    	  String rowkey=new String(result.getRow());
+	    	 System.out.println(rowkey);
+	    	 
+   	  }
+ 
+        }
+In Hbase API of Java, we want to do multiple scans in the table using MultiRowRangeFilter.
+When we give multiple filters of startRowKey and stopRowKey, it is not working Properly with same StartRowKey and StopRowkey.
+Ideally, it should give only one Row with that Rowkey, but instead it is giving all the rows starting from that Rowkey in that Hbase Table

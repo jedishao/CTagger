@@ -1,0 +1,13 @@
+JAR in conflict with timestamp check causes AM errors
+After an init action pulls down a new JAR and the check of a JAR's timestamp is performed  [1]we can sometimes cause an incorrect error if the timestamp does not match. In order to address this you can perform workarounds like:
+record old timestamp at the beginning before the connector is changed
+local -r old_file_time=$(date -r ${dataproc_common_lib_dir}/gcs-connector.jar "+%m%d%H%M.00")
+
+at end of script.
+touch -t "${old_file_time}" <any jar they changed>
+touch -h -t "${old_file_time}" <symlinks they changed>
+
+We should instead of checking the date be comparing version compatibility tests.
+ 
+ 
+1. https://github.com/apache/hadoop/blob/release-2.7.3-RC2/hadoop-yarn-project/hadoop-yarn/hadoop-yarn-common/src/main/java/org/apache/hadoop/yarn/util/FSDownload.java#L255-L258

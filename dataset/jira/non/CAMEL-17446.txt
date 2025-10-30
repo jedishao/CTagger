@@ -1,0 +1,11 @@
+Trigger start time for Quartz causes confusion with short trigger intervals
+An issue reported on the users list shows that using trigger.repeatInterval=1200 causes the first 2 events to be fired sooner than expected after the scheduler is started.
+This is due to the delay between creating the Quartz Trigger and when the scheduler is started.
+Changing the log message to show the milliseconds in the trigger's next fire time would be helpful. In addition, it appears counter-intuitive that triggerStartDelay is ignored if positive, as shown in QuartzEndpoint.createTrigger() below:
+
+
+if (getComponent().getScheduler().isStarted() || triggerStartDelay < 0) {
+    triggerBuilder.startAt(new Date(System.currentTimeMillis() + triggerStartDelay));
+}
+
+Is this intentional?

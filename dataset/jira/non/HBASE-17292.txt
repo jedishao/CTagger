@@ -1,0 +1,7 @@
+Add observer notification before bulk loaded hfile is moved to region directory
+Currently the postBulkLoadHFile() hook notifies the locations of bulk loaded hfiles.
+However, if bulk load fails after hfile is moved to region directory but before postBulkLoadHFile() hook is called, there is no way for pluggable components (replication - see HBASE-17290, backup / restore) to know which hfile(s) have been moved to region directory.
+Even if postBulkLoadHFile() is called in finally block, the write (to backup table or zookeeper) issued from postBulkLoadHFile() may fail, ending up with same situation.
+This issue adds a preCommitStoreFile() hook which notifies path of to be committed hfile before bulk loaded hfile is moved to region directory.
+With preCommitStoreFile() hook, write (to backup table or zookeeper) can be issued before the movement of hfile.
+If write fails, IOException would make bulk load fail, not leaving hfile in region directory.

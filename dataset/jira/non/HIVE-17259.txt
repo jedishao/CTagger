@@ -1,0 +1,38 @@
+Hive JDBC does not recognize UNIONTYPE columns
+Hive JDBC does not recognize UNIONTYPE columns.
+I've an external table backed by an avro schema containing a union type field.
+
+"name" : "value",
+"type" : [ "int", "string", "null" ]
+
+
+When describing the table I've:
+
+describe test_table;
++-------------------+---------------------------------------------------------------+----------+--+
+|     col_name      |                           data_type                           | comment  |
++-------------------+---------------------------------------------------------------+----------+--+
+| description       | string                                                        |          |
+| name              | string                                                        |          |
+| value             | uniontype<int,string,void>                                    |          |
++-------------------+---------------------------------------------------------------+----------+--+
+
+
+When doing a select query over the data using the Hive CLI, it works:
+
+hive> select value from test_table;
+OK
+{0:10}
+{0:10}
+{0:9}
+{0:9}
+...
+
+
+But when using beeline, it fails:
+
+0: jdbc:hive2://....> select * from test_table;
+Error: Unrecognized column type: UNIONTYPE (state=,code=0)
+
+
+By applying the patch provided with this JIRA, the command succeeds and return the expected output.

@@ -1,0 +1,9 @@
+DPP isn't triggered if static pruning is done for one of the partition columns
+Queries such as:
+
+EXPLAIN select count(*) from srcpart join srcpart_date on (srcpart.ds = srcpart_date.ds) join srcpart_hour on (srcpart.hr = srcpart_hour.hr) 
+where srcpart_date.`date` = '2008-04-08' and srcpart.hr = 13
+
+
+Don't trigger DPP. srcpart is the partitioned by ds and hr. DPP could be triggered for the join (srcpart.ds = srcpart_date.ds). I'm guessing its because static pruning is triggered for the (srcpart.hr = srcpart_hour.hr) join condition.
+Affects Hive-on-Tez and Hive-on-Spark.

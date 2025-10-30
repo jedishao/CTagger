@@ -1,0 +1,89 @@
+camel-core - Message DataType lost on exchange copy
+While working on the example [`transformer-demo`|https://github.com/apache/camel-examples/tree/main/examples/transformer-demo,] I realized that it fails with the next error:
+ 
+ 
+
+
+2022-01-31 10:46:43,910 [elClient.main()] ERROR DefaultErrorHandler            - Failed delivery for (MessageId: 2BE86653B2ADF34-0000000000000002 on ExchangeId: 2BE86653B2ADF34-0000000000000002). Exhausted after delivery attempt: 1 caught: org.apache.camel.InvalidPayloadException: No body available of type: org.apache.camel.example.transformer.demo.Order but has value: {"orderId":"Order-JSON-0001", "itemId":"MIZUYO-KAN", "quantity":"16350"} of type: java.lang.String on: Message. Caused by: Error during type conversion from type: java.lang.String to the required type: org.apache.camel.example.transformer.demo.Order with value {"orderId":"Order-JSON-0001", "itemId":"MIZUYO-KAN", "quantity":"16350"} due to javax.xml.bind.UnmarshalException: null. Exchange[2BE86653B2ADF34-0000000000000002]. Caused by: [org.apache.camel.TypeConversionException - Error during type conversion from type: java.lang.String to the required type: org.apache.camel.example.transformer.demo.Order with value {"orderId":"Order-JSON-0001", "itemId":"MIZUYO-KAN", "quantity":"16350"} due to javax.xml.bind.UnmarshalException: null]
+ 
+Message History (source location and message history is disabled)
+---------------------------------------------------------------------------------------------------------------------------------------
+Source                                   ID                             Processor                                          Elapsed (ms)
+                                         json/json                      from[direct://json]                                          29
+ ...
+                                         java/wireTap1                  wireTap[direct:csv]                                           0
+ 
+Stacktrace
+---------------------------------------------------------------------------------------------------------------------------------------
+org.apache.camel.InvalidPayloadException: No body available of type: org.apache.camel.example.transformer.demo.Order but has value: {"orderId":"Order-JSON-0001", "itemId":"MIZUYO-KAN", "quantity":"16350"} of type: java.lang.String on: Message. Caused by: Error during type conversion from type: java.lang.String to the required type: org.apache.camel.example.transformer.demo.Order with value {"orderId":"Order-JSON-0001", "itemId":"MIZUYO-KAN", "quantity":"16350"} due to javax.xml.bind.UnmarshalException: null. Exchange[2BE86653B2ADF34-0000000000000002]. Caused by: [org.apache.camel.TypeConversionException - Error during type conversion from type: java.lang.String to the required type: org.apache.camel.example.transformer.demo.Order with value {"orderId":"Order-JSON-0001", "itemId":"MIZUYO-KAN", "quantity":"16350"} due to javax.xml.bind.UnmarshalException: null]
+ at org.apache.camel.support.MessageSupport.getMandatoryBody(MessageSupport.java:125) ~[camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.processor.ContractAdvice.convertIfRequired(ContractAdvice.java:154) ~[camel-core-processor-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.processor.ContractAdvice.doTransform(ContractAdvice.java:134) ~[camel-core-processor-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.processor.ContractAdvice.before(ContractAdvice.java:69) ~[camel-core-processor-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.CamelInternalProcessor.process(CamelInternalProcessor.java:342) ~[camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.component.direct.DirectProducer.process(DirectProducer.java:96) ~[camel-direct-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.processor.SendProcessor.process(SendProcessor.java:172) ~[camel-core-processor-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.processor.errorhandler.RedeliveryErrorHandler$SimpleTask.run(RedeliveryErrorHandler.java:471) [camel-core-processor-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.schedule(DefaultReactiveExecutor.java:187) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.DefaultReactiveExecutor.scheduleMain(DefaultReactiveExecutor.java:64) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.processor.Pipeline.process(Pipeline.java:184) [camel-core-processor-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.CamelInternalProcessor.process(CamelInternalProcessor.java:399) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.component.direct.DirectProducer.process(DirectProducer.java:96) [camel-direct-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.SharedCamelInternalProcessor.process(SharedCamelInternalProcessor.java:214) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.SharedCamelInternalProcessor$1.process(SharedCamelInternalProcessor.java:111) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.DefaultAsyncProcessorAwaitManager.process(DefaultAsyncProcessorAwaitManager.java:83) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.SharedCamelInternalProcessor.process(SharedCamelInternalProcessor.java:108) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.support.cache.DefaultProducerCache.send(DefaultProducerCache.java:199) [camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.DefaultProducerTemplate.send(DefaultProducerTemplate.java:176) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.DefaultProducerTemplate.send(DefaultProducerTemplate.java:172) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.engine.DefaultProducerTemplate.send(DefaultProducerTemplate.java:137) [camel-base-engine-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.example.transformer.demo.client.CamelClient.main(CamelClient.java:84) [classes/:?]
+ at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+ at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+ at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+ at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+ at org.codehaus.mojo.exec.ExecJavaMojo$1.run(ExecJavaMojo.java:282) [exec-maven-plugin-1.6.0.jar:?]
+ at java.lang.Thread.run(Thread.java:829) [?:?]
+Caused by: org.apache.camel.TypeConversionException: Error during type conversion from type: java.lang.String to the required type: org.apache.camel.example.transformer.demo.Order with value {"orderId":"Order-JSON-0001", "itemId":"MIZUYO-KAN", "quantity":"16350"} due to javax.xml.bind.UnmarshalException: null
+ at org.apache.camel.converter.jaxb.FallbackTypeConverter.convertTo(FallbackTypeConverter.java:144) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverterLoader.lambda$registerFallbackConverters$0(FallbackTypeConverterLoader.java:44) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.support.SimpleTypeConverter.convertTo(SimpleTypeConverter.java:101) ~[camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.doConvertTo(CoreTypeConverterRegistry.java:516) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.doConvertTo(CoreTypeConverterRegistry.java:356) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.mandatoryConvertTo(CoreTypeConverterRegistry.java:272) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.support.MessageSupport.getMandatoryBody(MessageSupport.java:123) ~[camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ ... 27 more
+Caused by: javax.xml.bind.UnmarshalException
+ at com.sun.xml.bind.v2.runtime.unmarshaller.UnmarshallerImpl.handleStreamException(UnmarshallerImpl.java:455) ~[jaxb-impl-2.3.3.jar:2.3.3]
+ at com.sun.xml.bind.v2.runtime.unmarshaller.UnmarshallerImpl.unmarshal0(UnmarshallerImpl.java:387) ~[jaxb-impl-2.3.3.jar:2.3.3]
+ at com.sun.xml.bind.v2.runtime.unmarshaller.UnmarshallerImpl.unmarshal(UnmarshallerImpl.java:356) ~[jaxb-impl-2.3.3.jar:2.3.3]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverter.unmarshal(FallbackTypeConverter.java:298) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverter.unmarshall(FallbackTypeConverter.java:199) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverter.convertTo(FallbackTypeConverter.java:129) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverterLoader.lambda$registerFallbackConverters$0(FallbackTypeConverterLoader.java:44) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.support.SimpleTypeConverter.convertTo(SimpleTypeConverter.java:101) ~[camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.doConvertTo(CoreTypeConverterRegistry.java:516) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.doConvertTo(CoreTypeConverterRegistry.java:356) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.mandatoryConvertTo(CoreTypeConverterRegistry.java:272) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.support.MessageSupport.getMandatoryBody(MessageSupport.java:123) ~[camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ ... 27 more
+Caused by: javax.xml.stream.XMLStreamException: ParseError at [row,col]:[1,1]
+Message: Content is not allowed in prolog.
+ at com.sun.org.apache.xerces.internal.impl.XMLStreamReaderImpl.next(XMLStreamReaderImpl.java:652) ~[?:?]
+ at com.sun.xml.bind.v2.runtime.unmarshaller.StAXStreamConnector.bridge(StAXStreamConnector.java:134) ~[jaxb-impl-2.3.3.jar:2.3.3]
+ at com.sun.xml.bind.v2.runtime.unmarshaller.UnmarshallerImpl.unmarshal0(UnmarshallerImpl.java:385) ~[jaxb-impl-2.3.3.jar:2.3.3]
+ at com.sun.xml.bind.v2.runtime.unmarshaller.UnmarshallerImpl.unmarshal(UnmarshallerImpl.java:356) ~[jaxb-impl-2.3.3.jar:2.3.3]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverter.unmarshal(FallbackTypeConverter.java:298) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverter.unmarshall(FallbackTypeConverter.java:199) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverter.convertTo(FallbackTypeConverter.java:129) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.converter.jaxb.FallbackTypeConverterLoader.lambda$registerFallbackConverters$0(FallbackTypeConverterLoader.java:44) ~[camel-jaxb-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.support.SimpleTypeConverter.convertTo(SimpleTypeConverter.java:101) ~[camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.doConvertTo(CoreTypeConverterRegistry.java:516) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.doConvertTo(CoreTypeConverterRegistry.java:356) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.impl.converter.CoreTypeConverterRegistry.mandatoryConvertTo(CoreTypeConverterRegistry.java:272) ~[camel-base-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+ at org.apache.camel.support.MessageSupport.getMandatoryBody(MessageSupport.java:123) ~[camel-support-3.15.0-SNAPSHOT.jar:3.15.0-SNAPSHOT]
+
+
+ 
+ 
+After a deeper investigation, it appears that it occurs because the datatype of the message is lost after been copied by the ProcessorValidatorsuch that it ends up trying to convert a json payload with the JAXB fallback type converter which fails with the previous error.

@@ -1,0 +1,35 @@
+java.lang.NoSuchMethodError: org.joda.time.format.DateTimeFormatter.withZoneUTC()Lorg/joda/time/format/DateTimeFormatter when starting HBase with hbase.rootdir on S3
+When setting up HBASE-17437 (Support specifying a WAL directory outside of the root directory), we specify
+(1) hbase.rootdir on s3a
+(2) hbase.wal.dir on HDFS
+When starting HBase, the following exception is thrown:
+
+Caused by: java.lang.NoSuchMethodError: org.joda.time.format.DateTimeFormatter.withZoneUTC()Lorg/joda/time/format/DateTimeFormatter;
+        at com.amazonaws.auth.internal.AWS4SignerUtils.<clinit>(AWS4SignerUtils.java:26)
+        at com.amazonaws.auth.internal.AWS4SignerRequestParams.<init>(AWS4SignerRequestParams.java:85)
+        at com.amazonaws.auth.AWS4Signer.sign(AWS4Signer.java:184)
+        at com.amazonaws.http.AmazonHttpClient.executeOneRequest(AmazonHttpClient.java:709)
+        at com.amazonaws.http.AmazonHttpClient.executeHelper(AmazonHttpClient.java:489)
+        at com.amazonaws.http.AmazonHttpClient.execute(AmazonHttpClient.java:310)
+        at com.amazonaws.services.s3.AmazonS3Client.invoke(AmazonS3Client.java:3785)
+        at com.amazonaws.services.s3.AmazonS3Client.headBucket(AmazonS3Client.java:1107)
+        at com.amazonaws.services.s3.AmazonS3Client.doesBucketExist(AmazonS3Client.java:1070)
+        at org.apache.hadoop.fs.s3a.S3AFileSystem.initialize(S3AFileSystem.java:232)
+        at org.apache.hadoop.fs.FileSystem.createFileSystem(FileSystem.java:2669)
+        at org.apache.hadoop.fs.FileSystem.access$200(FileSystem.java:94)
+        at org.apache.hadoop.fs.FileSystem$Cache.getInternal(FileSystem.java:2703)
+        at org.apache.hadoop.fs.FileSystem$Cache.get(FileSystem.java:2685)
+        at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:373)
+        at org.apache.hadoop.fs.Path.getFileSystem(Path.java:295)
+        at org.apache.hadoop.hbase.util.FSUtils.getRootDir(FSUtils.java:1007)
+        at org.apache.hadoop.hbase.util.FSUtils.isValidWALRootDir(FSUtils.java:1050)
+        at org.apache.hadoop.hbase.util.FSUtils.getWALRootDir(FSUtils.java:1032)
+        at org.apache.hadoop.hbase.regionserver.HRegionServer.initializeFileSystem(HRegionServer.java:627)
+        at org.apache.hadoop.hbase.regionserver.HRegionServer.<init>(HRegionServer.java:570)
+        at org.apache.hadoop.hbase.master.HMaster.<init>(HMaster.java:393)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:423)
+        at org.apache.hadoop.hbase.master.HMaster.constructMaster(HMaster.java:2456)
+        ... 5 more

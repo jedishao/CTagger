@@ -1,0 +1,21 @@
+Memory leak in DefaultCamelContext reported by Tomcat 10
+Hello,
+we are using Camel inside a Tomcat application. The application also supports reloading of the context.
+Unfortunately, we are getting a memory leak report, e.g.
+{code:java}
+[Catalina-utility-1] org.apache.catalina.loader.WebappClassLoaderBase.checkThreadLocalMapForLeaks The web application [ROOT] created a ThreadLocal with key of type [java.lang.ThreadLocal.SuppliedThreadLocal] (value [java.lang.ThreadLocal$SuppliedThreadLocal@588bee00]) and a value of type [org.apache.camel.impl.DefaultCamelContext.OptionHolder] (value [org.apache.camel.impl.DefaultCamelContext$OptionHolder@1d5c4495]) but failed to remove it when the web application was stopped. Threads are going to be renewed over time to try and avoid a probable memory leak.{code}
+ 
+
+Looking at the code, the problem is within the java class DefaultCamelContext
+[https://github.com/apache/camel/blob/main/core/camel-core-engine/src/main/java/org/apache/camel/impl/DefaultCamelContext.java]
+
+It contains a class variable which is always instantiated with:
+ThreadLocal<OptionHolder> OPTIONS = ThreadLocal.withInitial(OptionHolder::new);
+
+This ThreadLocal is never cleaned up by OPTIONS.remove(), This should be added to the shutdown() or stop() handler maybe(?)
+Some additional null checks would have to be implemented as well to make it safe.
+
+ 
+
+Thanks,
+Thomas

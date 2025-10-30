@@ -1,0 +1,34 @@
+Misconfigure buffer size to 0 causing TestDFSIO to hang in infinite loops
+TestDFSIO lacks sanity checks on input buffer size for function doIO()
+If misconfigured to 0, doIO() hangs in infinite loops. 
+ 
+
+
+public Long doIO(... ) throws IOException {
+    …..
+ while (actualSize < totalSize) {
+       int curSize = in.read(buffer, 0, bufferSize);
+       if(curSize < 0) break;
+       actualSize += curSize;
+     ….
+     }
+   …
+}
+
+
+
+
+
+public Long doIO(... ) throws IOException {
+    …..
+        for (...; nrRemaining > 0; nrRemaining -= bufferSize) {
+           If  (bufferSize < nrRemaining){ curSize = bufferSize }else{
+                curSize = (int)nrRemaining
+           out.write(buffer, 0, curSize);
+        }
+   …
+}
+
+
+
+Similar parameter Io.file.buffer.size is handled by Java IO library BufferedInputStream. We suggest adding sanity checks for the benchmark's buffer size as well.

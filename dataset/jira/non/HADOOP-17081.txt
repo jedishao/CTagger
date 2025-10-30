@@ -1,0 +1,8 @@
+MetricsSystem doesn't start the sink adapters on restart
+In HBase we use dynamic metrics and when a metric is removed, we have to refresh the JMX beans, since there is no API from Java to do it, a hack like stopping the metrics system and restarting it was used (Read the comment on the class https://github.com/mmpataki/hbase/blob/master/hbase-hadoop-compat/src/main/java/org/apache/hadoop/metrics2/impl/JmxCacheBuster.java)
+ 
+It calls the below APIs in the same order
+     MetricsSystem.stop
+     MetricsSystem.start
+ 
+MetricsSystem.stop stops all the SinkAdapters, but doesn't remove them from the sink list (allSinks is the variable). When the metrics system is started again, it is assumed that the SinkAdapters are restarted, but they are not due to the check done in the beginning of the function register.

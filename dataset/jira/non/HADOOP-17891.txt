@@ -1,0 +1,24 @@
+lz4-java and snappy-java should be excluded from relocation in shaded Hadoop libraries
+lz4-java is a provided dependency. So in the shaded Hadoop libraries, e.g. hadoop-client-api, if we don't exclude lz4 dependency, the downstream will still see the exception even they include lz4 dependency.
+{code:java}
+[info]   Cause: java.lang.ClassNotFoundException: org.apache.hadoop.shaded.net.jpountz.lz4.LZ4Factory
+[info]   at java.net.URLClassLoader.findClass(URLClassLoader.java:382)
+[info]   at java.lang.ClassLoader.loadClass(ClassLoader.java:418)
+[info]   at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:352)
+[info]   at java.lang.ClassLoader.loadClass(ClassLoader.java:351)
+[info]   at org.apache.hadoop.io.compress.lz4.Lz4Compressor.<init>(Lz4Compressor.java:66)
+[info]   at org.apache.hadoop.io.compress.Lz4Codec.createCompressor(Lz4Codec.java:119)
+[info]   at org.apache.hadoop.io.compress.CodecPool.getCompressor(CodecPool.java:152)
+[info]   at org.apache.hadoop.io.compress.CodecPool.getCompressor(CodecPool.java:168)
+ {code}
+
+Currently snappy-java is included and relocated in Hadoop shaded client libraries. But as it includes native methods, it should not be relocated too due to JNI method resolution. The downstream will see the exception:
+
+{code}
+[info]   Cause: java.lang.UnsatisfiedLinkError: org.apache.hadoop.shaded.org.xerial.snappy.SnappyNative.rawCompress(Ljava/nio/ByteBuffer;IILjava/nio/ByteBuffer;I)I
+[info]   at org.apache.hadoop.shaded.org.xerial.snappy.SnappyNative.rawCompress(Native Method)                                                                                                 
+[info]   at org.apache.hadoop.shaded.org.xerial.snappy.Snappy.compress(Snappy.java:151)                                                                                                        
+[info]   at org.apache.hadoop.io.compress.snappy.SnappyCompressor.compressDirectBuf(SnappyCompressor.java:282)
+[info]   at org.apache.hadoop.io.compress.snappy.SnappyCompressor.compress(SnappyCompressor.java:210)
+
+{code}

@@ -1,0 +1,98 @@
+KMSClientProvider Sends HTTP GET with null "Content-Type" Header
+Hive Server uses 'org.apache.hadoop.crypto.key.kms.KMSClientProvider' when interacting with HDFS TDE zones. This triggers a call to the KMS server. If the request method is a GET, the HTTP Header Content-Type is sent with a null value.
+When using Ranger KMS, the embedded Tomcat server returns a HTTP 400 error with the following error message:
+HTTP Status 400 - Bad Content-Type header value: ''
+ The request sent by the client was syntactically incorrect.
+This only occurs with HTTP GET method calls. 
+This is a captured HTTP request:
+ 
+
+
+GET /kms/v1/key/xxx/_metadata?doAs=yyy&doAs=yyy HTTP/1.1
+Cookie: hadoop.auth="u=hive&p=hive/domain.com@DOMAIN.COM&t=kerberos-dt&e=123789456&s=xxx="
+Content-Type:
+Cache-Control: no-cache
+Pragma: no-cache
+User-Agent: Java/1.8.0_241
+Host: kms.domain.com:9292
+Accept: text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2
+Connection: keep-alive
+
+ 
+Note the empty 'Content-Type' header.
+And the corresponding response:
+ 
+
+
+HTTP/1.1 400 Bad Request
+Server: Apache-Coyote/1.1
+Content-Type: text/html;charset=utf-8
+Content-Language: en
+Content-Length: 1034
+Date: Thu, 16 Jul 2020 04:23:18 GMT
+Connection: close
+
+ 
+This is the stack trace from the Hive server:
+ 
+
+
+Caused by: java.io.IOException: HTTP status [400], message [Bad Request]
+at org.apache.hadoop.util.HttpExceptionUtils.validateResponse(HttpExceptionUtils.java:169)
+at org.apache.hadoop.crypto.key.kms.KMSClientProvider.call(KMSClientProvider.java:608)
+at org.apache.hadoop.crypto.key.kms.KMSClientProvider.call(KMSClientProvider.java:597)
+at org.apache.hadoop.crypto.key.kms.KMSClientProvider.call(KMSClientProvider.java:566)
+at org.apache.hadoop.crypto.key.kms.KMSClientProvider.getMetadata(KMSClientProvider.java:861)
+at org.apache.hadoop.hive.shims.Hadoop23Shims$HdfsEncryptionShim.compareKeyStrength(Hadoop23Shims.java:1506)
+at org.apache.hadoop.hive.shims.Hadoop23Shims$HdfsEncryptionShim.comparePathKeyStrength(Hadoop23Shims.java:1442)
+at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.comparePathKeyStrength(SemanticAnalyzer.java:1990)
+... 38 more
+
+ 
+This looks to occur in https://github.com/hortonworks/hadoop-release/blob/HDP-2.6.5.165-3-tag/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/crypto/key/kms/KMSClientProvider.java#L591-L599
+
+
+      if (authRetryCount > 0) {
+        String contentType = conn.getRequestProperty(CONTENT_TYPE);
+        String requestMethod = conn.getRequestMethod();
+        URL url = conn.getURL();
+        conn = createConnection(url, requestMethod);
+        conn.setRequestProperty(CONTENT_TYPE, contentType);
+        return call(conn, jsonOutput, expectedResponse, klass,
+            authRetryCount - 1);
+      }
+
+ I think when a GET method is received, the Content-Type header is not defined, then in line 592:
+
+
+ String contentType = conn.getRequestProperty(CONTENT_TYPE);
+
+
+The code attempts to retrieve the CONTENT_TYPE Request Property, which returns null.
+Then in line 596:
+
+
+conn.setRequestProperty(CONTENT_TYPE, contentType);
+
+
+The null content type is used to construct the HTTP call to the KMS server.
+A null Content-Type header is not allowed/considered malformed by the receiving KMS server.
+I propose this code be updated to inspect the value returned by conn.getRequestProperty(CONTENT_TYPE), and not use a null value to construct the new KMS connection.
+Proposed pseudo-patch:
+
+
+--- a/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/crypto/key/kms/KMSClientProvider.java
++++ b/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/crypto/key/kms/KMSClientProvider.java
+@@ -593,7 +593,9 @@ public HttpURLConnection run() throws Exception {
+         String requestMethod = conn.getRequestMethod();
+         URL url = conn.getURL();
+         conn = createConnection(url, requestMethod);
+-        conn.setRequestProperty(CONTENT_TYPE, contentType);
++        if (conn.getRequestProperty(CONTENT_TYPE) != null) {
++          conn.setRequestProperty(CONTENT_TYPE, contentType);
++        }
+         return call(conn, jsonOutput, expectedResponse, klass,
+             authRetryCount - 1);
+       }
+
+This should not impact any other use of this class and should only address cases where a null is returned for Content-Type.

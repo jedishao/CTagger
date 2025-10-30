@@ -1,0 +1,8 @@
+Add debug-level logs in Filesystem#close
+HDFS reuses the same cached FileSystem object across the file system. If the client calls FileSystem.close(), closeAllForUgi(), or closeAll() (if it applies to the instance) anywhere in the system it purges the cache of that FS instance, and trying to use the instance results in an IOException: FileSystem closed.
+It would be a great help to clients to see where and when a given FS instance was closed. I.e. in close(), closeAllForUgi(), or closeAll(), it would be great to see a DEBUG-level log of
+
+calling method name, class, file name/line number
+FileSystem object's identity hash (FileSystem.close() only)
+
+For the full calling stack, turn on TRACE logging.

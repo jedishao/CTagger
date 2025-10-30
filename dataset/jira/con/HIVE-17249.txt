@@ -1,0 +1,21 @@
+Concurrent appendPartition calls lead to data loss
+We are running into a problem with data getting lost when loading data in parallel into a partitioned Hive table. The data loader runs on multiple nodes and it dynamically creates partitions as it needs them, using the org.apache.hadoop.hive.metastore.HiveMetaStoreClient.appendPartition(String,
+String, String) interface. We assume that if multiple processes try to create the same partition at the same time, only one of them succeeds while the others fail.
+
+What we are seeing is that the partition gets created, but a few of the created files end up in the .Trash folder in HDFS. From the metastore log, we assume the following is happening in the threads of the metastore server:
+
+- Thread 1: A first process tries to create a partition.
+- Thread 1: The org.apache.hadoop.hive.metastore.HiveMetaStore.append_common() method
+creates the HDFS directory.
+- Thread 2: A second process tries to create the same partition.
+- Thread 2: Notices that the directory already exists and skips the step of creating it.
+- Thread 2: Update the metastore.
+- Thread 2: Return success to the caller.
+- Caller 2: Create a file in the partition directory and start inserting.
+- Thread 1: Try to update the metastore, but this fails, since thread 2 already has inserted the partition. Retry the operation, but it still fails.
+- Thread 1: Abort the transaction and move the HDFS directory to the trash, since it knows that it created the directory.
+- Thread 1: Return failure to the caller.
+
+The second caller can now continue to load data successfully, but the file it loads is actually already in the trash. It returns success, but the data is not inserted and not visible in the table.
+
+Note that in our case, the caller(s) that got an error continue as well - they ignore the error. I think they automatically create the HDFS partition directory when they create their output files. These processes can insert data successfully, the data that is lost is from the process that successfully created the partition, we believe.

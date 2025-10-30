@@ -1,0 +1,47 @@
+microprofile healt checks: do not conflate camel checks
+While running the camel quarkus healt example, I noticed that the health checks from camel are conflated so as example, the liveness block looks as follow:
+
+
+{
+    "checks": [
+        {
+            "data": {
+                "consumer:netty": "DOWN",
+                "consumer:timer": "UP",
+                "context": "UP",
+                "context.name": "camel-7",
+                "context.status": "Started",
+                "context.version": "3.14.0",
+                "failure.count": "0",
+                "invocation.count": "5",
+                "invocation.time": "2022-01-04T11:32:56.024411+01:00[Europe/Rome]",
+                "route.context.name": "camel-7",
+                "route.id": "netty",
+                "route.status": "Stopped",
+                "route:netty": "UP",
+                "route:timer": "UP",
+                "success.count": "5",
+                "toolong": "UP"
+            },
+            "name": "camel-readiness-checks",
+            "status": "DOWN"
+        }
+    ],
+    "status": "DOWN"
+}
+
+
+As you may notice, there are inconsistencies, like, multiple routes are conflated and only the latest one appears: 
+
+
+{
+  "route.id": "netty",
+  "route.status": "Stopped",
+  "route:netty": "UP",
+  "route:timer": "UP"
+}
+
+
+The issue seems to be cause by the fact that the camel-microprofile-health component does not mirrors the checks from camel but instead it aggregate them (see AbstractCamelMicroProfileHealthCheck.java) 
+SmallRye offers a sort of registry so we should probably register the camel health checks to the SmallRye registry (this may have the side effect to make the camel-microprofile-health smallrye dependant)
+In addition, it would be nice of SmallRye would allow to discovery registries

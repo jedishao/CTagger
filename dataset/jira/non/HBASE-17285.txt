@@ -1,0 +1,10 @@
+Misconfiguration of JVM GC options in HADOOP_CLIENT_OPTS may break `bin/hbase`
+Had the great fun of digging through this one. Had a user reporting that hiveserver2 was no longer finding HBase jars on the classpath. This is supposed to happen via hbase mapredcp.
+It turned out that they had configured hive-env.sh to set HADOOP_CLIENT_OPTS="-XX:+PrintGCDetails" (among other things), which creates a big multi-line string instead of just a directory. Because of poor quoting in bin/hbase, this gives you a wonderfully intuitive error:
+
+Error: Could not find or load main class Heap
+
+
+That Heap is actually from the JVM GC details that it was told to print. While I don't expect this to be a common problem people run into, it's one that we can address with better quoting. e.g.
+
++ exec /Library/Java/JavaVirtualMachines/jdk1.8.0_45.jdk/Contents/Home/bin/java -Dproc_mapredcp '-XX:OnOutOfMemoryError=kill -9 %p' -XX:+UseConcMarkSweepGC -Dhbase.log.dir=/usr/local/lib/hbase//logs -Dhbase.log.file=hbase.log -Dhbase.home.dir=/usr/local/lib/hbase/ -Dhbase.id.str= -Dhbase.root.logger=INFO,console '-Djava.library.path='\''/usr/local/lib/hadoop//lib/native' Heap PSYoungGen total 76800K, used 7942K '[0x00000007f5500000,' 0x00000007faa80000, '0x0000000800000000)' eden space 66048K, 12% used '[0x00000007f5500000,0x00000007f5cc19c0,0x00000007f9580000)' from space 10752K, 0% used '[0x00000007fa000000,0x00000007fa000000,0x00000007faa80000)' to space 10752K, 0% used '[0x00000007f9580000,0x00000007f9580000,0x00000007fa000000)' ParOldGen total 174592K, used 0K '[0x00000007e0000000,' 0x00000007eaa80000, '0x00000007f5500000)' object space 174592K, 0% used '[0x00000007e0000000,0x00000007e0000000,0x00000007eaa80000)' PSPermGen total 21504K, used 2756K '[0x00000007dae00000,' 0x00000007dc300000, '0x00000007e0000000)' object space 21504K, 12% used '[0x00000007dae00000,0x00000007db0b11b8,0x00000007dc300000)'\''' -Dhbase.security.logger=INFO,NullAppender org.apache.hadoop.hbase.util.MapreduceDependencyClasspathTool

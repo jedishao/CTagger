@@ -1,0 +1,13 @@
+Request to port the DSE rebuild options to Cassandra
+Testing rebuild in C* 4.0.1, I ran into a scenario where 'nodetool rebuild' was ran without any options in a new DC and the system.available_ranges_v2 table was populated such that every subsequent run of 'nodetool rebuild <sourceDC>' streamed no data.
+The problem was that the first run looked at only the new DC so no data was streamed, then the next run that provided the correct source DC still resulted in no streamed data.
+Once the system.available_ranges_v2 table was truncated, rebuild worked as expected.
+The request here is to include the same code that allows the following options to be used in DSE so one could easily resolve this by using '-m reset' in a similar scenario:
+-m, --mode mode
+
+normal - conventional behavior, streams only ranges that are not already locally available
+refetch - resets locally available ranges, streams all ranges but leaves current data untouched
+reset - resets the locally available ranges, removes all locally present data (like a TRUNCATE), streams all ranges
+reset-no-snapshot - (like reset) resets the locally available ranges, removes all locally present data (like a TRUNCATE), streams all ranges but prevents a snapshot even if auto_snapshot is enabled
+
+Protecting against updating the available_ranges table if a local DC was chosen might also be a good idea.

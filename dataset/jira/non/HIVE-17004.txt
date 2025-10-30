@@ -1,0 +1,131 @@
+Calculating Number Of Reducers Looks At All Files
+When calculating the number of Mappers and Reducers, the two algorithms are looking at different data sets.  The number of Mappers are calculated based on the number of splits and the number of Reducers are based on the number of files within the HDFS directory.  What you see is that if I add files to a sub-directory of the HDFS directory, the number of splits remains the same since I did not tell Hive to search recursively, and the number of Reducers increases.  Please improve this so that Reducers are looking at the same files that are considered for splits and not at files within sub-directories (unless configured to do so).
+
+CREATE EXTERNAL TABLE Complaints (
+  a string,
+  b string,
+  c string,
+  d string,
+  e string,
+  f string,
+  g string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/user/admin/complaints';
+
+
+
+[root@host ~]# sudo -u hdfs hdfs dfs -ls -R /user/admin/complaints
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.1.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.2.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.3.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.4.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.5.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.csv
+
+
+
+INFO  : Compiling command(queryId=hive_20170502142020_dfcf77ef-56b7-4544-ab90-6e9726ea86ae): select a, count(1) from complaints group by a limit 10
+INFO  : Semantic Analysis Completed
+INFO  : Returning Hive schema: Schema(fieldSchemas:[FieldSchema(name:a, type:string, comment:null), FieldSchema(name:_c1, type:bigint, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20170502142020_dfcf77ef-56b7-4544-ab90-6e9726ea86ae); Time taken: 0.077 seconds
+INFO  : Executing command(queryId=hive_20170502142020_dfcf77ef-56b7-4544-ab90-6e9726ea86ae): select a, count(1) from complaints group by a limit 10
+INFO  : Query ID = hive_20170502142020_dfcf77ef-56b7-4544-ab90-6e9726ea86ae
+INFO  : Total jobs = 1
+INFO  : Launching Job 1 out of 1
+INFO  : Starting task [Stage-1:MAPRED] in serial mode
+INFO  : Number of reduce tasks not specified. Estimated from input data size: 11
+INFO  : In order to change the average load for a reducer (in bytes):
+INFO  :   set hive.exec.reducers.bytes.per.reducer=<number>
+INFO  : In order to limit the maximum number of reducers:
+INFO  :   set hive.exec.reducers.max=<number>
+INFO  : In order to set a constant number of reducers:
+INFO  :   set mapreduce.job.reduces=<number>
+INFO  : number of splits:2
+INFO  : Submitting tokens for job: job_1493729203063_0003
+INFO  : The url to track the job: http://host:8088/proxy/application_1493729203063_0003/
+INFO  : Starting Job = job_1493729203063_0003, Tracking URL = http://host:8088/proxy/application_1493729203063_0003/
+INFO  : Kill Command = /opt/cloudera/parcels/CDH-5.8.4-1.cdh5.8.4.p0.5/lib/hadoop/bin/hadoop job  -kill job_1493729203063_0003
+INFO  : Hadoop job information for Stage-1: number of mappers: 2; number of reducers: 11
+INFO  : 2017-05-02 14:20:14,206 Stage-1 map = 0%,  reduce = 0%
+INFO  : 2017-05-02 14:20:22,520 Stage-1 map = 100%,  reduce = 0%, Cumulative CPU 4.48 sec
+INFO  : 2017-05-02 14:20:34,029 Stage-1 map = 100%,  reduce = 27%, Cumulative CPU 15.72 sec
+INFO  : 2017-05-02 14:20:35,069 Stage-1 map = 100%,  reduce = 55%, Cumulative CPU 21.94 sec
+INFO  : 2017-05-02 14:20:36,110 Stage-1 map = 100%,  reduce = 64%, Cumulative CPU 23.97 sec
+INFO  : 2017-05-02 14:20:39,233 Stage-1 map = 100%,  reduce = 73%, Cumulative CPU 25.26 sec
+INFO  : 2017-05-02 14:20:43,392 Stage-1 map = 100%,  reduce = 100%, Cumulative CPU 30.9 sec
+INFO  : MapReduce Total cumulative CPU time: 30 seconds 900 msec
+INFO  : Ended Job = job_1493729203063_0003
+INFO  : MapReduce Jobs Launched: 
+INFO  : Stage-Stage-1: Map: 2  Reduce: 11   Cumulative CPU: 30.9 sec   HDFS Read: 735691149 HDFS Write: 153 SUCCESS
+INFO  : Total MapReduce CPU Time Spent: 30 seconds 900 msec
+INFO  : Completed executing command(queryId=hive_20170502142020_dfcf77ef-56b7-4544-ab90-6e9726ea86ae); Time taken: 36.035 seconds
+INFO  : OK
+
+
+
+[root@host ~]# sudo -u hdfs hdfs dfs -ls -R /user/admin/complaints
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.1.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.2.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.3.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.4.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.5.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:12 /user/admin/complaints/Consumer_Complaints.csv
+drwxr-xr-x   - admin admin          0 2017-05-02 14:16 /user/admin/complaints/t
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:16 /user/admin/complaints/t/Consumer_Complaints.1.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:16 /user/admin/complaints/t/Consumer_Complaints.2.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:16 /user/admin/complaints/t/Consumer_Complaints.3.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:16 /user/admin/complaints/t/Consumer_Complaints.4.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:16 /user/admin/complaints/t/Consumer_Complaints.5.csv
+-rwxr-xr-x   2 admin admin  122607137 2017-05-02 14:16 /user/admin/complaints/t/Consumer_Complaints.csv
+
+
+
+INFO  : Compiling command(queryId=hive_20170502142929_66a476e5-0591-4abe-92b7-bd3e4973466e): select a, count(1) from complaints group by a limit 10
+INFO  : Semantic Analysis Completed
+INFO  : Returning Hive schema: Schema(fieldSchemas:[FieldSchema(name:a, type:string, comment:null), FieldSchema(name:_c1, type:bigint, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20170502142929_66a476e5-0591-4abe-92b7-bd3e4973466e); Time taken: 0.073 seconds
+INFO  : Executing command(queryId=hive_20170502142929_66a476e5-0591-4abe-92b7-bd3e4973466e): select a, count(1) from complaints group by a limit 10
+INFO  : Query ID = hive_20170502142929_66a476e5-0591-4abe-92b7-bd3e4973466e
+INFO  : Total jobs = 1
+INFO  : Launching Job 1 out of 1
+INFO  : Starting task [Stage-1:MAPRED] in serial mode
+INFO  : Number of reduce tasks not specified. Estimated from input data size: 22
+INFO  : In order to change the average load for a reducer (in bytes):
+INFO  :   set hive.exec.reducers.bytes.per.reducer=<number>
+INFO  : In order to limit the maximum number of reducers:
+INFO  :   set hive.exec.reducers.max=<number>
+INFO  : In order to set a constant number of reducers:
+INFO  :   set mapreduce.job.reduces=<number>
+INFO  : number of splits:2
+INFO  : Submitting tokens for job: job_1493729203063_0004
+INFO  : The url to track the job: http://host:8088/proxy/application_1493729203063_0004/
+INFO  : Starting Job = job_1493729203063_0004, Tracking URL = http://host:8088/proxy/application_1493729203063_0004/
+INFO  : Kill Command = /opt/cloudera/parcels/CDH-5.8.4-1.cdh5.8.4.p0.5/lib/hadoop/bin/hadoop job  -kill job_1493729203063_0004
+INFO  : Hadoop job information for Stage-1: number of mappers: 2; number of reducers: 22
+INFO  : 2017-05-02 14:29:27,464 Stage-1 map = 0%,  reduce = 0%
+INFO  : 2017-05-02 14:29:36,829 Stage-1 map = 100%,  reduce = 0%, Cumulative CPU 10.2 sec
+INFO  : 2017-05-02 14:29:47,287 Stage-1 map = 100%,  reduce = 14%, Cumulative CPU 15.36 sec
+INFO  : 2017-05-02 14:29:49,381 Stage-1 map = 100%,  reduce = 27%, Cumulative CPU 20.76 sec
+INFO  : 2017-05-02 14:29:50,433 Stage-1 map = 100%,  reduce = 32%, Cumulative CPU 22.69 sec
+INFO  : 2017-05-02 14:29:56,743 Stage-1 map = 100%,  reduce = 45%, Cumulative CPU 27.73 sec
+INFO  : 2017-05-02 14:30:00,916 Stage-1 map = 100%,  reduce = 64%, Cumulative CPU 34.95 sec
+INFO  : 2017-05-02 14:30:06,142 Stage-1 map = 100%,  reduce = 77%, Cumulative CPU 41.49 sec
+INFO  : 2017-05-02 14:30:10,297 Stage-1 map = 100%,  reduce = 82%, Cumulative CPU 42.92 sec
+INFO  : 2017-05-02 14:30:11,334 Stage-1 map = 100%,  reduce = 86%, Cumulative CPU 45.24 sec
+INFO  : 2017-05-02 14:30:12,365 Stage-1 map = 100%,  reduce = 100%, Cumulative CPU 50.33 sec
+INFO  : MapReduce Total cumulative CPU time: 50 seconds 330 msec
+INFO  : Ended Job = job_1493729203063_0004
+INFO  : MapReduce Jobs Launched: 
+INFO  : Stage-Stage-1: Map: 2  Reduce: 22   Cumulative CPU: 50.33 sec   HDFS Read: 735731640 HDFS Write: 153 SUCCESS
+INFO  : Total MapReduce CPU Time Spent: 50 seconds 330 msec
+INFO  : Completed executing command(queryId=hive_20170502142929_66a476e5-0591-4abe-92b7-bd3e4973466e); Time taken: 51.841 seconds
+INFO  : OK
+
+
+https://github.com/apache/hive/blob/bc510f63de9d6baab3a5ad8a4bf4eed9c6fde8b1/ql/src/java/org/apache/hadoop/hive/ql/exec/Utilities.java#L2959
+Number of splits (Mappers) stay the same between the two runs, number of Reducers increases.
+INFO  : number of splits:2
+
+Number of reduce tasks not specified. Estimated from input data size: 11
+Number of reduce tasks not specified. Estimated from input data size: 22

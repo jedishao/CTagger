@@ -1,0 +1,74 @@
+Fallback to simple auth does not work for a secondary DistributedFileSystem instance
+The following code snippet demonstrates what is necessary to cause a failure in connection to a non secure cluster with fallback to SIMPLE auth allowed from a secure cluster.
+
+
+    Configuration conf = new Configuration();
+
+    conf.setBoolean("ipc.client.fallback-to-simple-auth-allowed", true);
+    URI fsUri = new URI("hdfs://<nn_uri>");
+
+    conf.setBoolean("fs.hdfs.impl.disable.cache", true);
+    FileSystem fs = FileSystem.get(fsUri, conf);
+    FSDataInputStream src = fs.open(new Path("/path/to/a/file"));
+    FileOutputStream dst = new FileOutputStream(File.createTempFile("foo", "bar"));
+    IOUtils.copyBytes(src, dst, 1024);
+
+    // The issue happens even if we re-enable cache at this point
+    //conf.setBoolean("fs.hdfs.impl.disable.cache", false);
+    // The issue does not happen when we close the first FileSystem object
+    // before creating the second.
+    //fs.close();
+    FileSystem fs2 = FileSystem.get(fsUri, conf);
+    FSDataInputStream src2 = fs2.open(new Path("/path/to/a/file"));
+    FileOutputStream dst2 = new FileOutputStream(File.createTempFile("foo", "bar"));
+    IOUtils.copyBytes(src2, dst2, 1024);
+
+
+The problem is that when the DfsClient is created it creates an instance of AtomicBoolean, which is propagated down into the IPC layer, where the Client.Connection instance in setupIOStreams sets its value. This connection object is cached and re-used to multiplex requests against the same DataNode.
+In case of creating a second DfsClient, the AtomicBoolean reference in the client is a new AtomicBoolean, but the Client.Connection instance is the same, and as it has a socket already open to the DataNode, it returns immediatelly from setupIOStreams, leaving the fallbackToSimpleAuth AtomicBoolean false as it is created in the DfsClient.
+This AtomicBoolean on the other hand controls how the SaslDataTransferClient handles the connection in the above level, and with this value left on the default false, the SaslDataTransferClient of the second DfsClient will not fall back to SIMPLE authentication but will try to send a SASL handshake when connecting to the DataNode.
+ 
+The access to the FileSystem via the second DfsClient fails with exceptions like the following one, then fails the read with a BlockMissingException like below:
+
+
+WARN hdfs.DFSClient: Failed to connect to /<dn_ip>:<dn_port> for file <file> for block BP-531773307-<nn_ip>-1634685133591:blk_1073741826_1002, add to deadNodes and continue. 
+java.io.EOFException: Unexpected EOF while trying to read response from server
+	at org.apache.hadoop.hdfs.protocolPB.PBHelperClient.vintPrefixed(PBHelperClient.java:552)
+	at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.DataTransferSaslUtil.readSaslMessage(DataTransferSaslUtil.java:215)
+	at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.doSaslHandshake(SaslDataTransferClient.java:455)
+	at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.getSaslStreams(SaslDataTransferClient.java:393)
+	at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.send(SaslDataTransferClient.java:267)
+	at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.checkTrustAndSend(SaslDataTransferClient.java:215)
+	at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.peerSend(SaslDataTransferClient.java:160)
+	at org.apache.hadoop.hdfs.DFSUtilClient.peerFromSocketAndKey(DFSUtilClient.java:648)
+	at org.apache.hadoop.hdfs.DFSClient.newConnectedPeer(DFSClient.java:2980)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.nextTcpPeer(BlockReaderFactory.java:822)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.getRemoteBlockReaderFromTcp(BlockReaderFactory.java:747)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.build(BlockReaderFactory.java:380)
+	at org.apache.hadoop.hdfs.DFSInputStream.getBlockReader(DFSInputStream.java:658)
+	at org.apache.hadoop.hdfs.DFSInputStream.blockSeekTo(DFSInputStream.java:589)
+	at org.apache.hadoop.hdfs.DFSInputStream.readWithStrategy(DFSInputStream.java:771)
+	at org.apache.hadoop.hdfs.DFSInputStream.read(DFSInputStream.java:840)
+	at java.io.DataInputStream.read(DataInputStream.java:100)
+	at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:94)
+	at DfsClientTest3.main(DfsClientTest3.java:30)
+
+
+
+
+org.apache.hadoop.hdfs.BlockMissingException: Could not obtain block: BP-813026743-<nn_ip>-1495248833293:blk_1139767762_66027405 file=/path/to/file
+
+
+ 
+The DataNode in the meantime logs the following:
+
+
+ERROR org.apache.hadoop.hdfs.server.datanode.DataNode: <dn_host>:<dn_port>:DataXceiver error processing unknown operation  src: /<client_ip>:<client_port> dst: /<dn_ip>:<dn_port>
+java.io.IOException: Version Mismatch (Expected: 28, Received: -8531 )
+        at org.apache.hadoop.hdfs.protocol.datatransfer.Receiver.readOp(Receiver.java:70)
+        at org.apache.hadoop.hdfs.server.datanode.DataXceiver.run(DataXceiver.java:222)
+        at java.lang.Thread.run(Thread.java:748)
+
+
+This happens only if the second client is connecting to the same DataNode as the first one did, so might seem intermittent in case the clients are reading different files, but happens always if the two client reads the same file with replication factor 1.
+We ran into this issue during running HBase ExportSnapshot tool to move a snapshot from a non-secure to a secure cluster, the issue is loosely related to HBASE-12819 and HBASE-20433 and similar problems, I am linking these so that HBase team will see how this is relevant for them.

@@ -1,0 +1,31 @@
+camel-http: HttpSendDynamicAware parse uri incroectly if there are empty path and get parametrs in uri
+There is a simple example from the http component documentation, but configured to use HttpSendDynamicAware:
+
+
+from("direct:start")
+   .toD("http://oldhost?order=123&detail=short");
+
+Sending exchange to a direct:start will return an exception:
+
+
+Failed to resolve endpoint: http://http://oldhost due to: Failed to resolve endpoint: http://http://oldhost due to: The uri part is not configured correctly. You have duplicated the http(s) protocol.
+
+ 
+I belive, the core of the problem is how HttpSendDynamicAware parses uri. it's keeps scheme of uri if there is empty path. For example this test will not return the expected result:
+
+
+@Test
+public void testHttpsUndefinedPortParseUri() {
+   this.httpSendDynamicAware.setScheme("https");
+   DynamicAwareEntry entry = new DynamicAwareEntry("https://localhost:80/", null, null, null);
+   String[] result = httpSendDynamicAware.parseUri(entry);
+   assertEquals("localhost", result[0], "Parse should not add port if https and not specified");
+}
+
+
+
+org.opentest4j.AssertionFailedError: Parse should not add port if https and not specified ==> 
+Expected :localhost
+Actual   :https://localhost:80/
+
+Both test classes are attached.

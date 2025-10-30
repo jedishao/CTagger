@@ -1,0 +1,33 @@
+camel-rest-openapi - If two openapi spec uses the same path only one rest endpoint is created
+If two openapi spec uses the same method, basePath and uriTemplate the componentEndpointUri will be the same. Then the second endpoint is created the first one  is found in the camel context and the host property is overwritten. This causes all calls to these operations in routes goes to the second api.
+API One:
+host: https://api.one.com
+method: GET
+basePath: /api
+uriTemplate: /users/{email}
+title: api-one
+version: 1.0.2
+API Two:
+host: https://api.two.com
+method: GET
+basePath: /api
+uriTemplate: /users/{email}
+title: api-two
+version: 2.0.1
+In RestOpenApiEndpoint.createProducerFor() the componentEndpointUri is created like this:
+
+
+final String componentEndpointUri = "rest:" + method + ":" + basePath + ":" + uriTemplate 
+
+For both of the operations described above the componentEndpointUri will be
+
+"rest:GET:/api:/users/{email}"
+
+When the camelContext.getEndpoint is called with this uri for API Two the endpoint for created for API One is returned instead of creating a new and the host parameter is set to 'https://api.two.com'.
+To solve this I've added title and version from the openapi spec as query parameters to the componentEndpointUri:
+
+
+final String componentEndpointUri = "rest:" + method + ":" + basePath + ":" + uriTemplate
+    + "?title=" + openapi.info.title + "&version=" + openapi.info.version; 
+
+Title and version are required in OpenAPI 3.x so they should always be available.

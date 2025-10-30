@@ -1,0 +1,21 @@
+Race condition refreshing NetgroupCache 
+There is potential concurrency bug in the {{NetgroupCache}} implementation.
+
+{{NetgroupCache}} is static. When ACL is built, its groups will be added to the {{NetgroupCache}}.
+
+A {{-refreshUserToGroupsMappings}} forces the cache to reload the users for each group.
+ This is done by first getting the keys, clearing the cache, then finally reloading the users for each group.
+ The problem that the three steps are not atomic.
+ Adding ACLs concurrently may take place between L80-L81 ([JniBasedUnixGroupsNetgroupMapping#L79|https://github.com/apache/hadoop/blob/trunk/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/security/JniBasedUnixGroupsNetgroupMapping.java#L79]). This results in the loss of the most recently added group.
+ Since group names are used in the JNI level, the users of that group won't be retrieved.
+{code:java}
+78 @Override
+79  public void cacheGroupsRefresh() throws IOException {
+80    List<String> groups = NetgroupCache.getNetgroupNames();
+81     NetgroupCache.clear();
+82    cacheGroupsAdd(groups);
+83  }
+{code}
++Solution:+
+
+Refreshing {{NetgroupCache}} should not clear the cache keys.

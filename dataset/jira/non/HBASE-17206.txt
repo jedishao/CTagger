@@ -1,0 +1,17 @@
+FSHLog may roll a new writer successfully with unflushed entries
+Found it when debugging the flakey TestFailedAppendAndSync.
+The problem is in waitSafePoint.
+
+      while (true) {
+        if (this.safePointAttainedLatch.await(1, TimeUnit.MILLISECONDS)) {
+          break;
+        }
+        if (syncFuture.isThrowable()) {
+          throw new FailedSyncBeforeLogCloseException(syncFuture.getThrowable());
+        }
+      }
+      return syncFuture;
+
+
+If we attach the safe point quick enough then we will bypass the syncFuture.isThrowable check and will not throw FailedSyncBeforeLogCloseException.
+This may cause incosistency between memstore and wal.

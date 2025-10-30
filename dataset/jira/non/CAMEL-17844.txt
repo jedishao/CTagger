@@ -1,0 +1,22 @@
+camel-bean: @Handler annotation doesn't work with FunctionalInterfaces
+Version 3.4.1 introduced fixes in regards to how BeanInfo gets built, this seems to break beans which are @FunctionalInterfaces.
+I believe it was introduced with https://issues.apache.org/jira/browse/CAMEL-15278
+The fix created in the above case only handles super classes, and does not look at interfaces. A lambda cast to a FunctionalInterface will only provide Object as super class, and BeanInfo will then not find any methods marked with @Handler in the interface.
+ 
+This works in 3.4.0, but not in 3.4.1 or higher
+
+
+public class TestRoute extends RouteBuilder {
+
+
+    @Override public void configure() throws Exception {
+        from("direct:testRoute").id("TestRoute")
+            .bean((Formatter) a -> String.format("%s %s", a.getName(), a.getOtherName()))
+            .to("direct:testEndpoint");
+    }
+
+    @FunctionalInterface
+    public interface Formatter {
+        @Handler String test(@Body RandomPojo t);
+    }
+}

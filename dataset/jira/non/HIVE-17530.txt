@@ -1,0 +1,20 @@
+ClassCastException when converting uniontype
+To repro:
+
+SET hive.exec.schema.evolution = false;
+
+CREATE TABLE avro_orc_partitioned_uniontype (a uniontype<boolean, string>) PARTITIONED BY (b int) STORED AS ORC;
+
+INSERT INTO avro_orc_partitioned_uniontype PARTITION (b=1) SELECT create_union(1, true, value) FROM src LIMIT 5;
+
+ALTER TABLE avro_orc_partitioned_uniontype SET FILEFORMAT AVRO;
+
+SELECT * FROM avro_orc_partitioned_uniontype;
+
+
+The exception you get is:
+
+java.io.IOException:org.apache.hadoop.hive.ql.metadata.HiveException: java.lang.ClassCastException: java.util.ArrayList cannot be cast to org.apache.hadoop.hive.serde2.objectinspector.UnionObject
+
+
+The issue is that StandardUnionObjectInspector was creating and returning an ArrayList rather than a UnionObject.

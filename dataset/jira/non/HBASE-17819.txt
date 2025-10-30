@@ -1,0 +1,26 @@
+Reduce the heap overhead for BucketCache
+We keep Bucket entry map in BucketCache.  Below is the math for heapSize for the key , value into this map.
+BlockCacheKey
+---------------
+String hfileName  -  Ref  - 4
+long offset  - 8
+BlockType blockType  - Ref  - 4
+boolean isPrimaryReplicaBlock  - 1
+Total  =  align(12 (Object) + 17 )= 32
+BucketEntry
+------------
+int offsetBase  -  4
+int length  - 4
+byte offset1  -  1
+byte deserialiserIndex  -  1
+long accessCounter  -  8
+BlockPriority priority  - Ref  - 4
+volatile boolean markedForEvict  -  1
+AtomicInteger refCount  -  16 + 4
+long cachedTime  -  8
+Total = align(12 (Object) + 51) = 64
+ConcurrentHashMap Map.Entry  -  40
+blocksByHFile ConcurrentSkipListSet Entry  -  40
+Total = 32 + 64 + 80 = 176
+For 10 million blocks we will end up having 1.6GB of heap size.  
+This jira aims to reduce this as much as possible

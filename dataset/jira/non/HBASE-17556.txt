@@ -1,0 +1,5 @@
+The client will not invalidate stale region caches
+We noticed in our application, that sometimes when we interact with a table an operation will fail with an exception, an all operations that happen on the same region will also fail until the application is restarted.
+It seems that when a merge or split happens on a region that is already in the clients cache, and the client is configured to retry operations, then there is no way for the client to detect this. In RpcRetryingCaller#callWithRetries if a call fails with RegionNotServingException then the cache will be cleared only if the retry parameter is equal to 1. This means the call will fail but the following calls will succeed.
+RpcRetryingCaller#callWithoutRetries contains the comment "It would be nice to clear the location cache here". Additionally, the stale cache will cause this call to fail, even though the data is available.
+See also HBASE-12534

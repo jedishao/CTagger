@@ -1,0 +1,31 @@
+Improve PrometheusSink for Namenode TopMetrics
+HADOOP-16398 added exporter for hadoop metrics to prometheus. But some of metrics can't be exported  validly. For example like these metrics, 
+1.  queue metrics for ResourceManager
+
+
+queue_metrics_max_capacity{queue="root.queue1",context="yarn",hostname="rm_host1"} 1
+// queue2's metric can't be exported queue_metrics_max_capacity{queue="root.queue2",context="yarn",hostname="rm_host1"} 2
+
+
+It always exported  only one queue's metric because PrometheusMetricsSink$metricLines only cache one metric  if theses metrics have the same name no matter these metrics has different metric tags.
+ 
+2. rpc metrics for Namenode
+Namenode may have rpc metrics with multi port like service-rpc. But because  the same reason  as  Issue 1, it wiil lost some rpc metrics if we use PrometheusSink.
+
+
+rpc_rpc_queue_time300s90th_percentile_latency{port="9000",servername="ClientNamenodeProtocol",context="rpc",hostname="nnhost"} 0
+// rpc port=9005 metric can't be exported 
+rpc_rpc_queue_time300s90th_percentile_latency{port="9005",servername="ClientNamenodeProtocol",context="rpc",hostname="nnhost"} 0
+
+
+3. TopMetrics for Namenode
+org.apache.hadoop.hdfs.server.namenode.top.metrics.TopMetrics is a special metric. And I think It is essentially a Summary metric type. TopMetrics record name will according to different user and op ,  which means that these metric will always exist in PrometheusMetricsSink$metricLines and it may cause the risk of its memory leak. We e need to treat it special. 
+
+
+// invaild topmetric export
+# TYPE nn_top_user_op_counts_window_ms_1500000_op_safemode_get_user_hadoop_client_ip_test_com_count counter
+nn_top_user_op_counts_window_ms_1500000_op_safemode_get_user_hadoop_client_ip_test_com_count{context="dfs",hostname="nn_host",op="safemode_get",user="hadoop/client-ip@TEST.COM"} 10
+
+// it should be 
+# TYPE nn_top_user_op_counts_window_ms_1500000_count counter
+nn_top_user_op_counts_window_ms_1500000_count{context="dfs",hostname="nn_host",op="safemode_get",user="hadoop/client-ip@TEST.COM"} 10

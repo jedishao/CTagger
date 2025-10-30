@@ -1,0 +1,24 @@
+Allow reverse iteration of resources during permissions checking
+When we perform authz checks for AuthenticatedUser on a given resource, we traverse the resource hierarchy until we either find the required permission or we exhaust the traversal. This goes from most specific resource (i.e. iResource we're interested in) to the broadest (the root for that iResource type).
+Since permissions are a whitelist it isn't possible for a permission granted on a more specific resource to be negated or overridden by a grant on a resource lower in the hierarchy towards the root. For example, for DataResource, the hierarchy goes:
+
+
+root -> keyspace -> table
+
+So for instance if we:
+ 
+
+
+GRANT ALL ON KEYSPACE ks TO admin_user; 
+
+
+ It is impossible to grant admin_user any set of permissions more restrictive than ALL on ks.
+When a request comes in for a user with permissions on a ks for example, you can have a path of:
+
+Validate SELECT on t1
+Then check for SELECT on ks
+Then check for permissions on 'root'
+
+These unnecessary lookups can negate some of the benefits of caching (and pre-warming, which another ticket is in flight for), and lead to issues on bounces with timeouts.
+Additionally, the permissions cache ends up storing far more entries than necessary, as a subsequent request for ks.t2 by user_x will go through the same process and create a second cache entry etc.
+So all this said - this is something we should allow operators to opt-in to; impact and performance is going to be highly dependent on the pattern of authentication granting and usage on a cluster.

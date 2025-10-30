@@ -1,0 +1,208 @@
+Change in behavior when creating a scanner for a disabled table
+{code}
+@Test
+    public void testQueryingDisabledTable() throws Exception {
+        try (Connection conn = DriverManager.getConnection(getUrl())) {
+            String tableName = generateUniqueName();
+            conn.createStatement().execute(
+                    "CREATE TABLE " + tableName
+                    + " (k1 VARCHAR NOT NULL, k2 VARCHAR, CONSTRAINT PK PRIMARY KEY(K1,K2)) ");
+            try (HBaseAdmin admin = conn.unwrap(PhoenixConnection.class).getQueryServices().getAdmin()) {
+                admin.disableTable(Bytes.toBytes(tableName));
+            }
+            String query = "SELECT * FROM " + tableName + " WHERE 1=1";
+            try (Connection conn2 = DriverManager.getConnection(getUrl())) {
+                try (ResultSet rs = conn2.createStatement().executeQuery(query)) {
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+{code}
+
+This is a phoenix specific test case. I will try an come up with something using the HBase API. But the gist is that with HBase 0.98.21 and beyond, we are seeing that creating a scanner is throwing a NotServingRegionException. 
+
+Stacktrace for NotServingRegionException
+
+{code}
+org.apache.phoenix.exception.PhoenixIOException: org.apache.phoenix.exception.PhoenixIOException: callTimeout=1200000, callDuration=9000104: row '' on table 'T000001' at region=T000001,,1479429739864.643dde31cc19b549192576eea7791a6f., hostname=localhost,60022,1479429692090, seqNum=1
+	at org.apache.phoenix.util.ServerUtil.parseServerException(ServerUtil.java:113)
+	at org.apache.phoenix.iterate.BaseResultIterators.getIterators(BaseResultIterators.java:752)
+	at org.apache.phoenix.iterate.BaseResultIterators.getIterators(BaseResultIterators.java:696)
+	at org.apache.phoenix.iterate.ConcatResultIterator.getIterators(ConcatResultIterator.java:50)
+	at org.apache.phoenix.iterate.ConcatResultIterator.currentIterator(ConcatResultIterator.java:97)
+	at org.apache.phoenix.iterate.ConcatResultIterator.next(ConcatResultIterator.java:117)
+	at org.apache.phoenix.jdbc.PhoenixResultSet.next(PhoenixResultSet.java:778)
+	at org.apache.phoenix.end2end.PhoenixRuntimeIT.testQueryingDisabledTable(PhoenixRuntimeIT.java:167)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:606)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57)
+	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288)
+	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268)
+	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+	at org.junit.rules.ExternalResource$1.evaluate(ExternalResource.java:48)
+	at org.junit.rules.RunRules.evaluate(RunRules.java:20)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:363)
+	at org.eclipse.jdt.internal.junit4.runner.JUnit4TestReference.run(JUnit4TestReference.java:50)
+	at org.eclipse.jdt.internal.junit.runner.TestExecution.run(TestExecution.java:38)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:467)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:683)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.run(RemoteTestRunner.java:390)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.main(RemoteTestRunner.java:197)
+Caused by: java.util.concurrent.ExecutionException: org.apache.phoenix.exception.PhoenixIOException: callTimeout=1200000, callDuration=9000104: row '' on table 'T000001' at region=T000001,,1479429739864.643dde31cc19b549192576eea7791a6f., hostname=localhost,60022,1479429692090, seqNum=1
+	at java.util.concurrent.FutureTask.report(FutureTask.java:122)
+	at java.util.concurrent.FutureTask.get(FutureTask.java:202)
+	at org.apache.phoenix.iterate.BaseResultIterators.getIterators(BaseResultIterators.java:747)
+	... 32 more
+Caused by: org.apache.phoenix.exception.PhoenixIOException: callTimeout=1200000, callDuration=9000104: row '' on table 'T000001' at region=T000001,,1479429739864.643dde31cc19b549192576eea7791a6f., hostname=localhost,60022,1479429692090, seqNum=1
+	at org.apache.phoenix.util.ServerUtil.parseServerException(ServerUtil.java:113)
+	at org.apache.phoenix.iterate.TableResultIterator.initScanner(TableResultIterator.java:176)
+	at org.apache.phoenix.iterate.TableResultIterator.next(TableResultIterator.java:126)
+	at org.apache.phoenix.iterate.LookAheadResultIterator$1.advance(LookAheadResultIterator.java:47)
+	at org.apache.phoenix.iterate.LookAheadResultIterator.init(LookAheadResultIterator.java:59)
+	at org.apache.phoenix.iterate.LookAheadResultIterator.peek(LookAheadResultIterator.java:73)
+	at org.apache.phoenix.iterate.ParallelIterators$1.call(ParallelIterators.java:121)
+	at org.apache.phoenix.iterate.ParallelIterators$1.call(ParallelIterators.java:1)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:262)
+	at org.apache.phoenix.job.JobManager$InstrumentedJobFutureTask.run(JobManager.java:183)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.net.SocketTimeoutException: callTimeout=1200000, callDuration=9000104: row '' on table 'T000001' at region=T000001,,1479429739864.643dde31cc19b549192576eea7791a6f., hostname=localhost,60022,1479429692090, seqNum=1
+	at org.apache.hadoop.hbase.client.RpcRetryingCaller.callWithRetries(RpcRetryingCaller.java:153)
+	at org.apache.hadoop.hbase.client.RpcRetryingCaller.callWithRetries(RpcRetryingCaller.java:101)
+	at org.apache.hadoop.hbase.client.ClientScanner.nextScanner(ClientScanner.java:289)
+	at org.apache.hadoop.hbase.client.ClientScanner.initializeScannerInConstruction(ClientScanner.java:190)
+	at org.apache.hadoop.hbase.client.ClientScanner.<init>(ClientScanner.java:185)
+	at org.apache.hadoop.hbase.client.ClientScanner.<init>(ClientScanner.java:111)
+	at org.apache.hadoop.hbase.client.HTable.getScanner(HTable.java:789)
+	at org.apache.phoenix.iterate.TableResultIterator.initScanner(TableResultIterator.java:173)
+	... 11 more
+Caused by: org.apache.hadoop.hbase.NotServingRegionException: org.apache.hadoop.hbase.NotServingRegionException: Region T000001,,1479429739864.643dde31cc19b549192576eea7791a6f. is not online on localhost,60022,1479429692090
+	at org.apache.hadoop.hbase.regionserver.HRegionServer.getRegionByEncodedName(HRegionServer.java:2860)
+	at org.apache.hadoop.hbase.regionserver.HRegionServer.getRegion(HRegionServer.java:4528)
+	at org.apache.hadoop.hbase.regionserver.HRegionServer.scan(HRegionServer.java:3246)
+	at org.apache.hadoop.hbase.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:32492)
+	at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:2195)
+	at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:104)
+	at org.apache.hadoop.hbase.ipc.RpcExecutor.consumerLoop(RpcExecutor.java:133)
+	at org.apache.hadoop.hbase.ipc.RpcExecutor$1.run(RpcExecutor.java:108)
+	at java.lang.Thread.run(Thread.java:745)
+
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:57)
+	at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+	at java.lang.reflect.Constructor.newInstance(Constructor.java:526)
+	at org.apache.hadoop.ipc.RemoteException.instantiateException(RemoteException.java:106)
+	at org.apache.hadoop.ipc.RemoteException.unwrapRemoteException(RemoteException.java:95)
+	at org.apache.hadoop.hbase.protobuf.ProtobufUtil.getRemoteException(ProtobufUtil.java:305)
+	at org.apache.hadoop.hbase.client.ScannerCallable.openScanner(ScannerCallable.java:332)
+	at org.apache.hadoop.hbase.client.ScannerCallable.call(ScannerCallable.java:168)
+	at org.apache.hadoop.hbase.client.ScannerCallable.call(ScannerCallable.java:58)
+	at org.apache.hadoop.hbase.client.RpcRetryingCaller.callWithRetries(RpcRetryingCaller.java:125)
+	... 18 more
+Caused by: org.apache.hadoop.hbase.ipc.RemoteWithExtrasException(org.apache.hadoop.hbase.NotServingRegionException): org.apache.hadoop.hbase.NotServingRegionException: Region T000001,,1479429739864.643dde31cc19b549192576eea7791a6f. is not online on localhost,60022,1479429692090
+	at org.apache.hadoop.hbase.regionserver.HRegionServer.getRegionByEncodedName(HRegionServer.java:2860)
+	at org.apache.hadoop.hbase.regionserver.HRegionServer.getRegion(HRegionServer.java:4528)
+	at org.apache.hadoop.hbase.regionserver.HRegionServer.scan(HRegionServer.java:3246)
+	at org.apache.hadoop.hbase.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:32492)
+	at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:2195)
+	at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:104)
+	at org.apache.hadoop.hbase.ipc.RpcExecutor.consumerLoop(RpcExecutor.java:133)
+	at org.apache.hadoop.hbase.ipc.RpcExecutor$1.run(RpcExecutor.java:108)
+	at java.lang.Thread.run(Thread.java:745)
+
+	at org.apache.hadoop.hbase.ipc.RpcClient.call(RpcClient.java:1492)
+	at org.apache.hadoop.hbase.ipc.RpcClient.callBlockingMethod(RpcClient.java:1694)
+	at org.apache.hadoop.hbase.ipc.RpcClient$BlockingRpcChannelImplementation.callBlockingMethod(RpcClient.java:1764)
+	at org.apache.hadoop.hbase.protobuf.generated.ClientProtos$ClientService$BlockingStub.scan(ClientProtos.java:32938)
+	at org.apache.hadoop.hbase.client.ScannerCallable.openScanner(ScannerCallable.java:324)
+	... 21 more
+{code}
+
+With 0.98.17 the same would throw a TableNotEnabledException. Stacktrace:
+
+{code}
+org.apache.phoenix.exception.PhoenixIOException: org.apache.phoenix.exception.PhoenixIOException: T000001 is disabled.
+	at org.apache.phoenix.util.ServerUtil.parseServerException(ServerUtil.java:113)
+	at org.apache.phoenix.iterate.BaseResultIterators.getIterators(BaseResultIterators.java:752)
+	at org.apache.phoenix.iterate.BaseResultIterators.getIterators(BaseResultIterators.java:696)
+	at org.apache.phoenix.iterate.ConcatResultIterator.getIterators(ConcatResultIterator.java:50)
+	at org.apache.phoenix.iterate.ConcatResultIterator.currentIterator(ConcatResultIterator.java:97)
+	at org.apache.phoenix.iterate.ConcatResultIterator.next(ConcatResultIterator.java:117)
+	at org.apache.phoenix.jdbc.PhoenixResultSet.next(PhoenixResultSet.java:778)
+	at org.apache.phoenix.end2end.PhoenixRuntimeIT.testQueryingDisabledTable(PhoenixRuntimeIT.java:167)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:606)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57)
+	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288)
+	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268)
+	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+	at org.junit.rules.ExternalResource$1.evaluate(ExternalResource.java:48)
+	at org.junit.rules.RunRules.evaluate(RunRules.java:20)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:363)
+	at org.eclipse.jdt.internal.junit4.runner.JUnit4TestReference.run(JUnit4TestReference.java:50)
+	at org.eclipse.jdt.internal.junit.runner.TestExecution.run(TestExecution.java:38)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:467)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:683)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.run(RemoteTestRunner.java:390)
+	at org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.main(RemoteTestRunner.java:197)
+Caused by: java.util.concurrent.ExecutionException: org.apache.phoenix.exception.PhoenixIOException: T000001 is disabled.
+	at java.util.concurrent.FutureTask.report(FutureTask.java:122)
+	at java.util.concurrent.FutureTask.get(FutureTask.java:202)
+	at org.apache.phoenix.iterate.BaseResultIterators.getIterators(BaseResultIterators.java:747)
+	... 32 more
+Caused by: org.apache.phoenix.exception.PhoenixIOException: T000001 is disabled.
+	at org.apache.phoenix.util.ServerUtil.parseServerException(ServerUtil.java:113)
+	at org.apache.phoenix.iterate.TableResultIterator.initScanner(TableResultIterator.java:176)
+	at org.apache.phoenix.iterate.TableResultIterator.next(TableResultIterator.java:126)
+	at org.apache.phoenix.iterate.LookAheadResultIterator$1.advance(LookAheadResultIterator.java:47)
+	at org.apache.phoenix.iterate.LookAheadResultIterator.init(LookAheadResultIterator.java:59)
+	at org.apache.phoenix.iterate.LookAheadResultIterator.peek(LookAheadResultIterator.java:73)
+	at org.apache.phoenix.iterate.ParallelIterators$1.call(ParallelIterators.java:121)
+	at org.apache.phoenix.iterate.ParallelIterators$1.call(ParallelIterators.java:1)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:262)
+	at org.apache.phoenix.job.JobManager$InstrumentedJobFutureTask.run(JobManager.java:183)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: org.apache.hadoop.hbase.TableNotEnabledException: T000001 is disabled.
+	at org.apache.hadoop.hbase.client.HConnectionManager$HConnectionImplementation.relocateRegion(HConnectionManager.java:1153)
+	at org.apache.hadoop.hbase.client.HConnectionManager$HConnectionImplementation.getRegionLocation(HConnectionManager.java:977)
+	at org.apache.hadoop.hbase.client.RegionServerCallable.prepare(RegionServerCallable.java:74)
+	at org.apache.hadoop.hbase.client.ScannerCallable.prepare(ScannerCallable.java:125)
+	at org.apache.hadoop.hbase.client.RpcRetryingCaller.callWithRetries(RpcRetryingCaller.java:114)
+	at org.apache.hadoop.hbase.client.RpcRetryingCaller.callWithRetries(RpcRetryingCaller.java:91)
+	at org.apache.hadoop.hbase.client.ClientScanner.nextScanner(ClientScanner.java:289)
+	at org.apache.hadoop.hbase.client.ClientScanner.initializeScannerInConstruction(ClientScanner.java:190)
+	at org.apache.hadoop.hbase.client.ClientScanner.<init>(ClientScanner.java:185)
+	at org.apache.hadoop.hbase.client.ClientScanner.<init>(ClientScanner.java:111)
+	at org.apache.hadoop.hbase.client.HTable.getScanner(HTable.java:780)
+	at org.apache.phoenix.iterate.TableResultIterator.initScanner(TableResultIterator.java:173)
+	... 11 more
+{code}
+
+[~apurtell], [~jamestaylor], [~lhofhansl]. 
+

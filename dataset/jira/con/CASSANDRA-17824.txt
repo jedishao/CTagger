@@ -1,0 +1,12 @@
+Enable using a deterministic table id at table creation time
+When the CREATE TABLE statement is executed on a coordinator node, it is assigned a new random, globally unique ID (i.e., time UUID). That ID doesn't change on the  ALTER TABLE statement, whereas the DROP and then CREATE table will create a new ID. Cassandra relies on the fact that tables with the same table ID have compatible schemas and use the table ID to reach the schema agreement.
+One of the issues with the random UUID is when concurrent schema changes are running on different coordinator nodes since clients may implement the schema change programmatically and issue the events from different nodes concurrently. Since Cassandra is an eventually consistent system, not just in terms of data it stores, but also in terms of schemas by relying on the gossip protocol, it may take a non-deterministic amount of time before all the nodes in the cluster converge on one schema version. 
+Once a cluster is in the state of schema disagreement, it is a non-trivial effort to recover the cluster to a healthy state, and such a recovery process may potentially involve downtime.
+Therefore, we propose an option of using the deterministic table id per the CREATE TABLE statement. Some key properties of the deterministic id are:
+
+The CREATE TABLE queries which are syntactically the same should always generate the same table id. And the id should be globally unique. 
+The CREATE TABLE queries which are semantically the same should also guarantee to have the table id, even though the queries may look syntactically different. For example, the parsed query should ignore white spaces, lower/upper cases, etc.. 
+Similar to the requirement #2, queries with the default options/parameters should always have the same id, no matter if they are declared implicitly or explicitly.
+Queries which are semantically different should generate the different table ids, even though they may have the same keyspace name and table name.
+
+To fulfill all the requirements discussed above, the input of the hash function should include the full metadata of the CREATE TABLE statement. Therefore, we use the serialized version of the class CreateTableStatement in Cassandra, which includes all the metadata of the CREATE TABLE statement.

@@ -1,0 +1,13 @@
+Specify user's queue via configuration in FairCallQueue
+The feature of FairCallQueue helps a lot in maintaining a fair and good service in a multi-tenant cluster, each user is assigned to queues with different priority to reach this goal. But in production, we met some problems that the automatic assignment won't fit, the problems are as follows:
+
+We have a service account that would send more NN requests, for some reasons, we would like to keep this user and allow this user to keep this volume of operations. When we deployed FairCallQueue, this service user would be treated as a bad user and assigned to a lower queue, causing some slowness on the service account.
+We are having more Flink jobs writing checkpoints to our NN, and the checkpoint operations have a characteristic that they would have a periodically high cost on the NN with an interval of several minutes. FairCallQueue (with cost-based enabled) doesn't have good control of this kind of operations because when this kind of operations starts, the cost in the decay window of this user is quite low, so the user will be assigned to queue 0, after some windows, when the users' high cost has got the attention and assigned to a lower queue, the user's operations are already finished. 
+
+For problem 1, we noticed that there is already an option mentioned in HADOOP-17165, but in our case, the service account isn't that important that we'd allow it to always be assigned to queue 0. 
+To solve these problems, we'd like to raise a solution by specifying the queue for some static users via config. The basic design is as follows:
+
+Specify the static users in config for each queue.
+Load the mapping from the config while initializing the callqueue.
+Check the configured queue for each user when assigning the queue.
+The cost time of the static users would not be count in our decay calculation to mitigate the impacts on other normal users' costs.

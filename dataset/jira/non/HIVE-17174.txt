@@ -1,0 +1,43 @@
+LLAP: ShuffleHandler: optimize fadvise calls for broadcast edge
+Currently, once the data is transferred `fadvise` call is invoked to throw away the pages. This may not be very helpful in broadcast, as it would tend to transfer the same data to multiple downstream tasks. 
+e.g Q50 at 1 TB scale
+
+      Edges:
+        Map 1 <- Map 5 (BROADCAST_EDGE)
+        Map 6 <- Reducer 2 (BROADCAST_EDGE), Reducer 3 (BROADCAST_EDGE), Reducer 4 (BROADCAST_EDGE)
+        Reducer 2 <- Map 1 (CUSTOM_SIMPLE_EDGE)
+        Reducer 3 <- Map 1 (CUSTOM_SIMPLE_EDGE)
+        Reducer 4 <- Map 1 (CUSTOM_SIMPLE_EDGE)
+        Reducer 7 <- Map 1 (CUSTOM_SIMPLE_EDGE), Map 10 (BROADCAST_EDGE), Map 11 (BROADCAST_EDGE), Map 6 (CUSTOM_SIMPLE_EDGE)
+        Reducer 8 <- Reducer 7 (SIMPLE_EDGE)
+        Reducer 9 <- Reducer 8 (SIMPLE_EDGE)
+
+
+
+Status: Running (Executing on YARN cluster with App id application_1490656001509_6084)
+
+----------------------------------------------------------------------------------------------
+        VERTICES      MODE        STATUS  TOTAL  COMPLETED  RUNNING  PENDING  FAILED  KILLED
+----------------------------------------------------------------------------------------------
+Map 5 ..........      llap     SUCCEEDED      1          1        0        0       0       0
+Map 1 ..........      llap     SUCCEEDED     11         11        0        0       0       0
+Reducer 4 ......      llap     SUCCEEDED      1          1        0        0       0       0
+Reducer 2 ......      llap     SUCCEEDED      1          1        0        0       0       0
+Reducer 3 ......      llap     SUCCEEDED      1          1        0        0       0       0
+Map 6 ..........      llap     SUCCEEDED    139        139        0        0       0       0
+Map 10 .........      llap     SUCCEEDED      1          1        0        0       0       0
+Map 11 .........      llap     SUCCEEDED      1          1        0        0       0       0
+Reducer 7 ......      llap     SUCCEEDED    834        834        0        0       0       0
+Reducer 8 ......      llap     SUCCEEDED     24         24        0        0       0       0
+Reducer 9 ......      llap     SUCCEEDED      1          1        0        0       0       0
+----------------------------------------------------------------------------------------------
+
+e.g count of evictions on files
+
+139 /grid/3/hadoop/yarn/local/usercache/rbalamohan/appcache/application_1490656001509_6084/1/output/attempt_1490656001509_6084_1_05_000000_0_18387/file.out
+834 /grid/3/hadoop/yarn/local/usercache/rbalamohan/appcache/application_1490656001509_6084/1/output/attempt_1490656001509_6084_1_07_000000_0_18420_1/file.out
+834 /grid/3/hadoop/yarn/local/usercache/rbalamohan/appcache/application_1490656001509_6084/1/output/attempt_1490656001509_6084_1_07_000000_0_18420_2/file.out
+   
+
+
+It would be good to fadvise for cases when "partition != 0". This would help retaining the pages for broadcast.

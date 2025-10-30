@@ -1,0 +1,8 @@
+Don't copy the replication queue belonging to the peer which has been deleted
+When a region server is dead, then other live region servers will transfer the dead rs's replication queue to their own queue. Now the live rs first copy the wals queue to its own znode, then create a new replication source to replicate the wals. But if the queue belong to a peer has been deleted, it copy the queue, too. The current steps is:
+1. copy the queue to its own znode
+2. found the queue belong to a peer has been deleted
+3. remove the queue and don't create a new replication source for it
+There is a small improvement. The live region server doesn't need to copy the queue to its own znode. The new steps is:
+1. found the queue belong to a peer has been deleted
+2. remove the queue directly instead of copy it

@@ -1,0 +1,33 @@
+Region stuck in merging_new state indefinitely
+Ran into issue while tinkering around with a chaos monkey that did splits, merges and kills exclusively, which resulted in regions getting stuck in transition in merging new state indefinitely which i think happens when the rs is killed during the merge but before the ponr, in which case the new regions state in master is merging new. When the rs dies at this point the master executes RegionStates.serverOffline() for the rs which does
+
+for (RegionState state : regionsInTransition.values()) {
+        HRegionInfo hri = state.getRegion();
+        if (assignedRegions.contains(hri)) {
+          // Region is open on this region server, but in transition.
+          // This region must be moving away from this server, or splitting/merging.
+          // SSH will handle it, either skip assigning, or re-assign.
+          LOG.info("Transitioning " + state + " will be handled by ServerCrashProcedure for " + sn);
+        } else if (sn.equals(state.getServerName())) {
+          // Region is in transition on this region server, and this
+          // region is not open on this server. So the region must be
+          // moving to this server from another one (i.e. opening or
+          // pending open on this server, was open on another one.
+          // Offline state is also kind of pending open if the region is in
+          // transition. The region could be in failed_close state too if we have
+          // tried several times to open it while this region server is not reachable)
+          if (state.isPendingOpenOrOpening() || state.isFailedClose() || state.isOffline()) {
+            LOG.info("Found region in " + state +
+              " to be reassigned by ServerCrashProcedure for " + sn);
+            rits.add(hri);
+          } else if(state.isSplittingNew()) {
+            regionsToCleanIfNoMetaEntry.add(state.getRegion());
+          } else {
+            LOG.warn("THIS SHOULD NOT HAPPEN: unexpected " + state);
+          }
+        }
+      }
+
+
+We donot handle merging new here and end up with "THIS SHOULD NOT HAPPEN: unexpected ...". Post this we have the new region which does not have any data stuck which leads to the balancer not running.
+I think we should handle mergingnew the same way as splittingnew.

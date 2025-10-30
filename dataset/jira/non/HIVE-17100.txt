@@ -1,0 +1,95 @@
+Improve HS2 operation logs for REPL commands.
+It is necessary to log the progress the replication tasks in a structured manner as follows.
+Bootstrap Dump:
+
+At the start of bootstrap dump, will add one log with below details.
+* Database Name
+* Dump Type (BOOTSTRAP)
+* (Estimated) Total number of tables/views to dump
+* (Estimated) Total number of functions to dump.
+* Dump Start Time
+After each table dump, will add a log as follows
+* Table/View Name
+* Type (TABLE/VIEW/MATERIALIZED_VIEW)
+* Table dump end time
+* Table dump progress. Format is Table sequence no/(Estimated) Total number of tables and views.
+After each function dump, will add a log as follows
+* Function Name
+* Function dump end time
+* Function dump progress. Format is Function sequence no/(Estimated) Total number of functions.
+After completion of all dumps, will add a log as follows to consolidate the dump.
+* Database Name.
+* Dump Type (BOOTSTRAP).
+* Dump End Time.
+* (Actual) Total number of tables/views dumped.
+* (Actual) Total number of functions dumped.
+* Dump Directory.
+* Last Repl ID of the dump.
+Note: The actual and estimated number of tables/functions may not match if any table/function is dropped when dump in progress.
+
+Bootstrap Load:
+
+At the start of bootstrap load, will add one log with below details.
+* Database Name
+* Dump directory
+* Load Type (BOOTSTRAP)
+* Total number of tables/views to load
+* Total number of functions to load.
+* Load Start Time
+After each table load, will add a log as follows
+* Table/View Name
+* Type (TABLE/VIEW/MATERIALIZED_VIEW)
+* Table load completion time
+* Table load progress. Format is Table sequence no/Total number of tables and views.
+After each function load, will add a log as follows
+* Function Name
+* Function load completion time
+* Function load progress. Format is Function sequence no/Total number of functions.
+After completion of all dumps, will add a log as follows to consolidate the load.
+* Database Name.
+* Load Type (BOOTSTRAP).
+* Load End Time.
+* Total number of tables/views loaded.
+* Total number of functions loaded.
+* Last Repl ID of the loaded database.
+
+Incremental Dump:
+
+At the start of database dump, will add one log with below details.
+* Database Name
+* Dump Type (INCREMENTAL)
+* (Estimated) Total number of events to dump.
+* Dump Start Time
+After each event dump, will add a log as follows
+* Event ID
+* Event Type (CREATE_TABLE, DROP_TABLE, ALTER_TABLE, INSERT etc)
+* Event dump end time
+* Event dump progress. Format is Event sequence no/ (Estimated) Total number of events.
+After completion of all event dumps, will add a log as follows.
+* Database Name.
+* Dump Type (INCREMENTAL).
+* Dump End Time.
+* (Actual) Total number of events dumped.
+* Dump Directory.
+* Last Repl ID of the dump.
+Note: The estimated number of events can be terribly inaccurate with actual number as we don’t have the number of events upfront until we read from metastore NotificationEvents table.
+
+Incremental Load:
+
+At the start of incremental load, will add one log with below details.
+* Target Database Name 
+* Dump directory
+* Load Type (INCREMENTAL)
+* Total number of events to load
+* Load Start Time
+After each event load, will add a log as follows
+* Event ID
+* Event Type (CREATE_TABLE, DROP_TABLE, ALTER_TABLE, INSERT etc)
+* Event load end time
+* Event load progress. Format is Event sequence no/ Total number of events.
+After completion of all event loads, will add a log as follows to consolidate the load.
+* Target Database Name.
+* Load Type (INCREMENTAL).
+* Load End Time.
+* Total number of events loaded.
+* Last Repl ID of the loaded database.

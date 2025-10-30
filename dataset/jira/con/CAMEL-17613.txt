@@ -1,0 +1,25 @@
+camel-sql - Race condition in AggregateProcessor with Jdbc Repository
+Hi,
+
+using aggregate with a JdbcAggregationRepository, we are encountering a race condition that may leave a completed exchange in completed table even after that completed exchange has been sent. Unfortunately, that leads to duplicates since recovery task will eventually try and recover it.
+
+Normally, when the exchange completes, it is deleted from repo exchange table and inserted into repo completed exchange table. Then exchange is sent and deleted from repo completed exchange table.
+
+But, due to the fact those two actions are run by different threads (and in different transactions) that order may vary.
+
+ 
+
+Here is a normal sequence : 
+
+AggregateProcessor.doProcess
+  doAggregation
+    doAggregationComplete
+      onCompletion
+        JdbcAggregationRepository.remove : => INSERT ... INTO _completed  
+  onSubmitCompletion  
+    AggregateOnCompletion.onComplete   (via executorService)
+      JdbcAggregationRepository.confirm  : => DELETE FROM _completed
+
+With the use of executorService, confirm is run by another thread and may commit before remove commits. Eventually, when that occurs, one can check that DELETE statement returns 0 (number of deleted rows) instead of 1.
+
+ 

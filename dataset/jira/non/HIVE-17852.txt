@@ -1,0 +1,10 @@
+remove support for list bucketing "stored as directories" in 3.0
+From the email thread:
+
+1) LB, when stored as directories, adds a lot of low-level complexity to Hive tables that has to be accounted for in many places in the code where the files are written or modified - from FSOP to ACID/replication/export.
+2) While working on some FSOP code I noticed that some of that logic is broken - e.g. the duplicate file removal from tasks, a pretty fundamental correctness feature in Hive, may be broken. LB also doesn’t appear to be compatible with e.g. regular bucketing.
+3) The feature hasn’t seen development activity in a while; it also doesn’t appear to be used a lot.
+
+Keeping with the theme of cleaning up “legacy” code for 3.0, I was proposing we remove it.
+
+(2) also suggested that, if needed, it might be easier to implement similar functionality by adding some flexibility to partitions (which LB directories look like anyway); that would also keep the logic on a higher level of abstraction (split generation, partition pruning) as opposed to many low-level places like FSOP, etc.

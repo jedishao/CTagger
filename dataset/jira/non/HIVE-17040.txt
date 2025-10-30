@@ -1,0 +1,11 @@
+Join elimination in the presence of FK relationship
+If the PK/UK table is not filtered, we can safely remove the join.
+A simple example:
+
+SELECT c_current_cdemo_sk
+FROM customer, customer_address
+ON c_current_addr_sk = ca_address_sk;
+
+
+As a Calcite rule, we could implement this rewriting by 1) matching a Project on top of a Join operator, 2) checking that only columns from the FK are used in the Project, 3) checking that the join condition matches the FK - PK/UK relationship, 4) pulling all the predicates from the PK/UK side and checking that the input is not filtered, and 5) removing the join, possibly adding a IS NOT NULL condition on the join column from the FK side.
+If the PK/UK table is filtered, we should still transform the Join into a SemiJoin operator.

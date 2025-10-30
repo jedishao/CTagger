@@ -1,0 +1,29 @@
+Hadoop Client getRpcResponse May Return Wrong Result
+/** @return the rpc response or, in case of timeout, null. */
+  private Writable getRpcResponse(final Call call, final Connection connection,
+      final long timeout, final TimeUnit unit) throws IOException {
+    synchronized (call) {
+      while (!call.done) {
+        try {
+          AsyncGet.Util.wait(call, timeout, unit);
+          if (timeout >= 0 && !call.done) {
+            return null;
+          }
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          throw new InterruptedIOException("Call interrupted");
+        }
+      }
+
+ */
+  static class Call {
+    final int id;               // call id
+    final int retry;           // retry count
+...
+    boolean done;               // true when call is done
+...
+}
+
+
+The done variable is not marked as volatile so the thread which is checking its status is free to cache the value and never reload it even though it is expected to change by a different thread.  The while loop may be stuck waiting for the change, but is always looking at a cached value.  If that happens, timeout will occur and then return 'null'.
+In previous versions of Hadoop, there was no time-out at this level, so it would cause endless loop.  Really tough error to track down if it happens.

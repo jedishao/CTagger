@@ -1,0 +1,9 @@
+Tez: Improve ReduceRecordSource passDownKey copying
+Tez does not use a single Key stream for both sides of the join, so each input gets its own ReduceRecordSource 
+
+
+sources[tag] = new ReduceRecordSource();
+
+
+And this means for each input stream, there's a deserialized key (because the tag is not part of the Key byte stream), this means for a 2-table join there are 2 ReduceRecordSource objects.
+This means that the passDownKey is only an optimization when the Key, List<Value> has more than 1 value in it. Otherwise the copy is entirely wasted CPU cycles, because it deserializes the entire row to extract the key and discards the row.

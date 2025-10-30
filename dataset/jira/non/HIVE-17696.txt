@@ -1,0 +1,36 @@
+Vectorized reader does not seem to be pushing down projection columns in certain code paths
+This is the code snippet from VectorizedParquetRecordReader.java
+
+
+MessageType tableSchema;
+    if (indexAccess) {
+      List<Integer> indexSequence = new ArrayList<>();
+
+      // Generates a sequence list of indexes
+      for(int i = 0; i < columnNamesList.size(); i++) {
+        indexSequence.add(i);
+      }
+
+      tableSchema = DataWritableReadSupport.getSchemaByIndex(fileSchema, columnNamesList,
+        indexSequence);
+    } else {
+      tableSchema = DataWritableReadSupport.getSchemaByName(fileSchema, columnNamesList,
+        columnTypesList);
+    }
+
+    indexColumnsWanted = ColumnProjectionUtils.getReadColumnIDs(configuration);
+    if (!ColumnProjectionUtils.isReadAllColumns(configuration) && !indexColumnsWanted.isEmpty()) {
+      requestedSchema =
+        DataWritableReadSupport.getSchemaByIndex(tableSchema, columnNamesList, indexColumnsWanted);
+    } else {
+      requestedSchema = fileSchema;
+    }
+
+    this.reader = new ParquetFileReader(
+      configuration, footer.getFileMetaData(), file, blocks, requestedSchema.getColumns());
+
+
+
+Couple of things to notice here:
+Most of this code is duplicated from DataWritableReadSupport.init() method. 
+the else condition passes in fileSchema instead of using tableSchema like we do in DataWritableReadSupport.init() method. Does this cause projection columns to be missed when we read parquet files? We should probably just reuse ReadContext returned from DataWritableReadSupport.init() method here.

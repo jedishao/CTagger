@@ -1,0 +1,26 @@
+Fix testBatchCLShutdownImmediately
+Failing on 4.1 and trunk in different ways.
+trunk:
+ 
+
+
+Error Message
+Expect batch commitlog shutdown immediately, but took 60003
+
+Stacktrace
+junit.framework.AssertionFailedError: Expect batch commitlog shutdown immediately, but took 60003 at org.apache.cassandra.db.commitlog.BatchCommitLogTest.testBatchCLShutDownImmediately(BatchCommitLogTest.java:78) at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+
+
+ 
+4.1:
+ 
+
+
+Stacktrace
+java.io.UncheckedIOException at org.apache.cassandra.io.util.PathUtils.propagateUnchecked(PathUtils.java:768) at org.apache.cassandra.io.util.PathUtils.propagateUnchecked(PathUtils.java:753) at org.apache.cassandra.io.util.PathUtils.delete(PathUtils.java:255) at org.apache.cassandra.io.util.PathUtils.delete(PathUtils.java:297) at org.apache.cassandra.io.util.PathUtils.delete(PathUtils.java:304) at org.apache.cassandra.io.util.File.delete(File.java:158) at org.apache.cassandra.io.util.File.delete(File.java:167) at org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC.discard(CommitLogSegmentManagerCDC.java:75) at org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager.closeAndDeleteSegmentUnsafe(AbstractCommitLogSegmentManager.java:490) at org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager.stopUnsafe(AbstractCommitLogSegmentManager.java:463) at org.apache.cassandra.db.commitlog.CommitLog.stopUnsafe(CommitLog.java:503) at org.apache.cassandra.db.commitlog.CommitLog.resetUnsafe(CommitLog.java:469) at org.apache.cassandra.db.commitlog.CommitLogTest.beforeTest(CommitLogTest.java:190) at jdk.internal.reflect.GeneratedMethodAccessor3.invoke(Unknown Source) at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) Caused by: java.nio.file.NoSuchFileException: build/test/cassandra/commitlog/CommitLog-7-1655412746719.log at java.base/sun.nio.fs.UnixException.translateToIOException(UnixException.java:92) at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111) at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:116) at java.base/sun.nio.fs.UnixFileSystemProvider.implDelete(UnixFileSystemProvider.java:249) at java.base/sun.nio.fs.AbstractFileSystemProvider.delete(AbstractFileSystemProvider.java:105) at java.base/java.nio.file.Files.delete(Files.java:1142) at org.apache.cassandra.io.util.PathUtils.delete(PathUtils.java:250)
+
+Standard Output
+DEBUG [main] 2022-06-16 20:55:09,747 InternalLoggerFactory.java:63 - Using SLF4J as the default logging framework DEBUG [main] 2022-06-16 20:55:09,754 InternalThreadLocalMap.java:83 - -Dio.netty.threadLocalMap.stringBuilder.initialSize: 1024 DEBUG [main] 2022-06-16 20:55:09,754 InternalThreadLocalMap.java:86 - -Dio.netty.threadLocalMap.stringBuilder.maxSize: 4096 INFO [main] 2022-06-16 20:55:09,754 CipherFactory.java:68 - initializing CipherFactory INFO [main] 2022-06-16 20:55:09,755 JKSKeyPro ...[truncated 2038621 chars]... tLog-7-1655412912227.log INFO [main] 2022-06-16 20:55:31,900 CommitLog.java:174 - No commitlog files found; skipping replay DEBUG [main] 2022-06-16 20:55:32,127 CommitLogReader.java:266 - Reading build/test/cassandra/commitlog/CommitLog-7-1655412912229.log (CL version 7, messaging version 12, compression org.apache.cassandra.io.compress.ZstdCompressor{}) INFO [main] 2022-06-16 20:55:32,141 CommitLogReader.java:257 - Finished reading
+
+
+build/test/cassandra/commitlog/CommitLog-7-1655412912229.log

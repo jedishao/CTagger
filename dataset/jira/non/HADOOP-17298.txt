@@ -1,0 +1,39 @@
+Backslash in username causes build failure in the environment started by start-build-env.sh.
+If a username includes a backslash, `mvn clean install` fails in an environment started by start-build-env.sh.
+
+Here is my result in Amazon WorkSpaces.
+
+ 
+{code:java}
+CORPbtkuramototkr@b8e750b1e386:/home/CORP\btkuramototkr/hadoop/hadoop-build-to
+ols$ mvn clean install
+/usr/bin/mvn: 1: cd: can't cd to /home/CORtkuramototkr/hadoop/hadoop-build-tools/..
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< org.apache.hadoop:hadoop-build-tools >----------------
+[INFO] Building Apache Hadoop Build Tools 3.4.0-SNAPSHOT
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.5:clean (default-clean) @ hadoop-build-tools ---
+[INFO] 
+[INFO] --- maven-resources-plugin:3.0.1:copy-resources (copy-resources) @ hadoop-build-tools ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 1.074 s
+[INFO] Finished at: 2020-10-05T02:51:53Z
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-resources-plugin:3.0.1:copy-resources (copy-resources) on project hadoop-build-tools: Cannot create resource output directory: /home/CORP/btkuramototkr/hadoop/hadoop-build-tools/target/extra-resources -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException
+{code}
+ 
+
+This problem can be solved by adding an option to change the path to maven's local repository in the container so that users can remove backslashes from their username.
+
+ 

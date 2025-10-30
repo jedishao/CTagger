@@ -1,0 +1,36 @@
+Auto-merge fails on writes of UNION ALL output to ORC file with dynamic partitioning
+If dynamic partitioning is used to write the output of UNION or UNION ALL queries into ORC files with hive.merge.tezfiles=true, the merge step fails as follows:
+
+{noformat}
+2017-08-08T11:27:19,958 ERROR [e7b1f06d-d632-408a-9dff-f7ae042cd25a main] SessionState: Vertex failed, vertexName=File Merge, vertexId=vertex_1502216690354_0001_33_00, diagnostics=[Task failed, taskId=task_1502216690354_0001_33_00_000000, diagnostics=[TaskAttempt 0 failed, info=[Error: Error while running task ( failure ) : attempt_1502216690354_0001_33_00_000000_0:java.lang.RuntimeException: java.lang.RuntimeException: org.apache.hadoop.hive.ql.metadata.HiveException: java.io.IOException: Multiple partitions for one merge mapper: hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/1 NOT EQUAL TO hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/2
+  at org.apache.hadoop.hive.ql.exec.tez.TezProcessor.initializeAndRunProcessor(TezProcessor.java:211)
+  at org.apache.hadoop.hive.ql.exec.tez.MergeFileTezProcessor.run(MergeFileTezProcessor.java:42)
+  at org.apache.tez.runtime.LogicalIOProcessorRuntimeTask.run(LogicalIOProcessorRuntimeTask.java:370)
+  at org.apache.tez.runtime.task.TaskRunner2Callable$1.run(TaskRunner2Callable.java:73)
+  at org.apache.tez.runtime.task.TaskRunner2Callable$1.run(TaskRunner2Callable.java:61)
+  at java.security.AccessController.doPrivileged(Native Method)
+  at javax.security.auth.Subject.doAs(Subject.java:422)
+  at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1807)
+  at org.apache.tez.runtime.task.TaskRunner2Callable.callInternal(TaskRunner2Callable.java:61)
+  at org.apache.tez.runtime.task.TaskRunner2Callable.callInternal(TaskRunner2Callable.java:37)
+  at org.apache.tez.common.CallableWithNdc.call(CallableWithNdc.java:36)
+  at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+  at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+  at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+  at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.RuntimeException: org.apache.hadoop.hive.ql.metadata.HiveException: java.io.IOException: Multiple partitions for one merge mapper: hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/1 NOT EQUAL TO hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/2
+  at org.apache.hadoop.hive.ql.exec.tez.MergeFileRecordProcessor.processRow(MergeFileRecordProcessor.java:225)
+  at org.apache.hadoop.hive.ql.exec.tez.MergeFileRecordProcessor.run(MergeFileRecordProcessor.java:154)
+  at org.apache.hadoop.hive.ql.exec.tez.TezProcessor.initializeAndRunProcessor(TezProcessor.java:185)
+  ... 14 more
+Caused by: org.apache.hadoop.hive.ql.metadata.HiveException: java.io.IOException: Multiple partitions for one merge mapper: hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/1 NOT EQUAL TO hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/2
+  at org.apache.hadoop.hive.ql.exec.OrcFileMergeOperator.processKeyValuePairs(OrcFileMergeOperator.java:169)
+  at org.apache.hadoop.hive.ql.exec.OrcFileMergeOperator.process(OrcFileMergeOperator.java:72)
+  at org.apache.hadoop.hive.ql.exec.tez.MergeFileRecordProcessor.processRow(MergeFileRecordProcessor.java:216)
+  ... 16 more
+Caused by: java.io.IOException: Multiple partitions for one merge mapper: hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/1 NOT EQUAL TO hdfs://localhost:39943/build/ql/test/data/warehouse/partunion1/.hive-staging_hive_2017-08-08_11-27-09_105_286405133968521828-1/-ext-10002/part1=2014/2
+  at org.apache.hadoop.hive.ql.exec.AbstractFileMergeOperator.checkPartitionsMatch(AbstractFileMergeOperator.java:180)
+  at org.apache.hadoop.hive.ql.exec.AbstractFileMergeOperator.fixTmpPath(AbstractFileMergeOperator.java:197)
+  at org.apache.hadoop.hive.ql.exec.OrcFileMergeOperator.processKeyValuePairs(OrcFileMergeOperator.java:96)
+  ... 18 more
+{noformat}

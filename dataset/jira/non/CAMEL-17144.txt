@@ -1,0 +1,28 @@
+Split with aggregation strategy does not wait all substasks to be completed
+Hi after trying to update from camel 2.25.4 to 3.12 I have a trouble with the usage of the split with parallelProcessing enabled. I cannot share my project but here is a little sample to reproduce the issue. 
+
+ 
+{code:java}
+from("scheduler:testBug?initialDelay=1000&useFixedDelay=true&delay=5000&greedy=true")
+		.to("direct:test");
+
+from("direct:test")
+		.log("Before the processor the body must be empty : [${body}]")
+		.process((exchange) -> {
+			exchange.getIn().setBody(IntStream.range(0, 10).mapToObj(i -> "" + i).collect(Collectors.toList()));
+		})
+		.log("Exchange updated number form 0 to 9 : [${body}]")
+		.split(body())
+				.parallelProcessing(true)
+				.log("The child exchange: ${body}")
+		.end()
+
+		.log("Split done: [${body}]")
+		.setProperty(Exchange.SCHEDULER_POLLED_MESSAGES, simple("false"));
+{code}
+ 
+
+With camel 2.25.X the expected behavior (to process each split before returning to the caller) is ok but not with the 3.X where the process loop indefinillty. 
+ 
+
+Note: I have added a kill switch to avoid process to be hanged. 

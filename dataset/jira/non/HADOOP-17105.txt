@@ -1,0 +1,30 @@
+S3AFS globStatus attempts to resolve symlinks
+The S3AFileSystem implementation of the globStatus API has a setting configured to resolve symlinks. Under certain circumstances, this will cause additional file existence checks to be performed in order to determine if a FileStatus signifies a symlink. As symlinks are not supported in S3AFileSystem, these calls are unnecessary.
+Code snapshot (permalink): https://github.com/apache/hadoop/blob/2a67e2b1a0e3a5f91056f5b977ef9c4c07ba6718/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java#L4002
+Causes additional getFileStatus call here (permalink): https://github.com/apache/hadoop/blob/1921e94292f0820985a0cfbf8922a2a1a67fe921/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/fs/Globber.java#L308
+Current code snippet:
+
+
+/**
+   * Override superclass so as to disable symlink resolution and so avoid
+   * some calls to the FS which may have problems when the store is being
+   * inconsistent.
+   * {@inheritDoc}
+   */
+  @Override
+  public FileStatus[] globStatus(
+      final Path pathPattern,
+      final PathFilter filter)
+      throws IOException {
+    entryPoint(INVOCATION_GLOB_STATUS);
+    return Globber.createGlobber(this)
+        .withPathPattern(pathPattern)
+        .withPathFiltern(filter)
+        .withResolveSymlinks(true)
+        .build()
+        .glob();
+  }
+
+
+ 
+The fix should be pretty simple, just flip "withResolveSymlinks" to false.

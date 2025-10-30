@@ -1,0 +1,28 @@
+Capital P gets confused in the parser for a Duration in places where IDENT are needed
+This was found while adding Accord Transaction syntax into CQL and fuzz testing to validate all possible cases… in doing this the following was found
+
+
+String query = "BEGIN TRANSACTION\n" +
+                           "  LET P = (SELECT v FROM " + keyspace + ".tbl WHERE k=? AND c=?);\n" +
+                           "  LET row2 = (SELECT v FROM " + keyspace + ".tbl WHERE k=? AND c=?);\n" +
+                           "  SELECT v FROM " + keyspace + ".tbl WHERE k=? AND c=?;\n" +
+                           "  IF P IS NULL AND row2.v = ? THEN\n" +
+                           "    INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (?, ?, ?);\n" +
+                           "  END IF\n" +
+                           "COMMIT TRANSACTION";
+
+
+Fails with
+
+
+SyntaxException: line 2:6 mismatched input 'P' expecting IDENT (BEGIN TRANSACTION  LET [P]...)
+
+
+The new LET syntax found this, but was able to reproduce in other cases
+
+
+cqlsh:ks> CREATE TABLE P (k INT PRIMARY KEY);
+SyntaxException: line 1:13 no viable alternative at input 'P' (CREATE TABLE [P]...)
+cqlsh:ks>
+cqlsh:ks> CREATE TABLE p (k INT PRIMARY KEY);
+cqlsh:ks>

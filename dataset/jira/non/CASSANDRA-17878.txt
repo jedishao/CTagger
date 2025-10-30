@@ -1,0 +1,24 @@
+Harden parsing of boolean values in CQL in PropertyDefinitions
+There is currently this in PropertyDefinitions class as a pattern we use for testing a boolean value in cqlsh
+
+
+private static final Pattern PATTERN_POSITIVE = Pattern.compile("(1|true|yes)");
+
+
+This might be source of mistakes and typos. For example, if a user does, for example:
+
+
+ALTER TABLE ks.tb WITH cdc = tru;
+
+
+If he does not notice it, he thinks that cdc is true, but it is not. 
+More to it, currently, everything which is not "1", "true", or "yes" is evaluated as false. We should harden this in such a way that both logical true and false would be parsed only on well defined values and every other value would be rejected and a query would fail.
+EDIT: I have checked how it behaves in cqlsh and there seems to be validation of this already like this:
+
+
+cqlsh> ALTER TABLE abc.def WITH cdc = tru;
+SyntaxException: line 1:31 no viable alternative at input 'tru' (ALTER TABLE abc.def WITH [cdc] =...)
+
+
+It seems that cqlsh already knows this should be a boolean and rejects such query.
+Nevertheless, it is still reasonable to harden this on the code level when a query is executed in Java, programmatically (e.g. as part of tests or similar). The patch also includes optimizations to not return Boolean but boolean on related methods (other primitives are covered as well).

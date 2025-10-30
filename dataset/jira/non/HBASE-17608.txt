@@ -1,0 +1,4 @@
+Add suspend support for RawScanResultConsumer
+Now for the AsyncResultScanner, we can only close the scanner if we reach the cache size limit and open a new scanner later. This will breaks the region level consistency.
+For example, you put 10 rows to the region, and open a scanner to scan it. The scanner returns 5 rows at the first time and the cache is full, so it closes the background scanner. And before you reopens the scanner to fetch data, the remaining 5 rows has been deleted and a compaction makes them gone for ever. Then after you reopen the scanner you can not see the remaining 5 rows.
+So here we should keep the scanner open at RS side to prevent the data below the mvcc read point of this scanner being deleted.

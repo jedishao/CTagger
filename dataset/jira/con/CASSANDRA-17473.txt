@@ -1,0 +1,18 @@
+sstables changing in snapshots
+We use cassandra snapshots and tar to make full backups of our cassandra clusters. Sometimes, tar fails with a message like
+
+{{tar: data/addresses/addresses-eb0196100b7d11ec852b1541747d640a/snapshots/backup20220318183708/nb-167-big-Data.db: file changed as we read it}}
+
+This is kind of strange, since we're reading from a snapshot.
+
+The (very simplified) relevant snippet looks roughly like
+{code:java}
+nice nodetool "${JMX_ARGS[@]}" snapshot -t "$TAG" "${KEYSPACES[@]}"
+tar --hard-dereference -czpf data///snapshots/"$TAG"/{code}
+This happens maybe 1% of the time when taking backups.
+
+There are no concurrent snapshots going on, but there are concurrent compactions and repairs, of course. If it matters, this cluster _is_ running incremental repairs.
+
+This is on Cassandra 4.0.3.
+
+It seems wrong to me that an sstable could ever be written to while it's in a snapshot.

@@ -1,0 +1,33 @@
+Support hypothetical set functions and inverse distribution functions as aggregate functions
+In SQL, hypothetical set functions (rank, dense_rank, percent_rank and cume_dist); and inverse distribution functions (percentile_cont, percentile_disc) can either be used as aggregate functions or analytic functions (along with the over clause). As aggregate functions, the value produced is as if the value were inserted into the group, appropriate ordering is done, and the analytic variety of the function is applied.
+Hive currently supports the analytic variety but not the aggregate variety.
+For rank functions the syntax is:
+
+<hypothetical set function> ::=
+  <rank function type> <left paren>
+      <hypothetical set function value expression list> <right paren>
+      <within group specification>
+
+<within group specification> ::=
+  WITHIN GROUP <left paren> ORDER BY <sort specification list> <right paren>
+
+
+Contrasting this with the analytic variety, the rank function requires 1 or more value expressions and an equal number of sort keys. Many restrictions are placed on the types of value expressions and sort list. Generally supported are constants, simple columns or row-level functions involving columns.
+Inverse distribution syntax is very similar.
+A common use case would be to suppose you have a table of salaries like this:
+Bob,Marketing,$25000
+Jim,Sales,$50000
+Ankit,Engineering,$75000
+Suppose you wanted to know where the rank of a salary of $60000 would be in the company
+select rank(60000) within group ( order by salary desc ) from salary -> Returns 2
+Where would this salary rank, broken down by department?
+select department, rank(60000) within group ( order by salary desc ) from salary group by department -> Returns 2, 1 and 1 for the ranks.
+The aggregate variety is re-written in terms of the analytic variety. For example the rank in example above is obtained by re-writing the query as:
+select rank_val from (
+  select marker, rank() over ( order by col1 desc ) from (
+    select 0, salary from salary
+      union all
+    values (1, 60000)) as sub(marker, col1))
+  as temp (marker, rank_val)
+where marker = 1;
+A general writeup is available in the SQL:2011 standard, section 10.9, general rule 8.

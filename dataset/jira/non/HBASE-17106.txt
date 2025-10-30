@@ -1,0 +1,11 @@
+Wrap arguments to Coprocessor method invocations in Context objects
+As discussed in various contexts (and recently in https://issues.apache.org/jira/browse/HBASE-16962?focusedCommentId=15648512&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-15648512) we have a very large number of deprecated methods in RegionObserver (and possibly others) which are due to the fact that the method signatures like: 
+
+  @Deprecated
+  InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
+      final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s)
+      throws IOException;
+
+
+depend inherently on the internal method signatures which gets changed frequently. 
+We should look into wrapping the method arguments for such declerations in the RegionObserver interface so that we can evolve and add new arguments without breaking existing coprocessors between minor versions.

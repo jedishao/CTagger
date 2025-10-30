@@ -1,0 +1,10 @@
+Hive - MAX Window function does not accept more than 1 sort key and does not work as expected with rows window clause
+Hi,
+I see MAX window function is throwing error if I use more than one order by clause. But when I use window clause (rows), it works fine but the results are not as expected as shown below.
+From the data shown below, I was expecting max_individual_id should be 42562 for all the individuals under same HICN_NBR but I am getting different results. I tried "rows unbounded preceding and unbounded following" but results are still not as expected. Please let me know if this is an issue?
+Query:
+select individual_id, MAX(individual_id) over (partition by HICN_NBR order by eff_dt desc, cncl_dt desc, individual_id desc rows unbounded preceding) as max_individual_id,
+       hicn_nbr, eff_dt, cncl_dt
+from MFW_MeasureMembership_BOTH MM 
+where Remove_ASH <> 1 and Remove_AGB <> 1 and Remove_FARM_151 <> 1 and Remove_JCA <> 1 and Remove_CVTY <> 1
+      and trim(HICN_NBR)='15248461314T';

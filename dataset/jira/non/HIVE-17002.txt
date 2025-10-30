@@ -1,0 +1,73 @@
+decimal (binary) is not working when creating external table for hbase
+I have a table in Hbase which has a column stored using Bytes.toBytes((BigDecimal) value). Hbase version is 1.2.0
+
+I'm creating an external table in hive to access it like this:
+
+{noformat}
+create external table `Users`(key int, ..., `example_column` decimal) 
+    stored by 'org.apache.hadoop.hive.hbase.HBaseStorageHandler' 
+    with serdeproperties ("hbase.columns.mapping" = ":key, db:example_column") 
+    tblproperties("hbase.table.name" = "Users","hbase.table.default.storage.type" = "binary");
+{noformat}
+
+Table is created without errors. After that I try running "select * from users;" and see this error:
+
+{noformat}
+org.apache.hive.service.cli.HiveSQLException:java.io.IOException: java.lang.RuntimeException: java.lang.RuntimeException: Hive Internal Error: no LazyObject for org.apache.hadoop.hive.serde2.lazy.objectinspector.primitive.LazyHiveDecimalObjectInspector@1f18cebb:25:24  
+   org.apache.hive.service.cli.operation.SQLOperation:getNextRowSet:SQLOperation.java:484  
+   org.apache.hive.service.cli.operation.OperationManager:getOperationNextRowSet:OperationManager.java:308  
+   org.apache.hive.service.cli.session.HiveSessionImpl:fetchResults:HiveSessionImpl.java:847  
+   sun.reflect.GeneratedMethodAccessor11:invoke::-1  
+   sun.reflect.DelegatingMethodAccessorImpl:invoke:DelegatingMethodAccessorImpl.java:43  
+   java.lang.reflect.Method:invoke:Method.java:498  
+   org.apache.hive.service.cli.session.HiveSessionProxy:invoke:HiveSessionProxy.java:78  
+   org.apache.hive.service.cli.session.HiveSessionProxy:access$000:HiveSessionProxy.java:36  
+   org.apache.hive.service.cli.session.HiveSessionProxy$1:run:HiveSessionProxy.java:63  
+   java.security.AccessController:doPrivileged:AccessController.java:-2  
+   javax.security.auth.Subject:doAs:Subject.java:422  
+   org.apache.hadoop.security.UserGroupInformation:doAs:UserGroupInformation.java:1698  
+   org.apache.hive.service.cli.session.HiveSessionProxy:invoke:HiveSessionProxy.java:59  
+   com.sun.proxy.$Proxy33:fetchResults::-1  
+   org.apache.hive.service.cli.CLIService:fetchResults:CLIService.java:504  
+   org.apache.hive.service.cli.thrift.ThriftCLIService:FetchResults:ThriftCLIService.java:698  
+   org.apache.hive.service.rpc.thrift.TCLIService$Processor$FetchResults:getResult:TCLIService.java:1717  
+   org.apache.hive.service.rpc.thrift.TCLIService$Processor$FetchResults:getResult:TCLIService.java:1702  
+   org.apache.thrift.ProcessFunction:process:ProcessFunction.java:39  
+   org.apache.thrift.TBaseProcessor:process:TBaseProcessor.java:39  
+   org.apache.hive.service.auth.TSetIpAddressProcessor:process:TSetIpAddressProcessor.java:56  
+   org.apache.thrift.server.TThreadPoolServer$WorkerProcess:run:TThreadPoolServer.java:286  
+   java.util.concurrent.ThreadPoolExecutor:runWorker:ThreadPoolExecutor.java:1142  
+   java.util.concurrent.ThreadPoolExecutor$Worker:run:ThreadPoolExecutor.java:617  
+   java.lang.Thread:run:Thread.java:748  
+   *java.io.IOException:java.lang.RuntimeException: java.lang.RuntimeException: Hive Internal Error: no LazyObject for org.apache.hadoop.hive.serde2.lazy.objectinspector.primitive.LazyHiveDecimalObjectInspector@1f18cebb:27:2  
+   org.apache.hadoop.hive.ql.exec.FetchTask:fetch:FetchTask.java:164  
+   org.apache.hadoop.hive.ql.Driver:getResults:Driver.java:2098  
+   org.apache.hive.service.cli.operation.SQLOperation:getNextRowSet:SQLOperation.java:479  
+   *java.lang.RuntimeException:java.lang.RuntimeException: Hive Internal Error: no LazyObject for org.apache.hadoop.hive.serde2.lazy.objectinspector.primitive.LazyHiveDecimalObjectInspector@1f18cebb:43:16  
+   org.apache.hadoop.hive.serde2.lazy.LazyStruct:initLazyFields:LazyStruct.java:172  
+   org.apache.hadoop.hive.hbase.LazyHBaseRow:initFields:LazyHBaseRow.java:122  
+   org.apache.hadoop.hive.hbase.LazyHBaseRow:getField:LazyHBaseRow.java:116  
+   org.apache.hadoop.hive.serde2.lazy.objectinspector.LazySimpleStructObjectInspector:getStructFieldData:LazySimpleStructObjectInspector.java:128  
+   org.apache.hadoop.hive.ql.exec.ExprNodeColumnEvaluator:_evaluate:ExprNodeColumnEvaluator.java:94  
+   org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator:evaluate:ExprNodeEvaluator.java:77  
+   org.apache.hadoop.hive.ql.exec.ExprNodeGenericFuncEvaluator$DeferredExprObject:get:ExprNodeGenericFuncEvaluator.java:87  
+   org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual:evaluate:GenericUDFOPEqual.java:103  
+   org.apache.hadoop.hive.ql.exec.ExprNodeGenericFuncEvaluator:_evaluate:ExprNodeGenericFuncEvaluator.java:186  
+   org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator:evaluate:ExprNodeEvaluator.java:77  
+   org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator:evaluate:ExprNodeEvaluator.java:65  
+   org.apache.hadoop.hive.ql.exec.FilterOperator:process:FilterOperator.java:112  
+   org.apache.hadoop.hive.ql.exec.Operator:forward:Operator.java:879  
+   org.apache.hadoop.hive.ql.exec.TableScanOperator:process:TableScanOperator.java:130  
+   org.apache.hadoop.hive.ql.exec.FetchOperator:pushRow:FetchOperator.java:438  
+   org.apache.hadoop.hive.ql.exec.FetchOperator:pushRow:FetchOperator.java:430  
+   org.apache.hadoop.hive.ql.exec.FetchTask:fetch:FetchTask.java:146  
+java.lang.RuntimeException:Hive Internal Error: no LazyObject for org.apache.hadoop.hive.serde2.lazy.objectinspector.primitive.LazyHiveDecimalObjectInspector@1f18cebb:49:6  
+   org.apache.hadoop.hive.serde2.lazy.LazyFactory:createLazyPrimitiveBinaryClass:LazyFactory.java:169  
+   org.apache.hadoop.hive.serde2.lazy.LazyFactory:createLazyPrimitiveClass:LazyFactory.java:92  
+   org.apache.hadoop.hive.serde2.lazy.LazyFactory:createLazyObject:LazyFactory.java:207  
+   org.apache.hadoop.hive.hbase.HBaseSerDeHelper:createLazyField:HBaseSerDeHelper.java:389  
+   org.apache.hadoop.hive.hbase.struct.DefaultHBaseValueFactory:createValueObject:DefaultHBaseValueFactory.java:72  
+   org.apache.hadoop.hive.hbase.LazyHBaseRow:createLazyField:LazyHBaseRow.java:94  
+   org.apache.hadoop.hive.serde2.lazy.LazyStruct:initLazyFields:LazyStruct.java:170
+{noformat}
+

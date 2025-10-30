@@ -1,0 +1,105 @@
+Disabling table not getting enabled after clean cluster restart.
+scenario:
+1. Disable the table, while disabling the table is in progress.
+2. Restart whole HBase service.
+3. Then enable the table.
+
+the above operation leads to RIT continously.
+
+pls find the below logs for understanding.
+
+while disabling the table whole hbase service went down.
+the following is the master logs
+{noformat}
+2016-11-09 19:32:55,102 INFO  [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.HMaster: Client=seenu//host-1 disable testTable
+2016-11-09 19:32:55,257 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] procedure2.ProcedureExecutor: Procedure DisableTableProcedure (table=testTable) id=8 owner=seenu state=RUNNABLE:DISABLE_TABLE_PREPARE added to the store.
+2016-11-09 19:32:55,264 DEBUG [ProcedureExecutor-5] lock.ZKInterProcessLockBase: Acquired a lock for /hbase/table-lock/testTable/write-master:160000000000005
+2016-11-09 19:32:55,285 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=8
+2016-11-09 19:32:55,386 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=8
+2016-11-09 19:32:55,513 INFO  [ProcedureExecutor-5] zookeeper.ZKTableStateManager: Moving table testTable state from DISABLING to DISABLING
+2016-11-09 19:32:55,587 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=8
+2016-11-09 19:32:55,628 INFO  [ProcedureExecutor-5] procedure.DisableTableProcedure: Offlining 1 regions.
+.
+.
+.
+.
+.
+.
+.
+.
+2016-11-09 19:33:02,871 INFO  [AM.ZK.Worker-pool2-t7] master.RegionStates: Offlined 1890fa9c085dcc2ee0602f4bab069d10 from host-1,16040,1478690163056
+Wed Nov  9 19:33:02 CST 2016 Terminating master
+{noformat}
+
+here we need to observe
+{color:red} Offlined 1890fa9c085dcc2ee0602f4bab069d10 from host-1,16040,1478690163056 {color}
+then hmaster went down, all regionServers also made down.
+
+
+
+After hmaster and regionserver are restarted
+executed enable Table operation on the table.
+{panel:title=HMaster Logs|borderStyle=dashed|borderColor=#ccc|titleBGColor=#F7D6C1|bgColor=#FFFFCE}
+{noformat}
+2016-11-09 19:49:57,059 INFO  [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.HMaster: Client=seenu//host-1 enable testTable
+2016-11-09 19:49:57,325 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] procedure2.ProcedureExecutor: Procedure EnableTableProcedure (table=testTable) id=9 owner=seenu state=RUNNABLE:ENABLE_TABLE_PREPARE added to the store.
+2016-11-09 19:49:57,333 DEBUG [ProcedureExecutor-2] lock.ZKInterProcessLockBase: Acquired a lock for /hbase/table-lock/testTable/write-master:160000000000008
+2016-11-09 19:49:57,335 DEBUG [hconnection-0x745317ee-shared--pool3-t11] ipc.RpcClientImpl: Use SIMPLE authentication for service ClientService, sasl=false
+2016-11-09 19:49:57,335 DEBUG [hconnection-0x745317ee-shared--pool3-t11] ipc.RpcClientImpl: Connecting to host-1:16040
+2016-11-09 19:49:57,347 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=9
+2016-11-09 19:49:57,449 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=9
+2016-11-09 19:49:57,579 INFO  [ProcedureExecutor-2] procedure.EnableTableProcedure: Attempting to enable the table testTable
+2016-11-09 19:49:57,580 INFO  [ProcedureExecutor-2] zookeeper.ZKTableStateManager: Moving table testTable state from DISABLED to ENABLING
+2016-11-09 19:49:57,655 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=9
+2016-11-09 19:49:57,707 INFO  [ProcedureExecutor-2] procedure.EnableTableProcedure: Table 'testTable' has 1 regions, of which 1 are offline.
+2016-11-09 19:49:57,707 INFO  [ProcedureExecutor-2] procedure.EnableTableProcedure: Bulk assigning 1 region(s) across 1 server(s), retainAssignment=true
+2016-11-09 19:49:57,710 DEBUG [ProcedureExecutor-2] master.GeneralBulkAssigner: Timeout-on-RIT=91000
+2016-11-09 19:49:57,710 INFO  [host-1,16000,1478691456965-GeneralBulkAssigner-0] master.AssignmentManager: Assigning 1 region(s) to host-1,16040,1478691644081
+{noformat}
+.
+.
+.
+{color:red}
+2016-11-09 19:49:57,718 DEBUG [AM.-pool1-t1] master.AssignmentManager: Force region state offline {1890fa9c085dcc2ee0602f4bab069d10 state=OFFLINE, ts=1478692197716, server=host-1,16040,1478690163056}
+2016-11-09 19:49:57,722 INFO  [AM.-pool1-t1] master.AssignmentManager: Skip assigning testTable,,1478689618299.1890fa9c085dcc2ee0602f4bab069d10., it is on a dead but not processed yet server: host-1,16040,1478690163056
+{color}
+{noformat}
+2016-11-09 19:49:57,957 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=9
+2016-11-09 19:49:58,459 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=9
+2016-11-09 19:49:59,462 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=9
+{noformat}
+.
+.
+.
+{noformat}
+2016-11-09 19:51:38,720 DEBUG [ProcedureExecutor-2] master.GeneralBulkAssigner: bulk assigning total 1 regions to 1 servers, took 101010ms, with 1 regions still in transition
+2016-11-09 19:51:38,728 DEBUG [ProcedureExecutor-2] procedure.EnableTableProcedure: Skipping assign for the region {ENCODED => 1890fa9c085dcc2ee0602f4bab069d10, NAME => 'testTable,,1478689618299.1890fa9c085dcc2ee0602f4bab069d10.', STARTKEY => '', ENDKEY => ''} during enable table testTable because its already in tranition or assigned.
+2016-11-09 19:51:38,728 INFO  [ProcedureExecutor-2] procedure.EnableTableProcedure: Table 'testTable' has 1 regions, of which 0 are offline.
+2016-11-09 19:51:38,840 INFO  [ProcedureExecutor-2] zookeeper.ZKTableStateManager: Moving table testTable state from ENABLING to ENABLED
+{noformat}
+{color:red}
+2016-11-09 19:51:38,846 INFO  [ProcedureExecutor-2] procedure.EnableTableProcedure: Table 'testTable' was successfully enabled. 
+{color}
+{noformat}
+2016-11-09 19:51:39,081 DEBUG [ProcedureExecutor-2] lock.ZKInterProcessLockBase: Released /hbase/table-lock/testTable/write-master:160000000000008
+2016-11-09 19:51:39,081 DEBUG [ProcedureExecutor-2] procedure2.ProcedureExecutor: Procedure completed in 1mins, 41.898sec: EnableTableProcedure (table=testTable) id=9 owner=seenu state=FINISHED
+2016-11-09 19:51:45,485 DEBUG [RpcServer.FifoWFPBQ.default.handler=49,queue=4,port=16000] master.MasterRpcServices: Checking to see if procedure is done procId=9
+2016-11-09 19:53:08,485 DEBUG [RpcServer.reader=4,bindAddress=host-1,port=16000] ipc.RpcServer: RpcServer.listener,port=16000: DISCONNECTING client host-1:40313 because read count=-1. Number of active connections: 3
+2016-11-09 19:53:45,504 DEBUG [RpcServer.reader=3,bindAddress=host-1,port=16000] ipc.RpcServer: RpcServer.listener,port=16000: DISCONNECTING client host-1:40281 because read count=-1. Number of active connections: 2
+{noformat}
+{color:red}
+2016-11-09 19:55:48,650 DEBUG [host-1,16000,1478691456965_ChoreService_1] master.HMaster: Not running balancer because 1 region(s) in transition: {1890fa9c085dcc2ee0602f4bab069d10={1890fa9c085dcc2ee0602f4bab069d10 state=OFFLINE, ts=1478692197716, server=host-1,16040,1478690163056}}
+{color}
+{noformat}
+2016-11-09 19:55:48,650 WARN  [host-1,16000,1478691456965_ChoreService_1] master.CatalogJanitor: CatalogJanitor disabled! Not running scan.
+2016-11-09 19:57:09,336 DEBUG [ProcedureExecutorTimeout] procedure2.ProcedureExecutor$CompletedProcedureCleaner: Evict completed procedure: Procedure=EnableTableProcedure (table=testTable) (id=9, owner=seenu, state=FINISHED, startTime=7mins, 12sec ago, lastUpdate=7mins, 12sec ago)
+{noformat}
+.
+.
+.
+{color:red}
+2016-11-09 20:10:48,408 DEBUG [host-1,16000,1478691456965_ChoreService_1] master.HMaster: Not running balancer because 1 region(s) in transition: {1890fa9c085dcc2ee0602f4bab069d10={1890fa9c085dcc2ee0602f4bab069d10 state=OFFLINE, ts=1478692197716, server=host-1,16040,1478690163056}}
+{color}
+{panel}
+
+region is continuously is in RIT, because new hmaster is trying to make the region offline request sending to dead regionserver. 

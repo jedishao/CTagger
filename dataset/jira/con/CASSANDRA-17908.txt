@@ -1,0 +1,24 @@
+IllegalArgumentException in Gossiper#order due to concurrent mutations to elements being applied
+org.apache.cassandra.gms.Gossiper#order was added due to sub-systems depending on a happens-before relationship of events even though Gossip does not provide such ordering… to help out we “order” the events discovered by gossip so we apply them in a predictable order… This has been found to have issues where we add the elements into the global state and under some conditions they get mutated causing ordering to fail
+
+{code}
+ERROR 2022-09-01T19:04:24,789 [GossipStage:1] org.apache.cassandra.service.CassandraDaemon:234 - Exception in thread Thread[GossipStage:1,5,main]
+java.lang.IllegalArgumentException: Comparison method violates its general contract!
+at java.util.TimSort.mergeLo(TimSort.java:777) 
+at java.util.TimSort.mergeAt(TimSort.java:514) 
+at java.util.TimSort.mergeForceCollapse(TimSort.java:457) 
+at java.util.TimSort.sort(TimSort.java:254) 
+at java.util.Arrays.sort(Arrays.java:1512) 
+at java.util.ArrayList.sort(ArrayList.java:1464) 
+at java.util.Collections.sort(Collections.java:177) 
+at org.apache.cassandra.gms.Gossiper.order(Gossiper.java:1327) 
+at org.apache.cassandra.gms.Gossiper.applyStateLocally(Gossiper.java:1334) 
+at org.apache.cassandra.gms.GossipDigestAck2VerbHandler.doVerb(GossipDigestAck2VerbHandler.java:49) 
+at org.apache.cassandra.net.MessageDeliveryTask.run(MessageDeliveryTask.java:70) 
+at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) 
+at java.util.concurrent.FutureTask.run(FutureTask.java:266) 
+at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) 
+at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) 
+at org.apache.cassandra.concurrent.NamedThreadFactory.lambda$threadLocalDeallocator$0(NamedThreadFactory.java:116) 
+at java.lang.Thread.run(Thread.java:750) [?:1.8.0_345]
+{code}

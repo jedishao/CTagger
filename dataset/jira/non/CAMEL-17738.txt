@@ -1,0 +1,28 @@
+camel-spring-boot - Cannot load resources from nested jar inside spring boot fat jar
+In camel 3.14.1 / spring boot 2.6.3 XML routes cannot be loaded from a nested jar.  I suspect earlier versions of both are also affected, but Camel 3.4.x + Spring Boot 2.3.x did load them ok.  
+In this code from FatJarPackageScanResourceResolver, "name" is the nested jar name - it will end in .jar.  To traverse into the spring boot jar it would need to go into the second branch - the  "else if"  - but it will always go into the first branch because it is a not a directory and the name does not end in .class.  
+ 
+
+
+                String name = entry.getName();
+
+                name = name.trim();
+                if (!entry.isDirectory() && !name.endsWith(".class")) {
+                    name = cleanupSpringBootClassName(name);
+                    // name is FQN so it must start with package name
+                    if (name.startsWith(packageName)) {
+                        entries.add(name);
+                    }
+                } else if (inspectNestedJars && !entry.isDirectory() && isSpringBootNestedJar(name)) {
+                    String nestedUrl = urlPath + "!/" + name;
+                    log.trace("Inspecting nested jar: {}", nestedUrl);
+
+                    List<String> nestedEntries = doLoadImplementationsInJar(packageName, jarStream, nestedUrl, false, false);
+                    entries.addAll(nestedEntries);
+                }
+
+
+ 
+I think this code was copied from the class resolver and name.endsWith(".class") changed to !name.endswith(".class") but it doesn't do what is needed.
+ 
+Solution may be to swap the order of the if checks so that nested jars are found & traversed first.

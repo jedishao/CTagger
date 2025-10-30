@@ -1,0 +1,89 @@
+camel-servlet - Osgi DataSource not found after update
+Maybe related to CAMEL-17015
+as mentioned here:https://camel.zulipchat.com/#narrow/stream/257300-camel-karaf/topic/Problem.20with.20REST.20services.20after.20upgrading.20to.20Camel.203.2E11.2E2/near/256197689
+After Update the DataSource is not found by the routes.
+We initialize our runtime like this:
+
+
+camelContext = new OsgiDefaultCamelContext(bundleContext) {
+				@Override
+				public void init() {
+					final RouteBuilder routes = createRoutes();
+					routes.restConfiguration().componentProperty("servletName", "my.custom.servletName").clientRequestValidation(true);
+					this.addRoutes(routes);
+					super.init();
+				}
+
+
+Our routes look like
+
+
+...
+.toF("sql-stored:pwp.receive_sync(OUT VARCHAR result, BINARY ${in.body})?function=true&dataSource=%s",	 "DataSourceName")
+
+
+We register the DataSource as OSGI Service like this:
+
+
+inal Dictionary<String, String> properties = new Hashtable<>();// NOSONAR
+properties.put(Constants.SERVICE_PID, "DataSourceName");
+registerService(javax.sql.DataSource.class, ds, properties);
+
+
+After upgrading from 3.4.4 to 3.11.3 the Datasource isn't found anymore
+I compared the calls to SqlComponent.setDataSource and getDatasource and the lookup of the DataSource via OsgiBeanRepository.lookupByName(String):
+in 3.4.4 setDataSource and getDatasource are not called and the OsgiBeanRepository.lookupByName is called 2 or three times (always returning the service)
+in 3.11.3 SqlComponent.getDataSource is called at first and multiple times always returning null because no one calls setDatasource. OsgiBeanRepository.lookupByName is called once also returning the registered service.
+Route creation fails with errors like:
+
+
+2021-10-19 16:41:04,760 ERROR [BlueprintContainerImpl] Unable to start container for blueprint bundle com.godyo.p5.servicemix.camel/5.0.2145.qualifier
+ org.osgi.service.blueprint.container.ComponentDefinitionException: Error when instantiating bean test_artnr of class org.apache.camel.Endpoint
+ at org.apache.aries.blueprint.container.BeanRecipe.wrapAsCompDefEx(BeanRecipe.java:362)
+ at org.apache.aries.blueprint.container.BeanRecipe.getInstanceFromFactory(BeanRecipe.java:298)
+ at org.apache.aries.blueprint.container.BeanRecipe.getInstance(BeanRecipe.java:279)
+ at org.apache.aries.blueprint.container.BeanRecipe.internalCreate2(BeanRecipe.java:685)
+ at org.apache.aries.blueprint.container.BeanRecipe.internalCreate(BeanRecipe.java:666)
+ at org.apache.aries.blueprint.di.AbstractRecipe$1.call(AbstractRecipe.java:81)
+ at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+ at org.apache.aries.blueprint.di.AbstractRecipe.create(AbstractRecipe.java:90)
+ at org.apache.aries.blueprint.container.BlueprintRepository.createInstances(BlueprintRepository.java:360)
+ at org.apache.aries.blueprint.container.BlueprintRepository.createAll(BlueprintRepository.java:190)
+ at org.apache.aries.blueprint.container.BlueprintContainerImpl.instantiateEagerComponents(BlueprintContainerImpl.java:737)
+ at org.apache.aries.blueprint.container.BlueprintContainerImpl.doRun(BlueprintContainerImpl.java:433)
+ at org.apache.aries.blueprint.container.BlueprintContainerImpl.run(BlueprintContainerImpl.java:298)
+ at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+ at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+ at org.apache.aries.blueprint.container.ExecutorServiceWrapper.run(ExecutorServiceWrapper.java:106)
+ at org.apache.aries.blueprint.utils.threading.impl.DiscardableRunnable.run(DiscardableRunnable.java:45)
+ at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+ at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+ at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:304)
+ at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+ at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+ at java.base/java.lang.Thread.run(Thread.java:834)
+ Caused by: org.apache.camel.ResolveEndpointFailedException: Failed to resolve endpoint: sql://SELECT%20ARTNR%20FROM%20ARSTAMM%20WHERE%20ARTNR=rpad(':%23$%7Bheader.artnr%7D',18)?dataSource=P4-DataSource&outputHeader=foundArtnr due to: DataSource must be configured
+ at org.apache.camel.impl.engine.AbstractCamelContext.doGetEndpoint(AbstractCamelContext.java:962)
+ at org.apache.camel.impl.engine.AbstractCamelContext.getEndpoint(AbstractCamelContext.java:844)
+ at org.apache.camel.core.xml.AbstractCamelEndpointFactoryBean.getObject(AbstractCamelEndpointFactoryBean.java:54)
+ at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+ at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+ at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+ at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+ at org.apache.aries.blueprint.utils.ReflectionUtils.invoke(ReflectionUtils.java:337)
+ at org.apache.aries.blueprint.container.BeanRecipe.invoke(BeanRecipe.java:835)
+ at org.apache.aries.blueprint.container.BeanRecipe.getInstanceFromFactory(BeanRecipe.java:296)
+ ... 21 common frames omitted
+ Caused by: java.lang.IllegalArgumentException: DataSource must be configured
+ at org.apache.camel.component.sql.SqlComponent.createEndpoint(SqlComponent.java:105)
+ at org.apache.camel.support.DefaultComponent.createEndpoint(DefaultComponent.java:171)
+ at org.apache.camel.impl.engine.AbstractCamelContext.doGetEndpoint(AbstractCamelContext.java:928)
+ ... 30 common frames omitted
+{code:java}
+ 
+
+Any help is more than welcome.
+Thanks,  Peter
+Bonus Question:
+ why is that "workaround"(overriding init() method) for the OsgiDefaultCamelContext necessary? (otherwise the routes are not picked up)
+ What would be "the right way"(tm) to do the initialization?

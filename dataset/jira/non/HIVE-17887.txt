@@ -1,0 +1,45 @@
+Incremental REPL LOAD with Drop partition event on timestamp type partition column fails.
+When try to replicate the drop partition event on a table with partition on timestamp type column fails in REPL LOAD.
+Scenario:
+1. create table with partition on timestamp column.
+2.bootstrap dump/load.
+3. insert a record to create partition(p="2001-11-09 00:00:00.0").
+4. drop the same partition(p="2001-11-09 00:00:00.0").
+5. incremental dump/load
+– REPL LOAD throws below exception
+2017-10-23 12:26:14,050 ERROR [HiveServer2-Background-Pool: Thread-36769]: metastore.RetryingHMSHandler (RetryingHMSHandler.java:invokeInternal(203)) - MetaException(message:Error parsing partition filter; lexer error: line 1:18 no viable alternative at character ':'; exception MismatchedTokenException(12!=23))
+        at org.apache.hadoop.hive.metastore.ObjectStore.getFilterParser(ObjectStore.java:2759)
+        at org.apache.hadoop.hive.metastore.ObjectStore.getPartitionsByFilterInternal(ObjectStore.java:2708)
+        at org.apache.hadoop.hive.metastore.ObjectStore.getPartitionsByFilter(ObjectStore.java:2517)
+        at sun.reflect.GeneratedMethodAccessor362.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.RawStoreProxy.invoke(RawStoreProxy.java:103)
+        at com.sun.proxy.$Proxy18.getPartitionsByFilter(Unknown Source)
+        at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.get_partitions_by_filter(HiveMetaStore.java:4957)
+        at sun.reflect.GeneratedMethodAccessor361.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invokeInternal(RetryingHMSHandler.java:147)
+        at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invoke(RetryingHMSHandler.java:105)
+        at com.sun.proxy.$Proxy21.get_partitions_by_filter(Unknown Source)
+        at org.apache.hadoop.hive.metastore.HiveMetaStoreClient.listPartitionsByFilter(HiveMetaStoreClient.java:1200)
+        at sun.reflect.GeneratedMethodAccessor360.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.hadoop.hive.metastore.RetryingMetaStoreClient.invoke(RetryingMetaStoreClient.java:178)
+        at com.sun.proxy.$Proxy22.listPartitionsByFilter(Unknown Source)
+        at org.apache.hadoop.hive.ql.metadata.Hive.getPartitionsByFilter(Hive.java:2562)
+        at org.apache.hadoop.hive.ql.exec.DDLTask.dropPartitions(DDLTask.java:4018)
+        at org.apache.hadoop.hive.ql.exec.DDLTask.dropTableOrPartitions(DDLTask.java:3993)
+        at org.apache.hadoop.hive.ql.exec.DDLTask.execute(DDLTask.java:343)
+        at org.apache.hadoop.hive.ql.exec.Task.executeTask(Task.java:162)
+        at org.apache.hadoop.hive.ql.exec.TaskRunner.runSequential(TaskRunner.java:89)
+        at org.apache.hadoop.hive.ql.Driver.launchTask(Driver.java:1751)
+        at org.apache.hadoop.hive.ql.Driver.execute(Driver.java:1497)
+        at org.apache.hadoop.hive.ql.Driver.runInternal(Driver.java:1294)
+        at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1161)
+        at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1156)
+        at org.apache.hive.service.cli.operation.SQLOperation.runQuery(SQLOperation.java:197)
+        at org.apache.hive.service.cli.operation.SQLOperation.access$300(SQLOperation.java:76)
+        at org.apache.hive.service.cli.operation.SQLOperation$2$1.run(SQLOperation.java:255)

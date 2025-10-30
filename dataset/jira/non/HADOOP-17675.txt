@@ -1,0 +1,6 @@
+LdapGroupsMapping$LdapSslSocketFactory ClassNotFoundException
+Using LdapGroupsMapping with SSL enabled causes ClassNotFoundException when it is called through native threads, such as Apache Impala does.
+When a thread is attached to the VM, the currentThread's context classloader is null, so when jndi internally tries to use the current thread's context classloader to load the socket factory implementation, the Class.forname(String, boolean, ClassLoader) method gets a null as the loader  uses the bootstrap classloader.
+ Meanwhile the LdapGroupsMapping class and the SslSocketFactory defined in it is loaded by the application classloader from its classpath.
+As the bootstrap classloader does not have hadoop-common in its classpath, when a native thread tries to use/load the LdapGroupsMapping class it can't because the bootstrap loader can't load anything from hadoop-common. The correct solution seems to be to set the currentThread's context classloader to the classloader of LdapGroupsMapping class before initializing the jndi internals, and then reset to the original value after, with that we can ensure that the behaviour of other things does not change, but this failure can be avoided as well.
+Attached the complete stacktrace to this Jira.

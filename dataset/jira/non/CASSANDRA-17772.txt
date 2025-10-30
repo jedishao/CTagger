@@ -1,0 +1,10 @@
+Improve documentation around query methods in CQLTester and GuardrailTester
+Anything that relies on CQLTester.executeFormattedQuery (the assertInvalidThrowMessage methods for instance) will use internal client state rather than the client state specified for the query, thus nullifying any guardrail or systems keyspace permission checks as the ClientState.isInternal flag overrides all such permission checking. Reference: link
+ 
+See chain of CQLTester -> ClientState.isInternal here if interested:
+CQLTester
+QueryProcessor
+ 
+This is pretty easy to stumble across when testing guardrails as GuardrailTester adds a variety of assertFails and assertThrows signatures that do respect the client state and thus apply guardrails (example)
+ 
+We should add documentation to the method calls in CQLTester and GuardrailTester to reflect this discrepancy as it can easily trip someone up writing tests for guardrails.

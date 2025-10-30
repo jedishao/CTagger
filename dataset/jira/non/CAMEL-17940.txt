@@ -1,0 +1,34 @@
+Quartz Scheduler - unscheduleTask should check if scheduler is clustered
+Hello everybody,
+when we are in a clustered environment and we want use quartz scheduler to poll our directories, there is a wrong behaviour when a single node shutting down. In the class QuartzScheduledPollConsumerScheduler the method unscheduleTask does not perform the same checks that are done by the doStop method, causing the deletion of the triggers that should be used by the node still running.
+ 
+
+
+@Override
+public void unscheduleTask() {
+    if (trigger != null) {
+        LOG.debug("Unscheduling trigger: {}", trigger.getKey());
+        try {
+            quartzScheduler.unscheduleJob(trigger.getKey());
+        } catch (SchedulerException e) {
+            throw RuntimeCamelException.wrapRuntimeCamelException(e);
+        }
+    }
+} 
+
+
+
+@Override
+protected void doStop() throws Exception {
+    if (trigger != null && deleteJob) {
+        boolean isClustered = quartzScheduler.getMetaData().isJobStoreClustered();
+        if (!quartzScheduler.isShutdown() && !isClustered) {
+            LOG.info("Deleting job {}", trigger.getKey());
+            quartzScheduler.unscheduleJob(trigger.getKey());
+        }
+    }
+} 
+
+ 
+Thanks regards
+Michele

@@ -1,0 +1,11 @@
+IMPORT table doesn't load from data dump if a metadata-only dump was already imported.
+Repl v1 creates a set of EXPORT/IMPORT commands to replicate modified data (as per events) across clusters.
+For instance, let's say, insert generates 2 events such as
+ALTER_TABLE (ID: 10)
+INSERT (ID: 11)
+Each event generates a set of EXPORT and IMPORT commands.
+ALTER_TABLE event generates metadata only export/import
+INSERT generates metadata+data export/import.
+As Hive always dump the latest copy of table during export, it sets the latest notification event ID as current state of it. So, in this example, import of metadata by ALTER_TABLE event sets the current state of the table as 11.
+Now, when we try to import the data dumped by INSERT event, it is noop as the table's current state(11) is equal to the dump state (11) which in-turn leads to the data never gets replicated to target cluster.
+So, it is necessary to allow overwrite of table/partition if their current state equals the dump state.

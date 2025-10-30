@@ -1,0 +1,42 @@
+A divide by zero bug in LoadBalancingKMSClientProvider.java
+In the file kms/LoadBalancingKMSClientProvider.java, the function rollNewVersion has the following code:
+ 
+
+
+@Override
+public KeyVersion rollNewVersion(final String name, final byte[] material)
+    throws IOException {
+    final KeyVersion newVersion = doOp(new ProviderCallable<KeyVersion>() {
+      @Override
+      public KeyVersion call(KMSClientProvider provider) throws IOException {
+        return provider.rollNewVersion(name, material);
+      }
+    }, nextIdx(), false);
+    ...
+}
+
+
+The function nextIdx uses providers.length as a divisor:
+
+
+private int nextIdx() {
+    while (true) {
+      int current = currentIdx.get();
+      int next = (current + 1) % providers.length;
+      ......
+}
+
+However, providers.length may be equal to zero, since the function doOp explicitly checks that and throws an exception when it happens:
+
+
+private <T> T doOp(ProviderCallable<T> op, int currPos,
+      boolean isIdempotent) throws IOException {
+    if (providers.length == 0) {
+      throw new IOException("No providers configured !");
+    }
+    ...
+}
+
+
+ 
+The problem is that when providers.length is 0, a divide by zero problem will happen when computing the argument for doOp (inside the function nextIdx) before reaching the protection check above, causing an ArithmeticException.

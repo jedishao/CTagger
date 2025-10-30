@@ -1,0 +1,12 @@
+Add += and -= syntax to ALTER TABLE WITH
+We have 2 types of table properties in CQL: simple ones (comment, gc_grace_seconds, ...), which are basically of type text (even if, we historically allow constants of any type) and complex ones (compaction, caching...), which are basically map<text, text>.
+The only syntax that ALTER TABLE WITH supports is of setting a property, and so for the later kind, we basically always have to provide the new full map for the option. To take an example, say you have a table with compaction and want to enable compaction logging you will have to provide the all map.
+In order to avoid that problem we can add support for the += (and -= ideally) syntax that already exists for maps otherwise, and support:
+
+
+ALTER TABLE t WITH compaction+= { 'log_all' : 'true' }
+
+
+Additional info for newcomers:
+In order to implement this change you will need to change the Parser.g ANTLR file located in the src/antlr directory and the java classes corresponding to the different alter statements located in the org.apache.cassandra.cql3.statements.schema package. 
+The unit test for the CQL logic are located under org.apache.cassandra.cql3.validation

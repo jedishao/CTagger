@@ -1,0 +1,4 @@
+TableSkewCostFunction improperly computes max skew
+We noticed while running unit tests that the TableSkewCostFunction computed cost did not change as the balancer ran and simulated moves across the cluster. After investigating, we found that this happened in particular when the cluster started out with at least one table very strongly skewed.
+We noticed that the TableSkewCostFunction depends on a field of the BaseLoadBalancer.Cluster class called numMaxRegionsPerTable, but this field is not properly maintained as regionMoves are simulated for the cluster. The field only ever increases as the maximum number of regions per table increases, but it does not decrease as the maximum number per table goes down.
+This patch corrects that behavior so that the field is accurately maintained, and thus the TableSkewCostFunction produces a more correct value as the balancer runs.

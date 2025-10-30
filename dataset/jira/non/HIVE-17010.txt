@@ -1,0 +1,18 @@
+Fix the overflow problem of Long type in SetSparkReducerParallelism
+We use numberOfBytes to collect the numberOfBytes of sibling of specified RS. We use Long type and it happens overflow when the data is too big. After happening this situation, the parallelism is decided by sparkMemoryAndCores.getSecond() if spark.dynamic.allocation.enabled is true, sparkMemoryAndCores.getSecond is a dymamic value which is decided by spark runtime. For example, the value of sparkMemoryAndCores.getSecond is 5 or 15 randomly. There is possibility that the value may be 1. The may problem here is the overflow of addition of Long type.  You can reproduce the overflow problem by following code
+
+    public static void main(String[] args) {
+      long a1= 9223372036854775807L;
+      long a2=1022672;
+
+      long res = a1+a2;
+      System.out.println(res);  //-9223372036853753137
+
+      BigInteger b1= BigInteger.valueOf(a1);
+      BigInteger b2 = BigInteger.valueOf(a2);
+
+      BigInteger bigRes = b1.add(b2);
+
+      System.out.println(bigRes); //9223372036855798479
+
+    }

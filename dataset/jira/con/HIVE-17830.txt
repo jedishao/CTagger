@@ -1,0 +1,20 @@
+dbnotification fails to work with rdbms other than postgres
+as part of HIVE-17721 we had changed the direct sql to acquire the lock for postgres as
+{code}
+select "NEXT_EVENT_ID" from "NOTIFICATION_SEQUENCE" for update;
+{code}
+
+however this breaks other databases and we have to use different sql statements for different databases 
+
+for postgres use
+{code}
+select "NEXT_EVENT_ID" from "NOTIFICATION_SEQUENCE" for update;
+{code}
+for SQLServer 
+{code}
+select "NEXT_EVENT_ID" from "NOTIFICATION_SEQUENCE" with (updlock);
+{code}
+for other databases 
+{code}
+select NEXT_EVENT_ID from NOTIFICATION_SEQUENCE for update;
+{code}

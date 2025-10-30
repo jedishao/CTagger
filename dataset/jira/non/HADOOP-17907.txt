@@ -1,0 +1,5 @@
+FileUtil#fullyDelete deletes contents of sym-linked directory when symlink cannot be deleted because of local fs fault
+As discussed in HADOOP-6536, FileUtil#fullyDelete should not delete the contents of the sym-linked directory when we pass a symlink parameter. Currently we try to delete the resource first by calling deleteImpl, and if deleteImpl is failed, we regard it as non-empty directory and remove all its contents and then itself. This logic behaves wrong when local file system cannot delete symlink to a directory because of faulty disk, local system's error, etc. When we cannot delete it in the first time, hadoop will try to remove all the contents of the directory it pointed to and leave an empty dir.
+So, we should add an isSymlink checking before we call fullyDeleteContents to prevent such behavior.
+
+ 

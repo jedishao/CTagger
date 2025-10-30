@@ -1,0 +1,19 @@
+The MSLABImpl generates the invaild cells when unsafe is not availble
+We will get the wrong position of buffer in multithreaded environment, so the method makes the invalid cell in MSLAB.
+
+  public static int copyFromBufferToBuffer(ByteBuffer in, ByteBuffer out, int sourceOffset,
+      int destinationOffset, int length) {
+    if (in.hasArray() && out.hasArray()) {
+      // ...
+    } else if (UNSAFE_AVAIL) {
+      // ...
+    } else {
+      int outOldPos = out.position();
+      out.position(destinationOffset);
+      ByteBuffer inDup = in.duplicate();
+      inDup.position(sourceOffset).limit(sourceOffset + length);
+      out.put(inDup);
+      out.position(outOldPos);
+    }
+    return destinationOffset + length;
+  }

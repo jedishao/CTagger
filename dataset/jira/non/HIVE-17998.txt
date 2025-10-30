@@ -1,0 +1,12 @@
+Use FastDateFormat instead of SimpleDateFormat for TimestampWritable
+Currently Hive is using this ThreadLocal/SimpleDateFormat setup to work around the thread-safety limitations of SimpleDateFormat.
+Let us simply drink the Apache Commons champagne and use thread-safe org.apache.commons.lang.time.FastDateFormat instead.
+org.apache.hadoop.hive.serde2.io.TimestampWritable
+
+  private static final ThreadLocal<DateFormat> threadLocalDateFormat =
+      new ThreadLocal<DateFormat>() {
+        @Override
+        protected DateFormat initialValue() {
+          return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        }
+      };

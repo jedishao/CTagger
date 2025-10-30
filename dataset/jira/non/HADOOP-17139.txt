@@ -1,0 +1,3 @@
+Re-enable optimized copyFromLocal implementation in S3AFileSystem
+It looks like HADOOP-15932 disabled the optimized copyFromLocal implementation in S3A for correctness reasons.  innerCopyFromLocalFile should be fixed and re-enabled. The current implementation uses FileSystem.copyFromLocal which will open an input stream from the local fs and an output stream to the destination fs, and then call IOUtils.copyBytes. With default configs, this will cause S3A to read the file into memory, write it back to a file on the local fs, and then when the file is closed, upload it to S3.
+The optimized version of copyFromLocal in innerCopyFromLocalFile, directly creates a PutObjectRequest request with the local file as the input.

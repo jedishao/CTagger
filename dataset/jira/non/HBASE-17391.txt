@@ -1,0 +1,25 @@
+[Shell] Add shell command to get list of servers, with filters
+For some operations, for example calling update_config, the user needs to specify the full server name. For region servers that is easier to find, but not so much for the master (using zk_dump works but is noisy). It woould be good to add a utility call that lists the servers, preferably with an optional filter (a regexp, server type, or globbing style format) that allows to whittle down the potentially long is of servers. For example:
+
+hbase(main):001:0> list_servers "master"
+master-1.internal.larsgeorge.com,16000,1483018890074
+
+hbase(main):002:0> list_servers "rs"
+slave-1.internal.larsgeorge.com,16020,1482996572051
+slave-3.internal.larsgeorge.com,16020,1482996572481
+slave-2.internal.larsgeorge.com,16020,1482996570909
+
+hbase(main):003:0> list_servers "rs:s.*\.com.*"
+slave-1.internal.larsgeorge.com,16020,1482996572051
+slave-3.internal.larsgeorge.com,16020,1482996572481
+slave-2.internal.larsgeorge.com,16020,1482996570909
+
+hbase(main):004:0> list_servers ":.*160?0.*"
+master-1.internal.larsgeorge.com,16000,1483018890074
+slave-1.internal.larsgeorge.com,16020,1482996572051
+slave-3.internal.larsgeorge.com,16020,1482996572481
+slave-2.internal.larsgeorge.com,16020,1482996570909
+
+
+I could imagine to have master, backup-master, rs, and maybe even zk too. The optional regexp shown uses a colon as a divider. This combines the "by-type", and using a filter. Example #4 skips the type and only is using the filter.
+Of course, you could also implement this differently, say with two parameters... just suggesting.

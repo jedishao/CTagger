@@ -1,0 +1,53 @@
+Find Cause of a Write Perf Regression in branch-1.2
+As reported by gbaecher up on the mailing list, there is a regression in 1.2. The regression is in a CDH version of 1.2 actually but the CDH hbase is a near pure 1.2. This is a working issue to figure which of the below changes brought on slower writes (The list comes from doing the following...git log --oneline  remotes/origin/cdh5-1.2.0_5.8.0_dev..remotes/origin/cdh5-1.2.0_5.9.0_dev ... I stripped the few CDH specific changes, packaging and tagging only, and then made two groupings; candidates and the unlikelies):
+
+  1 bbc6762 HBASE-16023 Fastpath for the FIFO rpcscheduler Adds an executor that does balanced queue and fast path handing off requests directly to waiting handlers if any present. Idea taken from Apace Kudu (incubating). See https://gerr#
+  2 a260917 HBASE-16288 HFile intermediate block level indexes might recurse forever creating multi TB files
+  3 5633281 HBASE-15811 Batch Get after batch Put does not fetch all Cells We were not waiting on all executors in a batch to complete. The test for no-more-executors was damaged by the 0.99/0.98.4 fix "HBASE-11403 Fix race conditions aro#
+  4 780f720 HBASE-11625 - Verifies data before building HFileBlock. - Adds HFileBlock.Header class which contains information about location of fields. Testing: Adds CorruptedFSReaderImpl to TestChecksum. (Apekshit)
+  5 d735680 HBASE-12133 Add FastLongHistogram for metric computation (Yi Deng)
+  6 c4ee832 HBASE-15222 Use less contended classes for metrics
+  7
+  8 17320a4 HBASE-15683 Min latency in latency histograms are emitted as Long.MAX_VALUE
+  9 283b39f HBASE-15396 Enhance mapreduce.TableSplit to add encoded region name
+ 10 39db592 HBASE-16195 Should not add chunk into chunkQueue if not using chunk pool in HeapMemStoreLAB
+ 11 5ff28b7 HBASE-16194 Should count in MSLAB chunk allocation into heap size change when adding duplicate cells
+ 12 5e3e0d2 HBASE-16318 fail build while rendering velocity template if dependency license isn't in whitelist.
+ 13 3ed66e3 HBASE-16318 consistently use the correct name for 'Apache License, Version 2.0'
+ 14 351832d HBASE-16340 exclude Xerces iplementation jars from coming in transitively.
+ 15 b6aa4be HBASE-16321 ensure no findbugs-jsr305
+ 16 4f9dde7 HBASE-16317 revert all ESAPI changes
+ 17 71b6a8a HBASE-16284 Unauthorized client can shutdown the cluster (Deokwoo Han)
+ 18 523753f HBASE-16450 Shell tool to dump replication queues
+ 19 ca5f2ee HBASE-16379 [replication] Minor improvement to replication/copy_tables_desc.rb
+ 20 effd105 HBASE-16135 PeerClusterZnode under rs of removed peer may never be deleted
+ 21 a5c6610 HBASE-16319 Fix TestCacheOnWrite after HBASE-16288
+ 22 1956bb0 HBASE-15808 Reduce potential bulk load intermediate space usage and waste
+ 23 031c54e HBASE-16096 Backport. Cleanly remove replication peers from ZooKeeper.
+ 24 60a3b12 HBASE-14963 Remove use of Guava Stopwatch from HBase client code (Devaraj Das)
+ 25 c7724fc HBASE-16207 can't restore snapshot without "Admin" permission
+ 26 8322a0b HBASE-16227 [Shell] Column value formatter not working in scans. Tested : manually using shell.
+ 27 8f86658 HBASE-14818 user_permission does not list namespace permissions (li xiang)
+ 28 775cd21 HBASE-15465 userPermission returned by getUserPermission() for the selected namespace does not have namespace set (li xiang)
+ 29 8d85aff HBASE-16093 Fix splits failed before creating daughter regions leave meta inconsistent
+ 30 bc41317 HBASE-16140 bump owasp.esapi from 2.1.0 to 2.1.0.1
+ 31 6fc70cd HBASE-16035 Nested AutoCloseables might not all get closed (Sean Mackrory)
+ 32 fe28fe84 HBASE-15891. Closeable resources potentially not getting closed if exception is thrown.
+ 33 1d2bf3c HBASE-14644 Region in transition metric is broken -- addendum (Huaxiang Sun)
+ 34 fd5f56c HBASE-16056 Procedure v2 - fix master crash for FileNotFound
+ 35 10cd038 HBASE-16034 Fix ProcedureTestingUtility#LoadCounter.setMaxProcId()
+ 36 dae4db4 HBASE-15872 Split TestWALProcedureStore
+ 37 e638d86 HBASE-14644 Region in transition metric is broken (Huaxiang Sun)
+ 38 f01b01d HBASE-15496 Throw RowTooBigException only for user scan/get (Guanghao Zhang)
+ 39 cc0ce66 HBASE-15746 Remove extra RegionCoprocessor preClose() in RSRpcServices#closeRegion (Stephen Yuan Jiang)
+ 40 923f6d7 HBASE-15873 ACL for snapshot restore / clone is not enforced
+ 41 62df392 HBASE-15946. Eliminate possible security concerns in Store File metrics.
+ 42 293db90 HBASE-15925 provide default values for hadoop compat module related properties that match default hadoop profile.
+ 43 b1b5b66 HBASE-15889. String case conversions are locale-sensitive, used without locale
+ 44 4a8c4e7 HBASE-15698 Increment TimeRange not serialized to server (Ted Yu)
+ 45 81c7620 HBASE-15663 Hook up JvmPauseMonitor to ThriftServer
+ 46 0d75f5b HBASE-15662 Hook up JvmPauseMonitor to REST server
+ 47 c099b61 HBASE-15614 Report metrics from JvmPauseMonitor
+ 48 46b1efe HBASE-15621 Suppress Hbase SnapshotHFile cleaner error messages when a snaphot is going on (Huaxiang Sun)
+ 49 26cfccf HBASE-15236 Addendum to fix test failures.
+ 50 b786db3 HBASE-15622 Superusers does not consider the keytab credentials

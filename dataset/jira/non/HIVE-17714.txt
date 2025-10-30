@@ -1,0 +1,6 @@
+move custom SerDe schema considerations into metastore from QL
+Columns in metastore for tables that use external schema don't have the type information (since HIVE-11985) and may be entirely inconsistent (since forever, due to issues like HIVE-17713; or for SerDes that allow an URL for the schema, due to a change in the underlying file).
+Currently, if you trace the usage of ConfVars.SERDESUSINGMETASTOREFORSCHEMA, and to MetaStoreUtils.getFieldsFromDeserializer, you'd see that the code in QL handles this in Hive. So, for the most part metastore just returns whatever is stored for columns in the database.
+One exception appears to be get_fields_with_environment_context, which is interesting... so getTable will return incorrect columns (potentially), but get_fields/get_schema will return correct ones from SerDe as far as I can tell.
+As part of separating the metastore, we should make sure all the APIs return the correct schema for the columns; it's not a good idea to have everyone reimplement getFieldsFromDeserializer.
+Note: this should also remove a flag introduced in HIVE-17731

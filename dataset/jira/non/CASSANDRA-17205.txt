@@ -1,0 +1,6 @@
+File leaks will not be be detected and released due to strong self-references in the tidier
+LogTransaction.SSTableTidier holds a reference to a Tracker which holds references to both a ColumnFamilyStore and a View, both of which hold refs to SSTableReaders. As per the comment at the top of the SSTableTidier:
+// must not retain a reference to the SSTableReader, else leak detection cannot kick in
+We shouldn't hold a reference to the Tracker here; long running unit tests w/-Dcassandra.debugrefcount=true had this pop up.
+
+ERROR [Strong-Reference-Leak-Detector:1] 2020-10-27T01:10:12,421 NoSpamLogger.java:97 - Strong self-ref loop detected

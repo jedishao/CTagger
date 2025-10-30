@@ -1,0 +1,23 @@
+[Hadoop-Tools]S3A MultiObjectDeleteException after uploading a file
+Hello,
+ 
+I am using org.apache.hadoop.fs.s3a.S3AFileSystem as implementation for S3 related operation.
+When I upload a file onto a path, it returns an error:
+
+
+20/11/05 11:49:13 ERROR s3a.S3AFileSystem: Partial failure of delete, 1 errors20/11/05 11:49:13 ERROR s3a.S3AFileSystem: Partial failure of delete, 1 errorscom.amazonaws.services.s3.model.MultiObjectDeleteException: One or more objects could not be deleted (Service: null; Status Code: 200; Error Code: null; Request ID: 767BEC034D0B5B8A; S3 Extended Request ID: JImfJY9hCl/QvninqT9aO+jrkmyRpRcceAg7t1lO936RfOg7izIom76RtpH+5rLqvmBFRx/++g8=; Proxy: null), S3 Extended Request ID: JImfJY9hCl/QvninqT9aO+jrkmyRpRcceAg7t1lO936RfOg7izIom76RtpH+5rLqvmBFRx/++g8= at com.amazonaws.services.s3.AmazonS3Client.deleteObjects(AmazonS3Client.java:2287) at org.apache.hadoop.fs.s3a.S3AFileSystem.deleteObjects(S3AFileSystem.java:1137) at org.apache.hadoop.fs.s3a.S3AFileSystem.removeKeys(S3AFileSystem.java:1389) at org.apache.hadoop.fs.s3a.S3AFileSystem.deleteUnnecessaryFakeDirectories(S3AFileSystem.java:2304) at org.apache.hadoop.fs.s3a.S3AFileSystem.finishedWrite(S3AFileSystem.java:2270) at org.apache.hadoop.fs.s3a.S3AFileSystem$WriteOperationHelper.writeSuccessful(S3AFileSystem.java:2768) at org.apache.hadoop.fs.s3a.S3ABlockOutputStream.close(S3ABlockOutputStream.java:371) at org.apache.hadoop.fs.FSDataOutputStream$PositionCache.close(FSDataOutputStream.java:74) at org.apache.hadoop.fs.FSDataOutputStream.close(FSDataOutputStream.java:108) at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:69) at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:128) at org.apache.hadoop.fs.shell.CommandWithDestination$TargetFileSystem.writeStreamToFile(CommandWithDestination.java:488) at org.apache.hadoop.fs.shell.CommandWithDestination.copyStreamToTarget(CommandWithDestination.java:410) at org.apache.hadoop.fs.shell.CommandWithDestination.copyFileToTarget(CommandWithDestination.java:342) at org.apache.hadoop.fs.shell.CommandWithDestination.processPath(CommandWithDestination.java:277) at org.apache.hadoop.fs.shell.CommandWithDestination.processPath(CommandWithDestination.java:262) at org.apache.hadoop.fs.shell.Command.processPaths(Command.java:327) at org.apache.hadoop.fs.shell.Command.processPathArgument(Command.java:299) at org.apache.hadoop.fs.shell.CommandWithDestination.processPathArgument(CommandWithDestination.java:257) at org.apache.hadoop.fs.shell.Command.processArgument(Command.java:281) at org.apache.hadoop.fs.shell.Command.processArguments(Command.java:265) at org.apache.hadoop.fs.shell.CommandWithDestination.processArguments(CommandWithDestination.java:228) at org.apache.hadoop.fs.shell.CopyCommands$Put.processArguments(CopyCommands.java:285) at org.apache.hadoop.fs.shell.FsCommand.processRawArguments(FsCommand.java:119) at org.apache.hadoop.fs.shell.Command.run(Command.java:175) at org.apache.hadoop.fs.FsShell.run(FsShell.java:317) at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:76) at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:90) at org.apache.hadoop.fs.FsShell.main(FsShell.java:380)20/11/05 11:49:13 ERROR s3a.S3AFileSystem: bv/: "AccessDenied" - Access Denied
+
+
+The problem is that Hadoop tries to create fake directories to map with S3 prefix and it cleans them after the operation. The cleaning is done from the parent folder until the root folder.
+If we don't give the corresponding permission for some path, it will encounter this problem:
+https://github.com/apache/hadoop/blob/rel/release-2.10.0/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java#L2296-L2301
+ 
+During uploading, I don't see any "fake" directories are created. Why should we clean them if it is not really created ?
+It is the same for the other operations like rename or mkdir where the "deleteUnnecessaryFakeDirectories" method is called.
+Maybe the solution is to check the deleting permission before it calls the deleteObjects method.
+ 
+To reproduce the problem:
+
+With a bucket named my_bucket, we have the path s3://my_bucket/a/b/c inside
+The corresponding user has only permission on the path b and sub-path inside.
+We do the command "hdfs dfs -mkdir s3://my_bucket/a/b/c/d"

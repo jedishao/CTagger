@@ -1,0 +1,4 @@
+HoS DPP ConstantPropagate should use ConstantPropagateOption.SHORTCUT
+In SparkCompiler#runDynamicPartitionPruning we should change new ConstantPropagate().transform(parseContext) to new ConstantPropagate(ConstantPropagateOption.SHORTCUT).transform(parseContext)
+Hive-on-Tez does the same thing.
+Running the full constant propagation isn't really necessary, we just want to eliminate any and true predicates that were introduced by SyntheticJoinPredicate and DynamicPartitionPruningOptimization. The SyntheticJoinPredicate will introduce dummy filter predicates into the operator tree, and DynamicPartitionPruningOptimization will replace them. The predicates introduced via SyntheticJoinPredicate are necessary to help DynamicPartitionPruningOptimization determine if DPP can be used or not.

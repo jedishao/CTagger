@@ -1,0 +1,43 @@
+HBase Spark does not work in Kerberos and yarn-master mode
+We are loading hbase records  to RDD with the hbase-spark library in Cloudera. 
+The hbase-spark code works if  we submit the job with client mode, but does not work in cluster mode. We got below exceptions:
+```
+16/11/07 05:43:28 WARN security.UserGroupInformation: PriviledgedActionException as:spark (auth:SIMPLE) cause:javax.security.sasl.SaslException: GSS initiate failed [Caused by GSSException: No valid credentials provided (Mechanism level: Failed to find any Kerberos tgt)]
+16/11/07 05:43:28 WARN ipc.RpcClientImpl: Exception encountered while connecting to the server : javax.security.sasl.SaslException: GSS initiate failed [Caused by GSSException: No valid credentials provided (Mechanism level: Failed to find any Kerberos tgt)]
+16/11/07 05:43:28 ERROR ipc.RpcClientImpl: SASL authentication failed. The most likely cause is missing or invalid credentials. Consider 'kinit'.
+javax.security.sasl.SaslException: GSS initiate failed [Caused by GSSException: No valid credentials provided (Mechanism level: Failed to find any Kerberos tgt)]
+	at com.sun.security.sasl.gsskerb.GssKrb5Client.evaluateChallenge(GssKrb5Client.java:211)
+	at org.apache.hadoop.hbase.security.HBaseSaslRpcClient.saslConnect(HBaseSaslRpcClient.java:181)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl$Connection.setupSaslConnection(RpcClientImpl.java:617)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl$Connection.access$700(RpcClientImpl.java:162)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl$Connection$2.run(RpcClientImpl.java:743)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl$Connection$2.run(RpcClientImpl.java:740)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1693)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl$Connection.setupIOstreams(RpcClientImpl.java:740)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl$Connection.writeRequest(RpcClientImpl.java:906)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl$Connection.tracedWriteRequest(RpcClientImpl.java:873)
+	at org.apache.hadoop.hbase.ipc.RpcClientImpl.call(RpcClientImpl.java:1242)
+	at org.apache.hadoop.hbase.ipc.AbstractRpcClient.callBlockingMethod(AbstractRpcClient.java:226)
+	at org.apache.hadoop.hbase.ipc.AbstractRpcClient$BlockingRpcChannelImplementation.callBlockingMethod(AbstractRpcClient.java:331)
+	at org.apache.hadoop.hbase.protobuf.generated.ClientProtos$ClientService$BlockingStub.execService(ClientProtos.java:34118)
+	at org.apache.hadoop.hbase.protobuf.ProtobufUtil.execService(ProtobufUtil.java:1627)
+	at org.apache.hadoop.hbase.ipc.RegionCoprocessorRpcChannel$1.call(RegionCoprocessorRpcChannel.java:92)
+	at org.apache.hadoop.hbase.ipc.RegionCoprocessorRpcChannel$1.call(RegionCoprocessorRpcChannel.java:89)
+	at org.apache.hadoop.hbase.client.RpcRetryingCaller.callWithRetries(RpcRetryingCaller.java:126)
+	at org.apache.hadoop.hbase.ipc.RegionCoprocessorRpcChannel.callExecService(RegionCoprocessorRpcChannel.java:95)
+	at org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel.callBlockingMethod(CoprocessorRpcChannel.java:73)
+	at org.apache.hadoop.hbase.protobuf.generated.AuthenticationProtos$AuthenticationService$BlockingStub.getAuthenticationToken(AuthenticationProtos.java:4512)
+	at org.apache.hadoop.hbase.security.token.TokenUtil.obtainToken(TokenUtil.java:86)
+	at org.apache.hadoop.hbase.security.token.TokenUtil$1.run(TokenUtil.java:111)
+	at org.apache.hadoop.hbase.security.token.TokenUtil$1.run(TokenUtil.java:108)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1693)
+	at org.apache.hadoop.hbase.security.User$SecureHadoopUser.runAs(User.java:340)
+	at org.apache.hadoop.hbase.security.token.TokenUtil.obtainToken(TokenUtil.java:108)
+	at org.apache.hadoop.hbase.security.token.TokenUtil.addTokenForJob(TokenUtil.java:329)
+	at org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil.initCredentials(TableMapReduceUtil.java:490)
+	at org.apache.hadoop.hbase.spark.HBaseContext.<init>(HBaseContext.scala:70)
+```

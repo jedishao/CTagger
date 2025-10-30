@@ -1,0 +1,8 @@
+Add Fault tolerance to HBASE-14417 (Support bulk loaded files in incremental backup)
+Design approach rollback-via-snapshot implemented in this ticket:
+
+Before backup create/delete/merge starts we take a snapshot of the backup meta-table (backup system table). This procedure is lightweight because meta table is small, usually should fit a single region.
+When operation fails on a server side, we handle this failure by cleaning up partial data in backup destination, followed by restoring backup meta-table from a snapshot.
+When operation fails on a client side (abnormal termination, for example), next time user will try create/merge/delete he(she) will see error message, that system is in inconsistent state and repair is required, he(she) will need to run backup repair tool.
+To avoid multiple writers to the backup system table (backup client and BackupObserver's) we introduce small table ONLY to keep listing of bulk loaded files. All backup observers will work only with this new tables. The reason: in case of a failure during backup create/delete/merge/restore, when system performs automatic rollback, some data written by backup observers during failed operation may be lost. This is what we try to avoid.
+Second table keeps only bulk load related references. We do not care about consistency of this table, because bulk load is idempotent operation and can be repeated after failure. Partially written data in second table does not affect on BackupHFileCleaner plugin, because this data (list of bulk loaded files) correspond to a files which have not been loaded yet successfully and, hence - are not visible to the system

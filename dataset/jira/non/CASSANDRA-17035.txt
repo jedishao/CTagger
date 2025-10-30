@@ -1,0 +1,50 @@
+Issue num_tokens on cassandra after perform snapshot restore - Cassandra 3.11.10 and 3.11.11
+After upgrading from 3.0.13 to 3.11.10 I'm having issue when I retsore the data from the node. After the restore is done it changes the number of tokens from 256 to 512.In cassandra.yaml it still num_token: 256, so I have no idea what's going on here.
+
+
+cassandra.yaml value -> num_tokens: 256
+
+These are the steps I'm performing
+ 
+
+
+rm -rf /var/lib/cassandra/data/*
+rm -rf /var/lib/cassandra/commitlog/*
+rm -rf /var/lib/cassandra/saved_caches/*
+rm -rf /var/lib/cassandra/hints/*
+tar -xvf $BACKUP_LOC/$BACKUP_NAME.tar -C /
+find ${DATA_DIR} -mindepth 2 -path "*/snapshots/${BACKUP_NAME}/*" -type f \-exec bash -c 'dir={} && cd ${dir%/*} && mv {} ../..' \;
+nodetool -u $NODETOOL_USR -pw $NODETOOL_PASSWD -h $(hostname) refresh $keyspace $table --ssl
+
+
+ 
+When I restart the node after perfoming the steps above it changes the tokens from 256 to 512.
+ERROR:
+ 
+
+
+ERROR [main] 2021-10-07 15:16:24,060 CassandraDaemon.java:803 - Fatal configuration error org.apache.cassandra.exceptions.ConfigurationException: Cannot change the number of tokens from 512 to 256 at org.apache.cassandra.service.StorageService.joinTokenRing(StorageService.java:1102) ~[apache-cassandra-3.11.11.jar:3.11.11] at org.apache.cassandra.service.StorageService.initServer(StorageService.java:760) ~[apache-cassandra-3.11.11.jar:3.11.11] at org.apache.cassandra.service.StorageService.initServer(StorageService.java:694) ~[apache-cassandra-3.11.11.jar:3.11.11] at org.apache.cassandra.service.CassandraDaemon.setup(CassandraDaemon.java:395) [apache-cassandra-3.11.11.jar:3.11.11] at org.apache.cassandra.service.CassandraDaemon.activate(CassandraDaemon.java:633) [apache-cassandra-3.11.11.jar:3.11.11] at org.apache.cassandra.service.CassandraDaemon.main(CassandraDaemon.java:786) [apache-cassandra-3.11.11.jar:3.11.11] INFO [StorageServiceShutdownHook] 2021-10-07 15:16:24,064 HintsService.java:209 - Paused hints dispatch INFO [StorageServiceShutdownHook] 2021-10-07 15:16:24,064 Gossiper.java:1683 - Announcing shutdown 
+
+
+It happens even in a empty node that I'm not trying to restore data, it happens after deleting the data from /var/lib/cassandra and restarting the node.
+ 
+
+
+IINFO [main] 2021-10-12 15:21:23,034 StorageService.java:778 - Loading persisted ring state
+INFO [main] 2021-10-12 15:21:23,085 StorageService.java:907 - Starting up server gossip
+INFO [main] 2021-10-12 15:21:23,108 TokenMetadata.java:497 - Updating topology for /10.20.30.51
+INFO [main] 2021-10-12 15:21:23,109 TokenMetadata.java:497 - Updating topology for /10.20.30.51
+ERROR [main] 2021-10-12 15:21:23,166 CassandraDaemon.java:803 - Fatal configuration error
+org.apache.cassandra.exceptions.ConfigurationException: Cannot change the number of tokens from 512 to 256
+ at org.apache.cassandra.service.StorageService.joinTokenRing(StorageService.java:1078) ~[apache-cassandra-3.11.10.jar:3.11.10]
+ at org.apache.cassandra.service.StorageService.initServer(StorageService.java:753) ~[apache-cassandra-3.11.10.jar:3.11.10]
+ at org.apache.cassandra.service.StorageService.initServer(StorageService.java:687) ~[apache-cassandra-3.11.10.jar:3.11.10]
+ at org.apache.cassandra.service.CassandraDaemon.setup(CassandraDaemon.java:395) [apache-cassandra-3.11.10.jar:3.11.10]
+ at org.apache.cassandra.service.CassandraDaemon.activate(CassandraDaemon.java:633) [apache-cassandra-3.11.10.jar:3.11.10]
+ at org.apache.cassandra.service.CassandraDaemon.main(CassandraDaemon.java:786) [apache-cassandra-3.11.10.jar:3.11.10]
+INFO [StorageServiceShutdownHook] 2021-10-12 15:21:23,168 HintsService.java:209 - Paused hints dispatch
+INFO [StorageServiceShutdownHook] 2021-10-12 15:21:23,169 Gossiper.java:1662 - Announcing shutdown 
+
+
+Any ideas on it? 
+Thanks,

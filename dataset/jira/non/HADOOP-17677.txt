@@ -1,0 +1,19 @@
+Distcp is unable to determine region with S3 PrivateLink endpoints
+[root@ip-10-101-83-42 bin]# export AWS_REGION=us-east-2
+[root@ip-10-101-83-42 bin]# hadoop distcp -Dfs.s3a.aws.credentials.provider="org.apache.hadoop.fs.s3a.TemporaryAWSCredentialsProvider" \
+> -Dfs.s3a.access.key="${AWS_ACCESS_KEY_ID}" \
+> -Dfs.s3a.secret.key="${AWS_SECRET_ACCESS_KEY}" \
+> -Dfs.s3a.session.token="${AWS_SESSION_TOKEN}" \
+> -Dfs.s3a.path.style.access=true \
+> -Dfs.s3a.connection.ssl.enabled=true \
+> -Dfs.s3a.attempts.maximum=1 \
+> -Dfs.s3a.endpoint=bucket.vpce-123456-4jiz2sq4-us-east-2b.s3.us-east-2.vpce.amazonaws.com \
+> hdfs:///user/root/ s3a://emr-tls-test/
+21/04/27 10:02:13 INFO tools.OptionsParser: parseChunkSize: blocksperchunk false
+21/04/27 10:02:15 WARN s3a.S3AFileSystem: Client: Amazon S3 error 400: 400 Bad Request; Bad Request (retryable)
+ 
+x-amz-bucket-region=us-east-2
+ 
+com.amazonaws.services.s3.model.AmazonS3Exception: Bad Request (Service: Amazon S3; Status Code: 400; Error Code: 400 Bad Request; Request ID: 0M1323C7AYJY315J; S3 Extended Request ID: vNyJdHN3bQ4g2w1sy2bvzoYLk+JGjMM4dQeSeDtQAdNk63ucXwOUWfoXZq1ZG8XQbnOclpc9Oi8=; Proxy: null), S3 Extended Request ID: vNyJdHN3bQ4g2w1sy2bvzoYLk+JGjMM4dQeSeDtQAdNk63ucXwOUWfoXZq1ZG8XQbnOclpc9Oi8=
+ 
+It seems the request was rejected due to Malformed Header. The client was not sending the right region for request signing.

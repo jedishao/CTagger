@@ -1,0 +1,46 @@
+ZStandardCodec compression mail fail(generic error) when encounter specific file
+*Problem:* 
+
+In our production environment,  we put file in hdfs with zstd compressor, recently, we find that a specific file may leads to zstandard compressor failures. 
+
+And we can reproduce the issue with specific file(attached file: badcase.data)
+
+!image-2020-06-30-11-51-18-026.png|width=1031,height=230!
+
+ 
+
+*Analysis*: 
+
+ZStandarCompressor use buffersize( From zstd recommended compress out buffer size)  for both inBufferSize and outBufferSize 
+
+!image-2020-06-30-11-35-46-859.png|width=1027,height=387!
+
+but zstd indeed provides two separately recommending inputBufferSize and outputBufferSize  
+
+!image-2020-06-30-11-39-17-861.png!
+
+ 
+
+*Workaround*
+
+One workaround,  using recommended in/out buffer size provided by zstd lib can avoid the problem, but we don't know why. 
+
+zstd recommended input buffer size:  1301072 (128 * 1024)
+
+zstd recommended ouput buffer size: 131591 
+
+!image-2020-06-30-11-42-44-585.png|width=1023,height=196!
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 

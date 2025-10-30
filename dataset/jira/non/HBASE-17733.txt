@@ -1,0 +1,8 @@
+Undo registering regionservers in zk with ephemeral nodes; its more trouble than its worth
+Elsewhere, we are undoing the use of ZK (replication current WAL offset, regions-in-transition, etc).
+I have another case where using ZK, while convenient (call-backs), has holes.
+The scenario is prompted by review of HBASE-9593.
+Currently, a RS registers with the Master by calling the Master's reportForDuty. After the Master responds with the name we are to use for ourselves (as well as other properties we need to 'run'), we then turnaround and do a new RPC out to the zk ensemble to register an ephemeral znode for the RS.
+We notice a RS has gone away – crashed – because its znode evaporates and the Master has a watcher triggered notifying it the RS has gone (after a zk session timeout of tens of seconds).  Cumbersome (Setting watchers, zk session timeouts) and indirect. Master then trips the server shutdown handler which does reassign of regions from the crashed server.
+In HBASE-9593, we were trying to handle the rare but possible case where the RS would die after registering w/ the Master but before we put up our ephemeral znode. In this case a RS would live in the Master's internals forever because there is no ephemeral znode to expire to do cleanup and removal of the never-started RS.
+Lets get ZK out of the loop. Then only the Master and RS involved heartbeating each other.

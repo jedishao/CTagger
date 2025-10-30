@@ -1,0 +1,11 @@
+.markRollbackOnly() doesn't abort exchange
+from("file:./target/source?move=../archive")
+.transacted()
+.choice().when(minAgePredicate).markRollbackOnly()
+.otherwise()
+....
+
+
+moves the consumed file to the archive folder even when it's marked to rollback!
+When I replace .markRollbackOnly() with .rollback(), it works as expected i.e. it doesn't move the file to the archive folder and polls it again and again until minAgePredicate satisfied. But the problem is that it logs a lot of warnings i.e. in each poll it warns about the rollback.
+As per docs, I wished I could ask Camel to just rollback and abort/stop exchange silently with .markRollbackOnly().

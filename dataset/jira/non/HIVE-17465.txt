@@ -1,0 +1,35 @@
+Statistics: Drill-down filters don't reduce row-counts progressively
+explain select count(d_date_sk) from date_dim where d_year=2001 ;
+explain select count(d_date_sk) from date_dim where d_year=2001  and d_moy = 9;
+explain select count(d_date_sk) from date_dim where d_year=2001 and d_moy = 9 and d_dom = 21;
+
+
+All 3 queries end up with the same row-count estimates after the filter.
+
+            Map Operator Tree:
+                TableScan
+                  alias: date_dim
+                  filterExpr: (d_year = 2001) (type: boolean)
+                  Statistics: Num rows: 73049 Data size: 82034027 Basic stats: COMPLETE Column stats: COMPLETE
+                  Filter Operator
+                    predicate: (d_year = 2001) (type: boolean)
+                    Statistics: Num rows: 363 Data size: 4356 Basic stats: COMPLETE Column stats: COMPLETE
+ 
+        Map 1 
+            Map Operator Tree:
+                TableScan
+                  alias: date_dim
+                  filterExpr: ((d_year = 2001) and (d_moy = 9)) (type: boolean)
+                  Statistics: Num rows: 73049 Data size: 82034027 Basic stats: COMPLETE Column stats: COMPLETE
+                  Filter Operator
+                    predicate: ((d_year = 2001) and (d_moy = 9)) (type: boolean)
+                    Statistics: Num rows: 363 Data size: 5808 Basic stats: COMPLETE Column stats: COMPLETE
+        Map 1 
+            Map Operator Tree:
+                TableScan
+                  alias: date_dim
+                  filterExpr: ((d_year = 2001) and (d_moy = 9) and (d_dom = 21)) (type: boolean)
+                  Statistics: Num rows: 73049 Data size: 82034027 Basic stats: COMPLETE Column stats: COMPLETE
+                  Filter Operator
+                    predicate: ((d_year = 2001) and (d_moy = 9) and (d_dom = 21)) (type: boolean)
+                    Statistics: Num rows: 363 Data size: 7260 Basic stats: COMPLETE Column stats: COMPLETE

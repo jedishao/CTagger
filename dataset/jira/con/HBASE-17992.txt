@@ -1,0 +1,7 @@
+The snapShot TimeoutException causes the cleanerChore thread to fail to complete the archive correctly
+The problem is that when the snapshot occurs TimeoutException  or other Exceptions, there is no correct delete /hbase/.hbase-snapshot/tmp, which causes the cleanerChore to fail to complete the archive correctly.
+Modifying the configuration parameter (hbase.snapshot.master.timeout.millis = 600000) only reduces the probability of the problem occurring.
+
+So the solution to the problem is: multi-Threaded exceptions or TimeoutExceptions, the Main-thread must wait until all the tasks are finished or canceled, the Main-thread can be cleared /hbase/.hbase-snapshot/tmp/snapshotName.Otherwise the task is likely to write /hbase/.hbase-snapshot/tmp/snapshotName/region - mainfest
+
+The problem exists in disabledTableSnapshot and enabledTableSnapshot, because I'm currently using the disabledTableSnapshot, so I provide the patch of disabledTableSnapshot

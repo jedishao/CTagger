@@ -1,0 +1,14 @@
+AbfsInputStream#seek throws EOFException when seek past the end of stream
+Currently AbfsInputStream#seek has below check:
+
+
+public synchronized void seek(long n) throws IOException {
+...
+if (n > contentLength) {
+ throw new EOFException(FSExceptionMessages.CANNOT_SEEK_PAST_EOF);
+}
+...
+}
+
+
+So if a the seek is called with a position past the end of the stream, a EOFException gets thrown. However, it appears to me this behavior is different from some other inputstream impls, such as S3AInputStream and LocalFSFileInputStream, where seek passing the end is allowed, only that a later read call will return -1 indicating EOF. I think it would be better to have AbfsInputStream do the same thing.

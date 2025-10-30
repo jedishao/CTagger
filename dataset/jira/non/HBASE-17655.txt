@@ -1,0 +1,8 @@
+Removing MemStoreScanner and SnapshotScanner
+With CompactingMemstore becoming the new default, a store comprises multiple memory segments and not just 1-2. MemStoreScanner encapsulates the scanning of segments in the memory part of the store. SnapshotScanner is used to scan the snapshot segment upon flush to disk.
+Having the logic of scanners scattered in multiple classes (StoreScanner, SegmentScanner, MemStoreScanner, SnapshotScanner) makes maintainance and debugging challenging tasks, not always for a good reason.
+For example, MemStoreScanner has a KeyValueHeap (KVH). When creating the store scanner which also has a KVH, this makes a KVH inside a KVH. Reasoning about the correctness of the methods supported by the scanner (seek, next, hasNext, peek, etc.) is hard and debugging  them is cumbersome. 
+In addition, by removing the MemStoreScanner layer we allow store scanner to filter out each one of the memory scanners instead of either taking them all (in most cases) or discarding them all (rarely).
+SnapshotScanner is a simplified version of SegmentScanner as it is used only in a specific context. However it is an additional implementation of the same logic with no real advantage of improved performance.
+Therefore, I suggest removing both MemStoreScanner and SnapshotScanner. The code is adjusted to handle the list of segment scanners they encapsulate.
+This fits well with the current code since in most cases at some point a list of scanner is expected, so passing the actual list of segment scanners is more natural than wrapping a single (high level) scanner with Collections.singeltonList(...).

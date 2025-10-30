@@ -1,0 +1,18 @@
+camel-core - ResourceHelper does not support ref: scheme
+When trying to load a registry resource as XSLT source, XsltUriResolver uses ResourceHelper to check the scheme and then load the resource.
+ResourceHelper.hasScheme(String) only supports "file:", "classpath:", "http:" and "https:" schemes, so the "ref:" uri fails to validate and is not correctly handled (the prefix "classpath:" is automatically appended).
+
+The resulting exception when using a "ref:" uri is the following:
+
+
+javax.xml.transform.TransformerException: java.io.FileNotFoundException: Cannot find resource: classpath:ref:camelResource-2 for URI: classpath:ref:camelResource-2
+	at org.apache.camel.component.xslt.XsltUriResolver.resolve(XsltUriResolver.java:92)
+	at org.apache.camel.component.xslt.XsltUriResolver.resolve(XsltUriResolver.java:100)
+	at org.apache.camel.component.xslt.XsltEndpoint.loadResource(XsltEndpoint.java:322)
+	at org.apache.camel.component.xslt.XsltEndpoint.doStart(XsltEndpoint.java:351)
+	at org.apache.camel.support.service.BaseService.start(BaseService.java:119)
+	... 49 common frames omitted
+Caused by: java.io.FileNotFoundException: Cannot find resource: classpath:ref:camelResource-2 for URI: classpath:ref:camelResource-2
+	at org.apache.camel.support.ResourceHelper.resolveMandatoryResourceAsInputStream(ResourceHelper.java:114)
+	at org.apache.camel.component.xslt.XsltUriResolver.resolve(XsltUriResolver.java:90)
+	... 53 common frames omitted

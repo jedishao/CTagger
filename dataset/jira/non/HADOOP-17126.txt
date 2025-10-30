@@ -1,0 +1,21 @@
+implement non-guava Precondition checkNotNull
+As part In order to replace Guava Preconditions, we need to implement our own versions of the API.
+ This Jira is to create checkNotNull in a new package dubbed unguava.
+ The plan is as follows
+
+create a new package org.apache.hadoop.util.unguava;
+create class Validate
+implement  package org.apache.hadoop.util.unguava.Validate; with the following interface
+	
+checkNotNull(final T obj)
+checkNotNull(final T reference, final Object errorMessage)
+checkNotNull(final T obj, final String message, final Object... values)
+checkNotNull(final T obj,final Supplier<String> msgSupplier)
+
+
+guava.preconditions used String.lenientformat which suppressed exceptions caused by string formatting of the exception message . So, in order to avoid changing the behavior, the implementation catches Exceptions triggered by building the message (IllegalFormat, InsufficientArg, NullPointer..etc)
+After merging the new class, we can replace guava.Preconditions.checkNotNull by {{unguava.Validate.checkNotNull}}
+We need the change to go into trunk, 3.1, 3.2, and 3.3
+
+ 
+Similar Jiras will be created to implement checkState, checkArgument, checkIndex

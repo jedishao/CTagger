@@ -1,0 +1,113 @@
+Authentication timed out
+Hi,
+ 
+I'm having some issues with my authentication when trying to login with cqlsh. I'm running a cluster of 3 nodes that is spaced out on three different physical nodes in Kubernetes. It has been rolling like a charm for the last month but around a week or so, it started to go down. Down below you can see when I try to login to the different nodes and the responses. (a FYI it's not always node 0 that has problem, I've also seen node 1 has the same problem but then node 0 worked fine.
+
+
+I have no name!@cassandra-0:/$ cqlsh -u cassandra -p abc123
+Connection error: ('Unable to connect to any servers', {'127.0.0.1:9042': OperationTimedOut('errors=Timed out creating connection (5 seconds), last_host=None',)}) 
+
+I have no name!@cassandra-1:/$ cqlsh -u cassandra -p abc123
+Python 2.7 support is deprecated. Install Python 3.6+ or set CQLSH_NO_WARN_PY2 to suppress this message.Connected to mycluster at 127.0.0.1:9042
+[cqlsh 6.0.0 | Cassandra 4.0.0 | CQL spec 3.4.5 | Native protocol v5]
+Use HELP for help.
+cassandra@cqlsh>
+
+I have no name!@cassandra-2:/$ cqlsh -u cassandra -p abc123
+Python 2.7 support is deprecated. Install Python 3.6+ or set CQLSH_NO_WARN_PY2 to suppress this message.Connected to mycluster at 127.0.0.1:9042
+[cqlsh 6.0.0 | Cassandra 4.0.0 | CQL spec 3.4.5 | Native protocol v5]
+Use HELP for help.
+cassandra@cqlsh>
+
+Here is the logs from node 0
+ 
+
+
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,090 MessagingMetrics.java:206 - HINT_RSP messages were dropped in last 5000 ms: 0 internal and 4 cross node. Mean internal dropped latency: 0 ms and Mean cross-node dropped latency: 8582 ms
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,090 MessagingMetrics.java:206 - HINT_REQ messages were dropped in last 5000 ms: 0 internal and 2 cross node. Mean internal dropped latency: 0 ms and Mean cross-node dropped latency: 8582 ms
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,090 StatusLogger.java:65 - Pool Name                       Active   Pending      Completed   Blocked  All Time Blocked
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,090 StatusLogger.java:69 - ReadStage                            0         0          17086         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,090 StatusLogger.java:69 - CompactionExecutor                   0         0         195522         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,090 StatusLogger.java:69 - MutationStage                        0         0          88515         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - MemtableReclaimMemory                0         0            210         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - PendingRangeCalculator               0         0             13         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - GossipStage                          0         0         660680         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - SecondaryIndexManagement             0         0              0         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - HintsDispatcher                      2         0          37776         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - Repair-Task                          0         0              5         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - Native-Transport-Requests            0         0          17111         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - RequestResponseStage                 0         0             20         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - MemtableFlushWriter                  0         0            210         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - PerDiskMemtableFlushWriter_0         0         0            210         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - MemtablePostFlush                    0         0            255         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - Sampler                              0         0              0         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - ValidationExecutor                   0         0             41         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - ViewBuildExecutor                    0         0              0         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,091 StatusLogger.java:69 - InternalResponseStage                0         0         151676         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:69 - AntiEntropyStage                     0         0            249         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:69 - CacheCleanupExecutor                 0         0              0         0                 0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:79 - CompactionManager                 0         0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:91 - MessagingService                n/a       0/0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:101 - Cache Type                     Size                 Capacity               KeysToSave
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:103 - KeyCache                      11452                 75497472                      all
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:109 - RowCache                          0                        0                      all
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:116 - Table                       Memtable ops,data
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,092 StatusLogger.java:119 - system_schema.columns                     0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.types                       0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.indexes                     0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.keyspaces                   0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.dropped_columns                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.aggregates                  0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.triggers                    0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.tables                      0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.views                       0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system_schema.functions                   0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.compaction_history               3,634
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.IndexInfo                          0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.repairs                            0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.size_estimates           49344,1087744
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.table_estimates          98688,2339296
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.paxos                              0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.built_views                        0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.peer_events                        0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.peers_v2                           0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.peers                              0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.peer_events_v2                     0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.batches                            0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,093 StatusLogger.java:119 - system.transferred_ranges                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,094 StatusLogger.java:119 - system.transferred_ranges_v2                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,094 StatusLogger.java:119 - system.view_builds_in_progress                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,094 StatusLogger.java:119 - system.local                              0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,094 StatusLogger.java:119 - system.sstable_activity              229,2816
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,094 StatusLogger.java:119 - system.available_ranges_v2                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,094 StatusLogger.java:119 - system.available_ranges                   0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,094 StatusLogger.java:119 - system.prepared_statements                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,095 StatusLogger.java:119 - system_auth.roles                         0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,095 StatusLogger.java:119 - system_auth.role_members                  0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,095 StatusLogger.java:119 - system_auth.resource_role_permissons_index                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,095 StatusLogger.java:119 - system_auth.network_permissions                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,095 StatusLogger.java:119 - system_auth.role_permissions                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,100 StatusLogger.java:119 - system_distributed.parent_repair_history           10,418916
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,100 StatusLogger.java:119 - system_distributed.repair_history         29495,15967
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,100 StatusLogger.java:119 - system_distributed.view_build_status                 0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,101 StatusLogger.java:119 - system_traces.sessions                    0,0
+INFO  [ScheduledTasks:1] 2022-10-26 17:39:00,101 StatusLogger.java:119 - system_traces.events                      0,0
+
+
+The keyspace replication
+ 
+
+
+cassandra@cqlsh> describe keyspace system_auth;
+CREATE KEYSPACE system_auth WITH replication = {'class': 
+'NetworkTopologyStrategy', 'datacenter1': '3'} AND durable_writes = true; 
+
+
+Nodetool status
+
+
+I have no name!@cassandra-2:/$ nodetool status Datacenter: datacenter1 ======================= Status=Up/Down |/ State=Normal/Leaving/Joining/Moving -- Address Load Tokens Owns (effective) Host ID Rack UN 10.233.92.33 3.63 MiB 256 100.0% xxx rack1 UN 10.233.96.184 4.2 MiB 256 100.0% xxx rack1 UN 10.233.90.48 3.24 MiB 256 100.0% xxx rack1 
+
+I've tried to do nodetool repair without success.
+ 
+Does anyone have a clue whats going on?

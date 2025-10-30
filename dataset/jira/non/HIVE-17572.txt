@@ -1,0 +1,10 @@
+Warnings from SparkCrossProductCheck for MapJoins are confusing
+When the SparkCrossProductCheck detects a cross-product in a map-join, it prints out a confusing warning - e.g. Map Join MAPJOIN[9][bigTable=?] in task 'Stage-1:MAPRED' is a cross product
+I see a few ways this can be imrpoved:
+
+bigTable should actually specify the big table
+I'm not sure why the stage id is printed instead of the work id, when a cross product is detected in a shuffle join the work id is shown (e.g. Warning: Shuffle Join JOIN[13][tables = [$hdt$_1, $hdt$_2, $hdt$_0]] in Work 'Reducer 3' is a cross product)
+It shouldn't say MAPRED that can be confusing to users
+The MAPJOIN id doesn't need to be printed, it doesn't have any meaning to the user and the value just keeps on going up and up the longer a session lives
+
+On a somewhat related note, could we just stick this warning in the explain plan? Otherwise users may not even notice it

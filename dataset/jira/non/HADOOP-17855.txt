@@ -1,0 +1,55 @@
+S3A: Allow SSE configurations per object path
+Currently, we can map the SSE configurations at bucket level only:
+
+
+<property>
+  <name>fs.s3a.bucket.ireland-dev.server-side-encryption-algorithm</name>
+  <value>SSE-KMS</value>
+</property>
+
+<property>
+  <name>fs.s3a.bucket.ireland-dev.server-side-encryption.key</name>
+  <value>arn:aws:kms:eu-west-1:98067faff834c:key/071a86ff-8881-4ba0-9230-95af6d01ca01</value>
+</property>
+
+
+But sometimes we want to encrypt data in different paths with different keys within the same bucket. For example, a partitioned table might benefit from encrypting each partition with a different key when the partition represents a customer or a country.
+S3 already can encrypt using different keys/configurations at the object level, so what we need to do on Hadoop is to provide a way to map which key to use. One idea could be mapping them in the XML config:
+ 
+
+
+<property>
+  <name>fs.s3a.server-side-encryption.paths</name>
+  <value>s3://bucket/my_table/country=ireland,s3://bucket/my_table/country=uk, s3://bucket/my_table/country=germany</value>
+</property>
+
+<property>
+  <name>fs.s3a.server-side-encryption.path-keys</name>
+  <value>arn:aws:kms:eu-west-1:90ireland09:key/ireland-key,arn:aws:kms:eu-west-1:980uk0993c:key/uk-key,arn:aws:kms:eu-west-1:98germany089:key/germany-key</value>
+</property>
+
+
+Or potentially fetch the mappings from the filesystem:
+ 
+
+
+<property>
+  <name>fs.s3a.server-side-encryption.mappings</name>
+  <value>s3://bucket/configs/encryption_mappings.json</value>
+</property> 
+
+where encryption_mappings.json could be something like this:
+ 
+
+
+{ 
+   "path": "s3://bucket/customer_table/customerId=abc123", 
+   "algorithm": "SSE-KMS",
+   "key": "arn:aws:kms:eu-west-1:933993746:key/abc123-key"
+}
+...
+{ 
+   "path": "s3://bucket/customer_table/customerId=xyx987", 
+   "algorithm": "SSE-KMS",
+   "key": "arn:aws:kms:eu-west-1:933993746:key/xyx987-key"
+}

@@ -1,0 +1,23 @@
+camel-file: investigate performance improvements
+While working on CAMEL-15562, with a very large directory tree, I noticed that sometimes it tends to perform a bit poorly when traversing very large directory trees.
+I think we could explore migrating some of the camel-file code to use newer (and, sometimes better/faster) I/O APIs to improve the performance/scalability for extreme use cases.
+Simulating the way Camel works now and comparing with some alternatives, indicates that there can be some possible performance gains (testOldIo is the current way the code works).
+Testing in not-so-large directory with 100k files (10 directories with 10k files within each):
+
+
+Java 17
+Benchmark                          Mode  Cnt       Score      Error  Units
+MyBenchmark.testNewIo              avgt   15   29468.995 ±  653.226  us/op
+MyBenchmark.testNewIoWithStream    avgt   15   29563.389 ±  462.856  us/op
+MyBenchmark.testNewIoWithTraverse  avgt   15  145232.034 ± 1467.996  us/op
+MyBenchmark.testOldIo              avgt   15   44147.684 ±  723.055  us/op
+
+ 
+
+
+Java 11
+Benchmark                          Mode  Cnt       Score      Error  Units
+MyBenchmark.testNewIo              avgt   15   29471.651 ± 1105.507  us/op
+MyBenchmark.testNewIoWithStream    avgt   15   28745.984 ±  616.324  us/op
+MyBenchmark.testNewIoWithTraverse  avgt   15  149459.744 ± 2185.104  us/op
+MyBenchmark.testOldIo              avgt   15   44486.002 ±  487.449  us/op

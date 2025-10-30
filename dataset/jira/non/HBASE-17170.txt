@@ -1,0 +1,54 @@
+HBase is also retrying DoNotRetryIOException because of class loader differences.
+The  class loader used by API exposed by hadoop and the context class loader used by RunJar(bin/hadoop jar phoenix-client.jar …. ) are different resulting in classes loaded from jar not visible to other current class loader used by API. 
+
+{code}
+16/04/26 21:18:00 INFO client.RpcRetryingCaller: Call exception, tries=32, retries=35, started=491541 ms ago, cancelled=false, msg=
+16/04/26 21:18:21 INFO client.RpcRetryingCaller: Call exception, tries=33, retries=35, started=511747 ms ago, cancelled=false, msg=
+16/04/26 21:18:41 INFO client.RpcRetryingCaller: Call exception, tries=34, retries=35, started=531820 ms ago, cancelled=false, msg=
+Exception in thread "main" org.apache.phoenix.exception.PhoenixIOException: Failed after attempts=35, exceptions:
+Tue Apr 26 21:09:49 UTC 2016, RpcRetryingCaller{globalStartTime=1461704989282, pause=100, retries=35}, org.apache.hadoop.hbase.ipc.RemoteWithExtrasException(org.apache.hadoop.hbase.NamespaceExistException): org.apache.hadoop.hbase.NamespaceExistException: SYSTEM
+at org.apache.hadoop.hbase.master.TableNamespaceManager.create(TableNamespaceManager.java:156)
+at org.apache.hadoop.hbase.master.TableNamespaceManager.create(TableNamespaceManager.java:131)
+at org.apache.hadoop.hbase.master.HMaster.createNamespace(HMaster.java:2553)
+at org.apache.hadoop.hbase.master.MasterRpcServices.createNamespace(MasterRpcServices.java:447)
+at org.apache.hadoop.hbase.protobuf.generated.MasterProtos$MasterService$2.callBlockingMethod(MasterProtos.java:58043)
+at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:2115)
+at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:102)
+{code}
+
+The actual problem is stated in the comment below https://issues.apache.org/jira/browse/PHOENIX-3495?focusedCommentId=15677081&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-15677081
+
+If we are not loading hbase classes from Hadoop classpath(from where hadoop jars are getting loaded), then the RemoteException will not get unwrapped because of ClassNotFoundException and the client will keep on retrying even if the cause of exception is DoNotRetryIOException.
+
+RunJar#main() context class loader.
+{code}
+
+ClassLoader loader = createClassLoader(file, workDir);
+
+    Thread.currentThread().setContextClassLoader(loader);
+    Class<?> mainClass = Class.forName(mainClassName, true, loader);
+    Method main = mainClass.getMethod("main", new Class[] {
+      Array.newInstance(String.class, 0).getClass()
+    });
+
+HBase classes can be loaded from jar(phoenix-client.jar):-
+
+hadoop --config /etc/hbase/conf/ jar ~/git/apache/phoenix/phoenix-client/target/phoenix-4.9.0-HBase-1.2-client.jar org.apache.phoenix.mapreduce.CsvBulkLoadTool   --table GIGANTIC_TABLE --input /tmp/b.csv --zookeeper localhost:2181
+{code}
+
+API(using current class loader).
+{code}
+public class RpcRetryingCaller<T> {
+public IOException unwrapRemoteException() {
+    try {
+      Class<?> realClass = Class.forName(getClassName());
+      return instantiateException(realClass.asSubclass(IOException.class));
+    } catch(Exception e) {
+      // cannot instantiate the original exception, just return this
+    }
+    return this;
+  }
+{code}
+
+*Possible solution:-*
+We can create our own HBaseRemoteWithExtrasException(extension of RemoteWithExtrasException) so that default class loader will be the one from where the hbase classes are loaded and extend unwrapRemoteException() to throw exception if the unwrapping doesn’t take place because of CNF exception? 

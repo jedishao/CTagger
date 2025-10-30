@@ -1,0 +1,11 @@
+Doing hadoop ls on Har file triggers too many RPC calls
+[~daryn] has noticed that Invoking hadoop ls on HAR is taking too much of time.
+
+The har system has multiple deficiencies that significantly impacted performance:
+
+# Parsing the master index references ranges within the archive index. Each range required re-opening the hdfs input stream and seeking to the same location where it previously stopped.
+# Listing a har stats the archive index for every "directory". The per-call cache used a unique key for each stat, rendering the cache useless and significantly increasing memory pressure.
+# Determining the children of a directory scans the entire archive contents and filters out children. The cached metadata already stores the exact child list.
+# Globbing a har's contents resulted in unnecessary stats for every leaf path.
+
+ 

@@ -1,0 +1,70 @@
+spark/bin/beeline throws Unknown column 'A0.IS_REWRITE_ENABLED' in 'field list'
+up vote
+0
+down vote
+favorite
+If I run this code on /spark/bin/beeline
+
+CREATE EXTERNAL TABLE IF NOT EXISTS foods_txt (
+  name string, 
+  type string
+) ROW FORMAT delimited fields terminated by ','
+STORED AS TEXTFILE
+LOCATION 'hdfs://<host>:9000/hello'
+I get
+
+Error: javax.jdo.JDOFatalInternalException: The initCause method cannot be used. To set the cause of this exception, use a constructor with a Throwable[] argument. (state=08S01,code=0)
+and /tmp//hive.log shows
+
+    2017-08-09T02:21:14,427  WARN [HiveServer2-Handler-Pool: Thread-39] thrift.ThriftCLIService: Error executing statement:
+org.apache.hive.service.cli.HiveSQLException: Error while compiling statement: FAILED: IllegalStateException Unexpected Exception thrown: Unab$
+        at org.apache.hive.service.cli.operation.Operation.toSQLException(Operation.java:380) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.cli.operation.SQLOperation.prepare(SQLOperation.java:206) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.cli.operation.SQLOperation.runInternal(SQLOperation.java:290) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.cli.operation.Operation.run(Operation.java:320) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.cli.session.HiveSessionImpl.executeStatementInternal(HiveSessionImpl.java:530) ~[hive-service-2.3.0.jar:2.3$
+        at org.apache.hive.service.cli.session.HiveSessionImpl.executeStatementAsync(HiveSessionImpl.java:517) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.cli.CLIService.executeStatementAsync(CLIService.java:310) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.cli.thrift.ThriftCLIService.ExecuteStatement(ThriftCLIService.java:530) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.rpc.thrift.TCLIService$Processor$ExecuteStatement.getResult(TCLIService.java:1437) ~[hive-exec-2.3.0.jar:2.$
+        at org.apache.hive.service.rpc.thrift.TCLIService$Processor$ExecuteStatement.getResult(TCLIService.java:1422) ~[hive-exec-2.3.0.jar:2.$
+        at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:39) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:39) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.auth.TSetIpAddressProcessor.process(TSetIpAddressProcessor.java:56) ~[hive-service-2.3.0.jar:2.3.0]
+        at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:286) ~[hive-exec-2.3.0.jar:2.3.0]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_131]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_131]
+        at java.lang.Thread.run(Thread.java:748) [?:1.8.0_131]
+Caused by: java.lang.IllegalStateException: Unexpected Exception thrown: Unable to fetch table foods_txt. Exception thrown when executing quer$
+        at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.analyzeCreateTable(SemanticAnalyzer.java:12000) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.genResolvedParseTree(SemanticAnalyzer.java:11001) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.analyzeInternal(SemanticAnalyzer.java:11114) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.parse.CalcitePlanner.analyzeInternal(CalcitePlanner.java:286) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.analyze(BaseSemanticAnalyzer.java:258) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.Driver.compile(Driver.java:511) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.Driver.compileInternal(Driver.java:1316) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hadoop.hive.ql.Driver.compileAndRespond(Driver.java:1294) ~[hive-exec-2.3.0.jar:2.3.0]
+        at org.apache.hive.service.cli.operation.SQLOperation.prepare(SQLOperation.java:204) ~[hive-service-2.3.0.jar:2.3.0]
+Caused by: com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException: Unknown column 'A0.IS_REWRITE_ENABLED' in 'field list'
+    at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method) ~[?:1.8.0_131]
+    at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62) ~[?:1.8.0_131]
+    at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45) ~[?:1.8.0_131]
+    at java.lang.reflect.Constructor.newInstance(Constructor.java:423) ~[?:1.8.0_131]
+    at com.mysql.jdbc.Util.handleNewInstance(Util.java:404) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.Util.getInstance(Util.java:387) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.SQLError.createSQLException(SQLError.java:939) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.MysqlIO.checkErrorPacket(MysqlIO.java:3878) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.MysqlIO.checkErrorPacket(MysqlIO.java:3814) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.MysqlIO.sendCommand(MysqlIO.java:2478) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.MysqlIO.sqlQueryDirect(MysqlIO.java:2625) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.ConnectionImpl.execSQL(ConnectionImpl.java:2551) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.PreparedStatement.executeInternal(PreparedStatement.java:1861) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.mysql.jdbc.PreparedStatement.executeQuery(PreparedStatement.java:1962) ~[mysql-connector-java-5.1.38.jar:5.1.38]
+    at com.jolbox.bonecp.PreparedStatementHandle.executeQuery(PreparedStatementHandle.java:174) ~[bonecp-0.8.0.RELEASE.jar:?]
+    at org.datanucleus.store.rdbms.ParamLoggingPreparedStatement.executeQuery(ParamLoggingPreparedStatement.java:375) ~[datanucleus-rdbms-$
+    at org.datanucleus.store.rdbms.SQLController.executeStatementQuery(SQLController.java:552) ~[datanucleus-rdbms-4.1.19.jar:?]
+    at org.datanucleus.store.rdbms.query.JDOQLQuery.performExecute(JDOQLQuery.java:617) ~[datanucleus-rdbms-4.1.19.jar:?]
+    at org.datanucleus.store.query.Query.executeQuery(Query.java:1855) ~[datanucleus-core-4.1.17.jar:?]
+    at org.datanucleus.store.query.Query.executeWithArray(Query.java:1744) ~[datanucleus-core-4.1.17.jar:?]
+    at org.datanucleus.api.jdo.JDOQuery.executeInternal(JDOQuery.java:368) ~[datanucleus-api-jdo-4.2.4.jar:?]
+file on hdfs exists and hiveserver2 and metastore service are up. I can connect to metastore with jdbc:hive2://<user>:10000/<database> <user> <password> and can create database <database>, but up creating external table I get that exception.I plan to use hive metastore with spark accessing it's data and to test I am using beeline

@@ -1,0 +1,77 @@
+insert overwrite partition onto a external table fail when drop partition first
+The default value of {{hive.exec.stagingdir}} which is a relative path, and also drop partition on a external table will not clear the real data. As a result, insert overwrite partition twice will happen to fail because of the target data to be moved has 
+ already existed.
+
+This happened when we reproduce partition data onto a external table. 
+
+I see the target data will not be cleared only when {{immediately generated data}} is child of {{the target data directory}}, so my proposal is trying  to clear target file already existed finally whe doing rename  {{immediately generated data}} into {{the target data directory}}
+
+Operation reproduced:
+{code}
+create external table insert_after_drop_partition(key string, val string) partitioned by (insertdate string);
+from src insert overwrite table insert_after_drop_partition partition (insertdate='2008-01-01') select *;
+alter table insert_after_drop_partition drop partition (insertdate='2008-01-01');
+from src insert overwrite table insert_after_drop_partition partition (insertdate='2008-01-01') select *;
+{code}
+
+Stack trace:
+
+{code}
+2017-07-09T08:32:05,212 ERROR [f3bc51c8-2441-4689-b1c1-d60aef86c3aa main] exec.Task: Failed with exception java.io.IOException: rename for src path: pfile:/data/haihua/official/hive/itests/qtest/target/warehouse/insert_after_drop_partition/insertdate=2008-01-01/.hive-staging_hive_2017-07-09_08-32-03_840_4046825276907030554-1/-ext-10000/000000_0 to dest path:pfile:/data/haihua/official/hive/itests/qtest/target/warehouse/insert_after_drop_partition/insertdate=2008-01-01/000000_0 returned false
+org.apache.hadoop.hive.ql.metadata.HiveException: java.io.IOException: rename for src path: pfile:/data/haihua/official/hive/itests/qtest/target/warehouse/insert_after_drop_partition/insertdate=2008-01-01/.hive-staging_hive_2017-07-09_08-32-03_840_4046825276907030554-1/-ext-10000/000000_0 to dest path:pfile:/data/haihua/official/hive/itests/qtest/target/warehouse/insert_after_drop_partition/insertdate=2008-01-01/000000_0 returned false
+        at org.apache.hadoop.hive.ql.metadata.Hive.moveFile(Hive.java:2992)
+        at org.apache.hadoop.hive.ql.metadata.Hive.replaceFiles(Hive.java:3248)
+        at org.apache.hadoop.hive.ql.metadata.Hive.loadPartition(Hive.java:1532)
+        at org.apache.hadoop.hive.ql.metadata.Hive.loadPartition(Hive.java:1461)
+        at org.apache.hadoop.hive.ql.exec.MoveTask.execute(MoveTask.java:498)
+        at org.apache.hadoop.hive.ql.exec.Task.executeTask(Task.java:197)
+        at org.apache.hadoop.hive.ql.exec.TaskRunner.runSequential(TaskRunner.java:100)
+        at org.apache.hadoop.hive.ql.Driver.launchTask(Driver.java:2073)
+        at org.apache.hadoop.hive.ql.Driver.execute(Driver.java:1744)
+        at org.apache.hadoop.hive.ql.Driver.runInternal(Driver.java:1453)
+        at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1171)
+        at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1161)
+        at org.apache.hadoop.hive.cli.CliDriver.processLocalCmd(CliDriver.java:232)
+        at org.apache.hadoop.hive.cli.CliDriver.processCmd(CliDriver.java:183)
+        at org.apache.hadoop.hive.cli.CliDriver.processLine(CliDriver.java:399)
+        at org.apache.hadoop.hive.cli.CliDriver.processLine(CliDriver.java:335)
+        at org.apache.hadoop.hive.ql.QTestUtil.executeClientInternal(QTestUtil.java:1137)
+        at org.apache.hadoop.hive.ql.QTestUtil.executeClient(QTestUtil.java:1111)
+        at org.apache.hadoop.hive.cli.TestCliDriver.runTest(TestCliDriver.java:120)
+        at org.apache.hadoop.hive.cli.TestCliDriver.testCliDriver_insert_after_drop_partition(TestCliDriver.java:103)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:497)
+        at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:47)
+        at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+        at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:44)
+        at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+        at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+        at org.junit.internal.runners.statements.RunAfters.evaluate(RunAfters.java:27)
+        at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:271)
+        at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:70)
+        at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:50)
+        at org.junit.runners.ParentRunner$3.run(ParentRunner.java:238)
+        at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:63)
+        at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:236)
+        at org.junit.runners.ParentRunner.access$000(ParentRunner.java:53)
+        at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:229)
+        at org.junit.internal.runners.statements.RunAfters.evaluate(RunAfters.java:27)
+        at org.junit.runners.ParentRunner.run(ParentRunner.java:309)
+        at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:264)
+        at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:153)
+        at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:124)
+        at org.apache.maven.surefire.booter.ForkedBooter.invokeProviderInSameClassLoader(ForkedBooter.java:200)
+        at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:153)
+        at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:103)
+Caused by: java.io.IOException: rename for src path: pfile:/data/haihua/official/hive/itests/qtest/target/warehouse/insert_after_drop_partition/insertdate=2008-01-01/.hive-staging_hive_2017-07-09_08-32-03_840_4046825276907030554-1/-ext-10000/000000_0 to dest path:pfile:/data/haihua/official/hive/itests/qtest/target/warehouse/insert_after_drop_partition/insertdate=2008-01-01/000000_0 returned false
+        at org.apache.hadoop.hive.ql.metadata.Hive$3.call(Hive.java:2972)
+        at org.apache.hadoop.hive.ql.metadata.Hive$3.call(Hive.java:2962)
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+{code}
+
+

@@ -1,0 +1,4 @@
+Reversed scan returns deleted versions and breaks RegionLocator
+We started seeing clients persistently throwing errors as they were trying to talk to a region that was non existent (split a few days ago). We verified that the region was deleted from meta when the split happened.
+On performing a raw scan on meta, the deleted version for the split region appears, which also does on performing a normal reversed scan. Since MetaScanner uses a reversed scan, this explains why clients see non existent regions.
+We also verified that there was no in-memory corrupt state by failing over the master. When we trigger major compaction on meta, the problem goes away further confirming the fact that we were seeing deleted versions.

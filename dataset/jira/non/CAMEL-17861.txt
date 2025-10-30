@@ -1,0 +1,34 @@
+Streaming  in Azure (Blob-Storage)  component not working
+As described in the email conversation below we are having memory problems with the current implementation of the azure (blob storage component). 
+Concretely the component does not stream properly!
+But looking at this stacktrace and the corresponding sourcecode it’s obvious that the whole stream is read to memory to check the total payload size (seems necessary for the azure client)
+As we transfer mass data with the azure component we consider this a major bug as we cannot use the azure-component as long as it does not stream properly. 
+Thx and Regards Christian
+Email History (camel user mailing list): 
+Response from Claus Ibsen: 
+What are the sources of those streams?
+I wonder if we could enrich from the message some sort of total size header
+into the camel blob producer, so it can tell the blob client the expected
+length, so it does not read the stream itself to find out.
+Also if you have the opportunity you are welcome to test with latest Camel
+3.9.0 release, if its still a problem.
+ 
+And you are welcome to create a JIRA as it would be great to have streaming
+work well with azure, especially for blob as its supposed to be also big
+blobs of data 
+initial question from Lukas Angerer: 
+We are transferring lots of data to the azure-storage with the azure-storage-blob component (version 3.7.0)
+The Route itself is only working with streams to keep the memory overhead low, streamcaching is enabled.
+But looking at this stacktrace and the corresponding sourcecode it’s obvious that the whole stream is read to memory to check the total payload size (seems necessary for the azure client)
+ 
+Caused by: java.lang.OutOfMemoryError: Java heap space
+            at org.apache.commons.io.output.AbstractByteArrayOutputStream.toByteArrayImpl(AbstractByteArrayOutputStream.java:366)
+            at org.apache.commons.io.output.ByteArrayOutputStream.toByteArray(ByteArrayOutputStream.java:163)
+            at org.apache.commons.io.IOUtils.toByteArray(IOUtils.java:2241)
+            at org.apache.camel.component.azure.storage.blob.BlobUtils.getInputStreamLength(BlobUtils.java:37)
+            at org.apache.camel.component.azure.storage.blob.BlobStreamAndLength.createBlobStreamAndLengthFromExchangeBody(BlobStreamAndLength.java:50)
+            at org.apache.camel.component.azure.storage.blob.operations.BlobOperations.uploadBlockBlob(BlobOperations.java:181)
+            at org.apache.camel.component.azure.storage.blob.BlobProducer.process(BlobProducer.java:86)
+            at org.apache.camel.support.AsyncProcessorConverterHelper$ProcessorToAsyncProcessorBridge.process(AsyncProcessorConverterHelper.java:66)
+            at org.apache.camel.processor.SendDynamicProcessor.lambda$process$0(SendDynamicProcessor.java:195)
+I was wondering if there is a better way to do this. Maybe a shortcut for the cached stream that just checks the size of the cache?

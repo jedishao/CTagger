@@ -1,0 +1,67 @@
+Test Failure: dtest-offheap.cqlsh_tests.test_cqlsh_copy.TestCqlshCopy.test_bulk_round_trip_with_single_core
+https://ci-cassandra.apache.org/job/Cassandra-4.0/313/testReport/dtest-offheap.cqlsh_tests.test_cqlsh_copy/TestCqlshCopy/test_bulk_round_trip_with_single_core_2/
+Error Message
+cassandra.OperationTimedOut: errors=
+{'127.0.0.1:9042': 'Client request timeout. See Session.execute[_async](timeout)'}
+, last_host=127.0.0.1:9042
+
+
+Stacktrace
+self = <cqlsh_tests.test_cqlsh_copy.TestCqlshCopy object at 0x7f45f7607fa0>
+
+    def test_bulk_round_trip_with_single_core(self):
+        """
+            Perform a round trip on a simulated single core machine. When determining the number of cores,
+            copyutil.py will return the number carried by the environment variable CQLSH_COPY_TEST_NUM_CORES if it has
+            been set.
+    
+            @jira_ticket CASSANDRA-11053
+            """
+        os.environ['CQLSH_COPY_TEST_NUM_CORES'] = '1'
+>       ret = self._test_bulk_round_trip(nodes=3, partitioner="murmur3", num_operations=100000)
+
+cqlsh_tests/test_cqlsh_copy.py:2539: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+cqlsh_tests/test_cqlsh_copy.py:2436: in _test_bulk_round_trip
+    num_records = create_records()
+cqlsh_tests/test_cqlsh_copy.py:2409: in create_records
+    ret = rows_to_list(self.session.execute(count_statement))[0][0]
+../venv/src/cassandra-driver/cassandra/cluster.py:2618: in execute
+    return self.execute_async(query, parameters, trace, custom_payload, timeout, execution_profile, paging_state, host, execute_as).result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ResponseFuture: query='<SimpleStatement query="SELECT COUNT(*) FROM keyspace1.standard1", consistency=ALL>' request_i...9042': 'Client request timeout. See Session.execute[_async](timeout)'}, last_host=127.0.0.1:9042 coordinator_host=None>
+
+    def result(self):
+        """
+            Return the final result or raise an Exception if errors were
+            encountered.  If the final result or error has not been set
+            yet, this method will block until it is set, or the timeout
+            set for the request expires.
+    
+            Timeout is specified in the Session request execution functions.
+            If the timeout is exceeded, an :exc:`cassandra.OperationTimedOut` will be raised.
+            This is a client-side timeout. For more information
+            about server-side coordinator timeouts, see :class:`.policies.RetryPolicy`.
+    
+            Example usage::
+    
+                >>> future = session.execute_async("SELECT * FROM mycf")
+                >>> # do other stuff...
+    
+                >>> try:
+                ...     rows = future.result()
+                ...     for row in rows:
+                ...         ... # process results
+                ... except Exception:
+                ...     log.exception("Operation failed:")
+    
+            """
+        self._event.wait()
+        if self._final_result is not _NOT_SET:
+            return ResultSet(self, self._final_result)
+        else:
+>           raise self._final_exception
+E           cassandra.OperationTimedOut: errors={'127.0.0.1:9042': 'Client request timeout. See Session.execute[_async](timeout)'}, last_host=127.0.0.1:9042
+
+../venv/src/cassandra-driver/cassandra/cluster.py:4894: OperationTimedOut

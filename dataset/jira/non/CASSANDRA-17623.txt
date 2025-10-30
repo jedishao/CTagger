@@ -1,0 +1,13 @@
+Frozen maps may be serialized unsorted, causing inability to query later
+CASSANDRA-7859 introduced the ability to use frozen collections as parts of primary keys. This +requires+ all frozen maps to be persisted with their entries sorted by the map keys. If the map is +not+ sorted correctly, it becomes impossible to project all of the map values out of the map using the map projection/selection syntax. For example, the select below would fail if the map was not sorted correctly and the higher-valued key was persisted first:
+{code:sql}
+CREATE TABLE test.test (k text, c frozen<map<text, text>>, PRIMARY KEY (k, c));
+INSERT INTO test.test (k, c) VALUES ('key', {'z':'second_value', 'a':'first_value'});
+SELECT k, c['a'] from test.test where k='key' -- c['a'] would return NULL here
+{code}
+
+Additionally, if you attempted to select just that row by using the complete map value in a WHERE clause, which is also supported, it would return no rows unless the map provided by the query processor just happened to be sorted the same way as the persisted value.
+
+However, there is a bug in Maps.java where we don't actually use a SortedMap in {{Maps.Value#fromSerialized}}, which manifests if a client sends an unsorted map as a bound parameter to a query on insert or select. In either case, the map may not be sorted correctly, leading to either invalid data being persisted to disk (in the INSERT case) or the query not being able to be executed/returning 0 rows even though a row _should_ exist (SELECT).
+
+This bug affects any usage of parameterized queries (tested with the DataStax driver, and was originally discovered when using the CQLSSTableWriter code to write data locally).

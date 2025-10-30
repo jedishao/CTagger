@@ -1,0 +1,14 @@
+Metrics output JSON_FILE issues with {hive.service.metrics.file.location} not being renamed as expected
+Due to a patch introduced with HIVE-13705, the target output json file (report.json) is not replace properly, only report.json.tmp is continuously updated.
+
+The local filesystem (https://github.com/apache/hive/blob/branch-2.1/common/src/java/org/apache/hadoop/hive/common/metrics/metrics2/CodahaleMetrics.java#L428) at the time of output is an instanceof ProxyLocalFileSystem (https://github.com/apache/hive/blob/branch-2.1/ql/src/java/org/apache/hadoop/hive/ql/io/ProxyLocalFileSystem.java) which overrides the rename method of the Hadoop LocalFileSystem.
+
+The Hadooo LocalFileSystem delegates rename() to the JVM which delegates rename() to the OS ... http://pubs.opengroup.org/onlinepubs/9699919799/functions/rename.html.
+
+The POSIX rename behavior is what the JSON_FILE output handler really wants here, I assume, as it supposedly ensures that a reader thread at no time ends up with no file, which in the deprecated Haddop FileSystem ... rename(src, dst, options) method could occur.
+
+No simple patch seems obvious, unless the JSON_FILE output handler would be leveraging the JVM FileSystem in case a local filesystem for the output is configured. Delegating to the Hadoop original LocalFilesystem seems not safe, if we can assume that at one point in the future, Hadoop will align LocalFileSystem and DFS behavior as requested originally in HDFS-10385.
+
+Comments appreciated, I'm inclined to rip out the Hadoop LocalFileSystem here and replace it with the JVM original.
+
+Hive master seems to still have the same issue, at least no obvious code changes are observed, despite some metrics refactoring (https://github.com/apache/hive/blob/master/common/src/java/org/apache/hadoop/hive/common/metrics/metrics2/JsonFileMetricsReporter.java#L116)

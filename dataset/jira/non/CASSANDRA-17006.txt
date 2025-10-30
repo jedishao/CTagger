@@ -1,0 +1,90 @@
+hostname verification for server-to-server encryption fails handshake on gateway IP
+When starting a Cassandra cluster with a docker compose, I'm getting handshake errors with sub-network gateway.
+{code}
+No subject alternative names matching IP address 172.17.154.1 found
+{code}
+It tries to handshake with gateway instead of other nodes directly.
+I'm using Cassandra docker container {{cassandra:4.0.1}}. When disabling {{require_endpoint_verification}} configuration, the cluster runs fine.
+
+
+
+
+Those are the containers ip's
+{code}
+ docker inspect -f '{{.Name}} - {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -aq)
+
+Sep 27 19:57:15 /cassandra.cassandra-init.ochptjyl.f21554205325e6663810168edd903aa8f0ac4a34 - 172.17.154.7
+Sep 27 19:57:15 /cassandra.tests.ochptjyl.f21554205325e6663810168edd903aa8f0ac4a34 - 172.17.154.6
+Sep 27 19:57:15 /cassandra.cassandra2.ochptjyl.f21554205325e6663810168edd903aa8f0ac4a34 - 172.17.154.5
+Sep 27 19:57:15 /cassandra.cassandra3.ochptjyl.f21554205325e6663810168edd903aa8f0ac4a34 - 172.17.154.4
+Sep 27 19:57:15 /cassandra.ssh.ochptjyl.f21554205325e6663810168edd903aa8f0ac4a34 - 172.17.154.2
+Sep 27 19:57:15 /cassandra.cassandra1.ochptjyl.f21554205325e6663810168edd903aa8f0ac4a34 - 172.17.154.3
+{code}
+
+The full stacktrace
+{code}
+ERROR [Messaging-EventLoop-3-2] 2021-09-27 19:57:32,057 InboundConnectionInitiator.java:360 - Failed to properly handshake with peer /172.17.154.1:36992. Closing the channel.
+ io.netty.handler.codec.DecoderException: javax.net.ssl.SSLHandshakeException: General OpenSslEngine problem
+ 	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:478)
+ 	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+ 	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+ 	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+ 	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+ 	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+ 	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+ 	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+ 	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+ 	at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:795)
+ 	at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:480)
+ 	at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+ 	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+ 	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+ 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+ 	at java.base/java.lang.Thread.run(Unknown Source)
+ Caused by: javax.net.ssl.SSLHandshakeException: General OpenSslEngine problem
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.handshakeException(ReferenceCountedOpenSslEngine.java:1793)
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.wrap(ReferenceCountedOpenSslEngine.java:777)
+ 	at java.base/javax.net.ssl.SSLEngine.wrap(Unknown Source)
+ 	at io.netty.handler.ssl.SslHandler.wrap(SslHandler.java:1086)
+ 	at io.netty.handler.ssl.SslHandler.wrapNonAppData(SslHandler.java:977)
+ 	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1450)
+ 	at io.netty.handler.ssl.SslHandler.decodeNonJdkCompatible(SslHandler.java:1294)
+ 	at io.netty.handler.ssl.SslHandler.decode(SslHandler.java:1331)
+ 	at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:508)
+ 	at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:447)
+ 	... 15 common frames omitted
+ Caused by: java.security.cert.CertificateException: No subject alternative names matching IP address 172.17.154.1 found
+ 	at java.base/sun.security.util.HostnameChecker.matchIP(Unknown Source)
+ 	at java.base/sun.security.util.HostnameChecker.match(Unknown Source)
+ 	at java.base/sun.security.ssl.X509TrustManagerImpl.checkIdentity(Unknown Source)
+ 	at java.base/sun.security.ssl.X509TrustManagerImpl.checkIdentity(Unknown Source)
+ 	at java.base/sun.security.ssl.X509TrustManagerImpl.checkTrusted(Unknown Source)
+ 	at java.base/sun.security.ssl.X509TrustManagerImpl.checkClientTrusted(Unknown Source)
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslServerContext$ExtendedTrustManagerVerifyCallback.verify(ReferenceCountedOpenSslServerContext.java:268)
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslContext$AbstractCertificateVerifier.verify(ReferenceCountedOpenSslContext.java:698)
+ 	at io.netty.internal.tcnative.SSL.readFromSSL(Native Method)
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.readPlaintextData(ReferenceCountedOpenSslEngine.java:596)
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.unwrap(ReferenceCountedOpenSslEngine.java:1220)
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.unwrap(ReferenceCountedOpenSslEngine.java:1346)
+ 	at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.unwrap(ReferenceCountedOpenSslEngine.java:1389)
+ 	at io.netty.handler.ssl.SslHandler$SslEngineType$1.unwrap(SslHandler.java:206)
+ 	at io.netty.handler.ssl.SslHandler.unwrap(SslHandler.java:1387)
+ 	... 19 common frames omitted
+ 	Suppressed: javax.net.ssl.SSLHandshakeException: error:1000007d:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED
+ 		at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.sslReadErrorResult(ReferenceCountedOpenSslEngine.java:1309)
+ 		at io.netty.handler.ssl.ReferenceCountedOpenSslEngine.unwrap(ReferenceCountedOpenSslEngine.java:1270)
+ 		... 23 common frames omitted
+{code}
+
+The server to sever encryption configuration.
+{code}
+ server_encryption_options:
+ internode_encryption: all
+ enable_legacy_ssl_storage_port: false
+ keystore: /etc/cassandra/keystore.p12
+ keystore_password: xxx
+ require_client_auth: true
+ truststore: /etc/cassandra/truststore.p12
+ truststore_password: xxx
+ require_endpoint_verification: true{code}
+ 

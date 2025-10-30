@@ -1,0 +1,25 @@
+Test Failure: UnavailableSocketErrors: Local socket binding errors showing up intermittently in tests
+ccmlib.common.UnavailableSocketError: Inet address 127.0.0.2:7000 is not available: [Errno 98] Address already in use; a cluster may already be running or you may need to add the loopback alias
+
+
+This keeps popping up in a variety of tests:
+https://ci-cassandra.apache.org/job/Cassandra-4.1/181/testReport/dtest-offheap.paging_test/TestPagingData/test_paging_with_filtering_on_partition_key_on_static_columns/
+https://ci-cassandra.apache.org/job/Cassandra-4.1/181/testReport/dtest-offheap.seed_test/TestGossiper/test_startup_after_ring_delay/
+https://ci-cassandra.apache.org/job/Cassandra-4.1/181/testReport/dtest-offheap.replication_test/TestSnitchConfigurationUpdate/test_rf_collapse_property_file_snitch/
+This stems from ccm in common.py:
+
+
+itf = ('127.0.0.2', 7000)
+
+    def assert_socket_available(itf):
+        info = socket.getaddrinfo(itf[0], itf[1], socket.AF_UNSPEC, socket.SOCK_STREAM)
+        if not info:
+            raise UnavailableSocketError("Failed to get address info for [%s]:%s" % itf)
+    
+        (family, socktype, proto, canonname, sockaddr) = info[0]
+        s = socket.socket(family, socktype)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
+        try:
+>           s.bind(sockaddr)
+E           OSError: [Errno 98] Address already in use

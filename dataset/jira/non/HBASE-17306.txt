@@ -1,0 +1,19 @@
+IntegrationTestRSGroup#testRegionMove may fail due to region server not online
+2016-12-13 05:26:57,965|INFO|MainThread|machine.py:145 - run()|2) testRegionMove(org.apache.hadoop.hbase.rsgroup.IntegrationTestRSGroup)
+2016-12-13 05:26:57,965|INFO|MainThread|machine.py:145 - run()|org.apache.hadoop.hbase.constraint.ConstraintException: org.apache.hadoop.hbase.constraint.                    ConstraintException: Server ctr-e77-1481596162056-0240-01-000005.a.com:16020 is not an online server in default group.
+2016-12-13 05:26:57,966|INFO|MainThread|machine.py:145 - run()|at org.apache.hadoop.hbase.rsgroup.RSGroupAdminServer.moveServers(RSGroupAdminServer.java:135)
+2016-12-13 05:26:57,966|INFO|MainThread|machine.py:145 - run()|at org.apache.hadoop.hbase.rsgroup.RSGroupAdminEndpoint.moveServers(RSGroupAdminEndpoint.java:169)
+2016-12-13 05:26:57,966|INFO|MainThread|machine.py:145 - run()|at org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos$RSGroupAdminService.                          callMethod(RSGroupAdminProtos.java:11136)
+2016-12-13 05:26:57,966|INFO|MainThread|machine.py:145 - run()|at org.apache.hadoop.hbase.master.MasterRpcServices.execMasterService(MasterRpcServices.java:679)
+2016-12-13 05:26:57,966|INFO|MainThread|machine.py:145 - run()|at org.apache.hadoop.hbase.protobuf.generated.MasterProtos$MasterService$2
+
+
+Shortly before the test failure, the server was shutdown:
+
+2016-12-13 05:21:25,428 INFO  [MASTER_SERVER_OPERATIONS-ctr-e77-1481596162056-0240-01-000008:20000-4] handler.ServerShutdownHandler: Finished processing of shutdown of ctr-  e77-1481596162056-0240-01-000005.a.com,16020,1481606309159
+...
+2016-12-13 05:26:57,935 INFO  [RpcServer.FifoWFPBQ.priority.handler=19,queue=1,port=20000] master.ServerManager: Registering server=ctr-e77-1481596162056-0240-01-000005.hwx. site,16020,1481606803303
+2016-12-13 05:27:06,219 DEBUG [main-EventThread] zookeeper.RegionServerTracker: Added tracking of RS /hbase-secure/rs/ctr-e77-1481596162056-0240-01-000005.a.com,16020,       1481606803303
+
+
+The registration of the new server (start code1481606803303) happened shortly after the test failure.

@@ -1,0 +1,12 @@
+Regionserver down when checking the permission of staging dir if hbase.rootdir is on S3
+Found some issue, when set up HBASE-17437: Support specifying a WAL directory outside of the root directory.
+The region server are  showdown when I add following config into hbase-site.xml 
+hbase.rootdir =  s3a://xx//xx
+hbase.wal.dir = hdfs://xx/xx
+hbase.coprocessor.region.classes = org.apache.hadoop.hbase.security.access.SecureBulkLoadEndpoint
+Error is below
+
+org.apache.hadoop.hbase.security.access.SecureBulkLoadEndpoint threw java.lang.IllegalStateException: Directory already exists but permissions aren't set to '-rwx--x--x'
+
+
+The reason is that, when hbase enable securebulkload, hbase will create a folder in s3, it can not set above permission, because in s3, all files are listed as having full read/write permissions and all directories appear to have full rwx permissions. See Object stores have differerent authorization models in https://hadoop.apache.org/docs/current3/hadoop-aws/tools/hadoop-aws/index.html

@@ -1,0 +1,19 @@
+BulkLoader tool initializes schema unnecessarily via streaming
+Changes to streaming setup code for CASSANDRA-17663 mean that {{BulkLoader}} initializes the schema/system keyspace, which is not what we want in a tool. Initialization is due to a call to {{SystemKeyspace.getPreferredIP}} from the {{BulkLoader}} when it starts to transmit the SSTables from the bulk loader to the Cassandra instance.
+
+{noformat}
+getPreferredIP:1063, SystemKeyspace (org.apache.cassandra.db)
+sendMessage:213, StreamingMultiplexedChannel (org.apache.cassandra.streaming.async)
+sendControlMessage:191, StreamingMultiplexedChannel (org.apache.cassandra.streaming.async)
+sendControlMessage:1033, StreamSession (org.apache.cassandra.streaming)
+startStreamingFiles:1257, StreamSession (org.apache.cassandra.streaming)
+prepareSynAck:802, StreamSession (org.apache.cassandra.streaming)
+messageReceived:622, StreamSession (org.apache.cassandra.streaming)
+run:76, StreamDeserializingTask (org.apache.cassandra.streaming)
+run:30, FastThreadLocalRunnable (io.netty.util.concurrent)
+run:748, Thread (java.lang)
+{noformat}
+
+The existing {{BulkLoaderTest}} fails to detect this as it doesn't actually connect to anything so does not initialize streaming.
+
+Affects 4.1 and trunk, and may affect 4.0, although the 4.0 patch for CASSANDRA-17663 is different than 4.1+, and may require different mitigation.

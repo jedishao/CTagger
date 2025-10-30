@@ -1,0 +1,14 @@
+wireTap doesn't deep copy attachments
+Attachments are just stored in a Map in an internal property of exchange. So when Camel copies exchange on wireTap, Attachments is copied by reference and so are shared with the main route and so confusing un-deterministic behavior will emerge on wireTap when exchange has attachments!
+Currently I've workaround this issue as following:
+
+
+                    .wireTap("direct:xslt-validation-logging").onPrepare(exchange -> {
+                        // deep copy attachments to avoid wiretap added attachments to be seen in the original route
+                        AttachmentMessage attMsg = exchange.getIn(AttachmentMessage.class);
+                        attMsg.setAttachments(attMsg.getAttachments());
+                    }).end()
+
+
+
+but I think Camel internally MUST do this for me as it's useless to share attachments with main route I think.

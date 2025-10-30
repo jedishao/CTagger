@@ -1,0 +1,10 @@
+camel-caffeine: Various improvements
+Can you pls. comment on a pull request I'm going to create for the camel-caffeine component regarding the following changes?
+InvalidateAll
+The caffeine library provides two "invalidateAll" methods, one with no arguments and one taking a key set. Currently the camel-caffeine component maps only the invalidateAll method providing a key set, defaulting to an empty set if no key set is provided explictly. This essentially means that there is no way to invalidate all keys of the cache, as providing an empty key set to that very invalidateAll method leaves the cache unchanged. It might make sense to call the invalidateAll method without parameters in case no key set is provided, i. e. the appropriate header field is not set.
+AsMap
+The caffeine library provides a asMap method, which isn't yet mapped by camel-caffeine. This essentially means that there is no way to get the list of all keys present in the cache.
+Cache lookup
+I've got difficulties to understand how the cache reuse is supposed to work. I'm only able to get the caffeine component to work using the .toF() notation, as indicated by the unit test "testTo()", which I added to CaffeineCacheFromScratchProducerTest. This unit test basically takes the example from the camel-caffeine documentation using "to()" and it fails using the current implementation. I added a getCamelContext().getRegistry().bind(...) statement to the endpoint in case a new cache is generated, which allows the unit test to succeed. Is that the way it should be? Am I missing something?
+Create cache if not exist
+Somehow related to the cache lookup topic above, I wasn't able to find a reference to the createCacheIfNotExist configuration property. I added a check if that property is set. If it's set to true, then the cache is created as already implemented. If not, an exception is thrown.

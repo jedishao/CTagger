@@ -1,0 +1,11 @@
+TopNKey: Create a standalone vectorizable TopNKey operator
+For TPC-DS Query27, the TopN operation is delayed by the group-by - the group-by operator buffers up all the rows before discarding the 99% of the rows in the TopN Hash within the ReduceSink Operator.
+The RS TopN operator is very restrictive as it only supports doing the filtering on the shuffle keys, but it is better to do this before breaking the vectors into rows and losing the isRepeating properties.
+Adding a TopN Key operator in the physical operator tree allows the following to happen.
+GBY->RS(Top=1)
+can become 
+TNK(1)>GBY>RS(Top=1)
+So that, the TopNKey can remove rows before they are buffered into the GBY and consume memory.
+Here's the equivalent implementation in Presto
+https://github.com/prestodb/presto/blob/master/presto-main/src/main/java/com/facebook/presto/operator/TopNOperator.java#L35
+Adding this as a sub-feature of GroupBy prevents further optimizations if the GBY is on keys "a,b,c" and the TopNKey is on just "a".

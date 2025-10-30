@@ -1,0 +1,29 @@
+Constants$Literal.getText does not escape ' chars
+The current implementation is only adding single quotes around the text:
+
+
+public String getText()
+{
+    return type == Type.STRING ? String.format("'%s'", text) : text;
+}
+
+
+So, getText for this string:
+
+
+'this is a ''quoted'' word'
+
+
+would return
+
+
+'this is a 'quoted' word'
+
+
+Maybe something like this would fix it, if necessary:
+
+
+public String getText()
+{
+    return type == Type.STRING ? String.format("'%s'", StringUtils.replace(text, "'", "''")) : text;
+}

@@ -1,0 +1,18 @@
+ServerCrashProcedure is not triggered when meta server with unflushed edits is aborted
+When writing unit test for HBASE-17287, I noticed that the wait for master to come down after hdfs enters safe mode times out (where meta server still has unflushed edits).
+The same test in branch-1 passes fine.
+Looking at org.apache.hadoop.hbase.master.procedure.TestSafemodeBringsDownMaster-output.txt , I don't see occurrence of ServerCrashProcedure.
+While in branch-1, there is something similar to the following:
+
+  at org.apache.hadoop.hdfs.DFSClient.rename(DFSClient.java:1661)
+  at org.apache.hadoop.hdfs.DistributedFileSystem.rename(DistributedFileSystem.java:525)
+  at org.apache.hadoop.hbase.master.MasterFileSystem.getLogDirs(MasterFileSystem.java:364)
+  at org.apache.hadoop.hbase.master.MasterFileSystem.splitLog(MasterFileSystem.java:429)
+  at org.apache.hadoop.hbase.master.MasterFileSystem.splitMetaLog(MasterFileSystem.java:343)
+  at org.apache.hadoop.hbase.master.MasterFileSystem.splitMetaLog(MasterFileSystem.java:334)
+  at org.apache.hadoop.hbase.master.procedure.ServerCrashProcedure.processMeta(ServerCrashProcedure.java:351)
+  at org.apache.hadoop.hbase.master.procedure.ServerCrashProcedure.executeFromState(ServerCrashProcedure.java:239)
+  at org.apache.hadoop.hbase.master.procedure.ServerCrashProcedure.executeFromState(ServerCrashProcedure.java:73)
+  at org.apache.hadoop.hbase.procedure2.StateMachineProcedure.execute(StateMachineProcedure.java:139)
+  at org.apache.hadoop.hbase.procedure2.Procedure.doExecute(Procedure.java:506)
+  at org.apache.hadoop.hbase.procedure2.ProcedureExecutor.execProcedure(ProcedureExecutor.java:1152)

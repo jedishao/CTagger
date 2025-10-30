@@ -1,0 +1,32 @@
+camel-validator: remote xsd import not usable
+camel-validator concat imports from xsd to the base endpoint, ex.
+
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            targetNamespace="http://example.org/ord"
+            xmlns="http://example.org/ord"
+            xmlns:prod="http://example.org/prod">
+  <xs:include schemaLocation="https://raw.githubusercontent.com/Croway/test-xsd/main/chapter04ord2.xsd"/>
+  <xs:include schemaLocation="https://raw.githubusercontent.com/Croway/test-xsd/main/chapter04cust.xsd"/>
+  <xs:import namespace="http://example.org/prod"
+                 schemaLocation="https://raw.githubusercontent.com/Croway/test-xsd/main/chapter04prod.xsd"/>
+...
+
+
+with a route like 
+
+
+...
+.toD("validator:https://raw.githubusercontent.com/Croway/test-xsd/main/chapter04ord1.xsd")
+...
+
+
+the validator component concat the base endpoint with the import one, for example: _https://raw.githubusercontent.com/Croway/test-xsd/main/https://raw.githubusercontent.com/Croway/test-xsd/main/chapter04prod.xsd _ and the following exception is thrown
+
+
+Caused by: java.io.FileNotFoundException: https://raw.githubusercontent.com/Croway/test-xsd/main/https:/raw.githubusercontent.com/Croway/test-xsd/main/chapter04ord2.xsd
+	at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream0(HttpURLConnection.java:1993)
+	at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream(HttpURLConnection.java:1589)
+	at java.base/sun.net.www.protocol.https.HttpsURLConnectionImpl.getInputStream(HttpsURLConnectionImpl.java:224)
+	at org.apache.camel.impl.engine.DefaultResourceResolvers$HttpsResolver$1.getInputStream(DefaultResourceResolvers.java:202)
+...

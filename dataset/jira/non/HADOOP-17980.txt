@@ -1,0 +1,92 @@
+Spark application stuck at ACCEPTED state (unset port issue)
+Hello guys! 
+ 
+I am using Hadoop 3.3.2 to set up a cluster of 2 nodes. I was able to start manually both hadoop (through hdfs namenode -regular & hdfs datanode -regular one command on each machine) and yarn (yarn resourcemanager (master) yarn nodemanager (on the slave)) But when i issue a spark-submit command to run my application it gets stuck in the ACCEPTED STATUS and the log of the slave machine shows the following error : 
+ 
+ 
+ 
+
+2021-10-26 19:51:40,359 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@1914cad9{/executors/json,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,359 INFO ui.ServerInfo: Adding filter to /executors/threadDump: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,360 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@1778f2da{/executors/threadDump,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,361 INFO ui.ServerInfo: Adding filter to /executors/threadDump/json: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,362 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@22a2a185{/executors/threadDump/json,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,362 INFO ui.ServerInfo: Adding filter to /static: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,383 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@74a801ad{/static,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,384 INFO ui.ServerInfo: Adding filter to /: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,385 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@27bcbe54{/,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,386 INFO ui.ServerInfo: Adding filter to /api: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,390 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@19646f00{/api,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,390 INFO ui.ServerInfo: Adding filter to /jobs/job/kill: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,391 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@4f7ec9ca{/jobs/job/kill,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,391 INFO ui.ServerInfo: Adding filter to /stages/stage/kill: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,394 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@33a1fb05{/stages/stage/kill,null,AVAILABLE,@Spark}
+2021-10-26 19:51:40,396 INFO ui.SparkUI: Bound SparkUI to 0.0.0.0, and started at http://slaveVM1:64888
+2021-10-26 19:51:40,486 INFO cluster.YarnClusterScheduler: Created YarnClusterScheduler
+2021-10-26 19:51:40,664 INFO util.Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 64902.
+2021-10-26 19:51:40,664 INFO netty.NettyBlockTransferService: Server created on slaveVM1:64902
+2021-10-26 19:51:40,666 INFO storage.BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+2021-10-26 19:51:40,679 INFO storage.BlockManagerMaster: Registering BlockManager BlockManagerId(driver, slaveVM1, 64902, None)
+2021-10-26 19:51:40,685 INFO storage.BlockManagerMasterEndpoint: Registering block manager slaveVM1:64902 with 366.3 MiB RAM, BlockManagerId(driver, slaveVM1, 64902, None)
+2021-10-26 19:51:40,688 INFO storage.BlockManagerMaster: Registered BlockManager BlockManagerId(driver, slaveVM1, 64902, None)
+2021-10-26 19:51:40,689 INFO storage.BlockManager: Initialized BlockManager: BlockManagerId(driver, slaveVM1, 64902, None)
+2021-10-26 19:51:40,925 INFO ui.ServerInfo: Adding filter to /metrics/json: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+2021-10-26 19:51:40,926 INFO handler.ContextHandler: Started o.s.j.s.ServletContextHandler@97b0a9c{/metrics/json,null,AVAILABLE,@Spark}
+2021-10-26 19:51:41,029 INFO client.RMProxy: Connecting to ResourceManager at /0.0.0.0:8030
+2021-10-26 19:51:41,096 INFO yarn.YarnRMClient: Registering the ApplicationMaster
+2021-10-26 19:51:43,156 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 0 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:51:45,158 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 1 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:56:23,098 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 5 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:56:25,100 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 6 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:56:27,102 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 7 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:56:29,103 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 8 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:56:31,106 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 9 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:56:32,110 INFO retry.RetryInvocationHandler: java.net.ConnectException: Your endpoint configuration is wrong; For more details see: http://wiki.apache.org/hadoop/UnsetHostnameOrPort, while invoking ApplicationMasterProtocolPBClientImpl.registerApplicationMaster over null after 6 failover attempts. Trying to failover after sleeping for 30360ms.
+2021-10-26 19:57:04,472 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 0 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:06,473 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 1 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:08,476 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 2 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:10,478 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 3 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:12,481 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 4 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:14,481 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 5 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:16,484 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 6 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:18,488 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 7 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:20,489 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 8 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:22,490 INFO ipc.Client: Retrying connect to server: 0.0.0.0/0.0.0.0:8030. Already tried 9 time(s); retry policy is RetryUpToMaximumCountWithFixedSleep(maxRetries=10, sleepTime=1000 MILLISECONDS)
+2021-10-26 19:57:23,492 INFO retry.RetryInvocationHandler: java.net.ConnectException: Your endpoint configuration is wrong; For more details see: http://wiki.apache.org/hadoop/UnsetHostnameOrPort, while invoking ApplicationMasterProtocolPBClientImpl.registerApplicationMaster over null after 7 failover attempts. Trying to failover after sleeping for 38816ms.
+
+
+ I set resourcemanager properties (datanode side) but it's like Hadoop not reading the address and is returning the default one 0.0.0.0:8030 (scheduler):
+i check the Hadoop Yarn code and i find that the method returning `0.0.0.0:8030` (the resourcemanager address according to the log ("`...client.RMProxy: Connecting to ResourceManager at /0.0.0.0:8030...`")) is actually using a default address (that of the scheduler) and not using any of my property values set in slave nor master: 
+From `hadoop/hadoop-yarn-project/hadoop-yarn/hadoop-yarn-common/src/main/java/org/apache/hadoop/yarn/client/ClientRMProxy.java`
+ 
+
+
+protected InetSocketAddress getRMAddress(YarnConfiguration conf,
+ Class<?> protocol) throws IOException {
+ if (protocol == ApplicationClientProtocol.class) {
+ return conf.getSocketAddr(YarnConfiguration.RM_ADDRESS,
+ YarnConfiguration.DEFAULT_RM_ADDRESS,
+ YarnConfiguration.DEFAULT_RM_PORT);
+ } else if (protocol == ResourceManagerAdministrationProtocol.class) {
+ return conf.getSocketAddr(
+ YarnConfiguration.RM_ADMIN_ADDRESS,
+ YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
+ YarnConfiguration.DEFAULT_RM_ADMIN_PORT);
+ } else if (protocol == ApplicationMasterProtocol.class) {
+ setAMRMTokenService(conf);
+ return conf.getSocketAddr(YarnConfiguration.RM_SCHEDULER_ADDRESS,
+ YarnConfiguration.DEFAULT_RM_SCHEDULER_ADDRESS,
+ YarnConfiguration.DEFAULT_RM_SCHEDULER_PORT);
+ } else {
+ String message = "Unsupported protocol found when creating the proxy " +
+ "connection to ResourceManager: " +
+ ((protocol != null) ? protocol.getClass().getName() : "null");
+ LOG.error(message);
+ throw new IllegalStateException(message);
+ }
+ }
+
+Any explanation ?
+What configuration am i missing here, could it be related to my Hadoop version as i am setting the "right" config ? 
+Thanks for clarifying guys !
+Cheers!

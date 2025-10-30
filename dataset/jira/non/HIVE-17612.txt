@@ -1,0 +1,5 @@
+Hive does not insert dynamic partition-sets atomically
+If one inserts partitions to a Hive table using a Hive query (e.g. INSERT OVERWRITE TABLE my_table PARTITION (foo, bar) SELECT * FROM another_table;), each dynamic partition is added separately, using HMSC.append_partition(). By contrast, Pig/HCatLoader does the same atomically, using HMSC.add_partitions().
+Because of this behaviour, Oozie workflows might kick off when the first partition is registered, but before the last partition in the set is available.
+This was verified in the metastore-logs, with multiple ADD_PARTITION events fired for the same query (i.e. once per added partition), instead of a single event for the set.
+It would be ideal for Hive to provide atomic partition-adds.

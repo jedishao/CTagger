@@ -1,0 +1,9 @@
+Duplicate bucket files can get written to table by runaway task
+Saw a table get a duplicate bucket file from a Hive query. It looks like the following happened:
+1. Task attempt A_0 starts,but then stops making progress
+2. The job was running with speculative execution on, and task attempt A_1 is started
+3. Task attempt A_1 finishes execution and saves its output to the temp directory.
+5. A task kill is sent to A_0, though this does appear to actually kill A_0
+6. The job for the query finishes and Utilities.mvFileToFinalPath() calls Utilities.removeTempOrDuplicateFiles() to check for duplicate bucket files
+7. A_0 (still running) finally finishes and saves its file to the temp directory. At this point we now have duplicate bucket files - oops!
+8. Utilities.removeTempOrDuplicateFiles() moves the temp directory to the final location, where it is later moved to the partition directory.

@@ -1,0 +1,21 @@
+Fix outdated properties of JournalNode when performing rollback
+When rollback HDFS cluster, properties in JNStorage won't be refreshed after the storage dir changed. It leads to exceptions when starting namenode.
+The exception like:
+
+
+2020-07-09 19:04:12,810 FATAL [IPC Server handler 105 on 8022] org.apache.hadoop.hdfs.server.namenode.FSEditLog: Error: recoverUnfinalizedSegments failed for required journal (JournalAndStream(mgr=QJM to [10.0.118.217:8485, 10.0.117.208:8485, 10.0.118.179:8485], stream=null))
+org.apache.hadoop.hdfs.qjournal.client.QuorumException: Got too many exceptions to achieve quorum size 2/3. 3 exceptions thrown:
+10.0.118.217:8485: Incompatible namespaceID for journal Storage Directory /mnt/vdc-11176G-0/dfs/jn/nameservicetest1: NameNode has nsId 647617129 but storage has nsId 0
+	at org.apache.hadoop.hdfs.qjournal.server.JNStorage.checkConsistentNamespace(JNStorage.java:236)
+	at org.apache.hadoop.hdfs.qjournal.server.Journal.newEpoch(Journal.java:300)
+	at org.apache.hadoop.hdfs.qjournal.server.JournalNodeRpcServer.newEpoch(JournalNodeRpcServer.java:136)
+	at org.apache.hadoop.hdfs.qjournal.protocolPB.QJournalProtocolServerSideTranslatorPB.newEpoch(QJournalProtocolServerSideTranslatorPB.java:133)
+	at org.apache.hadoop.hdfs.qjournal.protocol.QJournalProtocolProtos$QJournalProtocolService$2.callBlockingMethod(QJournalProtocolProtos.java:25417)
+	at org.apache.hadoop.ipc.ProtobufRpcEngine$Server$ProtoBufRpcInvoker.call(ProtobufRpcEngine.java:617)
+	at org.apache.hadoop.ipc.RPC$Server.call(RPC.java:1073)
+	at org.apache.hadoop.ipc.Server$Handler$1.run(Server.java:2278)
+	at org.apache.hadoop.ipc.Server$Handler$1.run(Server.java:2274)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1924)
+	at org.apache.hadoop.ipc.Server$Handler.run(Server.java:2274)

@@ -1,0 +1,4 @@
+SecureBulkLoadClient squashes DoNotRetryIOExceptions from the server
+While writing some tests against 1.x, I noticed that what should have been a DoNotRetryIOException sent to the client from a RegionServer was getting retried until it reached the hbase client retries limit.
+Upon inspection, I found that the SecureBulkLoadClient was wrapping all Exceptions from the RPC as an IOException. I believe this is creating a case where the RPC system doesn't notice that there's a DNRIOException wrapped beneath it, thinking it's a transient error.
+This results in clients having to wait for the retry limit to be reached before they get acknowledgement that something failed.

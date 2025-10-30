@@ -1,0 +1,13 @@
+Avoid busy waiting in ThrottledInputStream
+ThrottledInputStream.java
+// We can calculate the precise sleep time instead of busy waiting
+  private void throttle() throws IOException {
+    while (getBytesPerSec() > maxBytesPerSec) {
+      try {
+        Thread.sleep(SLEEP_DURATION_MS);
+        totalSleepTime += SLEEP_DURATION_MS;
+      } catch (InterruptedException e) {
+        throw new IOException("Thread aborted", e);
+      }
+    }
+  }

@@ -1,0 +1,105 @@
+unstable stats in q files
+stats recorded in explain plan in .out files are sometimes unstable 
+here is 1 concrete example (HIVE-15898 1st run is patch 6, 2nd run is patch 7)
+
+[10:23 AM] Eugene Koifman: 1st run
+[10:23 AM] Eugene Koifman: https://builds.apache.org/job/PreCommit-HIVE-Build/5951/testReport/org.apache.hadoop.hive.cli/TestMi...
+[10:23 AM] Eugene Koifman: 316c316
+<                   Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 45 Data size: 4571 Basic stats: COMPLETE Column stats: NONE
+[10:23 AM] Eugene Koifman: this is the 1st diff - it says that actual result was 4560 and expected was 4571
+[10:24 AM] Eugene Koifman: here is a 2nd run (the only difference is that I update the .out file)
+[10:24 AM] Eugene Koifman: https://builds.apache.org/job/PreCommit-HIVE-Build/5956/testReport/org.apache.hadoop.hive.cli/TestMi...
+[10:24 AM] Eugene Koifman: 316c316
+<                   Statistics: Num rows: 45 Data size: 4573 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+[10:25 AM] Eugene Koifman: is the 1st diff in the 2nd run
+
+
+The actual value from each run is different.
+Complete output from patch 6 run 
+
+Client Execution succeeded but contained differences (error code = 1) after executing sqlmerge_type2_scd.q 
+316c316
+<                   Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 45 Data size: 4571 Basic stats: COMPLETE Column stats: NONE
+319c319
+<                     Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+---
+>                     Statistics: Num rows: 45 Data size: 4571 Basic stats: COMPLETE Column stats: NONE
+324c324
+<                       Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+---
+>                       Statistics: Num rows: 45 Data size: 4571 Basic stats: COMPLETE Column stats: NONE
+347c347
+<                   Statistics: Num rows: 22 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 22 Data size: 4571 Basic stats: COMPLETE Column stats: NONE
+350c350
+<                     Statistics: Num rows: 22 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+---
+>                     Statistics: Num rows: 22 Data size: 4571 Basic stats: COMPLETE Column stats: NONE
+355c355
+<                       Statistics: Num rows: 22 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+---
+>                       Statistics: Num rows: 22 Data size: 4571 Basic stats: COMPLETE Column stats: NONE
+369c369
+<                 Statistics: Num rows: 49 Data size: 5016 Basic stats: COMPLETE Column stats: NONE
+---
+>                 Statistics: Num rows: 49 Data size: 5028 Basic stats: COMPLETE Column stats: NONE
+373c373
+<                   Statistics: Num rows: 49 Data size: 5016 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 49 Data size: 5028 Basic stats: COMPLETE Column stats: NONE
+378c378
+<                     Statistics: Num rows: 49 Data size: 5016 Basic stats: COMPLETE Column stats: NONE
+---
+>                     Statistics: Num rows: 49 Data size: 5028 Basic stats: COMPLETE Column stats: NONE
+390c390
+<                 Statis
+
+
+
+From patch 7 run 
+
+316c316
+<                   Statistics: Num rows: 45 Data size: 4573 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+319c319
+<                     Statistics: Num rows: 45 Data size: 4573 Basic stats: COMPLETE Column stats: NONE
+---
+>                     Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+324c324
+<                       Statistics: Num rows: 45 Data size: 4573 Basic stats: COMPLETE Column stats: NONE
+---
+>                       Statistics: Num rows: 45 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+347c347
+<                   Statistics: Num rows: 22 Data size: 4573 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 22 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+350c350
+<                     Statistics: Num rows: 22 Data size: 4573 Basic stats: COMPLETE Column stats: NONE
+---
+>                     Statistics: Num rows: 22 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+355c355
+<                       Statistics: Num rows: 22 Data size: 4573 Basic stats: COMPLETE Column stats: NONE
+---
+>                       Statistics: Num rows: 22 Data size: 4560 Basic stats: COMPLETE Column stats: NONE
+369c369
+<                 Statistics: Num rows: 49 Data size: 5030 Basic stats: COMPLETE Column stats: NONE
+---
+>                 Statistics: Num rows: 49 Data size: 5016 Basic stats: COMPLETE Column stats: NONE
+373c373
+<                   Statistics: Num rows: 49 Data size: 5030 Basic stats: COMPLETE Column stats: NONE
+---
+>                   Statistics: Num rows: 49 Data size: 5016 Basic stats: COMPLETE Column stats: NONE
+378c378
+<                     Statistics: Num rows: 49 Data size: 5030 Basic stats: COMPLETE Column stats: NONE
+---
+>                     Statistics: Num rows: 49 Data size: 5016 Basic stats: COMPLETE Column stats: NONE
+390c390
+<                 Statis

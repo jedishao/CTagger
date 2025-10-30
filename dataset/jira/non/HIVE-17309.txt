@@ -1,0 +1,112 @@
+alter partition onto a table not in current database throw InvalidOperationException
+When executor alter partition onto a table which existed not in current database, InvalidOperationException thrown.
+SQL example:
+
+use default;
+ALTER TABLE anotherdb.test_table_for_alter_partition_nocurrentdb partition(ds='haihua001') CHANGE COLUMN a a_new BOOLEAN;
+
+
+We see this code in DDLTask.java potential problem that not transfer the qualified table name with database name when db.alterPartitions called.
+
+      if (allPartitions == null) {
+        db.alterTable(alterTbl.getOldName(), tbl, alterTbl.getIsCascade(), alterTbl.getEnvironmentContext());
+      } else {
+        db.alterPartitions(tbl.getTableName(), allPartitions, alterTbl.getEnvironmentContext());
+      }
+
+
+stacktrace:
+
+
+2017-07-19T11:06:39,639  INFO [main] metastore.HiveMetaStore: New partition values:[2017-07-14]
+2017-07-19T11:06:39,654 ERROR [main] metastore.RetryingHMSHandler: InvalidOperationException(message:alter is not possible)
+    at org.apache.hadoop.hive.metastore.HiveAlterHandler.alterPartitions(HiveAlterHandler.java:526)
+    at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.alter_partitions_with_environment_context(HiveMetaStore.java:3560)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke(Method.java:606)
+    at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invokeInternal(RetryingHMSHandler.java:140)
+    at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invoke(RetryingHMSHandler.java:99)
+    at com.sun.proxy.$Proxy21.alter_partitions_with_environment_context(Unknown Source)
+    at org.apache.hadoop.hive.metastore.HiveMetaStoreClient.alter_partitions(HiveMetaStoreClient.java:1486)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke(Method.java:606)
+    at org.apache.hadoop.hive.metastore.RetryingMetaStoreClient.invoke(RetryingMetaStoreClient.java:154)
+    at com.sun.proxy.$Proxy22.alter_partitions(Unknown Source)
+    at org.apache.hadoop.hive.ql.metadata.Hive.alterPartitions(Hive.java:712)
+    at org.apache.hadoop.hive.ql.exec.DDLTask.alterTable(DDLTask.java:3338)
+    at org.apache.hadoop.hive.ql.exec.DDLTask.execute(DDLTask.java:368)
+    at org.apache.hadoop.hive.ql.exec.Task.executeTask(Task.java:197)
+    at org.apache.hadoop.hive.ql.exec.TaskRunner.runSequential(TaskRunner.java:100)
+    at org.apache.hadoop.hive.ql.Driver.launchTask(Driver.java:2166)
+    at org.apache.hadoop.hive.ql.Driver.execute(Driver.java:1837)
+    at org.apache.hadoop.hive.ql.Driver.execute(Driver.java:1713)
+    at org.apache.hadoop.hive.ql.Driver.runInternal(Driver.java:1543)
+    at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1174)
+    at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1164)
+    at org.apache.hadoop.hive.cli.CliDriver.processLocalCmd(CliDriver.java:232)
+    at org.apache.hadoop.hive.cli.CliDriver.processCmd(CliDriver.java:183)
+    at org.apache.hadoop.hive.cli.CliDriver.processLine(CliDriver.java:399)
+    at org.apache.hadoop.hive.cli.CliDriver.executeDriver(CliDriver.java:776)
+    at org.apache.hadoop.hive.cli.CliDriver.run(CliDriver.java:714)
+    at org.apache.hadoop.hive.cli.CliDriver.main(CliDriver.java:641)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke(Method.java:606)
+    at org.apache.hadoop.util.RunJar.run(RunJar.java:221)
+    at org.apache.hadoop.util.RunJar.main(RunJar.java:136)
+
+2017-07-19T11:06:39,669 ERROR [main] exec.DDLTask: org.apache.hadoop.hive.ql.metadata.HiveException: Unable to alter partition. alter is not possible
+    at org.apache.hadoop.hive.ql.metadata.Hive.alterPartitions(Hive.java:716)
+    at org.apache.hadoop.hive.ql.exec.DDLTask.alterTable(DDLTask.java:3338)
+    at org.apache.hadoop.hive.ql.exec.DDLTask.execute(DDLTask.java:368)
+    at org.apache.hadoop.hive.ql.exec.Task.executeTask(Task.java:197)
+    at org.apache.hadoop.hive.ql.exec.TaskRunner.runSequential(TaskRunner.java:100)
+    at org.apache.hadoop.hive.ql.Driver.launchTask(Driver.java:2166)
+    at org.apache.hadoop.hive.ql.Driver.execute(Driver.java:1837)
+    at org.apache.hadoop.hive.ql.Driver.execute(Driver.java:1713)
+    at org.apache.hadoop.hive.ql.Driver.runInternal(Driver.java:1543)
+    at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1174)
+    at org.apache.hadoop.hive.ql.Driver.run(Driver.java:1164)
+    at org.apache.hadoop.hive.cli.CliDriver.processLocalCmd(CliDriver.java:232)
+    at org.apache.hadoop.hive.cli.CliDriver.processCmd(CliDriver.java:183)
+    at org.apache.hadoop.hive.cli.CliDriver.processLine(CliDriver.java:399)
+    at org.apache.hadoop.hive.cli.CliDriver.executeDriver(CliDriver.java:776)
+    at org.apache.hadoop.hive.cli.CliDriver.run(CliDriver.java:714)
+    at org.apache.hadoop.hive.cli.CliDriver.main(CliDriver.java:641)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke(Method.java:606)
+    at org.apache.hadoop.util.RunJar.run(RunJar.java:221)
+    at org.apache.hadoop.util.RunJar.main(RunJar.java:136)
+Caused by: InvalidOperationException(message:alter is not possible)
+    at org.apache.hadoop.hive.metastore.HiveAlterHandler.alterPartitions(HiveAlterHandler.java:526)
+    at org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler.alter_partitions_with_environment_context(HiveMetaStore.java:3560)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke(Method.java:606)
+    at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invokeInternal(RetryingHMSHandler.java:140)
+    at org.apache.hadoop.hive.metastore.RetryingHMSHandler.invoke(RetryingHMSHandler.java:99)
+    at com.sun.proxy.$Proxy21.alter_partitions_with_environment_context(Unknown Source)
+    at org.apache.hadoop.hive.metastore.HiveMetaStoreClient.alter_partitions(HiveMetaStoreClient.java:1486)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+    at java.lang.reflect.Method.invoke(Method.java:606)
+    at org.apache.hadoop.hive.metastore.RetryingMetaStoreClient.invoke(RetryingMetaStoreClient.java:154)
+    at com.sun.proxy.$Proxy22.alter_partitions(Unknown Source)
+    at org.apache.hadoop.hive.ql.metadata.Hive.alterPartitions(Hive.java:712)
+    ... 22 more
+
+FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask. Unable to alter partition. alter is not possible
+2017-07-19T11:06:39,671 ERROR [main] ql.Driver: FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask. Unable to alter partition. alter is not possible
+
+
+
+Fix proposal is transfer the qualified table name when db.alterPartitions called.

@@ -1,0 +1,33 @@
+BUILDING.txt should not encourage to activate docs profile on building binary artifacts
+BUILDING.txt in trunk([https://github.com/apache/hadoop/blob/4d21655d04d1b488fe37e908d75f833c1aa66b01/BUILDING.txt#L350]) explains how to create binary distribution with documentation and shows the following command line examples.
+{noformat}
+`$ mvn package -Pdist,native,docs -DskipTests -Dtar`
+`$ mvn package -Pdist,native,docs,src -DskipTests -Dtar`
+{noformat}
+But, they output errors as follows. Class duplication causes this problem.
+
+Results:
+{noformat}
+[INFO] -------< org.apache.hadoop:hadoop-client-check-test-invariants >--------
+[INFO] Building Apache Hadoop Client Packaging Invariants for Test 3.4.0-SNAPSHOT [105/112]
+[INFO] --------------------------------[ pom ]---------------------------------
+
+...
+
+[INFO] --- maven-enforcer-plugin:3.0.0-M1:enforce (enforce-banned-dependencies) @ hadoop-client-check-test-invariants ---
+[INFO] Adding ignorable dependency: org.apache.hadoop:hadoop-annotations:null
+[INFO]   Adding ignore: *
+[WARNING] Rule 1: org.apache.maven.plugins.enforcer.BanDuplicateClasses failed with message:
+Duplicate classes found:
+
+  Found in:
+    org.apache.hadoop:hadoop-client-minicluster:jar:3.4.0-SNAPSHOT:compile
+    org.apache.hadoop:hadoop-client-runtime:jar:3.4.0-SNAPSHOT:compile
+  Duplicate classes:
+    org/apache/hadoop/shaded/org/apache/xerces/impl/dv/dtd/NMTOKENDatatypeValidator.class
+    org/apache/hadoop/shaded/org/apache/xerces/dom/DOMImplementationListImpl.class
+
+...
+
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M1:enforce (enforce-banned-dependencies) on project hadoop-client-check-test-invariants: Some Enforcer rules have failed. Look above for specific messages explaining why the rule failed. -> [Help 1]
+{noformat}

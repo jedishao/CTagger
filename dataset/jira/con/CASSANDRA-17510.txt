@@ -1,0 +1,8 @@
+Streaming sessions longer than 3 minutes fail with timeout
+Streaming sessions that take longer than 3 minutes will fail with an InputTimeoutException on the streaming control channel connection.
+
+CASSANDRA-16927 refactored the streaming code as part of CEP-10 to clean up some abstractions. As part of those changes the StreamDeserializingTask (formerly StreamingInboundHandler) had a check removed that ensured data was present before reading from the AsyncStreamingInputPlus used by NettyStreamingChannel to pass incoming bytes to be deserialized off the main Netty event loop threads. When {{reBuffer}ing from the input, AsyncStreamingInputPlus times out if no data is received in three minutes.
+
+It is perfectly valid for no messages to be received over the control connection for longer than three minutes - pre CASSANDRA-16927 just doesn’t do the read until data is present, so it doesn’t hit the timeout. A possible solution is to replace throwing the InputTimeoutException with a check that the channel is still open and retry.
+
+Note this is unrelated to the streaming protocol KeepAlive removal - that had a default timeout of five minutes so would not have been effective anyway.

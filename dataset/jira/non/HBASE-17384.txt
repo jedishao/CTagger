@@ -1,0 +1,31 @@
+Consider aborting region server when MVCC#waitForRead() gets stuck
+From https://builds.apache.org/job/PreCommit-HBASE-Build/5072/testReport/org.apache.hadoop.hbase.regionserver/TestHRegionWithInMemoryFlush/org_apache_hadoop_hbase_regionserver_TestHRegionWithInMemoryFlush/ :
+
+org.junit.runners.model.TestTimedOutException: test timed out after 10 minutes
+	at java.lang.Object.wait(Native Method)
+	at org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl.waitForRead(MultiVersionConcurrencyControl.java:218)
+	at org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl.completeAndWait(MultiVersionConcurrencyControl.java:149)
+	at org.apache.hadoop.hbase.regionserver.HRegion.getNextSequenceId(HRegion.java:2732)
+	at org.apache.hadoop.hbase.regionserver.HRegion.internalPrepareFlushCache(HRegion.java:2447)
+	at org.apache.hadoop.hbase.regionserver.HRegion.internalFlushcache(HRegion.java:2343)
+	at org.apache.hadoop.hbase.regionserver.HRegion.internalFlushcache(HRegion.java:2314)
+	at org.apache.hadoop.hbase.regionserver.HRegion.internalFlushcache(HRegion.java:2304)
+	at org.apache.hadoop.hbase.regionserver.HRegion.doClose(HRegion.java:1601)
+	at org.apache.hadoop.hbase.regionserver.HRegion.close(HRegion.java:1506)
+	at org.apache.hadoop.hbase.regionserver.HRegion.close(HRegion.java:1456)
+	at org.apache.hadoop.hbase.HBaseTestingUtility.closeRegionAndWAL(HBaseTestingUtility.java:374)
+	at org.apache.hadoop.hbase.regionserver.TestHRegion.testFlushCacheWhileScanning(TestHRegion.java:3839)
+
+
+As can be seen from test output:
+
+2016-12-28 13:43:28,379 INFO  [Time-limited test] regionserver.HStore(1431): Completed major compaction of 1 (all) file(s) in family1 of testWritesWhileScanning,,1482932605883.2e46061b97a54d7f8434c4a705b3c4a2. into 255e7eb61cfc4945ac5887957d39b1fe(size=98.0 K), total size for store is 98.0 K
+...[truncated 4062267 bytes]...
+TUCK: MultiVersionConcurrencyControl{readPoint=1090, writePoint=1093}
+2016-12-28 13:48:29,396 WARN  [Time-limited test] regionserver.MultiVersionConcurrencyControl(214): STUCK: MultiVersionConcurrencyControl{readPoint=1090, writePoint=1093}
+2016-12-28 13:48:30,406 WARN  [Time-limited test] regionserver.MultiVersionConcurrencyControl(214): STUCK: MultiVersionConcurrencyControl{readPoint=1090, writePoint=1093}
+2016-12-28 13:48:31,416 WARN  [Time-limited test] regionserver.MultiVersionConcurrencyControl(214): STUCK: MultiVersionConcurrencyControl{readPoint=1090, writePoint=1093}
+
+
+At least 5 minutes passed with the above log showing waitForRead() stuck.
+Since the flush is blocked, we should consider aborting region server when waitForRead() gets stuck for extended period of time.

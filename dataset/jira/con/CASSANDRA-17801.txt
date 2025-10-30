@@ -1,0 +1,29 @@
+NPE bug in streaming checking if SSTable is being repaired
+Streaming hit a race condition where a SSTable was being repaired, but the moment we try to check the repair ID the repair was over
+
+{code}
+java.lang.NullPointerException
+at org.apache.cassandra.db.streaming.CassandraStreamManager.lambda$null$0(CassandraStreamManager.java:110)
+at com.google.common.collect.Iterators$5.computeNext(Iterators.java:639)
+at com.google.common.collect.AbstractIterator.tryToComputeNext(AbstractIterator.java:141)
+at com.google.common.collect.AbstractIterator.hasNext(AbstractIterator.java:136)
+at org.apache.cassandra.db.streaming.CassandraStreamManager.lambda$createOutgoingStreams$1(CassandraStreamManager.java:121)
+at org.apache.cassandra.db.ColumnFamilyStore.select(ColumnFamilyStore.java:2000)
+at org.apache.cassandra.db.ColumnFamilyStore.selectAndReference(ColumnFamilyStore.java:1976)
+at org.apache.cassandra.db.streaming.CassandraStreamManager.createOutgoingStreams(CassandraStreamManager.java:96)
+at org.apache.cassandra.streaming.StreamSession.getOutgoingStreamsForRanges(StreamSession.java:481)
+at org.apache.cassandra.streaming.StreamSession.addTransferRanges(StreamSession.java:440)
+at org.apache.cassandra.streaming.StreamSession.lambda$null$6(StreamSession.java:816)
+at java.base/java.lang.Iterable.forEach(Iterable.java:75)
+at org.apache.cassandra.streaming.StreamSession.lambda$processStreamRequests$7(StreamSession.java:812)
+at java.base/java.util.Map.forEach(Map.java:661)
+at org.apache.cassandra.streaming.StreamSession.processStreamRequests(StreamSession.java:808)
+at org.apache.cassandra.streaming.StreamSession.prepareAsync(StreamSession.java:740)
+at org.apache.cassandra.streaming.StreamSession.lambda$prepare$3(StreamSession.java:720)
+at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:304)
+at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+at java.base/java.lang.Thread.run(Thread.java:834)
+{code}

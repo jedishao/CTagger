@@ -1,0 +1,7 @@
+Spooling BufferedMutator
+For Yarn Timeline Service v2 we use HBase as a backing store.
+A big concern we would like to address is what to do if HBase is (temporarily) down, for example in case of an HBase upgrade.
+Most of the high volume writes will be mostly on a best-effort basis, but occasionally we do a flush. Mainly during application lifecycle events, clients will call a flush on the timeline service API. In order to handle the volume of writes we use a BufferedMutator. When flush gets called on our API, we in turn call flush on the BufferedMutator.
+We would like our interface to HBase be able to spool the mutations to a filesystems in case of HBase errors. If we use the Hadoop filesystem interface, this can then be HDFS, gcs, s3, or any other distributed storage. The mutations can then later be re-played, for example through a MapReduce job.
+https://reviews.apache.org/r/54882/
+For design of SpoolingBufferedMutatorImpl see https://docs.google.com/document/d/1GTSk1Hd887gGJduUr8ZJ2m-VKrIXDUv9K3dr4u2YGls/edit?usp=sharing

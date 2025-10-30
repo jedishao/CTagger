@@ -1,0 +1,91 @@
+Building native code fails on Fedora 33
+I tried to build native code on Fedora 33, in which glibc 2.32 is installed by default, but it failed with the following error.
+
+
+$ cat /etc/redhat-release 
+Fedora release 33 (Thirty Three)
+$ sudo dnf info --installed glibc
+Installed Packages
+Name         : glibc
+Version      : 2.32
+Release      : 1.fc33
+Architecture : x86_64
+Size         : 17 M
+Source       : glibc-2.32-1.fc33.src.rpm
+Repository   : @System
+From repo    : anaconda
+Summary      : The GNU libc libraries
+URL          : http://www.gnu.org/software/glibc/
+License      : LGPLv2+ and LGPLv2+ with exceptions and GPLv2+ and GPLv2+ with exceptions and BSD and Inner-Net and ISC and Public Domain and GFDL
+Description  : The glibc package contains standard libraries which are used by
+             : multiple programs on the system. In order to save disk space and
+             : memory, as well as to make upgrading easier, common system code is
+             : kept in one place and shared between programs. This particular package
+             : contains the most important sets of shared libraries: the standard C
+             : library and the standard math library. Without these two libraries, a
+             : Linux system will not function.
+
+$ mvn clean compile -Pnative
+
+...
+
+[INFO] Running make -j 1 VERBOSE=1
+[WARNING] /usr/bin/cmake -S/home/vagrant/hadoop/hadoop-common-project/hadoop-common/src -B/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native --check-build-system CMakeFiles/Makefile.cmake 0
+[WARNING] /usr/bin/cmake -E cmake_progress_start /home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native/CMakeFiles /home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native//CMakeFiles/progress.marks
+[WARNING] make  -f CMakeFiles/Makefile2 all
+[WARNING] make[1]: Entering directory '/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native'
+[WARNING] make  -f CMakeFiles/hadoop_static.dir/build.make CMakeFiles/hadoop_static.dir/depend
+[WARNING] make[2]: Entering directory '/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native'
+[WARNING] cd /home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native && /usr/bin/cmake -E cmake_depends "Unix Makefiles" /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src /home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native /home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native /home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native/CMakeFiles/hadoop_static.dir/DependInfo.cmake --color=
+[WARNING] Dependee "/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native/CMakeFiles/hadoop_static.dir/DependInfo.cmake" is newer than depender "/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native/CMakeFiles/hadoop_static.dir/depend.internal".
+[WARNING] Dependee "/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native/CMakeFiles/CMakeDirectoryInformation.cmake" is newer than depender "/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native/CMakeFiles/hadoop_static.dir/depend.internal".
+[WARNING] Scanning dependencies of target hadoop_static
+[WARNING] make[2]: Leaving directory '/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native'
+[WARNING] make  -f CMakeFiles/hadoop_static.dir/build.make CMakeFiles/hadoop_static.dir/build
+[WARNING] make[2]: Entering directory '/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native'
+[WARNING] [  2%] Building C object CMakeFiles/hadoop_static.dir/main/native/src/exception.c.o
+[WARNING] /usr/bin/cc  -I/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native/javah -I/home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src -I/home/vagrant/hadoop/hadoop-common-project/hadoop-common/src -I/home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/src -I/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native -I/usr/lib/jvm/java-1.8.0/include -I/usr/lib/jvm/java-1.8.0/include/linux -I/home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src/org/apache/hadoop/util -g -O2 -Wall -pthread -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -std=gnu99 -o CMakeFiles/hadoop_static.dir/main/native/src/exception.c.o -c /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src/exception.c
+[WARNING] make[2]: Leaving directory '/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native'
+[WARNING] make[1]: Leaving directory '/home/vagrant/hadoop/hadoop-common-project/hadoop-common/target/native'
+[WARNING] /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src/exception.c: In function ‘terror’:
+[WARNING] /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src/exception.c:118:34: error: ‘sys_nerr’ undeclared (first use in this function)
+[WARNING]   118 |   if ((errnum < 0) || (errnum >= sys_nerr)) {
+[WARNING]       |                                  ^~~~~~~~
+[WARNING] /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src/exception.c:118:34: note: each undeclared identifier is reported only once for each function it appears in
+[WARNING] /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src/exception.c:121:10: error: ‘sys_errlist’ undeclared (first use in this function)
+[WARNING]   121 |   return sys_errlist[errnum];
+[WARNING]       |          ^~~~~~~~~~~
+[WARNING] /home/vagrant/hadoop/hadoop-common-project/hadoop-common/src/main/native/src/exception.c:123:1: warning: control reaches end of non-void function [-Wreturn-type]
+[WARNING]   123 | }
+[WARNING]       | ^
+[WARNING] make[2]: *** [CMakeFiles/hadoop_static.dir/build.make:82: CMakeFiles/hadoop_static.dir/main/native/src/exception.c.o] Error 1
+[WARNING] make[1]: *** [CMakeFiles/Makefile2:99: CMakeFiles/hadoop_static.dir/all] Error 2
+[WARNING] make: *** [Makefile:103: all] Error 2
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for Apache Hadoop Main 3.4.0-SNAPSHOT:
+[INFO] 
+[INFO] Apache Hadoop Main ................................. SUCCESS [ 21.786 s]
+[INFO] Apache Hadoop Build Tools .......................... SUCCESS [  2.888 s]
+[INFO] Apache Hadoop Project POM .......................... SUCCESS [ 12.919 s]
+[INFO] Apache Hadoop Annotations .......................... SUCCESS [  3.877 s]
+[INFO] Apache Hadoop Project Dist POM ..................... SUCCESS [  0.567 s]
+[INFO] Apache Hadoop Assemblies ........................... SUCCESS [  0.782 s]
+[INFO] Apache Hadoop Maven Plugins ........................ SUCCESS [03:33 min]
+[INFO] Apache Hadoop MiniKDC .............................. SUCCESS [  4.756 s]
+[INFO] Apache Hadoop Auth ................................. SUCCESS [03:10 min]
+[INFO] Apache Hadoop Auth Examples ........................ SUCCESS [  0.905 s]
+[INFO] Apache Hadoop Common ............................... FAILURE [01:49 min]
+[INFO] Apache Hadoop NFS .................................. SKIPPED
+
+...
+
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  09:49 min
+[INFO] Finished at: 2021-03-06T15:29:00Z
+[INFO] ------------------------------------------------------------------------
+
+
+According to the release note of glibc 2.32, these symbols has been removed since that version.
+The deprecated symbols sys_errlist, _sys_errlist, sys_nerr, and _sys_nerr are no longer available to newly linked binaries, and their declarations have been removed from from <stdio.h>.

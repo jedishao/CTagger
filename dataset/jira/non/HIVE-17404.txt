@@ -1,0 +1,32 @@
+Orc split generation cache does not handle files without file tail
+Some old files do not have Orc FileTail. If file tail does not exist, split generation should fallback to old way of storing footers. 
+This can result in exceptions like below
+{code}
+ORC split generation failed with exception: Malformed ORC file. Invalid postscript length 9
+	at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat.generateSplitsInfo(OrcInputFormat.java:1735)
+	at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat.getSplits(OrcInputFormat.java:1822)
+	at org.apache.hadoop.hive.ql.io.HiveInputFormat.addSplitsForGroup(HiveInputFormat.java:450)
+	at org.apache.hadoop.hive.ql.io.HiveInputFormat.getSplits(HiveInputFormat.java:569)
+	at org.apache.hadoop.hive.ql.exec.tez.HiveSplitGenerator.initialize(HiveSplitGenerator.java:196)
+	at org.apache.tez.dag.app.dag.RootInputInitializerManager$InputInitializerCallable$1.run(RootInputInitializerManager.java:278)
+	at org.apache.tez.dag.app.dag.RootInputInitializerManager$InputInitializerCallable$1.run(RootInputInitializerManager.java:269)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1807)
+	at org.apache.tez.dag.app.dag.RootInputInitializerManager$InputInitializerCallable.call(RootInputInitializerManager.java:269)
+	at org.apache.tez.dag.app.dag.RootInputInitializerManager$InputInitializerCallable.call(RootInputInitializerManager.java:253)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: org.apache.orc.FileFormatException: Malformed ORC file. Invalid postscript length 9
+	at org.apache.orc.impl.ReaderImpl.ensureOrcFooter(ReaderImpl.java:297)
+	at org.apache.orc.impl.ReaderImpl.extractFileTail(ReaderImpl.java:470)
+	at org.apache.hadoop.hive.ql.io.orc.LocalCache.getAndValidate(LocalCache.java:103)
+	at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$ETLSplitStrategy.getSplits(OrcInputFormat.java:804)
+	at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$ETLSplitStrategy.runGetSplitsSync(OrcInputFormat.java:922)
+	at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat$ETLSplitStrategy.generateSplitWork(OrcInputFormat.java:891)
+	at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat.scheduleSplits(OrcInputFormat.java:1763)
+	at org.apache.hadoop.hive.ql.io.orc.OrcInputFormat.generateSplitsInfo(OrcInputFormat.java:1707)
+	... 15 more
+{code}

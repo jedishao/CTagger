@@ -1,0 +1,85 @@
+Test Failure: python dtest, circleci, test_atomic_writes[none]
+Looks like env / byteman script issues.
+hires
+https://app.circleci.com/pipelines/github/josh-mckenzie/cassandra/168/workflows/1d30a113-c14b-4cf4-a631-bedb9eb65762/jobs/1443
+ 
+
+
+ead_repair_test.TestReadRepairGuarantees
+read_repair_test.py
+AssertionError: byteman script didn't compile   ERROR : Unable to open file : ./byteman/read_repair/stop_writes.btm   java.io.FileNotFoundException: ./byteman/read_repair/stop_writes.btm (No such file or directory)    assert not True
+self = <read_repair_test.TestReadRepairGuarantees object at 0x7fc1632fd7b8>
+repair_type = 'none', expect_atomic = True
+
+    @pytest.mark.parametrize("repair_type,expect_atomic",
+                             (('blocking', False), ('none', True)),
+                             ids=('blocking', 'none'))
+    def test_atomic_writes(self, repair_type, expect_atomic):
+        """
+            tests how read repair provides, or breaks, write atomicity
+            'none' read repair should maintain atomic writes, blocking and async should not
+             """
+        assert repair_type in ('blocking', 'async', 'none')
+        node1, node2, node3 = self.cluster.nodelist()
+    
+        session = self.get_cql_connection(node1, timeout=2)
+        ddl = "CREATE TABLE ks.tbl (k int, c int, v1 int, v2 int, primary key (k, c)) WITH read_repair = '" + repair_type + "';"
+        print (ddl)
+        session.execute(ddl)
+    
+        session.execute(quorum("INSERT INTO ks.tbl (k, c, v1, v2) VALUES (1, 0, 1, 1)"))
+    
+>       with stop_writes(node2, node3):
+
+/home/cassandra/cassandra-dtest/read_repair_test.py:880: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.6/contextlib.py:81: in __enter__
+    return next(self.gen)
+/home/cassandra/cassandra-dtest/read_repair_test.py:789: in stop_writes
+    with _byteman_cycle(nodes, {'normal': [normal], 'repair': [repair], 'all': [normal, repair]}[kind]):
+/usr/lib/python3.6/contextlib.py:81: in __enter__
+    return next(self.gen)
+/home/cassandra/cassandra-dtest/read_repair_test.py:768: in _byteman_cycle
+    byteman_validate(nodes[0], script_path(script))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node = <ccmlib.node.Node object at 0x7fc1632fd908>
+script = './byteman/read_repair/stop_writes.btm', verbose = False, opts = []
+
+    def byteman_validate(node, script, verbose=False, opts=None):
+        opts = opts or []
+        cdir = node.get_install_dir()
+        byteman_cmd = []
+        byteman_cmd.append(os.path.join(os.environ['JAVA_HOME'],
+                                        'bin',
+                                        'java'))
+        byteman_cmd.append('-cp')
+        jars = [
+            glob.glob(os.path.join(cdir, 'build', 'lib', 'jars', 'byteman-[0-9]*.jar'))[0],
+            os.path.join(cdir, 'build', '*'),
+        ]
+        byteman_cmd.append(':'.join(jars))
+        byteman_cmd.append('org.jboss.byteman.check.TestScript')
+        byteman_cmd.append('-p')
+        byteman_cmd.append(node.byteman_port)
+        if verbose and '-v' not in opts:
+            byteman_cmd.append('-v')
+        byteman_cmd.append(script)
+        # process = subprocess.Popen(byteman_cmd)
+        # out, err = process.communicate()
+        out = subprocess.check_output(byteman_cmd)
+        if (out is not None) and isinstance(out, bytes):
+            out = out.decode()
+    
+        has_errors = 'ERROR' in out
+        if verbose and not has_errors:
+            print (out)
+    
+>       assert not has_errors, "byteman script didn't compile\n" + out
+E       AssertionError: byteman script didn't compile
+E         ERROR : Unable to open file : ./byteman/read_repair/stop_writes.btm
+E         java.io.FileNotFoundException: ./byteman/read_repair/stop_writes.btm (No such file or directory)
+E         
+E       assert not True
+
+/home/cassandra/cassandra-dtest/read_repair_test.py:54: AssertionError

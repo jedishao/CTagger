@@ -1,0 +1,15 @@
+the chunkpool are not reclamed correctly
+in our cluster, the RS's config is as below
+{quote}
+    heap size(25G)
+    hbase.regionserver.global.memstore.size(0.5)
+    hbase.hregion.memstore.chunkpool.maxsize(0.8)
+    hbase.hregion.memstore.chunkpool.initialsize(1.0)
+{quote}
+so the chunkpool's size is 25*0.5*0.8 = 10GB
+in our monitor system, the _memStoreSize_ never up to 3G，so the _reuseRatio_ of the chunkpool should always 100%, but it's not, see the logs below:
+{quote}
+    2016-11-23 11:47:34,302 DEBUG [StoreOpener-33a77b971aff15e5e6be3cc614870e43-1-MemStoreChunkPool Statistics] regionserver.MemStoreChunkPool: Stats: current pool size=5009,created chunk count=0,reused chunk count=81,reuseRatio=100.00%
+2016-11-28 11:47:34,302 DEBUG [StoreOpener-33a77b971aff15e5e6be3cc614870e43-1-MemStoreChunkPool Statistics] regionserver.MemStoreChunkPool: Stats: current pool size=3,created chunk count=1325,reused chunk count=67209,reuseRatio=98.07%
+{quote}
+5 days later, the _reuseRatio_ is below 100%

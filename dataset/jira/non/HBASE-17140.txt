@@ -1,0 +1,26 @@
+Reduce meta request number by skipping table state check
+Now when request for a disabled table, it need 3 rpc calls before fail.
+1. get region location
+2. send call to rs and get NotServeRegionException
+3. retry and check the table state, then throw TableNotEnabledException
+The table state check is added for disabled table. But now the prepare method in RegionServerCallable shows that all retry request will get table state first.
+
+public void prepare(final boolean reload) throws IOException {
+    // check table state if this is a retry
+    if (reload && !tableName.equals(TableName.META_TABLE_NAME) &&
+        getConnection().isTableDisabled(tableName)) {
+      throw new TableNotEnabledException(tableName.getNameAsString() + " is disabled.");
+    }
+    try (RegionLocator regionLocator = connection.getRegionLocator(tableName)) {
+      this.location = regionLocator.getRegionLocation(row);
+    }
+    if (this.location == null) {
+      throw new IOException("Failed to find location, tableName=" + tableName +
+          ", row=" + Bytes.toString(row) + ", reload=" + reload);
+    }
+    setStubByServiceName(this.location.getServerName());
+}
+
+
+An improvement is set the region offline in HRegionInfo and throw the RegionOfflineException when get region location. Then we don't need check table state for any retry request.
+Review board: https://reviews.apache.org/r/54071/

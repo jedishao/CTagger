@@ -1,0 +1,66 @@
+LongBufferPoolTest failing, several data races in BufferPool
+{{LongBufferPoolTest}} fails pretty consistently on my local laptop.
+
+I identified 3 different failure modes:
+ 
+{noformat}
+ERROR [test:1] 2022-04-13 16:29:03,064 LongBufferPoolTest.java:588 - Got throwable null, current chunk [slab java.nio.DirectByteBuffer[pos=0 lim=131072 cap=131072], slots bitmap 1111111111111111111111111111111111111111111111111111111111111111, capacity 131072, free 131072]
+java.lang.AssertionError
+    at org.apache.cassandra.utils.memory.BufferPool$Chunk.get(BufferPool.java:1315)
+    at org.apache.cassandra.utils.memory.BufferPool$MicroQueueOfChunks.get(BufferPool.java:576)
+    at org.apache.cassandra.utils.memory.BufferPool$LocalPool.tryGetInternal(BufferPool.java:900)
+    at org.apache.cassandra.utils.memory.BufferPool$LocalPool.lambda$new$0(BufferPool.java:739)
+    at org.apache.cassandra.utils.memory.BufferPool$LocalPool.addChunkFromParent(BufferPool.java:952)
+    at org.apache.cassandra.utils.memory.BufferPool$LocalPool.tryGetInternal(BufferPool.java:907)
+    at org.apache.cassandra.utils.memory.BufferPool$LocalPool.tryGet(BufferPool.java:893)
+    at org.apache.cassandra.utils.memory.BufferPool$LocalPool.access$000(BufferPool.java:710)
+    at org.apache.cassandra.utils.memory.BufferPool.tryGet(BufferPool.java:205)
+    at org.apache.cassandra.utils.memory.LongBufferPoolTest$2.testOne(LongBufferPoolTest.java:513)
+    at org.apache.cassandra.utils.memory.LongBufferPoolTest$TestUntil.call(LongBufferPoolTest.java:575)
+    at org.apache.cassandra.utils.memory.LongBufferPoolTest$TestUntil.call(LongBufferPoolTest.java:553)
+    at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+    at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+    at java.lang.Thread.run(Thread.java:748)
+{noformat}
+ 
+{noformat}
+ERROR [main] 2022-04-13 16:30:27,139 LongBufferPoolTest.java:614 - Test failed - null
+java.lang.AssertionError: null
+	at org.apache.cassandra.utils.memory.LongBufferPoolTest$Debug.check(LongBufferPoolTest.java:106)
+	at org.apache.cassandra.utils.memory.LongBufferPoolTest.testAllocate(LongBufferPoolTest.java:288)
+	at org.apache.cassandra.utils.memory.LongBufferPoolTest.main(LongBufferPoolTest.java:607)
+{noformat}
+
+{noformat}
+ERROR [test:1] 2022-04-13 16:36:54,093 LongBufferPoolTest.java:580 - Got exception null, current chunk null
+java.lang.NullPointerException
+	at org.apache.cassandra.utils.memory.BufferPool$MicroQueueOfChunks.add(BufferPool.java:513)
+	at org.apache.cassandra.utils.memory.BufferPool$MicroQueueOfChunks.access$2200(BufferPool.java:480)
+	at org.apache.cassandra.utils.memory.BufferPool$LocalPool.addChunk(BufferPool.java:963)
+	at org.apache.cassandra.utils.memory.BufferPool$LocalPool.addChunkFromParent(BufferPool.java:956)
+	at org.apache.cassandra.utils.memory.BufferPool$LocalPool.tryGetInternal(BufferPool.java:907)
+	at org.apache.cassandra.utils.memory.BufferPool$LocalPool.tryGet(BufferPool.java:893)
+	at org.apache.cassandra.utils.memory.BufferPool$LocalPool.access$000(BufferPool.java:710)
+	at org.apache.cassandra.utils.memory.BufferPool.tryGet(BufferPool.java:205)
+	at org.apache.cassandra.utils.memory.LongBufferPoolTest$2.testOne(LongBufferPoolTest.java:512)
+	at org.apache.cassandra.utils.memory.LongBufferPoolTest$TestUntil.call(LongBufferPoolTest.java:575)
+	at org.apache.cassandra.utils.memory.LongBufferPoolTest$TestUntil.call(LongBufferPoolTest.java:553)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)
+{noformat}
+
+Branch: cassadra 4.0, commit d1270c204f31578212bfca5860ab46abeaec22b9 
+
+So far I've found the following problems with the code (this list might not be complete):
+
+Problem 1:
+{{LocalPool}}  documentation states that allocations from the local pool can be done by a single thread only, but releases can be done by any thread. This means {{LocalPool}} is shared between threads and should be thread safe.
+Unfortunately the implementation is far from thread safe, because {{LocalPool}} has mutable and unsynchronized state in {{MicroQueueOfChunks}}. 
+
+Possible problem 2: 
+There seems to be an assumption that the {{Chunk}} may be released only when no more allocations are going on from it. However, I believe this assumption does not hold and I can't see code enforcing that assumption. Because {{release}} can be called by a different thread than the owner, it may clear the owner and immediately clear the {{freeSlots}} bitmap in line 1150, despite the fact that a concurrent allocation is still in progress. Clearing the flags in the wrong moment would cause the assertion in line 1315 to fail.

@@ -1,0 +1,7 @@
+Using snappy-java in SnappyCodec
+In Hadoop, we use native libs for snappy codec which has several disadvantages:
+
+It requires native libhadoop and libsnappy to be installed in system LD_LIBRARY_PATH, and they have to be installed separately on each node of the clusters, container images, or local test environments which adds huge complexities from deployment point of view. In some environments, it requires compiling the natives from sources which is non-trivial. Also, this approach is platform dependent; the binary may not work in different platform, so it requires recompilation.
+It requires extra configuration of java.library.path to load the natives, and it results higher application deployment and maintenance cost for users.
+
+Projects such as Spark and Parquet use [snappy-java|https://github.com/xerial/snappy-java] which is JNI-based implementation. It contains native binaries for Linux, Mac, and IBM in jar file, and it can automatically load the native binaries into JVM from jar without any setup. If a native implementation can not be found for a platform, it can fallback to pure-java implementation of snappy based on [aircompressor|https://github.com/airlift/aircompressor/tree/master/src/main/java/io/airlift/compress/snappy].

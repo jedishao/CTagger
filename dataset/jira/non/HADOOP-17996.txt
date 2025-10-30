@@ -1,0 +1,95 @@
+UserGroupInformation#unprotectedRelogin sets the last login time before logging in
+UserGroupInformation#unprotectedRelogin sets the last login time before logging in. IPC#Client does reloginFromKeytab when there is a connection reset failure from AD which does logout and set the last login time to now and then tries to login. The login also fails as not able to connect to AD. Then the reattempts does not happen as kerberosMinSecondsBeforeRelogin check fails. All Client and Server operations fails with GSS initiate failed
+
+
+2021-10-31 09:50:53,546 WARN  ha.EditLogTailer - Unable to trigger a roll of the active NN
+java.util.concurrent.ExecutionException: org.apache.hadoop.security.KerberosAuthException:  DestHost:destPort namenode0:8020 , LocalHost:localPort namenode1/1.2.3.4:0. Failed on local exception: org.apache.hadoop.security.KerberosAuthException: Login failure for user: nn/namenode1@EXAMPLE.COM javax.security.auth.login.LoginException: Connection reset
+	at java.util.concurrent.FutureTask.report(FutureTask.java:122)
+	at java.util.concurrent.FutureTask.get(FutureTask.java:206)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer.triggerActiveLogRoll(EditLogTailer.java:382)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer$EditLogTailerThread.doWork(EditLogTailer.java:441)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer$EditLogTailerThread.access$400(EditLogTailer.java:410)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer$EditLogTailerThread$1.run(EditLogTailer.java:427)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:360)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1712)
+	at org.apache.hadoop.security.SecurityUtil.doAsLoginUserOrFatal(SecurityUtil.java:480)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer$EditLogTailerThread.run(EditLogTailer.java:423)
+Caused by: org.apache.hadoop.security.KerberosAuthException:  DestHost:destPort namenode0:8020 , LocalHost:localPort namenode1/1.2.3.4:0. Failed on local exception: org.apache.hadoop.security.KerberosAuthException: Login failure for user: nn/namenode1@EXAMPLE.COM javax.security.auth.login.LoginException: Connection reset
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+	at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+	at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+	at java.lang.reflect.Constructor.newInstance(Constructor.java:423)
+	at org.apache.hadoop.net.NetUtils.wrapWithMessage(NetUtils.java:831)
+	at org.apache.hadoop.net.NetUtils.wrapException(NetUtils.java:806)
+	at org.apache.hadoop.ipc.Client.getRpcResponse(Client.java:1501)
+	at org.apache.hadoop.ipc.Client.call(Client.java:1443)
+	at org.apache.hadoop.ipc.Client.call(Client.java:1353)
+	at org.apache.hadoop.ipc.ProtobufRpcEngine$Invoker.invoke(ProtobufRpcEngine.java:228)
+	at org.apache.hadoop.ipc.ProtobufRpcEngine$Invoker.invoke(ProtobufRpcEngine.java:116)
+	at com.sun.proxy.$Proxy21.rollEditLog(Unknown Source)
+	at org.apache.hadoop.hdfs.protocolPB.NamenodeProtocolTranslatorPB.rollEditLog(NamenodeProtocolTranslatorPB.java:150)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer$2.doWork(EditLogTailer.java:367)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer$2.doWork(EditLogTailer.java:364)
+	at org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer$MultipleNameNodeProxy.call(EditLogTailer.java:514)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: org.apache.hadoop.security.KerberosAuthException: Login failure for user: nn/namenode1@EXAMPLE.COM javax.security.auth.login.LoginException: Connection reset
+	at org.apache.hadoop.security.UserGroupInformation.unprotectedRelogin(UserGroupInformation.java:1193)
+	at org.apache.hadoop.security.UserGroupInformation.relogin(UserGroupInformation.java:1159)
+	at org.apache.hadoop.security.UserGroupInformation.reloginFromKeytab(UserGroupInformation.java:1128)
+	at org.apache.hadoop.security.UserGroupInformation.reloginFromKeytab(UserGroupInformation.java:1110)
+	at org.apache.hadoop.ipc.Client$Connection$1.run(Client.java:734)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.Subject.doAs(Subject.java:422)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1732)
+	at org.apache.hadoop.ipc.Client$Connection.handleSaslConnectionFailure(Client.java:720)
+	at org.apache.hadoop.ipc.Client$Connection.setupIOstreams(Client.java:813)
+	at org.apache.hadoop.ipc.Client$Connection.access$3600(Client.java:410)
+	at org.apache.hadoop.ipc.Client.getConnection(Client.java:1558)
+	at org.apache.hadoop.ipc.Client.call(Client.java:1389)
+	... 12 more
+Caused by: javax.security.auth.login.LoginException: Connection reset
+	at com.sun.security.auth.module.Krb5LoginModule.attemptAuthentication(Krb5LoginModule.java:812)
+	at com.sun.security.auth.module.Krb5LoginModule.login(Krb5LoginModule.java:618)
+	at sun.reflect.GeneratedMethodAccessor25.invoke(Unknown Source)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at javax.security.auth.login.LoginContext.invoke(LoginContext.java:755)
+	at javax.security.auth.login.LoginContext.access$000(LoginContext.java:195)
+	at javax.security.auth.login.LoginContext$4.run(LoginContext.java:682)
+	at javax.security.auth.login.LoginContext$4.run(LoginContext.java:680)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at javax.security.auth.login.LoginContext.invokePriv(LoginContext.java:680)
+	at javax.security.auth.login.LoginContext.login(LoginContext.java:587)
+	at org.apache.hadoop.security.UserGroupInformation$HadoopLoginContext.login(UserGroupInformation.java:1928)
+	at org.apache.hadoop.security.UserGroupInformation.unprotectedRelogin(UserGroupInformation.java:1187)
+	... 24 more
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at sun.security.krb5.internal.TCPClient.readFully(NetClient.java:130)
+	at sun.security.krb5.internal.TCPClient.receive(NetClient.java:82)
+	at sun.security.krb5.KdcComm$KdcCommunication.run(KdcComm.java:404)
+	at sun.security.krb5.KdcComm$KdcCommunication.run(KdcComm.java:364)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.security.krb5.KdcComm.send(KdcComm.java:348)
+	at sun.security.krb5.KdcComm.sendIfPossible(KdcComm.java:253)
+	at sun.security.krb5.KdcComm.send(KdcComm.java:229)
+	at sun.security.krb5.KdcComm.send(KdcComm.java:200)
+	at sun.security.krb5.KrbAsReqBuilder.send(KrbAsReqBuilder.java:345)
+	at sun.security.krb5.KrbAsReqBuilder.action(KrbAsReqBuilder.java:498)
+	at com.sun.security.auth.module.Krb5LoginModule.attemptAuthentication(Krb5LoginModule.java:780)
+	... 37 more
+2021-10-31 09:50:53,576 WARN  security.UserGroupInformation - Not attempting to re-login since the last re-login was attempted less than 60 seconds before. Last Login=1635673853525
+2021-10-31 09:50:53,576 WARN  security.UserGroupInformation - Not attempting to re-login since the last re-login was attempted less than 60 seconds before. Last Login=1635673853525
+2021-10-31 09:50:53,576 WARN  security.UserGroupInformation - Not attempting to re-login since the last re-login was attempted less than 60 seconds before. Last Login=1635673853525
+2021-10-31 09:50:56,085 WARN  security.UserGroupInformation - Not attempting to re-login since the last re-login was attempted less than 60 seconds before. Last Login=1635673853525
+
+2021-11-02 13:28:08,750 WARN  ipc.Server - Auth failed for 10.25.35.45:37849:null (GSS initiate failed) with true cause: (GSS initiate failed)
+2021-11-02 13:28:08,767 WARN  ipc.Server - Auth failed for 10.25.35.46:35919:null (GSS initiate failed) with true cause: (GSS initiate failed)

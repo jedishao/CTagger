@@ -1,0 +1,39 @@
+deleted mob cell can come back after major compaction and minor mob compaction
+In the following case, the deleted mob cell can come back.
+
+1) hbase(main):001:0> create 't1', {NAME => 'f1', IS_MOB => true, MOB_THRESHOLD => 10}
+
+2) hbase(main):002:0> put 't1', 'r1', 'f1:q1', 'aaaaaaaaaaaaaaaaaaaa'
+
+3) hbase(main):003:0> flush 't1'
+
+4) hbase(main):004:0> deleteall 't1', 'r1'
+
+5) hbase(main):005:0> scan 't1'
+ROW                                                 COLUMN+CELL                                                                                                                                           
+0 row(s)
+
+6) hbase(main):006:0> flush 't1'
+
+7) hbase(main):007:0> major_compact 't1'
+
+After that, go to mobdir, remove the _del file, this is to simulate the case that  mob minor compaction does not the _del file. Right now, the cell in normal region is gone after the major compaction.
+
+8) hbase(main):008:0> put 't1', 'r2', 'f1:q1', 'bbbbbbbbbbbbbbbbbbbbbbbb'
+                                                                                                                                                      
+9) hbase(main):009:0> flush 't1'
+
+10) hbase(main):010:0> scan 't1'
+ROW                                                 COLUMN+CELL                                                                                                                                           
+ r2                                                 column=f1:q1, timestamp=1480451201393, value=bbbbbbbbbbbbbbbbbbbbbbbb                                                                                 
+1 row(s)
+
+11) hbase(main):011:0> compact 't1', 'f1', 'MOB'
+
+12) hbase(main):012:0> scan 't1'
+ROW                                                 COLUMN+CELL                                                                                                                                           
+ r1                                                 column=f1:q1, timestamp=1480450987725, value=aaaaaaaaaaaaaaaaaaaa                                                                                     
+ r2                                                 column=f1:q1, timestamp=1480451201393, value=bbbbbbbbbbbbbbbbbbbbbbbb                                                                                 
+2 row(s)
+
+The deleted "r1" comes back. The reason is that mob minor compaction does not include _del files so it generates references for the deleted cell.

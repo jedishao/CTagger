@@ -1,0 +1,18 @@
+Missing modification date inside camel jars
+Until version 3.11.2, the packaged jar file for each component had a modification date for each inner file. Starting from version 3.12.0, this "modification date" value is empty. The absence of date for this files affects Spring Boot applications at start-up time, because the class expect to have valid dates for all classes.
+Here is a screenshot for camel-core-engine v 3.11.2
+
+And here is another one for V 3.14.0
+
+The related error stack trace is here :
+
+
+Exception in thread "main" java.time.DateTimeException: Invalid value for MonthOfYear (valid values 1 - 12): 0
+        at java.time.temporal.ValueRange.checkValidValue(ValueRange.java:311)
+        at java.time.temporal.ChronoField.checkValidValue(ChronoField.java:703)
+        at java.time.LocalDate.of(LocalDate.java:267)
+        at java.time.LocalDateTime.of(LocalDateTime.java:336)
+        at org.springframework.boot.loader.jar.CentralDirectoryFileHeader.decodeMsDosFormatDateTime(CentralDirectoryFileHeader.java:127)
+        at org.springframework.boot.loader.jar.CentralDirectoryFileHeader.getTime(CentralDirectoryFileHeader.java:116)
+        at org.springframework.boot.loader.jar.JarEntry.<init>(JarEntry.java:58)
+        at org.springframework.boot.loader.jar.JarFileEntries.getEntry(JarFileEntries.java:316)

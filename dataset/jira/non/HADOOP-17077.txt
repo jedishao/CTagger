@@ -1,0 +1,15 @@
+S3A delegation token binding to support secondary binding list
+(followon from HADOOP-17050)
+Add the ability of an S3A FS instance to support multiple instances of delegation token bindings.
+The property "fs.s3a.delegation.token.secondary.bindings" will list the classnames of all secondary bindings.
+for each one, an instance shall be created with the canonical service name being: fs URI + [ tokenKind ]. This is to ensure that the URIs are unique for each FS instance -but also that a single fs instance can have multiple tokens in the credential list.
+the instance is just a AbstractDelegationTokenBinding provider of an AWS credential provider chain, with the normal lifecycle and operations to bind to a DT, issue tokens, etc
+
+the final list of AWS Credential providers will be built by appending those provided by each binding in turn.
+
+Token binding at launch
+If the primary token binding binds to a delegation token, then the whole binding is changed such that all secondary tokens MUST also bind. That is: it will be an error if one cannot be found. This is  possibly overstrict-but it avoids situations where an incomplete set of tokens are retrieved and This does not surface until later.
+Only the encryption secrets in the primary DT will be used for FS encryption settings.
+Testing: yes.
+Probably also by adding a test-only DT provider which doesn't actually issue any real credentials and so which can be deployed in both ITests and staging tests where we can verify that the chained instantiation works.
+Compatibility: the goal is to be backwards compatible with any already released token provider plugin.

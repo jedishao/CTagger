@@ -1,0 +1,8 @@
+mvn site commands fails due to MetricsSystemImpl changes
+When prepare for branch-3.2.2 release, i found there is one issue while create release. And it also exist in trunk.
+command line: mvn install site site:stage -DskipTests -DskipShade -Pdist,src -Preleasedocs,docs
+failed log show as the following: 
+{quote}[ERROR] Failed to execute goal org.apache.maven.plugins:maven-site-plugin:3.6:site (default-site) on project hadoop-common: failed to get report for org.apache.maven.plugins:maven-dependency-plugin: Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.1:compile (default-compile) on project hadoop-common: Compilation failure
+[ERROR] /Users/hexiaoqiao/Source/hadoop-common/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/metrics2/impl/MetricsSystemImpl.java:[298,5] method <T>register(java.lang.String,java.lang.String,T) is already defined in class org.apache.hadoop.metrics2.impl.MetricsSystemImpl{quote}
+
+I am not sure why source code of class MetricsSystemImpl will be changed while building, I try to revert HADOOP-17081 everything seems OK.

@@ -1,0 +1,62 @@
+Issue with camel-rabbitmq-2.25.2 component network recovery
+we have found an issue in the camel-rabbitmq component during network recovery. The issue is basically that the requestTimeout is not being respected, in the following log the requestTimeout is 120000 but anything after 60000 results in a TimeoutMap eviction and when a new connection is created which results in a new CID and the message is lost as there is no binding between the new exchange and the temporary queue anymore and on top of that, the log bellow shows that the message is received in the “Early reply received” log statement but since that CID has been evicted it just sits there and becomes unrecoverable.
+Please let us know if you need additional information about the issue.
+JDK: amazon-corretto-8
+The URL used is:
+rabbitmq://x.x.x.x:5672/default?username=user&password=bitnami&queue="publishQueueName"&routingKey="routingKey"&publisherAcknowledgements=false&mandatory=true&connectionTimeout=5000&requestTimeout=120000"
+ 
+2021-11-12 12:03:28.808  INFO 28596 — [nio-8585-exec-1] PUBLISH-TO-RBMQ                          : -> Sending to queue:
+--> {"type":"test","message":"hello"}
+2021-11-12 12:03:28.811  INFO 28596 — [nio-8585-exec-1] o.a.c.c.rabbitmq.RabbitMQProducer        : Starting reply manager service RabbitMQReplyManagerTimeoutChecker[default]
+2021-11-12 12:03:28.822  INFO 28596 — [nio-8585-exec-1] o.a.c.c.r.reply.ReplyManagerSupport      : Using temporary queue name: amq.gen-TvgwWekSu3FVNrPOtNFhdA
+2021-11-12 12:03:28.827  INFO 28596 — [nio-8585-exec-1] o.a.c.c.r.reply.CorrelationTimeoutMap    : in putIfAbsent with key Camel-ID-CP-local-57668-1636714990003-0-3
+2021-11-12 12:03:28.828  WARN 28596 — [nio-8585-exec-1] o.a.c.c.rabbitmq.RabbitMQProducer        : Got a closed channel from the pool
+2021-11-12 12:03:48.884  INFO 28596 — [hecker[default]] o.a.c.c.r.r.TemporaryQueueReplyHandler   : in onTimeout with correlationId= Camel-ID-CP-local-57668-1636714990003-0-3
+2021-11-12 12:03:48.885  WARN 28596 — [hecker[default]] o.a.c.c.r.reply.ReplyManagerSupport      : Timeout occurred after 20000 millis waiting for reply message with correlationID [Camel-ID-CP-local-57668-1636714990003-0-3] on destination amq.gen-TvgwWekSu3FVNrPOtNFhdA. Setting ExchangeTimedOutException on (MessageId: ID-CP-local-57668-1636714990003-0-1 on ExchangeId: ID-CP-local-57668-1636714990003-0-2) and continue routing.
+2021-11-12 12:03:48.890 ERROR 28596 — [hecker[default]] o.a.camel.processor.DefaultErrorHandler  : Failed delivery for (MessageId: ID-CP-local-57668-1636714990003-0-1 on ExchangeId: ID-CP-local-57668-1636714990003-0-2). Exhausted after delivery attempt: 1 caught: org.apache.camel.ExchangeTimedOutException: The OUT message was not received within: 20000 millis due reply message with correlationID: Camel-ID-CP-local-57668-1636714990003-0-3 not received on destination: amq.gen-TvgwWekSu3FVNrPOtNFhdA. Exchange[ID-CP-local-57668-1636714990003-0-2]
+ 
+Message History
+---------------------------------------------------------------------------------------------------------------------------------------
+RouteId              ProcessorId          Processor                                                                        Elapsed (ms)
+[PUBLISH-TO-RBMQ   ] [PUBLISH-TO-RBMQ   ] [direct://PUBLISH-TO-RBMQ                                                      ] [     20088]
+[PUBLISH-TO-RBMQ   ] [setBody2          ] [setBody[simple\{{"type":"test","message":"hello"}}]                            ] [         3]
+[PUBLISH-TO-RBMQ   ] [log3              ] [log                                                                           ] [         1]
+[PUBLISH-TO-RBMQ   ] [to1               ] [rabbitmq://10.42.0.181:5672/default?username=user&password=xxxxxx&queue=MY-HEL] [     20078]
+ 
+Stacktrace
+---------------------------------------------------------------------------------------------------------------------------------------
+ 
+org.apache.camel.ExchangeTimedOutException: The OUT message was not received within: 20000 millis due reply message with correlationID: Camel-ID-CP-local-57668-1636714990003-0-3 not received on destination: amq.gen-TvgwWekSu3FVNrPOtNFhdA. Exchange[ID-CP-local-57668-1636714990003-0-2]
+                at org.apache.camel.component.rabbitmq.reply.ReplyManagerSupport.processReply(ReplyManagerSupport.java:153) ~[camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.component.rabbitmq.reply.TemporaryQueueReplyHandler.onTimeout(TemporaryQueueReplyHandler.java:67) [camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.component.rabbitmq.reply.CorrelationTimeoutMap.onEviction(CorrelationTimeoutMap.java:54) [camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.component.rabbitmq.reply.CorrelationTimeoutMap.onEviction(CorrelationTimeoutMap.java:30) [camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.support.DefaultTimeoutMap.purge(DefaultTimeoutMap.java:230) [camel-core-2.17.3.jar:2.17.3]
+                at org.apache.camel.support.DefaultTimeoutMap.run(DefaultTimeoutMap.java:180) [camel-core-2.17.3.jar:2.17.3]
+                at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) [na:1.8.0_202]
+                at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:308) [na:1.8.0_202]
+                at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$301(ScheduledThreadPoolExecutor.java:180) [na:1.8.0_202]
+                at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:294) [na:1.8.0_202]
+                at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [na:1.8.0_202]
+                at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [na:1.8.0_202]
+                at java.lang.Thread.run(Thread.java:748) [na:1.8.0_202]
+ 
+2021-11-12 12:03:48.898 ERROR 28596 — [nio-8585-exec-1] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed; nested exception is org.apache.camel.CamelExecutionException: Exception occurred during execution on the exchange: Exchange[ID-CP-local-57668-1636714990003-0-2]] with root cause
+ 
+org.apache.camel.ExchangeTimedOutException: The OUT message was not received within: 20000 millis due reply message with correlationID: Camel-ID-CP-local-57668-1636714990003-0-3 not received on destination: amq.gen-TvgwWekSu3FVNrPOtNFhdA. Exchange[ID-CP-local-57668-1636714990003-0-2]
+                at org.apache.camel.component.rabbitmq.reply.ReplyManagerSupport.processReply(ReplyManagerSupport.java:153) ~[camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.component.rabbitmq.reply.TemporaryQueueReplyHandler.onTimeout(TemporaryQueueReplyHandler.java:67) ~[camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.component.rabbitmq.reply.CorrelationTimeoutMap.onEviction(CorrelationTimeoutMap.java:54) ~[camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.component.rabbitmq.reply.CorrelationTimeoutMap.onEviction(CorrelationTimeoutMap.java:30) ~[camel-rabbitmq-2.17.3.jar:2.17.3]
+                at org.apache.camel.support.DefaultTimeoutMap.purge(DefaultTimeoutMap.java:230) ~[camel-core-2.17.3.jar:2.17.3]
+                at org.apache.camel.support.DefaultTimeoutMap.run(DefaultTimeoutMap.java:180) ~[camel-core-2.17.3.jar:2.17.3]
+                at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) ~[na:1.8.0_202]
+                at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:308) ~[na:1.8.0_202]
+                at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$301(ScheduledThreadPoolExecutor.java:180) ~[na:1.8.0_202]
+                at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:294) ~[na:1.8.0_202]
+                at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) ~[na:1.8.0_202]
+                at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) ~[na:1.8.0_202]
+                at java.lang.Thread.run(Thread.java:748) [na:1.8.0_202]
+ 
+2021-11-12 12:04:43.439  WARN 28596 — [hecker[default]] o.a.c.c.r.reply.ReplyManagerSupport      : Early reply received with correlationID [Camel-ID-CP-local-57668-1636714990003-0-3] -> [123, 34, 116, 121, 112, 101, 34, 58, 34, 116, 101, 115, 116, 34, 44, 34, 109, 101, 115, 115, 97, 103, 101, 34, 58, 34, 104, 101, 108, 108, 111, 32, 98, 97, 99, 107, 32, 102, 114, 111, 109, 32, 110, 111, 100, 101, 74, 83, 32, 53, 34, 125]
+2021-11-12 12:04:48.577  WARN 28596 — [hecker[default]] o.a.c.c.r.reply.ReplyManagerSupport      : Reply received for unknown correlationID [Camel-ID-CP-local-57668-1636714990003-0-3]. The message will be ignored: [123, 34, 116, 121, 112, 101, 34, 58, 34, 116, 101, 115, 116, 34, 44, 34, 109, 101, 115, 115, 97, 103, 101, 34, 58, 34, 104, 101, 108, 108, 111, 32, 98, 97, 99, 107, 32, 102, 114, 111, 109, 32, 110, 111, 100, 101, 74, 83, 32, 53, 34, 125]

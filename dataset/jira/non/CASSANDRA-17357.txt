@@ -1,0 +1,43 @@
+Snapshot true size computation does not include secondary indexes
+The true size is supposed to show the total size of the snapshot minus any live sstables.
+Nevertheless, sstables from secondary indexes are not included in the computation of the true size, causing a mismatch between the true size and snapshot size when there are indexes and no live sstables.
+It's possible to fetch the global snapshot size per table and indexes separately via nodetool tablestats, but not for individual snapshots.
+This behavior seems to be there since before 3.0, so I think it has always been like this.
+Reproduction steps:
+
+% ccm node1 nodetool -- snapshot -t test test_ks
+
+Requested creating snapshot(s) for [test_ks] with snapshot name [test]
+Snapshot directory: test
+
+% ccm node1 nodetool listsnapshots
+
+Snapshot Details:
+Snapshot name Keyspace name Column family name True size Size on disk
+test          test_ks       tbl                0 bytes   10.76 KB
+
+Total TrueDiskSpaceUsed: 0 bytes
+
+% ccm node1 nodetool tablestats test_ks.tbl | grep -i snapshot
+    Space used by snapshots (total): 0
+
+% ccm node1 nodetool tablestats test_ks.tbl.tbl_val_idx | grep -i snapshot
+    Space used by snapshots (total): 0
+
+% ccm node1 nodetool compact test_ks tbl.tbl_val_idx
+
+% ccm node1 nodetool compact test_ks tbl_val_idx
+
+% ccm node1 nodetool tablestats test_ks.tbl | grep -i snapshot
+    Space used by snapshots (total): 5027
+
+% ccm node1 nodetool tablestats test_ks.tbl.tbl_val_idx | grep -i snapshot
+    Space used by snapshots (total): 5060
+
+% ccm node1 nodetool listsnapshots
+
+Snapshot Details:
+Snapshot name Keyspace name Column family name True size Size on disk
+test          test_ks       tbl                4.91 KB   10.76 KB
+
+Total TrueDiskSpaceUsed: 4.91 KB

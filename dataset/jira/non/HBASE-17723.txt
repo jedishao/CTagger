@@ -1,0 +1,50 @@
+ClientAsyncPrefetchScanner may end prematurely when the size of the cache is one
+Command to build and test:
+mvn clean install -X 
+JAVA_TOOL_OPTIONS: -Xmx4G -XX:MaxPermSize=4G -Xms1G
+
+Failure in tests:
+Results :
+
+Failed tests:
+  TestServerSideScanMetricsFromClientSide.testRowsSeenMetricWithAsync:161->testRowsSeenMetric:174->testRowsSeenMetric:204->testMetric:330 Metric: ROWS_SCANNED Expected: 9 Actual: 8 expected:<9> but was:<8>
+  TestRecoveredEdits.testReplayWorksThoughLotsOfFlushing:78->testReplayWorksWithMemoryCompactionPolicy:149->verifyAllEditsMadeItIn:195 Failed to find W\xE1X\xDBv\xD8}\x07\xBF\xC1I\xF1\xF5\xB9\x84\xD8/meta:prev/1422491946444/Put/vlen=16/seqid=0
+
+Tests run: 1761, Failures: 2, Errors: 0, Skipped: 6
+----------------------------------------------------------------------------------------
+
+This is the output for 1st test failure:
+-------------------------------------------------------------------------------
+Test set: org.apache.hadoop.hbase.TestServerSideScanMetricsFromClientSide
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 7.971 sec <<< FAILURE! - in org.apache.hadoop.hbase.TestServerSideScanMetricsFromClientSide
+testRowsSeenMetricWithAsync(org.apache.hadoop.hbase.TestServerSideScanMetricsFromClientSide)  Time elapsed: 1.134 sec  <<< FAILURE!
+java.lang.AssertionError: Metric: ROWS_SCANNED Expected: 9 Actual: 8 expected:<9> but was:<8>
+        at org.junit.Assert.fail(Assert.java:88)
+        at org.junit.Assert.failNotEquals(Assert.java:834)
+        at org.junit.Assert.assertEquals(Assert.java:645)
+        at org.apache.hadoop.hbase.TestServerSideScanMetricsFromClientSide.testMetric(TestServerSideScanMetricsFromClientSide.java:330)
+        at org.apache.hadoop.hbase.TestServerSideScanMetricsFromClientSide.testRowsSeenMetric(TestServerSideScanMetricsFromClientSide.java:204)
+        at org.apache.hadoop.hbase.TestServerSideScanMetricsFromClientSide.testRowsSeenMetric(TestServerSideScanMetricsFromClientSide.java:174)
+        at org.apache.hadoop.hbase.TestServerSideScanMetricsFromClientSide.testRowsSeenMetricWithAsync(TestServerSideScanMetricsFromClientSide.java:161)
+------------------------------------------------------------------------------------
+
+This is output of 2nd test failure:
+-------------------------------------------------------------------------------
+Test set: org.apache.hadoop.hbase.regionserver.TestRecoveredEdits
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 11.911 sec <<< FAILURE! - in org.apache.hadoop.hbase.regionserver.TestRecoveredEdits
+testReplayWorksThoughLotsOfFlushing(org.apache.hadoop.hbase.regionserver.TestRecoveredEdits)  Time elapsed: 11.871 sec  <<< FAILURE!
+java.lang.AssertionError: Failed to find W\xE1X\xDBv\xD8}\x07\xBF\xC1I\xF1\xF5\xB9\x84\xD8/meta:prev/1422491946444/Put/vlen=16/seqid=0
+        at org.junit.Assert.fail(Assert.java:88)
+        at org.junit.Assert.assertTrue(Assert.java:41)
+        at org.apache.hadoop.hbase.regionserver.TestRecoveredEdits.verifyAllEditsMadeItIn(TestRecoveredEdits.java:195)
+        at org.apache.hadoop.hbase.regionserver.TestRecoveredEdits.testReplayWorksWithMemoryCompactionPolicy(TestRecoveredEdits.java:149)
+        at org.apache.hadoop.hbase.regionserver.TestRecoveredEdits.testReplayWorksThoughLotsOfFlushing(TestRecoveredEdits.java:78)
+
+
+Please let me know if you need more information
+
+Thanks,
+Anup
+

@@ -1,0 +1,21 @@
+camel-kafka: "breakOnFirstError" option is not respected
+Description:
+Errors thrown in kafka-consumer routes with "breakOnFirstError" enabled does not trigger reprocessing in 3.12.0 and forward, as if option "breakOnFirstError" is not respected.
+Reproduction:
+
+Configure a route consuming from kafka with option "breakOnFirstError" enabled
+Trigger an exception in route
+
+Expected result:
+
+Should break out, seek back to offset of the message that caused the failure and then reattempt to process the message (as per the [docs|https://camel.apache.org/components/3.14.x/kafka-component.html]: )
+
+Actual result:
+
+Consumer continuous to next message
+
+GitHub project reproducing the issue
+https://github.com/espeandr/camel-kafka-break-on-error-demo
+Test-runs
+3.16.0 (failing): https://github.com/espeandr/camel-kafka-break-on-error-demo/runs/5886049034?check_suite_focus=true
+3.11.6 (succeeding): https://github.com/espeandr/camel-kafka-break-on-error-demo/runs/5886221956?check_suite_focus=true

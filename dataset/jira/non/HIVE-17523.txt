@@ -1,0 +1,37 @@
+Insert into druid table  hangs Hive server2 in an infinite loop
+Inserting data via insert into table backed by druid can lead to a Hive server hang.
+This is due to some bug in the naming of druid segments partitions.
+To reproduce the issue 
+
+drop table login_hive;
+create table login_hive(`timecolumn` timestamp, `userid` string, `num_l` double);
+insert into login_hive values ('2015-01-01 00:00:00', 'user1', 5);
+insert into login_hive values ('2015-01-01 01:00:00', 'user2', 4);
+insert into login_hive values ('2015-01-01 02:00:00', 'user3', 2);
+
+insert into login_hive values ('2015-01-02 00:00:00', 'user1', 1);
+insert into login_hive values ('2015-01-02 01:00:00', 'user2', 2);
+insert into login_hive values ('2015-01-02 02:00:00', 'user3', 8);
+
+insert into login_hive values ('2015-01-03 00:00:00', 'user1', 5);
+insert into login_hive values ('2015-01-03 01:00:00', 'user2', 9);
+insert into login_hive values ('2015-01-03 04:00:00', 'user3', 2);
+
+insert into login_hive values ('2015-03-09 00:00:00', 'user3', 5);
+insert into login_hive values ('2015-03-09 01:00:00', 'user1', 0);
+insert into login_hive values ('2015-03-09 05:00:00', 'user2', 0);
+
+
+drop table login_druid;
+CREATE TABLE login_druid
+STORED BY 'org.apache.hadoop.hive.druid.DruidStorageHandler'
+TBLPROPERTIES ("druid.datasource" = "druid_login_test_tmp", "druid.segment.granularity" = "DAY", "druid.query.granularity" = "HOUR")
+AS
+select `timecolumn` as `__time`, `userid`, `num_l` FROM login_hive;
+select * FROM login_druid;
+
+insert into login_druid values ('2015-03-09 05:00:00', 'user4', 0); 
+
+
+This patch unifies the logic of pushing and segments naming by using Druid data segment pusher as much as possible.
+This patch also has some minor code refactoring and test enhancements.

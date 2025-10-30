@@ -1,0 +1,45 @@
+on SSL Handshake issues org.apache.cassandra.net.InboundConnectionInitiator$Handler spams log as it can not remove itself
+In trying to get python dtests stable after CASSANDRA-17594 the following error was detected on trunk (see https://app.circleci.com/pipelines/github/dcapwell/cassandra/1472/workflows/4cf41e3a-21bc-4657-9ec2-d4468e3ac8b2/jobs/12233 sslnodetonode_test.py::TestNodeToNodeSSLEncryption::test_ssl_correct_hostname_with_validation):
+
+{code}
+[node1] 'ERROR [Messaging-EventLoop-3-4] 2022-05-17 00:03:42,560 InboundConnectionInitiator.java:396 - Failed to properly handshake with peer /127.0.0.1:35586. Closing the channel.
+io.netty.channel.StacklessClosedChannelException: null
+  at io.netty.channel.AbstractChannel$AbstractUnsafe.write(Object, ChannelPromise)(Unknown Source)',
+
+[node1] 'WARN  [Messaging-EventLoop-3-4] 2022-05-17 00:03:42,577 DefaultChannelPipeline.java:1152 - An exceptionCaught() event was fired, and it reached at the tail of the pipeline. It usually means the last handler in the pipeline did not handle the exception.
+io.netty.handler.codec.DecoderException: java.util.NoSuchElementException: org.apache.cassandra.net.InboundConnectionInitiator$Handler
+  at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:478)
+  at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+  at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+  at io.netty.handler.codec.ByteToMessageDecoder.handlerRemoved(ByteToMessageDecoder.java:253)
+  at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:515)
+  at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:447)
+  at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:276)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+  at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)
+  at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:379)
+  at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:365)
+  at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+  at io.netty.channel.epoll.AbstractEpollStreamChannel$EpollStreamUnsafe.epollInReady(AbstractEpollStreamChannel.java:795)
+  at io.netty.channel.epoll.EpollEventLoop.processReady(EpollEventLoop.java:480)
+  at io.netty.channel.epoll.EpollEventLoop.run(EpollEventLoop.java:378)
+  at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+  at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+  at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+  at java.lang.Thread.run(Thread.java:748)
+Caused by: java.util.NoSuchElementException: org.apache.cassandra.net.InboundConnectionInitiator$Handler
+  at io.netty.channel.DefaultChannelPipeline.getContextOrDie(DefaultChannelPipeline.java:1082)
+  at io.netty.channel.DefaultChannelPipeline.remove(DefaultChannelPipeline.java:417)
+  at org.apache.cassandra.net.InboundConnectionInitiator$Handler.setupMessagingPipeline(InboundConnectionInitiator.java:528)
+  at org.apache.cassandra.net.InboundConnectionInitiator$Handler.initiate(InboundConnectionInitiator.java:319)
+  at org.apache.cassandra.net.InboundConnectionInitiator$Handler.decode(InboundConnectionInitiator.java:265)
+  at io.netty.handler.codec.ByteToMessageDecoder.decodeRemovalReentryProtection(ByteToMessageDecoder.java:508)
+  at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:447)
+  ... 22 common frames omitted',
+{code}
+
+It looks like handshake errors cause org.apache.cassandra.net.InboundConnectionInitiator$Handler to run but fail to remove its self as it no longer exists in the pipeline

@@ -1,0 +1,26 @@
+Performance degradation when the data size grows
+Hello Everyone, 
+I am noticing a huge perf drop (spike in latency and CPU utilization) for the counter type tables when the data size grows. To better understand/simulate I have done the following perf test with `cassandra-stress` instead of my use-case and I can reproduce the performance issue consistently. When using the counter type tables, when the datasize grows the read latency and cpu spikes to very high number.
+ 
+Test Setup:
+
+Setup a cluster with 3 nodes.
+Run a test with cassandra-stress and I see the latency and CPU are okay without much spike.
+Send a lot of counter traffic using `cassandra-stress` tool (Replication Factory = 3)
+Now the data size on the cluster is ~300G. 
+Now run another test with cassandra-stress with 3:1 read write mixed workload.
+At this point I see the CPU spikes to double (32 on a 16 core CPU) and the latency reaches ~1 seconds (which earlier was < 5ms).
+Another interesting observation is the disk reads goes to a higher number and it keeps going higher with the increase in the disk size. 
+It pretty much looked like a disk bottleneck issue but the same result shows very low disk reads, cpu, latency with less amount of data.
+Below is the configuration I have used for testing this.
+
+ 
+C* Version: 3.11.9
+CPU: 16
+Memory: 64G
+Heap: 16G
+GC: G1GC
+Disk: 500G GCP Persistent disk 
+ 
+I understand that, with growth in disk the number of lookup grows high, but this looked to be a big performance drop.
+Please let me know if you need more details. Also let me know this is known limitation with the counter type and if there is a work around.

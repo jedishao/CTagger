@@ -1,0 +1,60 @@
+Enforcer plugin fails with NullPointerException
+Using this command:
+mvn install -X -DskipTests assembly:single -Prelease
+I got:
+
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-enforcer-plugin:1.4.1:enforce (min-maven-min-java-banned-xerces) on project hbase: Execution min-maven-min-java-banned-xerces of goal org.apache.maven.plugins:maven-enforcer-plugin:1.4.1:enforce failed. NullPointerException -> [Help 1]
+org.apache.maven.lifecycle.LifecycleExecutionException: Failed to execute goal org.apache.maven.plugins:maven-enforcer-plugin:1.4.1:enforce (min-maven-min-java-banned-xerces) on project hbase: Execution min-maven-min-java-banned-xerces of goal org.apache.maven.plugins:maven-enforcer-plugin:1.4.1:enforce failed.
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:212)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:153)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:145)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:116)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:80)
+	at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build(SingleThreadedBuilder.java:51)
+	at org.apache.maven.lifecycle.internal.LifecycleStarter.execute(LifecycleStarter.java:128)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:307)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:193)
+	at org.apache.maven.DefaultMaven.execute(DefaultMaven.java:106)
+	at org.apache.maven.cli.MavenCli.execute(MavenCli.java:863)
+	at org.apache.maven.cli.MavenCli.doMain(MavenCli.java:288)
+	at org.apache.maven.cli.MavenCli.main(MavenCli.java:199)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced(Launcher.java:289)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launch(Launcher.java:229)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode(Launcher.java:415)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.main(Launcher.java:356)
+Caused by: org.apache.maven.plugin.PluginExecutionException: Execution min-maven-min-java-banned-xerces of goal org.apache.maven.plugins:maven-enforcer-plugin:1.4.1:enforce failed.
+	at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:145)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:207)
+	... 20 more
+Caused by: java.lang.NullPointerException
+	at org.apache.maven.plugins.enforcer.EnforceBytecodeVersion.isBadArtifact(EnforceBytecodeVersion.java:221)
+	at org.apache.maven.plugins.enforcer.EnforceBytecodeVersion.checkDependencies(EnforceBytecodeVersion.java:206)
+	at org.apache.maven.plugins.enforcer.EnforceBytecodeVersion.handleArtifacts(EnforceBytecodeVersion.java:132)
+	at org.apache.maven.plugins.enforcer.AbstractResolveDependencies.execute(AbstractResolveDependencies.java:77)
+	at org.apache.maven.plugins.enforcer.EnforceMojo.execute(EnforceMojo.java:193)
+	at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:134)
+	... 21 more
+
+
+A brief search led to HBASE-16335:
+
+commit 046d1a56b242d8586d8bcd81d26c11a859651972
+Author: Jan Hentschel <jan.hentschel@ultratendency.com>
+Date:   Thu Nov 17 21:03:55 2016 +0100
+
+    HBASE-16335 Update to latest Apache parent pom
+
+    Signed-off-by: Michael Stack <stack@apache.org>
+
+commit 7c6e839f6a98cf2c3ed37109318632db13b4a0df
+Author: Esteban Gutierrez <esteban@apache.org>
+Date:   Thu Nov 17 11:11:30 2016 -0800
+
+    HBASE-17058 Lower epsilon used for jitter verification from HBASE-15324
+
+
+As of 7c6e839f6a98cf2c3ed37109318632db13b4a0df , the tar ball can be generated.

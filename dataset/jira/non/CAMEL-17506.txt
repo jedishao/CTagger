@@ -1,0 +1,14 @@
+olingo4 should always look for a single entity when a predicate key is used
+In org.apache.camel.component.olingo4.api.impl.Olingo4AppImpl , the following snippet of code is used to decide wether we receive an entity or an entitySet on a read query with a keyPredicate:
+
+
+List<UriParameter> keyPredicates = uriResourceEntitySet.getKeyPredicates();
+// Check result type: single Entity or EntitySet based
+// on key predicate detection
+if (keyPredicates.size() == 1) {
+  response = (T) odataReader.readEntity(content, getResourceContentType(uriInfo));
+} else {
+  response = (T) odataReader.readEntitySet(content, getResourceContentType(uriInfo));
+} 
+
+It assumes that if we have multiple parts in the key predicate, then we expect several entities in the response. But as we can see in OData Version 4.01. Part 2: URL Conventions (oasis-open.org) 4.3.6 example 26, a key predicate with several parts is just that, a multi-part key predicate still adressing a single entity.

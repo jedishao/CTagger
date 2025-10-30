@@ -1,0 +1,43 @@
+NullPointerException after Datanodes Decommissioned and Terminated
+We recently encountered an interesting NullPointerException in HDFS that bubbles up to HBase, and is resolved be restarting the regionserver.  The issue was exhibited while we were replacing a set of nodes in one of our clusters with a new set.  We did the following:
+
+1. Turn off the HBase balancer
+2. Gracefully move the regions off the nodes we’re shutting off using a tool we wrote to do so
+3. Decommission the datanodes using the HDFS exclude hosts file and hdfs dfsadmin -refreshNodes
+4. Wait for the datanodes to decommission fully
+5. Terminate the VMs the instances are running inside.
+
+A few notes.  We did not shutdown the datanode processes, and the nodes were therefore not marked as dead by the namenode.  We simply terminated the datanode VM (in this case an AWS instance).  The nodes were marked as decommissioned.  We are running our clusters with DNS, and when we terminate VMs, the associated CName is removed and no longer resolves.  The errors do not seem to resolve without a restart.
+
+After we did this, the remaining regionservers started throwing NullPointerExceptions with the following stack trace:
+
+2017-01-19 23:09:05,638 DEBUG org.apache.hadoop.hbase.ipc.RpcServer: RpcServer.RW.fifo.Q.read.handler=80,queue=14,port=60020: callId: 1727723891 service: ClientService methodName: Scan size: 216 connection: 172.16.36.128:31538
+java.io.IOException
+    at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:2214)
+    at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:123)
+    at org.apache.hadoop.hbase.ipc.RpcExecutor$Handler.run(RpcExecutor.java:204)
+    at org.apache.hadoop.hbase.ipc.RpcExecutor$Handler.run(RpcExecutor.java:183)
+Caused by: java.lang.NullPointerException
+    at org.apache.hadoop.hdfs.DFSInputStream.seek(DFSInputStream.java:1564)
+    at org.apache.hadoop.fs.FSDataInputStream.seek(FSDataInputStream.java:62)
+    at org.apache.hadoop.hbase.io.hfile.HFileBlock$AbstractFSReader.readAtOffset(HFileBlock.java:1434)
+    at org.apache.hadoop.hbase.io.hfile.HFileBlock$FSReaderImpl.readBlockDataInternal(HFileBlock.java:1682)
+    at org.apache.hadoop.hbase.io.hfile.HFileBlock$FSReaderImpl.readBlockData(HFileBlock.java:1542)
+    at org.apache.hadoop.hbase.io.hfile.HFileReaderV2.readBlock(HFileReaderV2.java:445)
+    at org.apache.hadoop.hbase.io.hfile.HFileBlockIndex$BlockIndexReader.loadDataBlockWithScanInfo(HFileBlockIndex.java:266)
+    at org.apache.hadoop.hbase.io.hfile.HFileReaderV2$AbstractScannerV2.seekTo(HFileReaderV2.java:642)
+    at org.apache.hadoop.hbase.io.hfile.HFileReaderV2$AbstractScannerV2.seekTo(HFileReaderV2.java:592)
+    at org.apache.hadoop.hbase.regionserver.StoreFileScanner.seekAtOrAfter(StoreFileScanner.java:294)
+    at org.apache.hadoop.hbase.regionserver.StoreFileScanner.seek(StoreFileScanner.java:199)
+    at org.apache.hadoop.hbase.regionserver.StoreScanner.seekScanners(StoreScanner.java:343)
+    at org.apache.hadoop.hbase.regionserver.StoreScanner.<init>(StoreScanner.java:198)
+    at org.apache.hadoop.hbase.regionserver.HStore.createScanner(HStore.java:2106)
+    at org.apache.hadoop.hbase.regionserver.HStore.getScanner(HStore.java:2096)
+    at org.apache.hadoop.hbase.regionserver.HRegion$RegionScannerImpl.<init>(HRegion.java:5544)
+    at org.apache.hadoop.hbase.regionserver.HRegion.instantiateRegionScanner(HRegion.java:2569)
+    at org.apache.hadoop.hbase.regionserver.HRegion.getScanner(HRegion.java:2555)
+    at org.apache.hadoop.hbase.regionserver.HRegion.getScanner(HRegion.java:2536)
+    at org.apache.hadoop.hbase.regionserver.RSRpcServices.scan(RSRpcServices.java:2405)
+    at org.apache.hadoop.hbase.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:33738)
+    at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:2170)
+    ... 3 more

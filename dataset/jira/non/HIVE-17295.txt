@@ -1,0 +1,15 @@
+Make MemoryManagerImpl.ROWS_BETWEEN_CHECKS configurable
+currently addedRow() looks like
+
+public void addedRow(int rows) throws IOException {
+    rowsAddedSinceCheck += rows;
+    if (rowsAddedSinceCheck >= ROWS_BETWEEN_CHECKS) {
+      notifyWriters();
+    }
+  }
+
+
+it would be convenient for testing to set ROWS_BETWEEN_CHECKS to a low value so that we can generate multiple stripes with very little data.
+Currently the only way to do this is to create a new MemoryManager that overrides this method and install it via OrcFile.WriterOptions but this only works when you have control over creating the Writer.
+For example org.apache.hadoop.hive.ql.io.orc.TestOrcRawRecordMerger.testRecordReaderNewBaseAndDelta()
+There is no way to do this via some set of config params to make Hive query for example, create multiple stripes with little data.

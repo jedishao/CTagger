@@ -1,0 +1,27 @@
+Client heartbeats seems to be broken
+We have a test in Phoenix where we introduce an artificial sleep of 2 times the RPC timeout in preScannerNext() hook of a co-processor. 
+
+{code}
+ public static class SleepingRegionObserver extends SimpleRegionObserver {
+        public SleepingRegionObserver() {}
+        
+        @Override
+        public boolean preScannerNext(final ObserverContext<RegionCoprocessorEnvironment> c,
+                final InternalScanner s, final List<Result> results,
+                final int limit, final boolean hasMore) throws IOException {
+            try {
+                if (SLEEP_NOW && c.getEnvironment().getRegion().getRegionInfo().getTable().getNameAsString().equals(TABLE_NAME)) {
+                    Thread.sleep(RPC_TIMEOUT * 2);
+                }
+            } catch (InterruptedException e) {
+                throw new IOException(e);
+            }
+            return super.preScannerNext(c, s, results, limit, hasMore);
+        }
+    }
+{code}
+
+This test was passing fine till 1.1.3 but started failing sometime before 1.1.9 with an OutOfOrderScannerException. See PHOENIX-3702. [~lhofhansl] mentioned that we have client heartbeats enabled and that should prevent us from running into issues like this. FYI, this test fails with 1.2.3 version of HBase too.
+
+CC [~apurtell], [~jamestaylor]
+

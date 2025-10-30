@@ -1,0 +1,19 @@
+Handle an internal dir in viewfs having multiple children mount points pointing to different filesystems
+In case the viefs mount table is configured in a way where multiple child mount points are pointing to different file systems, the getContentSummary or getStatus don't return the expected result
+
+
+mount link /a/b/ → hdfs://nn1/a/b
+ mount link /a/d/ → file:///nn2/c/d
+
+b has two files and d has 1 file. So getContentSummary on / should return 3 files.
+It also fails for the following scenario:
+
+
+mount link  /internalDir -> /internalDir/linternalDir2
+mount link  /internalDir -> /internalDir/linkToDir2 -> hdfs://nn1/dir2
+
+Exception:
+
+
+java.io.IOException: Internal implementation error: expected file name to be /java.io.IOException: Internal implementation error: expected file name to be /
+ at org.apache.hadoop.fs.viewfs.InternalDirOfViewFs.checkPathIsSlash(InternalDirOfViewFs.java:88) at org.apache.hadoop.fs.viewfs.InternalDirOfViewFs.getFileStatus(InternalDirOfViewFs.java:154) at org.apache.hadoop.fs.FileSystem.getContentSummary(FileSystem.java:1684) at org.apache.hadoop.fs.FileSystem.getContentSummary(FileSystem.java:1695) at org.apache.hadoop.fs.viewfs.ViewFileSystem.getContentSummary(ViewFileSystem.java:918) at org.apache.hadoop.fs.viewfs.ViewFileSystemBaseTest.testGetContentSummary(ViewFileSystemBaseTest.java:1106)

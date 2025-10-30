@@ -1,0 +1,33 @@
+Camel Salesforce - Http Client timeout is hardcoded
+I am using Bulk V2 API to upload large files to Salesforce. I have noticed that on creating the job from Producer it times out with Timeout exception. I tried to change the timeout configuration but noticed its always gets set to a hardcoded one.
+Class : SalesforceComponent
+
+
+static SalesforceHttpClient createHttpClient(
+            Object source, final SslContextFactory sslContextFactory, final CamelContext context, int workerPoolSize,
+            int workerPoolMaxSize) {
+        SecurityUtils.adaptToIBMCipherNames(sslContextFactory);
+
+        final SalesforceHttpClient httpClient = new SalesforceHttpClient(
+                context, context.getExecutorServiceManager().newThreadPool(source, "SalesforceHttpClient", workerPoolSize,
+                        workerPoolMaxSize),
+                sslContextFactory);
+        // default settings, use httpClientProperties to set other
+        // properties
+        httpClient.setConnectTimeout(CONNECTION_TIMEOUT);
+        httpClient.setIdleTimeout(IDLE_TIMEOUT);
+
+        return httpClient;
+    }
+
+
+As suggested by Claus to use httpClientProperties. In that case, HTTP client does set the connection timeout of the configured value. But it passes timeout value to SalesforceSession instead of ConnectionTimeout value. So it still gets failed with a Timeout error.
+Class : SalesforceComponent
+Method: doStart
+
+
+ setupHttpClient(httpClient, getCamelContext(), httpClientProperties);
+// support restarts
+if (session == null) {
+session = new SalesforceSession(getCamelContext(), httpClient, httpClient.getTimeout(), loginConfig);
+        }

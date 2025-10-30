@@ -1,0 +1,87 @@
+Make dynamic router eip component subscription easier
+User Story:
+As a user of the Dynamic Router EIP component, I want to be able to subscribe with URL parameters so that I am not required to create a control message POJO to send as the message body.
+Description / Explanation:
+While a control channel POJO gives full control over the subscription or unsubscription, it would be more convenient to be able to send these messages from a routing participant by using URL parameters.  Creating the control channel message for subscription looks like this:
+
+
+DynamicRouterControlMessage billingSubMsg = new SubscribeMessageBuilder()
+                .id("billingSubscription")
+                .channel("billing")
+                .priority(10)
+                .endpointUri(myBillingNotificationUri)
+                .predicate(new SomeBillingPredicate())
+                .build(); 
+
+Then this is sent to the dynamic router control channel by:
+
+
+template.sendBody("dynamic-router:control", billingSubMsg);
+
+The above could be simplified and combined by using the URI to specify the message:
+
+
+template.sendBody("dynamic-router:control/subscribe/billing?subscriptionId=billingSubscription&endpointUri=jms:billing&priority=10&predicate=${bodyAs(String)} regex '^\\d*[02468]$'");
+
+Alternatives can include:
+
+Creating a Predicate as a bean, and referencing that bean as the predicate
+Instantiating a Predicate and sending that predicate as the message body
+Omitting the subscriptionId parameter, so that a subscription ID is generated and returned
+
+Similarly, unsubscribing can be achieved by:
+ 
+
+
+template.sendBody("dynamic-router:control/unsubscribe/billing?subscriptionId=billingSubscription);
+
+ 
+Acceptance Criteria:
+
+Subscribing with all URI params:
+	
+given: All necessary dependencies present for setting up a route with the dynamic router component
+when: Routing participant sends empty message body to the dynamic router with the subscription URI beginning with "dynamic-router:control/subscribe/{channel name}" and all other params
+then: Routing participant is subscribed with all supplied values
+
+
+Unsubscribing:
+	
+given: All necessary dependencies present for setting up a route with the dynamic router component, and routing participant has a valid subscription ID and channel name
+when: Routing participant sends empty message body to the dynamic router with the subscription URI beginning with "dynamic-router:control/unsubscribe/{channel name}" and the subscription ID
+then: Routing participant is unsubscribed for that channel and that subscription ID
+
+
+Subscribing with URI params and Predicate bean:
+	
+given: All necessary dependencies present for setting up a route with the dynamic router component, and a Predicate bean has been registered in the registry
+when: Routing participant sends an empty message to the dynamic router with the subscription URI beginning with "dynamic-router:control/subscribe/{channel name}", the predicate parameter referencing the predicate bean, and all other params
+then: Routing participant is subscribed with all supplied values
+
+
+Subscribing with URI params and Predicate as message body:
+	
+given: All necessary dependencies present for setting up a route with the dynamic router component and a Predicate has been instantiated
+when: Routing participant sends an empty message to the dynamic router with the subscription URI beginning with "dynamic-router:control/subscribe/{channel name}", and all other params, and the predicate instance is set as the message body
+then: Routing participant is subscribed with all supplied values
+
+
+Subscribing with control message POJO operates without change:
+	
+given: All necessary dependencies present for setting up a route with the dynamic router component and a control message POJO has been instantiated
+when: Routing participant sends subscribe POJO as message body to the control channel
+then: Routing participant is subscribed with all supplied values
+
+
+Unsubscribing with control message POJO operates without change:
+	
+given: All necessary dependencies present for setting up a route with the dynamic router component, routing participant has a valid subscription ID and channel name,  and a control message POJO for unsubscribing has been instantiated
+when: Routing participant sends unsubscribe POJO as message body to the control channel
+then: Routing participant is unsubscribed for that channel and that subscription ID
+
+
+Provide a mode to allow routing to all matching participants
+	
+given: multiple subscribers with at least some overlapping filter predicates
+when: incoming messages match multiple recipients' filters
+then: all matching recipients receive a copy of the message

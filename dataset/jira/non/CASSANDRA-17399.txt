@@ -1,0 +1,49 @@
+a new SSTable created when single SSTable tombstone compact occurred in TWCS
+we found a issue that a new SSTable created when single SSTable tombstone compact occurred. The cassandra version is cqlsh 5.0.1 | Cassandra 3.10 | CQL spec 3.4.4, we use TWCS.
+The old SSTable, which Estimated droppable tombstones above 0.9, is the oldest SSTable in this table, it store oldest records, and it contains same partitions with newer SSTables, there is no expired SSTable deletion block about it.
+when the old SSTable exists almost TTL+gc_grace_seconds, then it's deleted, but later I found a new SSTable created, from log we know the new SSTable is created by old one, the size 42.920MiB is old SSTable and 2.381MiB is new SSTable.
+ 
+
+
+DEBUG [CompactionExecutor:44581] 
+2022-02-21 11:11:15,429 CompactionTask.java:255 - Compacted 
+(e99c1550-9306-11ec-8461-0bfbe41d7414) 1 sstables to 
+[.../mc-317850-big,]
+ to level=0. 42.920MiB to 2.381MiB (~5% of original) in 31,424ms. Read 
+Throughput = 1.366MiB/s, Write Throughput = 77.602KiB/s, Row Throughput =
+ ~4,311/s. 194 total partitions merged to 194. Partition merge counts 
+were {1:194, } 
+
+ 
+and weird data exist in new SSTable, all the fileds only contain deletion_info, the partition/clustering/xxxxx/yyyyy is same in old SSTable.
+ 
+
+
+"cells" : [
+          { "name" : "xxxxx", "deletion_info" : { "local_delete_time" : "2022-02-12T10:55:15Z" }
+          },
+          { "name" : "yyyyy", "deletion_info" : { "local_delete_time" : "2022-02-12T10:55:15Z" }
+          },
+...
+}
+
+also, the old SSTable only contain part of data in new SSTable, we found 129426 rows in old and 94694 rows in new one.
+ 
+ 
+also I found there are TTL min:0 in sstablemetadata but I dump all data from the old SSTable, then I can't find any record with ttl=0, all data is same as deletion_info records
+ 
+
+
+Minimum timestamp: 1644740070072443
+Maximum timestamp: 1644742695566429
+SSTable min local deletion time: 1644740070
+SSTable max local deletion time: 1645433895
+Compressor: org.apache.cassandra.io.compress.LZ4Compressor
+Compression ratio: 0.01234938023191464
+TTL min: 0
+TTL max: 691200
+Estimated droppable tombstones: 0.9057755011460312 
+
+ 
+ 
+I guess it's not performed as design, when a SSTable live exceed TTL+gc, it should be deleted if Estimated droppable tombstones exceed threshold, this is what I thought. So create a new SSTable behavior should be removed.

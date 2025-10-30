@@ -1,0 +1,5 @@
+ABFS: Long waits and unintended retries when multiple threads try to fetch token using ClientCreds
+Issue reported by DB:
+we recently experienced some problems with ABFS driver that highlighted a possible issue with long hangs following synchronized retries when using the ClientCredsTokenProvider and calling AbfsClient.getAccessToken. We have seen https://github.com/apache/hadoop/pull/1923, but it does not directly apply since we are not using a custom token provider, but instead ClientCredsTokenProvider that ultimately relies on AzureADAuthenticator. 
+ 
+The problem was that the critical section of getAccessToken, combined with a possibly redundant retry policy, made jobs hanging for a very long time, since only one thread at a time could make progress, and this progress amounted to basically retrying on a failing connection for 30-60 minutes.

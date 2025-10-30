@@ -1,0 +1,21 @@
+Improve accuracy of memtable heap usage tracking
+https://ci-cassandra.apache.org/job/Cassandra-4.0/313/testReport/org.apache.cassandra.cql3/MemtableSizeTest/testTruncationReleasesLogSpace_2/
+ Failed 4 times in the last 30 runs. Flakiness: 27%, Stability: 86%
+Error Message
+Expected heap usage close to 49.930MiB, got 41.542MiB.
+
+
+Stacktrace
+junit.framework.AssertionFailedError: Expected heap usage close to 49.930MiB, got 41.542MiB.
+
+	at org.apache.cassandra.cql3.MemtableSizeTest.testSize(MemtableSizeTest.java:130)
+	at org.apache.cassandra.Util.runCatchingAssertionError(Util.java:644)
+	at org.apache.cassandra.Util.flakyTest(Util.java:669)
+	at org.apache.cassandra.cql3.MemtableSizeTest.testTruncationReleasesLogSpace(MemtableSizeTest.java:61)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+ 
+
+UPDATE: It was discovered that unit tests were running with memtable_allocation_type: offheap_objects when we ship C* with heap_buffers.
+So we changed that in CASSANDRA-19326, now we test with memtable_allocation_type: heap_buffers. As a result, this test now fails all the time on 4.0 and 4.1.

@@ -1,0 +1,8 @@
+fix restarting of services on gossipping-only members
+When a node is started with -Dcassandra.join_ring=false, it is possible to talk to it via CQL. If we disable it via "nodetool disablebinary", it is not possible to enable it back with "nodetool enablebinary".
+The reason why is that enablebinary command eventually calls "StorageService#checkServiceAllowedToStart" and it throws when:
+1) the node is draining (which does not happen)
+2) it is shutting down (which does not happen)
+3) is not in NORMAL state - which happens.
+The state of the gossipping-only member is STARTING for ever.
+The check should make an exception here, like if it is in STARTING but -Dcassandra.join_ring=false, start it anyway.

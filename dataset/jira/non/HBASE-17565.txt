@@ -1,0 +1,18 @@
+StochasticLoadBalancer may incorrectly skip balancing due to skewed multiplier sum
+I was investigating why a 6 node cluster kept skipping balancing requests.
+Here were the region counts on the servers:
+449, 448, 447, 449, 453, 0
+
+2017-01-26 22:04:47,145 INFO  [RpcServer.deafult.FPBQ.Fifo.handler=1,queue=0,port=16000] balancer.StochasticLoadBalancer: Skipping load balancing because balanced cluster; total cost is 127.0171157050385, sum multiplier is 111087.0 min cost which need balance is 0.05
+
+
+The big multiplier sum caught my eyes. Here was what additional debug logging showed:
+
+2017-01-27 23:25:31,749 DEBUG [RpcServer.deafult.FPBQ.Fifo.handler=9,queue=0,port=16000] balancer.StochasticLoadBalancer: class org.apache.hadoop.hbase.master.balancer.          StochasticLoadBalancer$RegionReplicaHostCostFunction with multiplier 100000.0
+2017-01-27 23:25:31,749 DEBUG [RpcServer.deafult.FPBQ.Fifo.handler=9,queue=0,port=16000] balancer.StochasticLoadBalancer: class org.apache.hadoop.hbase.master.balancer.          StochasticLoadBalancer$RegionReplicaRackCostFunction with multiplier 10000.0
+
+
+Note however, that no table in the cluster used read replica.
+I can think of two ways of fixing this situation:
+1. If there is no read replica in the cluster, ignore the multipliers for the above two functions.
+2. When cost() returned by the CostFunction is 0 (or very very close to 0.0), ignore the multiplier.

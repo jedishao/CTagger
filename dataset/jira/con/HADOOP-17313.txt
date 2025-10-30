@@ -1,0 +1,16 @@
+FileSystem.get to support slow-to-instantiate FS clients
+A recurrent problem in processes with many worker threads (hive, spark etc) is that calling `FileSystem.get(URI-to-object-store)` triggers the creation and then discard of many FS clients -all but one for the same URL. As well as the direct performance hit, this can exacerbate locking problems and make instantiation a lot slower than it would otherwise be.
+This has been observed with the S3A and ABFS connectors.
+The ultimate solution here would probably be something more complicated to ensure that only one thread was ever creating a connector for a given URL -the rest would wait for it to be initialized. This would (a) reduce contention & CPU, IO network load, and (b) reduce the time for all but the first thread to resume processing to that of the remaining time in .initialize(). This would also benefit the S3A connector.
+We'd need something like
+
+A (per-user) map of filesystems being created <URI, FileSystem>
+split createFileSystem into two: instantiateFileSystem and initializeFileSystem
+each thread to instantiate the FS, put() it into the new map
+If there was one already, discard the old one and wait for the new one to be ready via a call to Object.wait()
+If there wasn't an entry, call initializeFileSystem) and then, finally, call Object.notifyAll(), and move it from the map of filesystems being initialized to the map of created filesystems
+
+This sounds too straightforward to be that simple; the troublespots are probably related to race conditions moving entries between the two maps and making sure that no thread will block on the FS being initialized while it has already been initialized (and so wait() will block forever).
+Rather than seek perfection, it may be safest go for a best-effort optimisation of the #of FS instances created/initialized. That is: its better to maybe create a few more FS instances than needed than it is to block forever.
+Something is doable here, it's just not quick-and-dirty. Testing will be "fun"; probably best to isolate this new logic somewhere where we can simulate slow starts on one thread with many other threads waiting for it.
+A simpler option would be to have a lock on the construction process: only one FS can be instantiated per user at a a time.

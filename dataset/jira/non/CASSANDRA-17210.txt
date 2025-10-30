@@ -1,0 +1,8 @@
+Not able to override default transport port in cassandra 4.0
+Bulk Loader is not honouring "-p" option given on the command line of the sstableloader.
+The command line used is:
+~/apache-cassandra-4.0.1/bin/sstableloader -d 10.14.20.148 -cph 1 -idct 0 -p 9942 -ssp 7011 -sp 7010 --verbose ~/cassandra4_experiment/nishant/employee/
+ 
+but the call is still going to /10.14.20.148:9042. We are just passing the host information to the Cluster.Builder in NativeSSTableLoaderClient.java:
+Cluster.Builder builder = Cluster.builder().addContactPointsWithPorts(hosts).allowBetaProtocolVersion();
+Looks like default port is getting picked inside com.datastax.driver.core.cluster.

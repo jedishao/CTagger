@@ -1,0 +1,19 @@
+Support Custom Endpoint For Hadoop Azure working with Storage Emulator
+When using the Hadoop Azure library to write files using the wasb:// schema, and using the configuration for Hadoop Azure storage emulator (fs.azure.storage.emulator.account.name), The client assumes that the emulator will run on localhost with the default port.
+When writing ITs and using Test Containers, the emulator will run on a custom endpoint but there is no way to tell that for the client.
+
+The problem is in AzureNativeFileSystemStore.java, in connectUsingCredentials method,
+which runs:
+
+CloudStorageAccount account = CloudStorageAccount.getDevelopmentStorageAccount()
+
+Which will use the default localhost address.
+
+The fix is easy (And I already fixed it and tested it on my own environment, and I will PR the fix)
+
+CloudStorageAccount.getDevelopmentStorageAccounts has already an overload that accepts URI for a custom endpont, and we can use it.
+
+
+
+
+ 

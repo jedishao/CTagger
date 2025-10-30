@@ -1,0 +1,56 @@
+toD (Dynamic To URI) doesn't work with Windows paths with file component
+I had a Camel route like this:
+from(uri)
+    to("file:" + path);
+The path is set by an end-user like for example
+1) path/to/dir (Linux)
+2) C:\dir (Windows)
+ 
+This works. Now I like to change the route so that the path can also set dynamically by the user (for example with a header). Thus I changed the route to a dynamic to uri "toD".
+from(uri)
+    toD("file:" + path);
+This works on Linux, but not on Windows paths. For example:
+1) C:\test (does not work)
+2) C:test (does not work)
+3) C:/test (does work)
+In the first two cases I get the following error:
+org.apache.camel.ResolveEndpointFailedException: Failed to resolve endpoint: file://C:  est due to: Illegal character i
+n authority at index 7: file://C:       est
+        at org.apache.camel.impl.engine.AbstractCamelContext.doGetEndpoint(AbstractCamelContext.java:968)
+        at org.apache.camel.impl.engine.AbstractCamelContext.getEndpoint(AbstractCamelContext.java:859)
+        at org.apache.camel.support.CamelContextHelper.getMandatoryEndpoint(CamelContextHelper.java:73)
+        at org.apache.camel.support.ExchangeHelper.resolveEndpoint(ExchangeHelper.java:120)
+        at org.apache.camel.support.ExchangeHelper.resolveEndpoint(ExchangeHelper.java:99)
+        at org.apache.camel.processor.SendDynamicProcessor.resolveEndpoint(SendDynamicProcessor.java:296)
+        at org.apache.camel.processor.SendDynamicProcessor.process(SendDynamicProcessor.java:157)
+        at org.apache.camel.processor.errorhandler.RedeliveryErrorHandler$RedeliveryTask.doRun(RedeliveryErrorHandler.ja
+va:810)
+        at org.apache.camel.processor.errorhandler.RedeliveryErrorHandler$RedeliveryTask.run(RedeliveryErrorHandler.java
+:718)
+        at org.apache.camel.impl.engine.DefaultReactiveExecutor$Worker.schedule(DefaultReactiveExecutor.java:187)
+        at org.apache.camel.impl.engine.DefaultReactiveExecutor.scheduleMain(DefaultReactiveExecutor.java:64)
+        at org.apache.camel.processor.Pipeline.process(Pipeline.java:184)
+        at org.apache.camel.impl.engine.CamelInternalProcessor.process(CamelInternalProcessor.java:398)
+        at org.apache.camel.component.file.GenericFileConsumer.processExchange(GenericFileConsumer.java:492)
+        at org.apache.camel.component.file.GenericFileConsumer.processBatch(GenericFileConsumer.java:245)
+        at org.apache.camel.component.file.GenericFileConsumer.poll(GenericFileConsumer.java:206)
+        at org.apache.camel.support.ScheduledPollConsumer.doRun(ScheduledPollConsumer.java:202)
+        at org.apache.camel.support.ScheduledPollConsumer.run(ScheduledPollConsumer.java:116)
+        at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+        at java.base/java.util.concurrent.FutureTask.runAndReset(FutureTask.java:305)
+        at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecuto
+r.java:305)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+        at java.base/java.lang.Thread.run(Thread.java:834)
+Caused by: java.net.URISyntaxException: Illegal character in authority at index 7: file://C:    est
+        at java.base/java.net.URI$Parser.fail(URI.java:2913)
+        at java.base/java.net.URI$Parser.parseAuthority(URI.java:3247)
+        at java.base/java.net.URI$Parser.parseHierarchical(URI.java:3158)
+        at java.base/java.net.URI$Parser.parse(URI.java:3114)
+        at java.base/java.net.URI.<init>(URI.java:600)
+        at org.apache.camel.support.DefaultComponent.createEndpoint(DefaultComponent.java:97)
+        at org.apache.camel.impl.engine.AbstractCamelContext.doGetEndpoint(AbstractCamelContext.java:934)
+        ... 23 common frames omitted
+This behavior is probably because with toD the uri is handled by a simple expression and this does some escaping. I could build in some input validation or change the backward slashes to forward slashed in my application, but I rather would like to change from "to" to "toD" without side-effects where it also works for Windows paths.
+Side note: As a user I would expect toD as replacement for to where it works exactly the same only it evaluates expressions. In the long run maybe there should be not difference between to and toD in Camel, so that toD can replace the currect "to" step and toD is not needed anymore.

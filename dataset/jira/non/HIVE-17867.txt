@@ -1,0 +1,23 @@
+Exception in windowing functions with TIMESTAMP WITH LOCAL TIME ZONE type
+The following query where column ts is of type TIMESTAMP WITH LOCAL TIME ZONE:
+
+
+select ts, i, sum(f) over (partition by i order by ts)
+from over10k_2
+limit 100;
+
+
+fails with the following stacktrace:
+
+
+org.apache.hadoop.hive.ql.parse.SemanticException: Failed to breakup Windowing invocations into Groups. At least 1 group must only depend on input columns. Also check for circular dependencies.
+Underlying error: Primitive type TIMESTAMPLOCALTZ not supported in Value Boundary expression
+        at org.apache.hadoop.hive.ql.parse.WindowingComponentizer.next(WindowingComponentizer.java:97)
+        at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.genWindowingPlan(SemanticAnalyzer.java:13508)
+        at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.genPostGroupByBodyPlan(SemanticAnalyzer.java:9912)
+        at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.genBodyPlan(SemanticAnalyzer.java:9871)
+        at org.apache.hadoop.hive.ql.parse.SemanticAnalyzer.genPlan(SemanticAnalyzer.java:10784)
+...
+
+
+The list of supported types for boundaries expressions in PTFTranslator needs to be updated.

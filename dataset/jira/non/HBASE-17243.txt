@@ -1,0 +1,20 @@
+Reuse CompactionPartitionId and avoid creating MobFileName in PartitionedMobCompactor to avoid unnecessary new objects
+In today's select() implementation, when it is an existing id, the new allocated object is discarded. It should be reused. fileName is created to getStartKey and getDate(), utility APIs can be created to directly get these fields from the string.
+
+      } else if (allFiles || linkedFile.getLen() < mergeableSize) {
+        // add all files if allFiles is true,
+        // otherwise add the small files to the merge pool
+        MobFileName fileName = MobFileName.create(linkedFile.getPath().getName());
+        CompactionPartitionId id = new CompactionPartitionId(fileName.getStartKey(),
+          fileName.getDate());
+        CompactionPartition compactionPartition = filesToCompact.get(id);
+        if (compactionPartition == null) {
+          compactionPartition = new CompactionPartition(id);
+          compactionPartition.addFile(file);
+          filesToCompact.put(id, compactionPartition);
+        } else {
+          compactionPartition.addFile(file);
+        }
+        selectedFileCount++;
+      }
+    }

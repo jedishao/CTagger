@@ -1,0 +1,39 @@
+ReplicationSourceWorkerThread can die due to unhandled exceptions
+If a ReplicationSourceWorkerThread encounters an unexpected exception in the run() method (for example failure to allocate direct memory for the DFS client), the exception will be logged by the UncaughtExceptionHandler, but the thread will also die and the replication queue will back up indefinitely until the Regionserver is restarted.
+
+We should make sure the worker thread is resilient to all exceptions that it can actually handle.  For those that it really can't, it seems better to abort the regionserver rather than just allow replication to stop with minimal signal.
+
+Here is a sample exception:
+
+{noformat}
+ERROR regionserver.ReplicationSource: Unexpected exception in ReplicationSourceWorkerThread, currentPath=hdfs://.../hbase/WALs/XXXwalfilenameXXX
+java.lang.OutOfMemoryError: Direct buffer memory
+at java.nio.Bits.reserveMemory(Bits.java:693)
+at java.nio.DirectByteBuffer.<init>(DirectByteBuffer.java:123)
+at java.nio.ByteBuffer.allocateDirect(ByteBuffer.java:311)
+at org.apache.hadoop.crypto.CryptoOutputStream.<init>(CryptoOutputStream.java:96)
+at org.apache.hadoop.crypto.CryptoOutputStream.<init>(CryptoOutputStream.java:113)
+at org.apache.hadoop.crypto.CryptoOutputStream.<init>(CryptoOutputStream.java:108)
+at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.DataTransferSaslUtil.createStreamPair(DataTransferSaslUtil.java:344)
+at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.doSaslHandshake(SaslDataTransferClient.java:490)
+at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.getSaslStreams(SaslDataTransferClient.java:391)
+at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.send(SaslDataTransferClient.java:263)
+at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.checkTrustAndSend(SaslDataTransferClient.java:211)
+at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.peerSend(SaslDataTransferClient.java:160)
+at org.apache.hadoop.hdfs.net.TcpPeerServer.peerFromSocketAndKey(TcpPeerServer.java:92)
+at org.apache.hadoop.hdfs.DFSClient.newConnectedPeer(DFSClient.java:3444)
+at org.apache.hadoop.hdfs.BlockReaderFactory.nextTcpPeer(BlockReaderFactory.java:778)
+at org.apache.hadoop.hdfs.BlockReaderFactory.getRemoteBlockReaderFromTcp(BlockReaderFactory.java:695)
+at org.apache.hadoop.hdfs.BlockReaderFactory.build(BlockReaderFactory.java:356)
+at org.apache.hadoop.hdfs.DFSInputStream.blockSeekTo(DFSInputStream.java:673)
+at org.apache.hadoop.hdfs.DFSInputStream.readWithStrategy(DFSInputStream.java:882)
+at org.apache.hadoop.hdfs.DFSInputStream.read(DFSInputStream.java:934)
+at java.io.DataInputStream.read(DataInputStream.java:100)
+at org.apache.hadoop.hbase.wal.WALFactory.createReader(WALFactory.java:308)
+at org.apache.hadoop.hbase.wal.WALFactory.createReader(WALFactory.java:276)
+at org.apache.hadoop.hbase.wal.WALFactory.createReader(WALFactory.java:264)
+at org.apache.hadoop.hbase.wal.WALFactory.createReader(WALFactory.java:423)
+at org.apache.hadoop.hbase.replication.regionserver.ReplicationWALReaderManager.openReader(ReplicationWALReaderManager.java:70)
+at org.apache.hadoop.hbase.replication.regionserver.ReplicationSource$ReplicationSourceWorkerThread.openReader(ReplicationSource.java:830)
+at org.apache.hadoop.hbase.replication.regionserver.ReplicationSource$ReplicationSourceWorkerThread.run(ReplicationSource.java:572)
+{noformat}

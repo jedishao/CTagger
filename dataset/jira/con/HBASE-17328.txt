@@ -1,0 +1,10 @@
+Properly dispose of looped replication peers
+When adding a looped replication peer (clusterId == peerClusterId), the following code terminates the replication source thread, but since the source manager still holds a reference, WALs continue to get enqueued, and never get cleaned because they're stuck in the queue, leading to an unsustainable buildup.  Furthermore, the replication statistics thread will continue to print statistics for the terminated source.
+
+{code}
+if (clusterId.equals(peerClusterId) && !replicationEndpoint.canReplicateToSameCluster()) {
+      this.terminate("ClusterId " + clusterId + " is replicating to itself: peerClusterId "
+          + peerClusterId + " which is not allowed by ReplicationEndpoint:"
+          + replicationEndpoint.getClass().getName(), null, false);
+    }
+{code}

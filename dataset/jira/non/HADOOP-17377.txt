@@ -1,0 +1,50 @@
+ABFS: MsiTokenProvider doesn't retry HTTP 429 from the Instance Metadata Service
+Summary
+ The instance metadata service has its own guidance for error handling and retry which are different from the Blob store. https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#error-handling
+In particular, it responds with HTTP 429 if request rate is too high. Whereas Blob store will respond with HTTP 503. The retry policy used only accounts for the latter as it will retry any status >=500. This can result in job instability when running multiple processes on the same host.
+Environment
+
+Spark talking to an ABFS store
+
+
+Hadoop 3.2.1
+
+
+Running on an Azure VM with user-assigned identity, ABFS configured to use MsiTokenProvider
+
+
+6 executor processes on each VM
+
+Example
+ Here's an example error message and stack trace. It's always the same stack trace. This appears in logs a few hundred to low thousands of times a day. It's luckily skating by since the download operation is wrapped in 3 retries.
+
+AADToken: HTTP connection failed for getting token from AzureAD. Http response: 429 null
+Content-Type: application/json; charset=utf-8 Content-Length: 90 Request ID:  Proxies: none
+First 1K of Body: {"error":"invalid_request","error_description":"Temporarily throttled, too many requests"}
+	at org.apache.hadoop.fs.azurebfs.services.AbfsRestOperation.executeHttpOperation(AbfsRestOperation.java:190)
+	at org.apache.hadoop.fs.azurebfs.services.AbfsRestOperation.execute(AbfsRestOperation.java:125)
+	at org.apache.hadoop.fs.azurebfs.services.AbfsClient.getAclStatus(AbfsClient.java:506)
+	at org.apache.hadoop.fs.azurebfs.services.AbfsClient.getAclStatus(AbfsClient.java:489)
+	at org.apache.hadoop.fs.azurebfs.AzureBlobFileSystemStore.getIsNamespaceEnabled(AzureBlobFileSystemStore.java:208)
+	at org.apache.hadoop.fs.azurebfs.AzureBlobFileSystemStore.getFileStatus(AzureBlobFileSystemStore.java:473)
+	at org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem.getFileStatus(AzureBlobFileSystem.java:437)
+	at org.apache.hadoop.fs.FileSystem.isFile(FileSystem.java:1717)
+	at org.apache.spark.util.Utils$.fetchHcfsFile(Utils.scala:747)
+	at org.apache.spark.util.Utils$.doFetchFile(Utils.scala:724)
+	at org.apache.spark.util.Utils$.fetchFile(Utils.scala:496)
+	at org.apache.spark.executor.Executor.$anonfun$updateDependencies$7(Executor.scala:812)
+	at org.apache.spark.executor.Executor.$anonfun$updateDependencies$7$adapted(Executor.scala:803)
+	at scala.collection.TraversableLike$WithFilter.$anonfun$foreach$1(TraversableLike.scala:792)
+	at scala.collection.mutable.HashMap.$anonfun$foreach$1(HashMap.scala:149)
+	at scala.collection.mutable.HashTable.foreachEntry(HashTable.scala:237)
+	at scala.collection.mutable.HashTable.foreachEntry$(HashTable.scala:230)
+	at scala.collection.mutable.HashMap.foreachEntry(HashMap.scala:44)
+	at scala.collection.mutable.HashMap.foreach(HashMap.scala:149)
+	at scala.collection.TraversableLike$WithFilter.foreach(TraversableLike.scala:791)
+	at org.apache.spark.executor.Executor.org$apache$spark$executor$Executor$$updateDependencies(Executor.scala:803)
+	at org.apache.spark.executor.Executor$TaskRunner.run(Executor.scala:375)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+
+ CC mackrorysd, stevel@apache.org

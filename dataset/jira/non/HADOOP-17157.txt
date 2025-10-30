@@ -1,0 +1,18 @@
+S3A rename operation not the same as HDFS when dest is empty dir
+When I run the test ITestS3ADeleteManyFiles, I change the https://github.com/apache/hadoop/blob/trunk/hadoop-tools/hadoop-aws/src/test/java/org/apache/hadoop/fs/s3a/scale/ITestS3ADeleteManyFiles.java#L97
+to 
+
+
+
+fs.mkdirs(finalDir);
+
+
+
+So before rename operator, "finalParent/final" has been created.
+But after the rename operation,  all the files will be moved from "srcParent/src" to "finalParent/final"
+So this is not the same with the HDFS rename operation:
+HDFS rename includes the calculation of the destination path. If the destination exists and is a directory, the final destination of the rename becomes the destination + the filename of the source path.
+let dest = if (isDir(FS, src) and d != src) :
+        d + [filename(src)]
+    else :
+        d

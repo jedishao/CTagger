@@ -1,0 +1,16 @@
+Add the ability for operators to allow intentional loosening of definition of "empty" in Gossip for specific edge case failure scenarios
+Right now empty is very specific to a single edge case (i.e. in isEmptyWithoutStatus() our usage of hbState() + applicationState), but there are other failure cases which block host replacements and require intrusive workarounds and human intervention to recover from when you have something in hbState() you don't expect.
+If we allow opt-in to a more risky (i.e. we don’t know how we got there) definition of empty, then host replacements can make progress even when Gossip's gotten into a bad state. Which it does. All too often.
+This parameter will obviously need some NEWS.txt and other documentation around it to explain the context for end users.
+Now that I think of it, general "how to troubleshoot Gossip problems" might be worth writing up and including this as part of it for operators and users, specifically on our Troubleshooting page. Probably create that as another ticket and defer that update to there and rely on news.txt and the param documentation for this one just to get the functionality into the system for operators who need it.
+A touch more context:
+
+
+// In the very specific case where hbState.isEmpty and STATUS is missing, this is known to be safe to "fake"
+// the data, as this happens when the gossip state isn't coming from the node but instead from a peer who
+// restarted and is missing the node's state
+//
+// When hbState is *not* empty, then the node gossiped an empty STATUS, this happens during bootstrap and it's not
+// possible to tell if this is ok or not (we can't really tell if the node is dead or having networking issues);
+// for these cases we need to allow an external actor to verify and inform Cassandra that it is safe; this is done by
+// updating the LOOSE_DEF_OF_EMPTY_ENABLED field.

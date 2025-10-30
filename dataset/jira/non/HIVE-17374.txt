@@ -1,0 +1,60 @@
+HCatalog storage failures after hive TRUNCATE
+It looks like truncating a table in hive does not remove partition directories in the filesystem. This causes conflicts when HCatalog tries to write to the same partition:
+
+{code}
+Commit failed for output: outputName:scope-705 of vertex/vertexGroup:scope-708 isVertexGroupOutput:false, java.io.IOException: java.lang.reflect.InvocationTargetException
+        at org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigOutputCommitter.commitJob(PigOutputCommitter.java:281)
+        at org.apache.pig.backend.hadoop.executionengine.tez.runtime.PigOutputFormatTez$PigOutputCommitterTez.commitJob(PigOutputFormatTez.java:98)
+        at org.apache.tez.mapreduce.committer.MROutputCommitter.commitOutput(MROutputCommitter.java:99)
+        at org.apache.tez.dag.app.dag.impl.DAGImpl$1.run(DAGImpl.java:1018)
+        at org.apache.tez.dag.app.dag.impl.DAGImpl$1.run(DAGImpl.java:1015)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at javax.security.auth.Subject.doAs(Subject.java:422)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1936)
+        at org.apache.tez.dag.app.dag.impl.DAGImpl.commitOutput(DAGImpl.java:1015)
+        at org.apache.tez.dag.app.dag.impl.DAGImpl.access$2000(DAGImpl.java:149)
+        at org.apache.tez.dag.app.dag.impl.DAGImpl$3.call(DAGImpl.java:1094)
+        at org.apache.tez.dag.app.dag.impl.DAGImpl$3.call(DAGImpl.java:1089)
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.reflect.InvocationTargetException
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigOutputCommitter.commitJob(PigOutputCommitter.java:279)
+        ... 15 more
+Caused by: org.apache.hive.hcatalog.common.HCatException : 2012 : Moving of data failed during commit : Failed to move file: hdfs://HOSTNAME/user/fdegiuli/db/video_sessions/_DYN0.6589663085145253/dt=2017080500 to hdfs://HOSTNAME/user/fdegiuli/db/video_sessions
+        at org.apache.hive.hcatalog.mapreduce.FileOutputCommitterContainer.moveTaskOutputs(FileOutputCommitterContainer.java:825)
+        at org.apache.hive.hcatalog.mapreduce.FileOutputCommitterContainer.moveTaskOutputs(FileOutputCommitterContainer.java:782)
+        at org.apache.hive.hcatalog.mapreduce.FileOutputCommitterContainer.registerPartitions(FileOutputCommitterContainer.java:1176)
+        at org.apache.hive.hcatalog.mapreduce.FileOutputCommitterContainer.commitJob(FileOutputCommitterContainer.java:272)
+        ... 20 more
+
+DAG did not succeed due to COMMIT_FAILURE. failedVertices:0 killedVertices:0
+{code}
+
+Here's a look at the directory. As you can see, {{dt=2017080500}} is empty.
+
+{code}
+[fdegiuli ~]$ hdfs dfs -ls  $NN/user/fdegiuli/db/video_sessions/
+Found 4 items
+-rw-------   3 fdegiuli users          0 2017-08-16 15:48 NAMENODE/user/fdegiuli/db/video_sessions/_placeholder_0.016147276492671336
+-rw-------   3 fdegiuli users          0 2017-08-15 21:19 NAMENODE/user/fdegiuli/db/video_sessions/_placeholder_0.15239090174209513
+-rw-------   3 fdegiuli users          0 2017-08-16 14:49 NAMENODE/user/fdegiuli/db/video_sessions/_placeholder_0.7007380672193727
+drwx------   - fdegiuli users          0 2017-08-16 15:44 NAMENODE/user/fdegiuli/db/video_sessions/dt=2017080500
+[fdegiuli ~]$ hdfs dfs -ls  $NN/user/fdegiuli/db/video_sessions/dt=2017080500
+[fdegiuli ~]$
+{code}
+ 
+I'm using a pig script to repopulate the data in the table. I don't know if this error happens when using Spark.
+
+The way I see it, there's two possible bugs here:
+ 1. TRUNCATE TABLE should delete the partition directories
+ 2. HCatalog should handle existing partition directories correctly.
+
+I'm happy to provide any more information you may want, and help with an eventual patch.
+
+Copied from http://mail-archives.apache.org/mod_mbox/hive-user/201708.mbox/%3CCAFPScVjA8PYDXOajgJR8LgvypFd00eJDZuSrFVFCci1odt42_g%40mail.gmail.com%3E

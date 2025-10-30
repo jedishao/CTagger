@@ -1,0 +1,124 @@
+Direct memory OOM 
+Version: 3.11.11
+
+Cluster: 9 nodes (1 dc, 3 racks) on aws r5.4xlarge nodes (16 vCPU, 128GB mem)
+
+Heap size: 20G
+
+Direct memory buffer: 24G
+
+ 
+
+We stood up this cluster a few months ago in order to migrate an old 2.0 cluster. Since then, after about 7-10 days a node will begin to experience long old gc cycles  before logging many  "java.lang.OutOfMemoryError: Direct buffer memory" exceptions. When the long gc cycles start, the entire cluster becomes unresponsive (our application is unable to make queries to any node).
+
+Restarting cassandra on the failing node resolves the problem, then we have to restart every other node in the cluster to prevent them from getting into the same state.
+
+ 
+
+We have attempted to:
+ * Increase -XX:MaxDirectMemorySize
+ * Increase -Djdk.nio.maxCachedBufferSize
+ * Update cassandra from 3.11.10 to 3.11.11
+
+None of these have resolved the problem.
+
+Since the last failure, we have increased -XX:MaxDirectMemorySize again, and are waiting to see if that has any effect.
+
+ 
+
+Old gc collections from system.log:
+{noformat}
+INFO  [Service Thread] 2021-10-04 15:24:04,973 GCInspector.java:285 - G1 Old Generation GC in 4447ms.  Compressed Class Space: 6683064 -> 6677952; G1 Eden Space: 16777216 -> 0; G1 Old Gen: 5431375384 -> 745163912; G1 Survivor Space: 419430400 -> 0; Metaspace: 54716768 ->
+...
+INFO  [Service Thread] 2021-10-04 15:24:06,985 GCInspector.java:285 - G1 Old Generation GC in 1901ms.  G1 Old Gen: 745163912 -> 745168360;
+...
+INFO  [Service Thread] 2021-10-04 15:24:09,306 GCInspector.java:285 - G1 Old Generation GC in 2046ms.  G1 Eden Space: 528482304 -> 0; G1 Old Gen: 759785184 -> 761229864;
+...
+INFO  [Service Thread] 2021-10-04 15:24:14,749 GCInspector.java:285 - G1 Old Generation GC in 5403ms.  G1 Old Gen: 761229864 -> 762168640;
+...
+INFO  [Service Thread] 2021-10-04 15:24:16,782 GCInspector.java:285 - G1 Old Generation GC in 1949ms.  G1 Old Gen: 762168640 -> 762167640;
+...
+INFO  [Service Thread] 2021-10-04 15:25:09,406 GCInspector.java:285 - G1 Old Generation GC in 52302ms.  G1 Eden Space: 8388608 -> 0; G1 Old Gen: 762167640 -> 762168160;
+...
+INFO  [Service Thread] 2021-10-04 15:25:15,011 GCInspector.java:285 - G1 Old Generation GC in 5522ms.  G1 Eden Space: 192937984 -> 0; G1 Old Gen: 762168160 -> 770098088;
+...
+INFO  [Service Thread] 2021-10-04 15:25:31,453 GCInspector.java:285 - G1 Old Generation GC in 16310ms.  G1 Eden Space: 201326592 -> 0; G1 Old Gen: 770098088 -> 769228400;
+...
+INFO  [Service Thread] 2021-10-04 15:25:33,597 GCInspector.java:285 - G1 Old Generation GC in 1984ms.  G1 Eden Space: 352321536 -> 0; G1 Old Gen: 750824952 -> 751118968;
+...
+INFO  [Service Thread] 2021-10-04 15:25:50,152 GCInspector.java:285 - G1 Old Generation GC in 16411ms.  G1 Eden Space: 8388608 -> 0; G1 Old Gen: 751118968 -> 751645056;
+{noformat}
+Example of direct memory oom from system.log
+{noformat}
+INFO  [ScheduledTasks:1] 2021-10-04 15:25:31,484 MessagingService.java:1246 - READ messages were dropped in last 5000 ms: 2 internal and 7 cross node. Mean internal dropped latency: 47238 ms and Mean cross-node dropped latency: 45171 ms
+INFO  [ScheduledTasks:1] 2021-10-04 15:25:31,484 MessagingService.java:1246 - COUNTER_MUTATION messages were dropped in last 5000 ms: 1 internal and 60 cross node. Mean internal dropped latency: 7289 ms and Mean cross-node dropped latency: 9509 ms
+ERROR [CounterMutationStage-464] 2021-10-04 15:25:31,484 JVMStabilityInspector.java:94 - OutOfMemory error letting the JVM handle the error:
+java.lang.OutOfMemoryError: Direct buffer memory
+        at java.nio.Bits.reserveMemory(Bits.java:695) ~[na:1.8.0_292]
+        at java.nio.DirectByteBuffer.<init>(DirectByteBuffer.java:123) ~[na:1.8.0_292]
+        at java.nio.ByteBuffer.allocateDirect(ByteBuffer.java:311) ~[na:1.8.0_292]
+        at org.apache.cassandra.utils.memory.BufferPool.allocate(BufferPool.java:114) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.utils.memory.BufferPool.access$1000(BufferPool.java:50) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.utils.memory.BufferPool$LocalPool.allocate(BufferPool.java:408) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.utils.memory.BufferPool$LocalPool.access$000(BufferPool.java:335) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.utils.memory.BufferPool.takeFromPool(BufferPool.java:126) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.utils.memory.BufferPool.get(BufferPool.java:98) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.cache.ChunkCache.load(ChunkCache.java:156) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.cache.ChunkCache.load(ChunkCache.java:39) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at com.github.benmanes.caffeine.cache.BoundedLocalCache$BoundedLocalLoadingCache.lambda$new$0(BoundedLocalCache.java:2949) ~[caffeine-2.2.6.jar:na]
+        at com.github.benmanes.caffeine.cache.BoundedLocalCache.lambda$doComputeIfAbsent$15(BoundedLocalCache.java:1807) ~[caffeine-2.2.6.jar:na]
+        at java.util.concurrent.ConcurrentHashMap.compute(ConcurrentHashMap.java:1892) ~[na:1.8.0_292]
+        at com.github.benmanes.caffeine.cache.BoundedLocalCache.doComputeIfAbsent(BoundedLocalCache.java:1805) ~[caffeine-2.2.6.jar:na]
+        at com.github.benmanes.caffeine.cache.BoundedLocalCache.computeIfAbsent(BoundedLocalCache.java:1788) ~[caffeine-2.2.6.jar:na]
+        at com.github.benmanes.caffeine.cache.LocalCache.computeIfAbsent(LocalCache.java:97) ~[caffeine-2.2.6.jar:na]
+        at com.github.benmanes.caffeine.cache.LocalLoadingCache.get(LocalLoadingCache.java:66) ~[caffeine-2.2.6.jar:na]
+        at org.apache.cassandra.cache.ChunkCache$CachingRebufferer.rebuffer(ChunkCache.java:236) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.cache.ChunkCache$CachingRebufferer.rebuffer(ChunkCache.java:214) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.io.util.RandomAccessReader.reBufferAt(RandomAccessReader.java:65) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.io.util.RandomAccessReader.seek(RandomAccessReader.java:207) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.io.util.FileHandle.createReader(FileHandle.java:150) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.io.sstable.format.SSTableReader.getFileDataInput(SSTableReader.java:1801) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.columniterator.AbstractSSTableIterator.<init>(AbstractSSTableIterator.java:103) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.columniterator.SSTableIterator.<init>(SSTableIterator.java:49) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.io.sstable.format.big.BigTableReader.iterator(BigTableReader.java:72) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.io.sstable.format.big.BigTableReader.iterator(BigTableReader.java:65) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound.initializeIterator(UnfilteredRowIteratorWithLowerBound.java:108) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.rows.LazilyInitializedUnfilteredRowIterator.maybeInit(LazilyInitializedUnfilteredRowIterator.java:48) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.rows.LazilyInitializedUnfilteredRowIterator.partitionLevelDeletion(LazilyInitializedUnfilteredRowIterator.java:81) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound.partitionLevelDeletion(UnfilteredRowIteratorWithLowerBound.java:170) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.SinglePartitionReadCommand.queryMemtableAndDiskInternal(SinglePartitionReadCommand.java:762) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.SinglePartitionReadCommand.queryMemtableAndDisk(SinglePartitionReadCommand.java:673) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.CounterMutation.updateWithCurrentValuesFromCFS(CounterMutation.java:258) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.CounterMutation.processModifications(CounterMutation.java:202) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.CounterMutation.applyCounterMutation(CounterMutation.java:123) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.service.StorageProxy$9.runMayThrow(StorageProxy.java:1650) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.service.StorageProxy$DroppableRunnable.run(StorageProxy.java:2771) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.service.StorageProxy$3.apply(StorageProxy.java:160) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.service.StorageProxy.performWrite(StorageProxy.java:1201) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.service.StorageProxy.applyCounterMutationOnLeader(StorageProxy.java:1627) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.db.CounterMutationVerbHandler.doVerb(CounterMutationVerbHandler.java:48) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.net.MessageDeliveryTask.run(MessageDeliveryTask.java:66) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) ~[na:1.8.0_292]
+        at org.apache.cassandra.concurrent.AbstractLocalAwareExecutorService$FutureTask.run(AbstractLocalAwareExecutorService.java:162) ~[apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.concurrent.AbstractLocalAwareExecutorService$LocalSessionFutureTask.run(AbstractLocalAwareExecutorService.java:134) [apache-cassandra-3.11.11.jar:3.11.11]
+        at org.apache.cassandra.concurrent.SEPWorker.run(SEPWorker.java:113) [apache-cassandra-3.11.11.jar:3.11.11]
+        at java.lang.Thread.run(Thread.java:748) [na:1.8.0_292]
+{noformat}
+Example of full gc from from gc.log
+{noformat}
+2021-10-04T15:25:46.467+0000: 494369.005: [Full GC (System.gc())  727M->726M(20480M), 1.8053704 secs]
+   [Eden: 8192.0K(12288.0M)->0.0B(12288.0M) Survivors: 0.0B->0.0B Heap: 727.3M(20480.0M)->726.2M(20480.0M)], [Metaspace: 53437K->53437K(1099776K)]
+Heap after GC invocations=14150 (full 57):
+ garbage-first heap   total 20971520K, used 743652K [0x00000002c0000000, 0x00000002c0805000, 0x00000007c0000000)
+  region size 8192K, 0 young (0K), 0 survivors (0K)
+ Metaspace       used 53437K, capacity 55970K, committed 56528K, reserved 1099776K
+  class space    used 6522K, capacity 6987K, committed 7120K, reserved 1048576K
+}
+ [Times: user=2.99 sys=0.00, real=1.81 secs]
+2021-10-04T15:25:48.273+0000: 494370.811: Total time for which application threads were stopped: 1.8099675 seconds, Stopping threads took: 0.0003245 seconds
+{Heap before GC invocations=14150 (full 57):
+ garbage-first heap   total 20971520K, used 743652K [0x00000002c0000000, 0x00000002c0805000, 0x00000007c0000000)
+  region size 8192K, 1 young (8192K), 0 survivors (0K)
+ Metaspace       used 53437K, capacity 55970K, committed 56528K, reserved 1099776K
+  class space    used 6522K, capacity 6987K, committed 7120K, reserved 1048576K
+{noformat}

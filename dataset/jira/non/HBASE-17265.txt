@@ -1,0 +1,24 @@
+Region left unassigned in master failover when region failed to open
+This problem is very similar with HBASE-13330. It is also a result of ServerShutdownHandler and AssignmentManager 'thought' the region will be assigned by each other, and left the region remain unassigned.
+But HBASE-13330 only dealed with RS_ZK_REGION_FAILED_OPEN in processRegionInTransition.  
+Region failed open may happen after processRegionInTransition. In my case, when master failover, it assigned all RIT regions, but some are failed to open(due to HBASE-17264), AssignmentManager received the zk event, and skip to assign it(this region was opened on a failed server before and already in RIT before master failover). The SSH also skip to assign it because it was RIT on another RS.
+Master recevied a zk event of RS_ZK_REGION_FAILED_OPEN and begin to handle it:
+
+2016-11-23 17:11:46,944 DEBUG [AM.ZK.Worker-pool2-t1] master.AssignmentManager: Handling RS_ZK_REGION_FAILED_OPEN, server=example.org,30003,1479780976834, region=57513956a7b671f4e8da1598c2e2970e, current_state={57513956a7b671f4e8da1598c2e2970e state=PENDING_OPEN, ts=1479892306843, server=example.org,30003,1479780976834}
+2016-11-23 17:11:46,944 INFO  [AM.ZK.Worker-pool2-t1] master.RegionStates: Transition {57513956a7b671f4e8da1598c2e2970e state=PENDING_OPEN, ts=1479892306843, server=example.org,30003,1479780976834} to {57513956a7b671f4e8da1598c2e2970e state=CLOSED, ts=1479892306944, server=example.org,30003,1479780976834}
+2016-11-23 17:11:46,945 WARN  [AM.ZK.Worker-pool2-t1] master.RegionStates: 57513956a7b671f4e8da1598c2e2970e moved to CLOSED on example.org,30003,1479780976834, expected example.org,30003,1475893095003
+2016-11-23 17:11:46,950 DEBUG [AM.ZK.Worker-pool2-t1] master.AssignmentManager: Found an existing plan for test,QFO7M,1475986053104.57513956a7b671f4e8da1598c2e2970e. destination server is example.org,30003,1479780976834 accepted as a dest server = false
+2016-11-23 17:11:47,012 DEBUG [AM.ZK.Worker-pool2-t1] master.AssignmentManager: No previous transition plan found (or ignoring an existing plan) for test,QFO7M,1475986053104.57513956a7b671f4e8da1598c2e2970e.; generated random plan=hri=test,QFO7M,1475986053104.57513956a7b671f4e8da1598c2e2970e., src=, dest=11.239.21.235,30003,1479781410131; 2 (online=3) available servers, forceNewPlan=true
+2016-11-23 17:11:47,014 DEBUG [AM.ZK.Worker-pool2-t1] handler.ClosedRegionHandler: Handling CLOSED event for 57513956a7b671f4e8da1598c2e2970e
+2016-11-23 17:11:47,015 WARN  [AM.ZK.Worker-pool2-t1] master.RegionStates: 57513956a7b671f4e8da1598c2e2970e moved to CLOSED on example.org,30003,1479780976834, expected example.org,30003,1475893095003
+
+
+AssignmentManager skip to assign it because the region was on a failed server
+
+2016-11-23 17:11:47,017 INFO  [AM.ZK.Worker-pool2-t1] master.AssignmentManager: Skip assigning test,QFO7M,1475986053104.57513956a7b671f4e8da1598c2e2970e., it's host example.org,30003,1475893095003 is dead but not processed yet
+
+
+SSH also skip it because it was RIT on another server
+
+2016-11-23 17:12:17,850 INFO  [MASTER_SERVER_OPERATIONS-example.org:30001-0] master.RegionStates: Transitioning {57513956a7b671f4e8da1598c2e2970e state=CLOSED, ts=1479892307015, server=example.org,30003,1479780976834} will be handled by SSH for example.org,30003,1475893095003
+2016-11-23 17:12:17,910 INFO  [MASTER_SERVER_OPERATIONS-example.org:30001-0] handler.ServerShutdownHandler: Skip assigning region in transition on other server{57513956a7b671f4e8da1598c2e2970e state=CLOSED, ts=1479892307015, server=example.org,30003,1479780976834}

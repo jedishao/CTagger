@@ -1,0 +1,28 @@
+VersionInfoMojo.byteArrayToString(...) creates malformed hex strings
+org.apache.hadoop.maven.plugin.versioninfo.VersionInfoMojo.byteArrayToString(byte[]) creates malformed hex strings:
+
+
+private String byteArrayToString(byte[] array) {
+    StringBuilder sb = new StringBuilder();
+    for (byte b : array) {
+        sb.append(Integer.toHexString(0xff & b));
+    }
+    return sb.toString();
+}
+
+
+The issue here is that toHexString returns only a single hex char if the value is < 16. Therefore 1, 0 and 16 would both have the result "10".
+The correct implementation would be:
+
+
+private String byteArrayToString(byte[] array) {
+    StringBuilder sb = new StringBuilder();
+    for (byte b : array) {
+        int unsignedB = b & 0xff;
+        if (unsignedB < 16) {
+            sb.append('0');
+        }
+        sb.append(Integer.toHexString(unsignedB));
+    }
+    return sb.toString();
+}

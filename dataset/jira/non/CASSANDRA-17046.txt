@@ -1,0 +1,40 @@
+Endless loop/timeout in ShortReadRowsProtection due to int overflow in ThriftLimits
+The result of ThriftLimits.count() can overflow, especially if one of the values is NO_LIMIT (i.e. Integer.MAX_VALUE). This can cause an issue in ShortReadRowsProtection in DataResolver if the count happens to overflow to a negative value, and the replicas actually return some data. The loop calling ShortReadRowsProtection will not exit normally, while the replicas keep returning the same data, until the timeout is exceeded and an exception is raised while waiting for the replica's response.
+The following code consistently reproduces the issue on a clustered setup on 3.11. The call to get_range_slices() raises the timeout exception. If the consistency level is changed to ONE, it will return the data just fine. Same if the count in the KeyRange is changed (e.g. to 9_999) so that count * Integer.MAX_VALUE is positive.
+
+
+Cassandra.Client cassandra = client.getCassandra(keyspaceName);
+CfDef cfd = new CfDef(keyspaceName, tableName)
+        .setColumn_type("SUPER")
+        .setKey_validation_class("UTF8Type")
+        .setComparator_type("UTF8Type")
+        .setSubcomparator_type("UTF8Type")
+        .setDefault_validation_class("UTF8Type");
+
+ByteBuffer key = UTF_8.encode("key");
+ColumnParent parent = new ColumnParent(tableName).setSuper_column(UTF_8.encode("Default"));
+Column column = new Column(UTF_8.encode("config_value"))
+        .setTimestamp(1000 * System.currentTimeMillis())
+        .setValue(UTF_8.encode("value"));
+
+SlicePredicate predicate = new SlicePredicate()
+        .setColumn_names(singletonList(UTF_8.encode("config_value")));
+KeyRange keyRange = new KeyRange()
+        .setStart_key(new byte[0])
+        .setEnd_key(new byte[0])
+        .setCount(10_000);
+
+cassandra.system_add_column_family(cfd);
+cassandra.insert(key, parent, column, ConsistencyLevel.QUORUM);
+List<KeySlice> slices = cassandra.get_range_slices(parent, predicate, keyRange, ConsistencyLevel.QUORUM);
+
+assertEquals(1, slices.size());
+
+KeySlice slice = slices.get(0);
+assertEquals(key, ByteBuffer.wrap(slice.getKey()));
+assertEquals(1, slice.getColumnsSize());
+
+Column result = slice.getColumns().get(0).getColumn();
+assertNotNull(result);
+assertEquals(UTF_8.encode("config_value"), ByteBuffer.wrap(result.getName()));
+assertEquals(UTF_8.encode("value"), ByteBuffer.wrap(result.getValue()));

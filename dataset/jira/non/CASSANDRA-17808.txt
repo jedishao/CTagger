@@ -1,0 +1,11 @@
+Optionally avoid hint transfer during decommission
+Both because they aren’t strictly necessary to maintain consistency, and because throttling induced by their rate-limiter (see hinted_handoff_throttle) may stall progress, transferring hints during decommission (specifically unbootstrap) rather than just pausing, disabling, and truncating them probably doesn’t make sense. The only other concern would be the BatchLog, which nominally depends on hint delivery to maintain its "guarantees". However, during BatchLog replay on unbootstrap, ReplayingBatch ignores batches older the gcgs anyway.
+Here's a proposal from aleksey that might strike a reasonable balance:
+1.) We continue to transfer hints by default during decommission, but at a higher rate. We could, for instance, stop having DispatchHintsTask divide its effective rate by the number of nodes in the cluster.
+
+int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKiB() * 1024.0 / nodesCount;
+this.rateLimiter = RateLimiter.create(throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes);
+
+
+2.) We provide an option to simply avoid transferring hints during unbootstrap. Even this would only take the BatchLog from "best effort" to "slightly less effort"

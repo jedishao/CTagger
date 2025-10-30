@@ -1,0 +1,23 @@
+"Total TrueDiskSpaceUsed" computation does not include manifest and schema files
+This is the output of nodetool listsnapshots:
+
+Snapshot Details:
+Snapshot name                  Keyspace name Column family name True size Size on disk Creation time            Expiration time
+test                           ks            indexed_table      1.1 KiB   21.22 KiB    2022-04-26T19:13:20.102Z
+test                           ks            my_table           960 bytes 10.76 KiB    2022-04-26T19:13:20.102Z
+dropped-1650997415751-my_table ks            my_table           989 bytes 989 bytes    2022-04-26T18:23:35.751Z
+
+Total TrueDiskSpaceUsed: 0 KiB
+
+
+Total TrueDiskSpaceUsed does not match the sum of "true size on disk" of all snapshots.
+The reason for this is because Total TrueDiskSpaceUsed computation does not include the size of snapshot schema and manifest files.
+We should fix the Total TrueDiskSpaceUsed computation to include the the size of snapshot schema and manifest files, so it will look like this:
+
+Snapshot Details:
+Snapshot name                  Keyspace name Column family name True size Size on disk Creation time            Expiration time
+test                           ks            indexed_table      1.1 KiB   21.22 KiB    2022-04-26T19:13:20.102Z
+test                           ks            my_table           960 bytes 10.76 KiB    2022-04-26T19:13:20.102Z
+dropped-1650997415751-my_table ks            my_table           989 bytes 989 bytes    2022-04-26T18:23:35.751Z
+
+Total TrueDiskSpaceUsed: 3 KiB

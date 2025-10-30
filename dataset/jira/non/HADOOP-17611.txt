@@ -1,0 +1,8 @@
+Distcp parallel file copy breaks the modification time
+The commit HADOOP-11794. Enable distcp to copy blocks in parallel. (bf3fb585aaf2b179836e139c041fc87920a3c886) broke the modification time of large files.
+
+ 
+
+In CopyCommitter.java inside concatFileChunks Filesystem.concat is called which changes the modification time therefore the modification times of files copeid by distcp will not match the source files. However this only occurs for large enough files, which are copied by splitting them up by distcp.
+
+In concatFileChunks before calling concat extract the modification time and apply that to the concatenated result-file after the concat. (probably best -after- before the rename()).

@@ -1,0 +1,21 @@
+Pathological interaction between Cassandra and readahead, particularly on Centos 7 VMs
+Cassandra defaults to using mmap for IO, except on 32 bit systems. The config value `disk_access_mode` that controls this isn't even included in or documented in cassandra.yml.
+While this may be a reasonable default config for Cassandra, we've noticed a pathalogical interplay between the way Linux implements readahead for mmap, and Cassandra's IO patterns, particularly on vanilla Centos 7 VMs.
+A read that misses all levels of cache in Cassandra is (typically) going to involve 2 IOs: 1 into the index file and one into the data file. These IOs will both be effectively random given the nature the mummer3 hash partitioner.
+The amount of data read from the index file IO will be relatively small, perhaps 4-8kb, compared to the data file IO which (assuming the entire partition fits in a single compressed chunk and a compression ratio of 1/2) will require 32kb.
+However, applications using `mmap()` have no way to tell the OS the desired IO size - they can only tell the OS the desired IO location - by reading from the mapped address and triggering a page fault. This is unlike `read()` where the application provides both the size and location to the OS. So for `mmap()` the OS has to guess how large the IO submitted to the backing device should be and whether the application is performing sequential or random IO unless the application provides hints (eg `fadvise()`, `madvise()`, `readahead()`).
+This is how Linux determines the size of IO for mmap during a page fault:
+ * Outside of hints (eg FADV_RANDOM) default IO size is maximum readahead value with the faulting address in the middle of the IO, eg IO requested for range [fault_addr - max_readahead / 2, fault_addr + max_readahead / 2] This is sometimes referred to as "read around" (ie read around the faulting address). See here
+  * The kernel maintains a cache miss counter for the file. Every time the kernel submits an IO for a page fault, this counts as a miss. Every time the application faults in a page that is already in the pages cache (presumably from a previous page fault's IO) is a cache hit and decrements the counter. If the miss counter exceeds a threshold, the kernel stops inflating the IOs to the max readahead and falls back to reading a single 4k page for each page fault. See summary here and implementation here and here
+  * This means an application that, on average, references more than one 4k page around the initial page fault will consistently have page fault IOs inflated to the maximum readahead value. Note, there is no ramping up a window the way there is with standard IO. The kernel only submits IOs of 1 page and max_readahead as far as I can tell.
+Observations:
+
+mmap'ed IO on Linux wastes half the IO bandwith. This may or may not be a big deal depending on your setup.
+Cassandra will always have IOs inflated to the maximum readahead because more than 1 page is references for the data file and (depending on the size and cardinality of your keys) more than one page is referenced from the index file
+The device's readahead is a crude system wide knob for controlling IO size. Cassandra cannot perform smaller IOs for the index file (unless your keyset is such that only 1 page from the index file needs to be referenced).
+
+Centos 7 VMs:
+
+The default readahead for Centos 7 VMs is 4MB (as opposed to the default readahead for non-VM Centos 7 which is 128kb).
+Even though this is reduced by the kernel (cf `max_sane_readahead()`) to something around 450k, it is still far too large for an average Cassandra read.
+Even once this readahead is reduced to the recommended 64kb, standard IO still has a 10% performance advantage in our tests, likely because the readahead algorithm for standard IO is more flexible and converges on smaller reads from the index file and larger reads from the data file.

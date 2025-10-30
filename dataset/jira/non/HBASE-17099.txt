@@ -1,0 +1,30 @@
+Is there a plan to support auth connection by username/password like mysql or redis
+Product managers  ask our hbase cluster to support auth connection  by username/password.
+
+  private boolean authorizeConnection() throws IOException {
+      try {
+        // If auth method is DIGEST, the token was obtained by the
+        // real user for the effective user, therefore not required to
+        // authorize real user. doAs is allowed only for simple or kerberos
+        // authentication
+        if (user != null && user.getRealUser() != null
+            && (authMethod != AuthMethod.DIGEST)) {
+          ProxyUsers.authorize(user, this.getHostAddress(), conf);
+        }
+        authorize(user, connectionHeader, getHostInetAddress());
+        metrics.authorizationSuccess();
+      } catch (AuthorizationException ae) {
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Connection authorization failed: " + ae.getMessage(), ae);
+        }
+        metrics.authorizationFailure();
+        setupResponse(authFailedResponse, authFailedCall,
+          new AccessDeniedException(ae), ae.getMessage());
+        responder.doRespond(authFailedCall);
+        return false;
+      }
+      return true;
+    }
+
+
+ Whether  can add a connectionAuthorrizer in method authorizeConnection of class RpcServer  to auth connection by init the handler from conf.

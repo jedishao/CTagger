@@ -1,0 +1,11 @@
+Enable VectorizedOrcAcidRowBatchReader to be used with LLAP IO elevator over original acid files
+Since HIVE-12631, LLAP IO can support Acid tables but when reading "original" files.
+HIVE-17458 enables VectorizedOrcAcidRowBatchReader to vectorize reads over "original" files but not with LLAP IO.
+Current implementation of OrcSplit.canUseLlapIo() is the same as in HIVE-12631.
+This can/should be improved.  There are 2 parts to this:
+When a read of "original" file is performed such that data doesn't need to be decorated with ROW_ID  (see __VectorizedOrcAcidRowBatchReader.canUseLlapForAcid()) then VectorizedOrcAcidRowBatchReader as of HIVE-17458 should be usable with LLAP IO but when I tried it I got ArrayIndexOutOfBoundsException in various places of the stack.
+This is the more important one.
+The 2nd issue is that reading "original" acid files (when ROW_IDs are needed) requires using _org.apache.hadoop.hive.ql.io.orc.RecordReader.getRowNumber() in _VectorizedOrcAcidRowBatchReader
+This API is not available on the reader that LlapRecordReader provides.
+It would be better if getRowNumber() was available for performance as well as simpler logic in the code.
+cc sershe, teddy.choi

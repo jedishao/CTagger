@@ -1,0 +1,28 @@
+BucketCache is inefficient/wasteful/dumb in its bucket allocations
+By default we allocate 14 buckets with sizes from 5K to 513K. If lots of heap given over to bucketcache and say no allocattions made for a particular bucket size, this means we have a bunch of the bucketcache that just goes idle/unused.
+For example, say heap is 100G. We'll divide it up among the sizes. If say we only ever do 5k records, then most of the cache will go unused while the allocation for 5k objects will see churn.
+Here is an old note of anoop.hbase's' from a conversation on bucket cache we had offlist that describes the issue:
+"By default we have those 14 buckets with size range of 5K to 513K.
+  All sizes will have one bucket (with size 513*4) each except the
+last size.. ie. 513K sized many buckets will be there.  If we keep on
+writing only same sized blocks, we may loose all in btw sized buckets.
+Say we write only 4K sized blocks. We will 1st fill the bucket in 5K
+size. There is only one such bucket. Once this is filled, we will try
+to grab a complete free bucket from other sizes..  But we can not take
+it from 9K... 385K sized ones as there is only ONE bucket for these
+sizes.  We will take only from 513 size.. There are many in that...
+So we will eventually take all the buckets from 513 except the last
+one.. Ya it has to keep at least one in evey size..     So we will
+loose these much size.. They are of no use."
+We should set the size type on the fly as the records come in.
+Or better, we should choose record size on the fly. Here is another comment from anoop.hbase:
+"The second is the biggest contributor.  Suppose instead of 4K
+sized blocks, the user has 2 K sized blocks..  When we write a block to bucket slot, we will reserve size equal to the allocated size for that block.
+So when we write 2K sized blocks (may be actual size a bit more than
+2K ) we will take 5K with each of the block.  So u can see that we are
+loosing ~3K with every block. Means we are loosing more than half."
+He goes on: "If am 100% sure that all my table having 2K HFile block size, I need to give this config a value 3 * 1024 (Exact 2 K if I give there may be
+again problem! That is another story we need to see how we can give
+more guarantee for the block size restriction HBASE-15248)..  So here also ~1K loose for every 2K.. So some thing like a 30% loose !!! “"
+So, we should figure the record sizes ourselves on the fly.
+Anything less has us wasting loads of cache space, nvm inefficiences lost because of how we serialize base types to cache.

@@ -1,0 +1,24 @@
+Refactor procedure framework code
+Changes
+
+Moved locks out of MasterProcedureScheduler#Queue. One Queue object is used for each namespace/table, which aren't more than 100. So we don't need complexity arising from all functionalities being in one place. SchemaLocking now owns locks and locking implementaion has been moved to procedure2 package.
+Removed NamespaceQueue because it wasn't being used as Queue (add,peek,poll,etc functions threw UnsupportedOperationException). It's was only used for locks on namespaces. Now that locks have been moved out of Queue class, it's not needed anymore.
+Remoed RegionEvent which was there only for locking on regions. Tables/namespaces used locking from Queue class and regions couldn't (there are no separate proc queue at region level), hence the redundance. Now that locking is separate, we can use the same for regions too.
+Removed QueueInterface class. No declarations, except one implementaion, which makes the point of having an interface moot.
+Removed QueueImpl, which was the only concrete implementation of abstract Queue class. Moved functions to Queue class itself to avoid unnecessary level in inheritance hierarchy.
+Removed ProcedureEventQueue class which was just a wrapper around ArrayDeque class. But we now have ProcedureWaitQueue as 'Type class'.
+Encapsulated table priority related stuff in a single class.
+Removed some unused functions.
+
+Perf using MasterProcedureSchedulerPerformanceEvaluation
+10 threads, 10M ops, 5 tables
+Without patch:
+10 regions/table : #yield 584980, addBack time 4.1s, poll time 10s
+1M regions/table: #yield 16, addBack time 5.9s, poll time 12.9s
+With patch:
+10 regions/table : #yield 86413, addBack time 4.1s, poll time 8.2s
+1M regions/table: #yield 9, addBack time 6s, poll time 13s
+Memory footprint and CPU (don't compare GC as that depends on life of objects which will be much longer in real-world scenarios)
+Without patch
+
+With patch

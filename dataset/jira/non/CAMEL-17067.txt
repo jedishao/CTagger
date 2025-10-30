@@ -1,0 +1,19 @@
+Datasonnet header can't be used to set bodyMediaType
+Using the Datasonnet Header to specify the media type for the body doesn't work because then doEvalute() inte DatasonnetExpression fails to detect the media type the body is set like this:
+
+
+body = new DefaultDocument<>(MessageHelper.extractBodyAsString(exchange.getMessage()), bodyMT);
+
+This only works if the current body is a String.
+If I remove the bodyMediaType attribute from the datasonnet processor in the route in the test case testReadJava(), which has a java object as body and a header that looks like this:
+
+
+/** DataSonnet
+version=2.0
+input payload application/x-java-object; DateFormat=yyyy-MM-dd
+*/
+
+
+Then this test case fails with:
+java.lang.IllegalArgumentException: Problem executing script: sjsonnet.Error: attempted to index a string with string name    at line 24 column 24 of the transformation
+ at com.datasonnet.Mapper.transform(Mapper.scala:267) at org.apache.camel.language.datasonnet.DatasonnetExpression.doEvaluate(DatasonnetExpression.java:142) at org.apache.camel.language.datasonnet.DatasonnetExpression.evaluate(DatasonnetExpression.java:87) ... 86 more

@@ -1,0 +1,52 @@
+Transactions - Ignored property Exchange.markRollbackOnlyLast
+In Camel 3.x Exchange was refactored and markRollbackOnly was changed 
+from 2.x
+
+
+    public boolean isRollbackOnly() {
+        return Boolean.TRUE.equals(getProperty(Exchange.ROLLBACK_ONLY)) || Boolean.TRUE.equals(getProperty(Exchange.ROLLBACK_ONLY_LAST));
+    }
+
+
+ to 3.x
+
+
+    public boolean isRollbackOnly() {
+        return rollbackOnly;
+    }
+
+
+Now in TransactionErrorHandler.doInTransactionTemplate() doesn't throw TransactionRollbackException, cause isRollbackOnly false.
+
+
+            protected void doInTransactionWithoutResult(TransactionStatus status) {
+                // wrapper exception to throw if the exchange failed
+                // IMPORTANT: Must be a runtime exception to let Spring regard it as to do "rollback"
+                RuntimeException rce;
+
+                // and now let process the exchange by the error handler
+                processByErrorHandler(exchange);
+
+                // after handling and still an exception or marked as rollback only then rollback
+                if (exchange.getException() != null || exchange.isRollbackOnly()) {
+
+                    // wrap exception in transacted exception
+                    if (exchange.getException() != null) {
+                        rce = RuntimeCamelException.wrapRuntimeCamelException(exchange.getException());
+                    } else {
+                        // create dummy exception to force spring transaction manager to rollback
+                        rce = new TransactionRollbackException();
+                    }
+
+                    if (!status.isRollbackOnly()) {
+                        status.setRollbackOnly();
+                    }
+
+                    // throw runtime exception to force rollback (which works best to rollback with Spring transaction manager)
+                    if (LOG.isTraceEnabled()) {
+                        LOG.trace("Throwing runtime exception to force transaction to rollback on {}",
+                                transactionTemplate.getName());
+                    }
+                    throw rce;
+                }
+            }

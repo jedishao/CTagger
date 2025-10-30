@@ -1,0 +1,78 @@
+hadoop-auth to remove jetty-server dependency
+HADOOP-17371 bumped Jetty version to 9.4.35. As part of that change, we included jetty-server in order to use a Jetty specific API to deal with a behavior change introduced by the version bump.
+
+However, that broke applications like Solr [1]. Although the exact root cause isn't clear, it is suspected that Jetty forbids loading Jetty-server classes in the web applications. More details is in [https://portail.capsana.ca/doc/9.4.5.v20170502/jetty-classloading.html]
+
+This JIRA aims to use J2EE compatible API to achieve the same behavior without introducing jetty-server.
+
+[1]
+{noformat}
+2021-03-25 00:36:05.705 WARN  (qtp2144665602-17) [   ] o.e.j.s.HttpChannel /solr/admin/metrics => java.lang.NoClassDefFoundError: org/eclipse/
+jetty/server/Response
+        at org.apache.hadoop.security.authentication.server.AuthenticationFilter.doFilter(AuthenticationFilter.java:632)
+java.lang.NoClassDefFoundError: org/eclipse/jetty/server/Response
+        at org.apache.hadoop.security.authentication.server.AuthenticationFilter.doFilter(AuthenticationFilter.java:632) ~[hadoop-auth-3.1.1.7
+.2.9.0-153.jar:?]
+        at org.apache.solr.security.HadoopAuthFilter.doFilter(HadoopAuthFilter.java:103) ~[solr-core-8.4.1.7.2.9.0-153.jar:8.4.1.7.2.9.0-153 f
+9f290366013b29e885bdb9e62ad582c5fa4f29c - jenkins - 2021-03-24 18:58:11]
+        at org.apache.solr.security.HadoopAuthPlugin.doAuthenticate(HadoopAuthPlugin.java:250) ~[solr-core-8.4.1.7.2.9.0-153.jar:8.4.1.7.2.9.0
+-153 f9f290366013b29e885bdb9e62ad582c5fa4f29c - jenkins - 2021-03-24 18:58:11]
+        at org.apache.solr.security.AuthenticationPlugin.authenticate(AuthenticationPlugin.java:88) ~[solr-core-8.4.1.7.2.9.0-153.jar:8.4.1.7.
+2.9.0-153 f9f290366013b29e885bdb9e62ad582c5fa4f29c - jenkins - 2021-03-24 18:58:11]
+        at org.apache.solr.servlet.SolrDispatchFilter.authenticateRequest(SolrDispatchFilter.java:499) ~[solr-core-8.4.1.7.2.9.0-153.jar:8.4.1
+.7.2.9.0-153 f9f290366013b29e885bdb9e62ad582c5fa4f29c - jenkins - 2021-03-24 18:58:11]
+        at org.apache.solr.servlet.SolrDispatchFilter.doFilter(SolrDispatchFilter.java:400) ~[solr-core-8.4.1.7.2.9.0-153.jar:8.4.1.7.2.9.0-15
+3 f9f290366013b29e885bdb9e62ad582c5fa4f29c - jenkins - 2021-03-24 18:58:11]
+        at org.apache.solr.servlet.SolrDispatchFilter.doFilter(SolrDispatchFilter.java:346) ~[solr-core-8.4.1.7.2.9.0-153.jar:8.4.1.7.2.9.0-15
+3 f9f290366013b29e885bdb9e62ad582c5fa4f29c - jenkins - 2021-03-24 18:58:11]
+        at org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1630) ~[jetty-servlet-9.4.31.v20200723.jar:9.4.31
+.v20200723]
+        at org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:567) ~[jetty-servlet-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:143) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.security.SecurityHandler.handle(SecurityHandler.java:602) ~[jetty-security-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v2020072
+3]
+        at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:235) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200
+723]
+        at org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1610) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v2020
+0723]
+        at org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:233) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200
+723]
+        at org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1377) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v2020
+0723]
+        at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:188) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v202007
+23]
+        at org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:507) ~[jetty-servlet-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:186) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1292) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:141) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.ContextHandlerCollection.handle(ContextHandlerCollection.java:191) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.HandlerCollection.handle(HandlerCollection.java:146) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.rewrite.handler.RewriteHandler.handle(RewriteHandler.java:322) ~[jetty-rewrite-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:127) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.Server.handle(Server.java:501) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.HttpChannel.lambda$handle$1(HttpChannel.java:383) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.HttpChannel.dispatch(HttpChannel.java:556) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:375) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:273) ~[jetty-server-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:311) ~[jetty-io-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105) ~[jetty-io-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.io.ssl.SslConnection$DecryptedEndPoint.onFillable(SslConnection.java:540) ~[jetty-io-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.io.ssl.SslConnection.onFillable(SslConnection.java:395) ~[jetty-io-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.io.ssl.SslConnection$2.succeeded(SslConnection.java:161) ~[jetty-io-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105) ~[jetty-io-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.io.ChannelEndPoint$1.run(ChannelEndPoint.java:104) ~[jetty-io-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.runTask(EatWhatYouKill.java:336) ~[jetty-util-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.doProduce(EatWhatYouKill.java:313) ~[jetty-util-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.tryProduce(EatWhatYouKill.java:171) ~[jetty-util-9.4.31.v20200723.jar:9.4.31.
+v20200723]
+        at org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.produce(EatWhatYouKill.java:135) ~[jetty-util-9.4.31.v20200723.jar:9.4.31.v20
+        at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:806) [jetty-util-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:938) [jetty-util-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at java.lang.Thread.run(Thread.java:748) [?:1.8.0_232]
+Caused by: java.lang.ClassNotFoundException: org.eclipse.jetty.server.Response
+        at org.eclipse.jetty.webapp.WebAppClassLoader.loadClass(WebAppClassLoader.java:565) ~[jetty-webapp-9.4.31.v20200723.jar:9.4.31.v20200723]
+        at java.lang.ClassLoader.loadClass(ClassLoader.java:351) ~[?:1.8.0_232]
+        ... 46 more
+{noformat}

@@ -1,0 +1,6 @@
+Harry: refactor usage of primitive long to use specialized types
+From this PR discussion: https://github.com/apache/cassandra/pull/1382#discussion_r801209270
+ 
+Currently, Harry uses primitive long types extensively (logical timestamps, operation IDs, partition descriptors, clustering descriptors, etc). These are allocated on the stack so they are performant, but they are not type-safe. There's nothing preventing an accident like trying to inflate a clustering descriptor where a partition descriptor is expected.
+ 
+To get around this, we could migrate these types to be non-primitive, with a negative impact on performance. When Value Objects arrive (with JEP 169), there may be new possibilities with different trade-offs.

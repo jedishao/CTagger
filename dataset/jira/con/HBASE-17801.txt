@@ -1,0 +1,72 @@
+Assigning dead region causing FAILED_OPEN permanent RIT that needs manual resolve 
+In Apache 1.x, there is a Assignment Manager bug when SSH and drop table happens at the same time.  Here is the sequence:
+
+(1). The Region Server hosting the target region is dead, SSH (server shutdown handler) offlined all regions hosted by the RS: 
+{noformat}
+2017-02-20 20:39:25,022 ERROR org.apache.hadoop.hbase.master.MasterRpcServices: Region server rs01.foo.com,60020,1486760911253 reported a fatal error:
+ABORTING region server rs01.foo.com,60020,1486760911253: regionserver:60020-0x55a076071923f5f, quorum=zk01.foo.com:2181,zk02.foo.com:2181,zk3.foo.com:2181, baseZNode=/hbase regionserver:60020-0x1234567890abcdf received expired from ZooKeeper, aborting
+Cause:
+org.apache.zookeeper.KeeperException$SessionExpiredException: KeeperErrorCode = Session expired
+	at org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher.connectionEvent(ZooKeeperWatcher.java:613)
+	at org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher.process(ZooKeeperWatcher.java:524)
+	at org.apache.zookeeper.ClientCnxn$EventThread.processEvent(ClientCnxn.java:534)
+	at org.apache.zookeeper.ClientCnxn$EventThread.run(ClientCnxn.java:510)
+2017-02-20 20:42:43,775 INFO org.apache.hadoop.hbase.master.handler.ServerShutdownHandler: Splitting logs for rs01.foo.com,60020,1486760911253 before assignment; region count=999
+2017-02-20 20:43:31,784 INFO org.apache.hadoop.hbase.master.RegionStates: Transition {783a4814b862a6e23a3265a874c3048b state=OPEN, ts=1487568368296, server=rs01.foo.com,60020,1486760911253} to {783a4814b862a6e23a3265a874c3048b state=OFFLINE, ts=1487648611784, server=rs01.foo.com,60020,1486760911253}
+{noformat}
+
+(2). Now SSH goes through each region and check whether it should be re-assigned (at this time, SSH do check whether a table is disabled/deleted).  If a region needs to be re-assigned, it would put into a list.  Since at this time, the troubled region is still on the table that is enabled, it will be in the list.
+
+{noformat}
+2017-02-20 20:43:31,795 INFO org.apache.hadoop.hbase.master.handler.ServerShutdownHandler: Reassigning 999 region(s) that rs01.foo.com,60020,1486760911253 was carrying (and 0 regions(s) that were opening on this server)
+{noformat}
+
+(3). Now, disable and delete table come in and also try to offline the region; since the region is already offlined, the deleted table just removes the region from meta and in-memory.
+{noformat}
+2017-02-20 20:43:32,429 INFO org.apache.hadoop.hbase.master.HMaster: Client=b_kylin/null disable t1
+2017-02-20 20:43:34,275 INFO org.apache.hadoop.hbase.zookeeper.ZKTableStateManager: Moving table t1 state from DISABLING to DISABLED
+2017-02-20 20:43:34,276 INFO org.apache.hadoop.hbase.master.procedure.DisableTableProcedure: Disabled table, t1, is completed.
+2017-02-20 20:43:35,624 INFO org.apache.hadoop.hbase.master.HMaster: Client=b_kylin/null delete t1
+2017-02-20 20:43:36,011 INFO org.apache.hadoop.hbase.MetaTableAccessor: Deleted [{ENCODED => fbf9fda1381636aa5b3cd6e3fe0f6c1e, NAME => 't1,,1487568367030.fbf9fda1381636aa5b3cd6e3fe0f6c1e.', STARTKEY => '', ENDKEY => '\x00\x01'}, {ENCODED => 783a4814b862a6e23a3265a874c3048b, NAME => 't1,\x00\x01,1487568367030.783a4814b862a6e23a3265a874c3048b.', STARTKEY => '\x00\x01', ENDKEY => ''}]
+{noformat}
+
+(4). However, SSH calls Assignment Manager to reassign the dead region (note that the dead region is in the re-assign list SSH collected and we don't re-check again)
+{noformat}
+
+2017-02-20 20:43:52,725 WARN org.apache.hadoop.hbase.master.AssignmentManager: Assigning but not in region states: {ENCODED => 783a4814b862a6e23a3265a874c3048b, NAME => 't1,\x00\x01,1487568367030.783a4814b862a6e23a3265a874c3048b.', STARTKEY => '\x00\x01', ENDKEY => ''}
+
+{noformat}
+
+(5).  In the region server that the dead region tries to land, because the table is dropped, we could not open region and now the dead region is in FAILED_OPEN, which is in permanent RIT state. 
+
+{noformat}
+2017-02-20 20:43:52,861 INFO org.apache.hadoop.hbase.regionserver.RSRpcServices: Open t1,\x00\x01,1487568367030.783a4814b862a6e23a3265a874c3048b.
+2017-02-20 20:43:52,865 ERROR org.apache.hadoop.hbase.regionserver.handler.OpenRegionHandler: Failed open of region=t1,\x00\x01,1487568367030.783a4814b862a6e23a3265a874c3048b., starting to roll back the global memstore size.
+java.lang.IllegalStateException: Could not instantiate a region instance.
+        at org.apache.hadoop.hbase.regionserver.HRegion.newHRegion(HRegion.java:5981)
+        at org.apache.hadoop.hbase.regionserver.HRegion.openHRegion(HRegion.java:6288)
+        at org.apache.hadoop.hbase.regionserver.HRegion.openHRegion(HRegion.java:6260)
+        at org.apache.hadoop.hbase.regionserver.HRegion.openHRegion(HRegion.java:6216)
+        at org.apache.hadoop.hbase.regionserver.HRegion.openHRegion(HRegion.java:6167)
+        at org.apache.hadoop.hbase.regionserver.handler.OpenRegionHandler.openRegion(OpenRegionHandler.java:362)
+        at org.apache.hadoop.hbase.regionserver.handler.OpenRegionHandler.process(OpenRegionHandler.java:129)
+        at org.apache.hadoop.hbase.executor.EventHandler.run(EventHandler.java:128)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+        at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.reflect.InvocationTargetException
+        at sun.reflect.GeneratedConstructorAccessor340.newInstance(Unknown Source)
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:423)
+        at org.apache.hadoop.hbase.regionserver.HRegion.newHRegion(HRegion.java:5978)
+        ... 10 more
+Caused by: java.lang.IllegalArgumentException: Need table descriptor
+        at org.apache.hadoop.hbase.regionserver.HRegion.<init>(HRegion.java:654)
+        at org.apache.hadoop.hbase.regionserver.HRegion.<init>(HRegion.java:631)
+        ... 14 more
+2017-02-20 20:43:52,866 INFO org.apache.hadoop.hbase.coordination.ZkOpenRegionCoordination: Opening of region {ENCODED => 783a4814b862a6e23a3265a874c3048b, NAME => 't1,\x00\x01,1487568367030.783a4814b862a6e23a3265a874c3048b.', STARTKEY => '\x00\x01', ENDKEY => ''} failed, transitioning from OPENING to FAILED_OPEN in ZK, expecting version 1
+{noformat}
+
+Even no one would access this dead region, the dead region in RIT would prevent balancer to run; and warnings fired that regions stuck in RIT.
+
+The issue could be resolved by restarting master, which is a good workaround, but undesirable.

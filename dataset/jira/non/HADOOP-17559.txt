@@ -1,0 +1,10 @@
+S3Guard import can OOM on large imports
+I know I'm closing ~all S3Guard issues as wontfix, but this is pressing so I'm going to do it anyway
+S3guard import of directory tree containing many, many files will OOM. Looking at the code this is going to be because
+
+import tool builds a map of all dirs imported, which as the comments note "superfluous for DDB". - cut
+DDB AncestorState tracks files as well as dirs, purely as a safety check to make sure current op doesn't somehow write a file entry above a dir entry in the same operation
+
+We've been running S3Guard for a long time, and condition #2 has never arisen.
+Propose: don't store filenames there, so memory consumption goes from O(files + dirs) to O(dirs)
+Code straightforward, can't think of any tests

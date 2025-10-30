@@ -1,0 +1,20 @@
+Fix error message handling when trying to use CLUSTERING ORDER with non-clustering column
+Imagine ck1, ck2, v columns. For "CLUSTERING ORDER ck1 ASC, v DESC" error msg will suggest that information for ck2 is missing. But if you add it it will still be wrong as "v" cannot be used. So the problem here is really about using non-clustering column rather than about not providing information about some clustering column.
+The following is example from 3.11, but the code is the same in 4.0, 4.1, trunk:
+
+
+cqlsh:k_test> CREATE TABLE test2 (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (v ASC);
+InvalidRequest: Error from server: code=2200 [Invalid query] message="Missing CLUSTERING ORDER for column ck1"
+
+cqlsh:k_test> CREATE TABLE test2 (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, v ASC);
+InvalidRequest: Error from server: code=2200 [Invalid query] message="Missing CLUSTERING ORDER for column ck2"
+
+cqlsh:k_test> CREATE TABLE test2 (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC, v ASC);
+InvalidRequest: Error from server: code=2200 [Invalid query] message="Only clustering key columns can be defined in CLUSTERING ORDER directive"
+
+We need to be sure that we return to the user the same correct error message in all three cases and it should be "Only clustering key columns can be defined in CLUSTERING ORDER directive"
+Additional information for newcomers
+
+This is where we handle the issue incorrectly as proved by the example. The easiest way to handle this issue would be to  check the key set content of clusteringOrder.
+It would be good also to add more unit tests in CreateTableValidationTest to cover different cases. 
+I suggest we create patch first for 3.11 and then we can propagate it up to the next versions.

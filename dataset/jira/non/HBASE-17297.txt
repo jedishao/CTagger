@@ -1,0 +1,23 @@
+Single Filter in parenthesis cannot be parsed correctly
+hbase(main):010:0* put 'testtable', 'row1', 'cf1:a', 'ab'
+0 row(s) in 0.1800 seconds
+
+hbase(main):011:0> scan 'testtable'
+ROW                                      COLUMN+CELL
+ row1                                    column=cf1:a, timestamp=1481538756308, value=ab
+
+hbase(main):012:0> scan 'testtable', FILTER=>"(ValueFilter(=,'binary:ab'))"
+ROW                                      COLUMN+CELL
+ row1                                    column=cf1:a, timestamp=1481538756308, value=ab
+
+hbase(main):013:0* scan 'testtable', FILTER=>"(ValueFilter(=,'binary:x') AND ValueFilter(=,'binary:y')) OR ValueFilter(=,'binary:ab')"
+ROW                                      COLUMN+CELL
+ row1                                    column=cf1:a, timestamp=1481538756308, value=ab
+
+hbase(main):014:0> scan 'testtable', FILTER=>"(ValueFilter(=,'binary:x') AND (ValueFilter(=,'binary:y'))) OR ValueFilter(=,'binary:ab')"
+ROW                                      COLUMN+CELL
+0 row(s) in 0.0100 seconds
+
+
+In the last scan, we should got a row.
+The inner cause is that the last filter is parsed incorrectly.

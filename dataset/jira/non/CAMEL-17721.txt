@@ -1,0 +1,12 @@
+MDC - custom MDC property value is fixed to first assigned value by MDCUnitOfWork
+Once value (that matches "mdc-logging-keys-pattern" from configuration) is assigned/set to MDC and gets into MDCUnitOfWorks#MDCCallback "custom" map, it cannot be changed further down in the route (at least in processor), as changed value is always overwritten at the end of processing step with originally assigned value.
+
+This breaks use-cases, when you want to assign temporary value to one MDC property to signify the value could not be retrieved during some processing steps (but can be assigned further down).
+
+For example, when you assign, for example N/A to property "someID" in processor, right after consumer at the start of route, and want to change it few steps down, it will be overwritten back to "N/A" by MDCCallback.
+
+This interacts nastily with CAMEL-17722, making custom MDC properties unusable.
+
+ 
+
+Tested in single-threaded route with no async processing.

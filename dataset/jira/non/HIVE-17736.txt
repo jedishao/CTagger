@@ -1,0 +1,17 @@
+ObjectStore transaction handling can be simplified
+There are many places in ObjectStore that do something like this:
+
+    boolean commited = false;
+   try {
+      openTransaction();
+      commited = commitTransaction();
+    } finally {
+      if (!commited) {
+        rollbackTransaction();
+      }
+    }
+
+
+We can simplify this in two ways:
+1) Create a wrapper that calls given piece of code inside the block of code above. This is similar to TransactionManager in Sentry.
+2) Create a special auto-closeable object that does the check and rollback on close.

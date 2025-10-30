@@ -1,0 +1,20 @@
+Add option to downgrade S3A rejection of Syncable to warning
+The Hadoop Filesystem Syncable API is intended to meet the requirements laid out in [StoneBraker81] Operating System Support for Database Management
+The service required from an OS buffer manager is a selectedforce out which would push the intentions list and the commit flag to disk in the proper order. Such a service is not present in any buffer manager known to us.
+It's an expensive operation -so expensive that Syncable.hsync() isn't even called on DFSOutputStream.close(). I
+Even though S3A does not manifest any data until close() is called, applications coming from HDFS may call Syncable methods and expect to them to persist data with the durability guarantees offered by HDFS.
+Since the output stream hardening of HADOOP-13327, S3A throws UnsupportedOperationException to indicate that the synchronization semantics of Syncable absolutely cannot be met. 
+As a result, applications which have been calling the Syncable APIs are finding the call failing. In the absence of exception handling to recognise that the durability semantics are being met, they fail.
+If the user and the application actually expects data to be persisted, this is the correct behaviour. The data cannot be persisted this way.
+If, however, they were calling this on HDFS more as a flush() than the full and expensive DBMS-class persistence call, then this failure is unwelcome. The applications really needs to catch the UnsupportedOperationException raised by S3A or any other FS strictly reporting failures, report the problem and perform some other means of safe data storage
+Even better, they can use hasPathCapability on the FS or hasCapability() on the stream to probe before even opening a file or trying to sync it. the hasCapability() on a stream was actually implemented in Hadooop-2.x precisely to allow applications to identify when a stream could not meet the guarantees (e.g some of the encrypted streams, file:// before HADOOP-13...)
+Until they can correct their code, I propose adding the option for s3a to downgrade
+fs.s3a.downgrade.syncable.exceptions 
+This will
+
+Log once per process at WARN
+downgrade the calls to noop()
+increment counters in S3A stats and IO stats of invocations of the Syncable methods. This will allow for stats gathering to let us identify which applications need fixing in cloud deployments
+
+Testing: copy the hsync tests but expect exceptions to be swallowed and stats to be collected
+Also: UnsupportedException text will link to this JIRA

@@ -1,0 +1,27 @@
+Remove special handling for Acid tables wherever possible
+There are various places in the code that do something like 
+
+if(acid update or delete) {
+ do something
+}
+else {
+do something else
+}
+
+
+this complicates the code and makes it so that acid code path is not properly tested in many new non-acid features or bug fixes.
+Some work to simplify this was done in HIVE-15844.
+SortedDynPartitionOptimizer has some special logic
+ReduceSinkOperator relies on partitioning columns for update/delete be UDFToInteger(RecordIdentifier) which is set up in SemanticAnalyzer.  Consequently SemanticAnalyzer has special logic to set it up.
+FileSinkOperator has some specialization.
+AbstractCorrelationProcCtx makes changes specific to acid writes setting hive.optimize.reducededuplication.min.reducer=1
+With acid 2.0 (HIVE-17089) a lot more of it can simplified/removed.
+Generally, Acid Insert follows the same code path as regular insert except that the writer in FileSinkOperator is Acid specific.
+So all the specialization is to route Update/Delete events to the right place.
+We can do the U=D+I early in the operator pipeline so that an Update is a Hive multi-insert with 1 leg being the Insert leg and the other being the Delete leg (like Merge stmt).
+The Delete events themselves don't need to be routed in any particular way if we always ship all delete_delta files for each split.  This is ok since delete events are very small and highly compressible.  What is shipped is independent of what needs to be loaded into memory.
+This would allow removing almost all special code paths.
+If need be we can also have the compactor rewrite the delete files so that the name of the file matches the contents and make it as if they were bucketed properly and use it reduce what needs to be shipped for each split.  This may help with some extreme cases where someone updates 1B rows.
+This would in particular allow DISTRIBUTE BY for update/delete
+Is this currently supported for Acid insert?
+https://cwiki.apache.org/confluence/display/Hive/LanguageManual+SortBy

@@ -1,0 +1,93 @@
+DBTokenStore fails to connect in Kerberos enabled remote HMS environment
+In setups where HMS is running as a remote process secured using Kerberos, and when {{DBTokenStore}} is configured as the token store, the HS2 Thrift API call {{GetDelegationToken}} fail with exception trace seen below. HS2 is not able to invoke HMS APIs needed to add/remove/renew tokens from the DB since it is possible that the user which is issue the {{GetDelegationToken}} is not kerberos enabled.
+
+Eg. Oozie submits a job on behalf of user "Joe". When Oozie opens a session with HS2 it uses Oozie's principal and creates a proxy UGI with Hive. This principal can establish a transport authenticated using Kerberos. It stores the HMS delegation token string in the sessionConf and sessionToken. Now, lets say Oozie issues a {{GetDelegationToken}} which has {{Joe}} as the owner and {{oozie}} as the renewer in {{GetDelegationTokenReq}}. This API call cannot instantiate a HMSClient and open transport to HMS using the HMSToken string available in the sessionConf, since DBTokenStore uses server HiveConf instead of sessionConf. It tries to establish transport using Kerberos and it fails since user Joe is not Kerberos enabled.
+
+
+I see the following exception trace in HS2 logs.
+{noformat}
+2017-08-21T18:07:19,644 ERROR [HiveServer2-Handler-Pool: Thread-61] transport.TSaslTransport: SASL negotiation failure
+javax.security.sasl.SaslException: GSS initiate failed
+        at com.sun.security.sasl.gsskerb.GssKrb5Client.evaluateChallenge(GssKrb5Client.java:211) ~[?:1.8.0_121]
+        at org.apache.thrift.transport.TSaslClientTransport.handleSaslStartMessage(TSaslClientTransport.java:94) ~[libthrift-0.9.3.jar:0.9.3]
+        at org.apache.thrift.transport.TSaslTransport.open(TSaslTransport.java:271) [libthrift-0.9.3.jar:0.9.3]
+        at org.apache.thrift.transport.TSaslClientTransport.open(TSaslClientTransport.java:37) [libthrift-0.9.3.jar:0.9.3]
+        at org.apache.hadoop.hive.thrift.client.TUGIAssumingTransport$1.run(TUGIAssumingTransport.java:52) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.thrift.client.TUGIAssumingTransport$1.run(TUGIAssumingTransport.java:49) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at java.security.AccessController.doPrivileged(Native Method) ~[?:1.8.0_121]
+        at javax.security.auth.Subject.doAs(Subject.java:422) [?:1.8.0_121]
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1657) [hadoop-common-2.7.2.jar:?]
+        at org.apache.hadoop.hive.thrift.client.TUGIAssumingTransport.open(TUGIAssumingTransport.java:49) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.metastore.HiveMetaStoreClient.open(HiveMetaStoreClient.java:488) [hive-metastore-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.metastore.HiveMetaStoreClient.<init>(HiveMetaStoreClient.java:255) [hive-metastore-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.ql.metadata.SessionHiveMetaStoreClient.<init>(SessionHiveMetaStoreClient.java:70) [hive-exec-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method) ~[?:1.8.0_121]
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62) [?:1.8.0_121]
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45) [?:1.8.0_121]
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:423) [?:1.8.0_121]
+        at org.apache.hadoop.hive.metastore.MetaStoreUtils.newInstance(MetaStoreUtils.java:1699) [hive-metastore-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.metastore.RetryingMetaStoreClient.<init>(RetryingMetaStoreClient.java:83) [hive-metastore-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.metastore.RetryingMetaStoreClient.getProxy(RetryingMetaStoreClient.java:133) [hive-metastore-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.metastore.RetryingMetaStoreClient.getProxy(RetryingMetaStoreClient.java:104) [hive-metastore-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.ql.metadata.Hive.createMetaStoreClient(Hive.java:3595) [hive-exec-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.ql.metadata.Hive.getMSC(Hive.java:3647) [hive-exec-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.ql.metadata.Hive.getMSC(Hive.java:3627) [hive-exec-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_121]
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:1.8.0_121]
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_121]
+        at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_121]
+        at org.apache.hadoop.hive.thrift.DBTokenStore.invokeOnTokenStore(DBTokenStore.java:157) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.thrift.DBTokenStore.addToken(DBTokenStore.java:74) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.thrift.TokenStoreDelegationTokenSecretManager.createPassword(TokenStoreDelegationTokenSecretManager.java:142) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.thrift.TokenStoreDelegationTokenSecretManager.createPassword(TokenStoreDelegationTokenSecretManager.java:56) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.security.token.Token.<init>(Token.java:59) [hadoop-common-2.7.2.jar:?]
+        at org.apache.hadoop.hive.thrift.DelegationTokenSecretManager.getDelegationToken(DelegationTokenSecretManager.java:109) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.thrift.HiveDelegationTokenManager$1.run(HiveDelegationTokenManager.java:123) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.thrift.HiveDelegationTokenManager$1.run(HiveDelegationTokenManager.java:119) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at java.security.AccessController.doPrivileged(Native Method) ~[?:1.8.0_121]
+        at javax.security.auth.Subject.doAs(Subject.java:422) [?:1.8.0_121]
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1657) [hadoop-common-2.7.2.jar:?]
+        at org.apache.hadoop.hive.thrift.HiveDelegationTokenManager.getDelegationToken(HiveDelegationTokenManager.java:119) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hadoop.hive.thrift.HiveDelegationTokenManager.getDelegationTokenWithService(HiveDelegationTokenManager.java:130) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hive.service.auth.HiveAuthFactory.getDelegationToken(HiveAuthFactory.java:261) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionImplwithUGI.getDelegationToken(HiveSessionImplwithUGI.java:174) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_121]
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:1.8.0_121]
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_121]
+        at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_121]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.invoke(HiveSessionProxy.java:78) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.access$000(HiveSessionProxy.java:36) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hive.service.cli.session.HiveSessionProxy$1.run(HiveSessionProxy.java:63) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at java.security.AccessController.doPrivileged(Native Method) ~[?:1.8.0_121]
+        at javax.security.auth.Subject.doAs(Subject.java:422) [?:1.8.0_121]
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1657) [hadoop-common-2.7.2.jar:?]
+        at org.apache.hive.service.cli.session.HiveSessionProxy.invoke(HiveSessionProxy.java:59) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at com.sun.proxy.$Proxy36.getDelegationToken(Unknown Source) [?:?]
+        at org.apache.hive.service.cli.CLIService.getDelegationToken(CLIService.java:589) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hive.service.cli.thrift.ThriftCLIService.GetDelegationToken(ThriftCLIService.java:254) [hive-service-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hive.service.rpc.thrift.TCLIService$Processor$GetDelegationToken.getResult(TCLIService.java:1737) [hive-service-rpc-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.hive.service.rpc.thrift.TCLIService$Processor$GetDelegationToken.getResult(TCLIService.java:1722) [hive-service-rpc-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:39) [libthrift-0.9.3.jar:0.9.3]
+        at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:39) [libthrift-0.9.3.jar:0.9.3]
+        at org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge$Server$TUGIAssumingProcessor.process(HadoopThriftAuthBridge.java:621) [hive-shims-common-2.3.0-SNAPSHOT.jar:2.3.0-SNAPSHOT]
+        at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:286) [libthrift-0.9.3.jar:0.9.3]
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142) [?:1.8.0_121]
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617) [?:1.8.0_121]
+        at java.lang.Thread.run(Thread.java:745) [?:1.8.0_121]
+Caused by: org.ietf.jgss.GSSException: No valid credentials provided (Mechanism level: Failed to find any Kerberos tgt)
+        at sun.security.jgss.krb5.Krb5InitCredential.getInstance(Krb5InitCredential.java:147) ~[?:1.8.0_121]
+        at sun.security.jgss.krb5.Krb5MechFactory.getCredentialElement(Krb5MechFactory.java:122) ~[?:1.8.0_121]
+        at sun.security.jgss.krb5.Krb5MechFactory.getMechanismContext(Krb5MechFactory.java:187) ~[?:1.8.0_121]
+        at sun.security.jgss.GSSManagerImpl.getMechanismContext(GSSManagerImpl.java:224) ~[?:1.8.0_121]
+        at sun.security.jgss.GSSContextImpl.initSecContext(GSSContextImpl.java:212) ~[?:1.8.0_121]
+        at sun.security.jgss.GSSContextImpl.initSecContext(GSSContextImpl.java:179) ~[?:1.8.0_121]
+        at com.sun.security.sasl.gsskerb.GssKrb5Client.evaluateChallenge(GssKrb5Client.java:192) ~[?:1.8.0_121]
+        ... 65 more
+{noformat}
+
+On HMS side I see a exception saying 
+
+{noformat}
+2017-08-17 11:45:13,655 ERROR org.apache.thrift.server.TThreadPoolServer: [pool-7-thread-34]: Error occurred during processing of message.
+java.lang.RuntimeException: org.apache.thrift.transport.TTransportException: DIGEST-MD5: IO error acquiring password
+{noformat}
