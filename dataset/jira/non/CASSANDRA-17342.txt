@@ -1,9 +1,0 @@
-Performance problem for node restart with incremental range repairs
-There is a performance problem when restarting cassandra for clusters doing incremental repairs with range repairs. 
-We have clusters with 16 vnodes per node, and are splitting each vnode into 100 ranges, this causes a node to take over 30 minutes to process the data stored in the system.repairs table before the node can restart. Even when we reduce this to 10 ranges per vnode this still takes 2 minutes to process. The cluster has 22 keyspaces and a rf of 3, this creates around 8100 records in the system.repairs table.
- 
-The problem seems to occur in the org.apache.cassandra.repair.consistent.RepairState class where the add method re processes the complete list, including sorting, every time a new Range is added. This leads is an exponential growth in processing time, this is demonstrated in the attached unit test.
- 
-I have created a change, that collects the data read in from the system.repairs table, in the org.apache.cassandra.repair.consistent.LocalSessions class, before processing it as a group at the end, this reduces the processing time to a couple of seconds even for the 100 range version.
- 
-This is my first attempt at changing the cassandra code, so I am in need of a mentor to help me with the process, and validate what I have done.

@@ -1,9 +1,0 @@
-CsdsService not properly synchronized with XdsClient
-Consider this code from CsdsService:
-https://github.com/grpc/grpc-java/blob/a46560e4fc9ec4771dc7824055d23f1301dc1e3d/xds/src/main/java/io/grpc/xds/CsdsService.java#L152-L155
-
-The initial issue is that `getSubscribedResourcesMetadata()` and `getCurrentVersion()` have no synchronization:
-https://github.com/grpc/grpc-java/blob/14eb3b265f84a89f5c33a90b048c4f9c2bf70286/xds/src/main/java/io/grpc/xds/ClientXdsClient.java#L1842-L1848
-https://github.com/grpc/grpc-java/blob/a46560e4fc9ec4771dc7824055d23f1301dc1e3d/xds/src/main/java/io/grpc/xds/AbstractXdsClient.java#L257-L258
-
-That is _bad_. However, the xdsClient API itself is insufficient for CSDS because those two method calls need to be atomic; even if each of those methods were thread-safe the version needs to match the resources returned.

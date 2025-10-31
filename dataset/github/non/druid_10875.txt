@@ -1,8 +1,0 @@
-Segments with ALL granularity can be killed by coordinator despite having "end" > "now - durationToRetain"
-### Affected Version
-
-0.20.0 (I believe 0.21.0 and master have same issue as well as older versions)
-
-### Description
-
-The `druid_segments` table stores the interval "end" as a string. ALL segment granularity sets that to `JodaUtils.MAX_INSTANT`. When looking for segments that have an interval end <= `now - durationToRetain` (set by operator), the query will do a compare on the "end" column. This is a string compare and since `JodaUtils.MAX_INSTANT` is `4611686018427387903` which translates to `146140482-04-24T15:36:27.903Z`, you are going to see unexpected behavior when comparing with most sane dates such as anything this year, `2021`.

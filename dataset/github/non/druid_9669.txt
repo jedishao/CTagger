@@ -1,8 +1,0 @@
-Coordinator compaction config does not respect segmentGranularity
-In druid v0.14 we set up coordinator compaction with `keepSegmentGranularity: false`. So coordinator automatically searched for a bunch of small segments and merged them into one.
-
-We upgraded to v0.17 and it seems this option has been removed. According to https://github.com/apache/druid/pull/6758#issuecomment-451004778 comment, this should be replaced by `segmentGranularity: ALL`. This option seems to be present in the compaction task but not in the coordinator [datasource compaction configuration](https://github.com/apache/druid/blob/831ec172f15ae852f1cc9510337f7afc99b39460/server/src/main/java/org/apache/druid/server/coordinator/DataSourceCompactionConfig.java#L53-L59).
-
-Coordinator still spawns the compaction tasks but each one of them has interval of one hour (e.g. `      "interval": "2020-04-09T10:00:00.000Z/2020-04-09T11:00:00.000Z"`). Our segments from realtime are also one hour. So it's not really changing anything.
-
-Somewhat related https://github.com/apache/druid/issues/7988 . But created a separate ticket to indicate that at least from my point of view this seems to be a regression.

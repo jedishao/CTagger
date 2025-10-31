@@ -1,8 +1,0 @@
-Non-transactional schema updates can interfere with Accord transaction execution
-While Accord can handle topology changes correctly it can’t handle non-transaction schema updates because those execute outside of Accord. When Accord tries to execute a transaction against the schema in the epoch the transaction is supposed to execute in then it is possible for different nodes to see different schemas when reading or writing data as part of a transaction.
-
-Dropping a needed a column or table is the most likely issue as we don't support altering column types.
-
-Because commit is async it is possible for a table or to be dropped before the writes can be propagated after it was acknowledged instead of signaling an error. While the table was dropped it's possible the client needed the error to know that the request was processed improperly or that it needed to take some other action client side.
-
-Or add table where the original coordinator can't read the table, but the recovery coordinator can and might apply different results to different replicas.

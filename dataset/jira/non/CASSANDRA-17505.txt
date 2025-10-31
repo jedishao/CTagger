@@ -1,7 +1,0 @@
-Do not call FBU.getXXXAddressAndPort in static initializers
-FBUtilities.getLocalAddressAndPort as well as FBUtilites.getBroadcastAddressAndPort may cache unexpected value when called before DatabaseDescriptor initialization. It may happen especially when the mentioned methods are used in static initializers of some classes where we have very little or no control over the time they get loaded. 
-The current situation may result in weird flakiness, where we bind to some unexpected address and then, the nodes may not be able to connect. 
-In the scope of this ticket, I'd do the following:
-1. make DatabaseDescriptor.conf field volatile
-2. refactor usages of the mentioned methods in static initializers of classes
-3. forbid using those methods before DatabaseDescriptor is initialized by throwing assertion error

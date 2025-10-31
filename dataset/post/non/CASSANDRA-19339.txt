@@ -1,8 +1,0 @@
-Make system_views.thread_pools mutable for core_pool_size and max_pool_size
-In CASSANDRA-19289, we added core_pool_size, max_pool_size and max_tasks_queued to the output of system_views.thread_pools. From operational perspective, if an operator looks into this table, it would be very handy if she is able to change these pool parameters directly on that table instead of setting that up via JMX and respective attributes / setters, to avoid context switching / not leaving shell. It would look like:
-
-{noformat}
-update system_views.thread_pools SET core_pool_size = 4, max_pool_size = 4 WHERE name = 'SecondaryIndexExecutor';
-{noformat}
-
-From the implementation point of view, this is possible to do as we have AbstractMutableVirtualTable however we would probably need to introduce some simple register for created thread pools as vtable is currently based on metrics through which executors themselves are not accessible to call setCorePoolSize or similar. 

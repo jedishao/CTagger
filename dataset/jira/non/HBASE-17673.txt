@@ -1,3 +1,0 @@
-Monitored RPC Handler not shown in the WebUI
-This issue has been fixed once in HBASE-14674. But, I noticed that almost all RS in our production environment still have this problem. Strange thing is that newly started servers seems do not affected. Digging for a while, then I realize the CircularFifoBuffer introduced by HBASE-10312 is the root cause. The RPC hander's monitoredTask only create once, if the server is flooded with tasks, RPC monitoredTask can be purged by CircularFifoBuffer, and then never visible in WebUI.
-So my solution is creating a list for RPC monitoredTask separately. It is OK to do so since the RPC handlers remain in a fixed number. It won't increase or decrease during the lifetime of the server.

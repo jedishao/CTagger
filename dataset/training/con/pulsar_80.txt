@@ -1,8 +1,0 @@
-Partitioned Consumer and Listener Threads
-I understand that Pulsar Client could and should definitely be shared among Publisher and Consumer instances to take advantage of Netty's IO threads and share them among all instances.
-
-But there seems to be an issue particularly with `PartitionedConsumerImpl` because it uses a `messageListener` to receive messages form it's internal `ConsumerImpl`s.
-
-Listener are executed in a pool of configurable size, but `PartitionedConsumerImpl` does [blocking calls](https://github.com/yahoo/pulsar/blob/master/pulsar-client/src/main/java/com/yahoo/pulsar/client/impl/PartitionedConsumerImpl.java#L303), so this is definitely a problem. If, for some reason, a `PartitionedConsumer` stops consuming messages, it will block listener threads equal to the amount of partitions it has, or maybe even more.
-
-I don't really have a solution, but we should definitely have a better approach to `PartitionedConsumerImpl`

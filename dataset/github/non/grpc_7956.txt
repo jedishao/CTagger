@@ -1,6 +1,0 @@
-grpc-netty-shaded doesn't use TCP_USER_TIMEOUT on ARMv8
-Hi, I had been running w/ the native transport and noticed it had unexpectedly switched back to NIO at some point.  After some investigation I realized the switch happened when I moved to running on ARM.  Looks like grpc-netty-shaded doesn't include the ARM artifacts.  
-
-When I switched to depending on grpc-netty rather than grpc-netty-shaded, that didn't work either at first.  When looking at profiles I found it was still using grpc-netty-shaded classes.   I found the shaded package was being brought into my dependency closure from some other dependencies I have.  I think what's happening is when I use ServerBuilder, it's discovering two NettyServerProviders on the classpath: one from grpc-netty and another from grpc-netty-shaded.   They're both the same priority and the shaded version ends up being chosen (which in turn won't work with ARM).    
-
-To summarize IIUC there's two issues: grpc-netty-shaded doesn't included ARM, and there doesn't seem to be a way to avoid using the shaded classes as long as anything brings in the shaded dependency.   I'm going to workaround the latter by directly using NettyServerBuilder rather than ServerBuilder.  

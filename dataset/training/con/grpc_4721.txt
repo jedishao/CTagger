@@ -1,9 +1,0 @@
-Audit GrpcFuture cancellation
-GrpcFuture is currently using an `interruptTask()` override to cancel the RPC.  This doesn't appear to be correct, as it is only called when `cancel(true)` is invoked on the outer Future.  There are a few problems with this:
-
-1. The Future's cancellation is not atomically set with the calls.  If any callbacks start while the future is still cancelling, they may see the call is not yet closed.
-2. The call is only cancelled when true is set.  This appears to be an incorrect interpretation of `mayInterruptIfRunning`, which is intended for tasks on an ExecutorService.  This is also different than internal RPC implementations
-3.   interruptTask() is bordering on being deprecated, and may not be available in the future
-4.  Futures can be cancelled from any thread, but ClientCall.cancel is not thread safe.   
-
-cc: @lukesandberg 

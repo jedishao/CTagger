@@ -1,9 +1,0 @@
-okhttp: Lack of outbound fairness
-As [reported on StackOverflow](https://stackoverflow.com/questions/71898610/grpc-java-rpcs-blocking-each-other), a large upload blocks small RPCs from progressing. Specifically C++ was the server.
-
-OutboundFlowController loops over the current streams, always starting with the first stream:
-https://github.com/grpc/grpc-java/blob/a0da558b122d41c9057039114a158128f8e6cd03/okhttp/src/main/java/io/grpc/okhttp/OutboundFlowController.java#L169
-
-The order is defined by a hash map, but the key is the stream id so ordering will not be very random and later RPCs are likely to be starved. If a small stream is behind a big stream, it will be starved. While the current logic doesn't make this easy, conceptually a quick solution would be to start at a random index. The ideal solution would be to have a queue of streams-with-data-to-send with a quantum for maximum chunk size for any stream (assuming there is more than one stream in the queue).
-
-This was hit with the C++ server. The C++ server will give out enough stream window for an entire message to be received, so only the connection window will come into play. Other servers may not trigger this ugly case as often, although for all servers the current behavior surely would be unfair.

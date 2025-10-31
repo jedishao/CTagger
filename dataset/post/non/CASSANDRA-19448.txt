@@ -1,6 +1,0 @@
-CommitlogArchiver only has granularity to seconds for restore_point_in_time
-Commitlog archiver allows users to backup commitlog files for the purpose of doing point in time restores.  The [configuration file|https://github.com/apache/cassandra/blob/trunk/conf/commitlog_archiving.properties] gives an example of down to the seconds granularity but then asks what whether the timestamps are microseconds or milliseconds - defaulting to microseconds.  Because the [CommitLogArchiver uses a second based date format|https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/db/commitlog/CommitLogArchiver.java#L52], if a user specifies to restore at something at a lower granularity like milliseconds or microseconds, that means that the it will truncate everything after the second and restore to that second.  So say you specify a restore_point_in_time like this:
-restore_point_in_time=2024:01:18 17:01:01.623392
-it will silently truncate everything after the 01 seconds.  So effectively to the user, it is missing updates between 01 and 01.623392.
-
-This appears to be a bug in the intent.  We should allow users to specify down to the millisecond or even microsecond level. If we allow them to specify down to microseconds for the restore point in time, then it may internally need to change from a long.

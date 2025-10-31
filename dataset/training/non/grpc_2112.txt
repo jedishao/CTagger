@@ -1,4 +1,0 @@
-Server-side cancellation does not promptly inform server
-Both `context.isCancelled()` and `call.isCancelled()` only begin returning `true` _after_ `ServerCallListener.onCancel()` (in `ServerCallImpl.ServerStreamListenerImpl`, but that is already on application callback thread via `ServerImpl.JumpToApplicationThreadServerStreamListener`). That means callers must return from a listener event before the values can change _and_ they will have already seen `onCancel()`, which makes them broken for the very case they are there to solve.
-
-If `!status.isOk()`, both the context and the call should return `true` as soon as the transport notifies the server. How to do that seems it will be a bit awkward with the current code organization.

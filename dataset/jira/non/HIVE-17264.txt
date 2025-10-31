@@ -1,9 +1,0 @@
-BaseSemanticAnalyzer.escapeSQLString escapes \0 unsafely
-Currently escapeSQLString() converts the null character to \0. If there are numerical values after the null character, calling unescapeSQLString() can treat the resulting value as an octal literal.
-Example:
-"FOOBAR_EVENT\u00002017"
-unescapeSQLString converts \u0000 to the null character. Calling escapeSQLString() on that resulting string currently gives
-"FOOBAR_EVENT\02017"
-A third call of unescapeSQLString() will then see \020 and convert it to 0x10.
-This is an issue for the Hbase connector where key values are processed twice (I'm unfamiliar with the hive codebase so I don't know why) and so the connector gets the wrong key value if it's formatted like the example.
-In my version I've changed escapeSQLString to replace the null character with '\u0000' instead of '\0' and that seems to have fixed the issue, but I don't know if that might break anything else.

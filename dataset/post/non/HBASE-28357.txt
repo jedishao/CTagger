@@ -1,9 +1,0 @@
-MoveWithAck#isSuccessfulScan for Region movement should use Region End Key for limiting scan to one region only.
-Based on recent learnings and improvements in HBase Canary in HBASE-28204 and HBASE-28356, I noticed that MoveWithAck.java class also uses similar code to check that Region is online after region move.
-
- 
-{code:java}
-  private void isSuccessfulScan(RegionInfo region) throws IOException {
-    Scan scan = new Scan().withStartRow(region.getStartKey()).setRaw(true).setOneRowLimit()
-      .setMaxResultSize(1L).setCaching(1).setFilter(new FirstKeyOnlyFilter()).setCacheBlocks(false); {code}
-If the region, that was moved, is empty then MoveWithAck#isSuccessfulScan() will end up scanning next region key space, which is not the intent. If multiple regions in sequence are empty, then this could create too many unnecessary scans.  By setting withStopRow(endKeyOfRegion, false) for the scan object, this scan can be bound to only single region.

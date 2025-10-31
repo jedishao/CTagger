@@ -1,9 +1,0 @@
-XdsNameResolver unsubscribes from old route before subscribing to new route
-`cleanUpRouteDiscoveryState()` runs `cancelXdsResource()` for the old route:
-https://github.com/grpc/grpc-java/blob/486b8ba67f914f7f46f3549b48abe2c1ea2cc5d8/xds/src/main/java/io/grpc/xds/XdsNameResolver.java#L664-L675
-
-That means on each LdsUpdate when the route is unchanged, we'll throw away caches for the route and then re-subscribe.
-
-I believe this problem only affects RouteConfigs. Clusters have an [incremented ref count](https://github.com/grpc/grpc-java/blob/486b8ba67f914f7f46f3549b48abe2c1ea2cc5d8/xds/src/main/java/io/grpc/xds/XdsNameResolver.java#L768) before the decrements. Endpoints start a new ClusterResolverLbState [within GracefulSwitchLb](https://github.com/grpc/grpc-java/blob/486b8ba67f914f7f46f3549b48abe2c1ea2cc5d8/xds/src/main/java/io/grpc/xds/ClusterResolverLoadBalancer.java#L130), which will let the new policy start (and create the watch) before shutting down the old  (and canceling the watch).
-
-Since we're currently moving this code for A74, I think we'll just make sure the new code doesn't have this issue.

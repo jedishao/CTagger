@@ -1,9 +1,0 @@
-camel-djl - The image classification predictors should not round the resulted probabilities
-Currently, both {{ZooImageClassificationPredictor}} and {{CustomImageClassificationPredictor}} transform the resulted {{Classifications}} objects into maps of {{Map<String, Float>}}. However, the data type of {{Classifications}} is a map from the class name to probability with {{String -> Double}}, thus the precision is lost in the mapping.
-
-It doesn't seem to be a good transformation in the following points:
-- Sometimes rounding from double to float loses not only precision but also accuracy of the value
-- The [Softmax|https://en.wikipedia.org/wiki/Softmax_function] function used in the classification problems expects the probabilities to sum up to {{1.0}}, but due to the loss of accuracy above the premise seems to be broken to a large extent.
-- Finally, probably it's just better to simply return the {{Classifications}} object rather than converting it to a {{Map}} because the class already provides useful methods such as {{best()}}, {{topK()}}, etc. so that downstream components can easily extract the conclusions from the output out of the box; if we just provide it as a map, downstream is required to craft some manual calculations upon the result every time.
-
-In conclusion, I think it's better for {{ZooImageClassificationPredictor}} and {{CustomImageClassificationPredictor}} to simply return the output as {{Classifications}}.

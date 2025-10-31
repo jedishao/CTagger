@@ -1,4 +1,0 @@
-CREATE INDEX execute HMS out-of-transaction listener calls inside a transaction
-The problem with CREATE INDEX is that it calls a CREATE TABLE operation inside the same CREATE INDEX transaction. During listener calls, there are some listeners that should run in an out-of-transaction context, for instance, Sentry blocks the HMS operation until the DB log notification is processed, but if the transaction has not finished, then the out-of-transaction listener will block forever (or until a read-time out happens).
-
-A fix would be to add a parameter to the out-of-transaction listener that alerts the listener if HMS is in an active transaction. If so, then is up to the listener plugin to return immediately and avoid blocking the HMS operation.

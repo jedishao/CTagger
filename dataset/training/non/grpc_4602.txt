@@ -1,6 +1,0 @@
-Audit code path when GrpcLB is not in ClassPath
-We need to guarantee that if GRPCLB addresses are provided by the NameResolver, they won't make it to a LB instance other than GRPCLB, as other LB types will not properly ignore the GRPCLB addresses and try to route traffic to them and never realize all such RPCs will fail.
-
-Today it seems AutoConfiguredLoadBalancerFactory will throw, which isn't probably appropriate because it will cause the channel to go into panic mode. Instead, it could choose a LB instance that fails all RPCs with a clear Status. Or it could consider stripping the LB addresses and continue like normal, passing the non-LB addresses to the PF/RR/etc. If there are no non-LB addresses, maybe it could still fail RPCs with a clear status saying gRPCLB is required for this target.
-
-We should also add a comment to the GRPCLB Attribute Key noting that LB policies won't receive it.

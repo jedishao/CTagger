@@ -1,9 +1,0 @@
-GRPCLB: drop doesn't work with wait-for-ready RPCs
-`GrpclbLoadBalancer` may drop (fail immediately) certain RPCs in order to shed load for the servers. It is done by returning a `PickResult.withError()`. However, `withError()` only fail fail-fast (which is default) RPCs, and will buffer wait-for-ready RPCs, because it is meant to signal transient failures. "Dropped" RPCs should fail immediately regardless of wait-for-ready, and should not be conflated with transient failures.
-
-Options considered:
-1. Add `createFailingSubchannel()` to `Helper` to be used for dropped RPCs. This would work but feel awkward, because nearly all methods on `Subchannel` don't apply to the failing Subchannel.
-2. Add a new type of `PickResult` in addition to `withError()`, and will fail the RPC regardless of its wait-for-ready option. This sounds like a better option.
-
-
-/cc @ejona86 

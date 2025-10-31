@@ -1,6 +1,0 @@
-Prevent setting timestamp of delta operations the same as previous value's
-In delta operations, Increment and Append. We will read current value first and then write the new whole result into WAL as the type of Put with current timestamp. If the previous ts is larger than current ts, we will use the previous ts.
-
-If we have two Puts with same TS, we will ignore the Put with lower sequence id. It is not friendly with versioning. And for replication we will drop sequence id  while writing to peer cluster so in the slave we don't know what the order they are being written. If the pushing is disordered, the result will be wrong.
-
-We can set the new ts to previous+1 if the previous is not less than now.

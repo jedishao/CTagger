@@ -1,7 +1,0 @@
-Potential deadlock condition in Appenderator
--  `persistExecutor` submits mergeAndPush job to `pushExecutor` [here](https://github.com/druid-io/druid/blob/master/server/src/main/java/io/druid/segment/realtime/appenderator/AppenderatorImpl.java#L482) after completing the persist. 
-- `pushExecutor` submits abandon segment job to `persistExecutor` [here](https://github.com/druid-io/druid/blob/master/server/src/main/java/io/druid/segment/realtime/appenderator/AppenderatorImpl.java#L908) 
-
-`pushExecutor` uses a blocking queue with 1 capacity and if `persistExecutor` either uses Synchronous Queue (which it does in case of KafkaIndexTask) or queue with capacity 1 then deadlock can happen. This would be more common in the new KafkaIndexingService which will support incremental handoff as handoffs (which leads to abandoning of segments) for a sequence can interleave with pushing of segments for another sequence.
-
-This can probably be fixed by not using [pushBarrier](https://github.com/druid-io/druid/blob/master/server/src/main/java/io/druid/segment/realtime/appenderator/AppenderatorImpl.java#L909) instead using some form of Atomic counter to keep track of existing pushes before abandoning segments. Any thoughts ?

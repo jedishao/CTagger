@@ -1,6 +1,0 @@
-Index.Group is incorrectly unregistered from the SecondaryIndexManager
-An Index.Group is removed from the SecondaryIndexManager during unregisterIndex if it contains no indexes after the index is unregistered.
-
-The code for removing the group uses the wrong key to remove the group from the indexGroups map. It is using the group object rather than the group name that is used as the key in the map.
-
-This means that the group is not added again if a new index is registered using that group. The knock on from this is that the StorageAttachedIndexGroup unregisters itself from the Tracker when it has no indexes after an index is removed. The same group with no tracker is then used for new indexes. This group then receives no notifications about sstable or memtable updates. The ultimate side effect of this is that, memtables are not released, resulting in memory leaks and indexes are not updated with new sstables and their associated index files.

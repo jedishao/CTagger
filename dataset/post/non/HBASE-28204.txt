@@ -1,7 +1,0 @@
-Region Canary can take lot more time If any region (except the first region) starts with delete markers
-In CanaryTool.java, Canary reads only the first row of the region using [Get|https://github.com/apache/hbase/blob/23c41560d58cc1353b8a466deacd02dfee9e6743/hbase-server/src/main/java/org/apache/hadoop/hbase/tool/CanaryTool.java#L520C33-L520C33] for any region of the table. Canary uses [Scan with FirstRowKeyFilter for table scan|https://github.com/apache/hbase/blob/23c41560d58cc1353b8a466deacd02dfee9e6743/hbase-server/src/main/java/org/apache/hadoop/hbase/tool/CanaryTool.java#L530] If the said region has empty start key (This will only happen when region is the first region for a table)
-
-With -[HBASE-16091|https://issues.apache.org/jira/browse/HBASE-16091]- RawScan was [implemented|https://github.com/apache/hbase/blob/master/hbase-server/src/main/java/org/apache/hadoop/hbase/tool/CanaryTool.java#L519-L534] to improve performance for regions which can have high number of delete markers. Based on currently implementation, [RawScan is only enabled|https://github.com/apache/hbase/blob/23c41560d58cc1353b8a466deacd02dfee9e6743/hbase-server/src/main/java/org/apache/hadoop/hbase/tool/CanaryTool.java#L519] if region has empty start-key (or region is first region for the table).
-
-RawScan doesn't work for rest of the regions in the table except first region. Also If the region has all the rows or majority of the rows with delete markers, Get Operation can take a lot of time. This is can cause timeouts for CanaryTool.
-

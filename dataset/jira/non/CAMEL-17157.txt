@@ -1,9 +1,0 @@
-AggregateProcessor, TimeoutMap Restoration and Cluster
-Hi,
-Consider an aggregate having completion timeout and backed by a persistent repository (e.g. JBCAggregationRepository). When route starts, there is an invocation to     restoreTimeoutMapFromAggregationRepositonry()  (AggregatorProcessor, line 877). That method consists in :
-
-getting all keys of pending aggregations (i.e. aggregation that were not yet completed when route stopped)
-iterate on each key to get each row and put row timeout into timeoutmap.
-That works fine when there is only one instance, but if you deploy on a cluster, things may go wrong.
-As a matter of fact, if one instance is warming-up while another is modifying repository, warm-up may fail (NullPointerException) : that occurs when a row has been deleted (because aggregation was completed by a running instance) between 1. and 2. 
-One can imagine another less noisy failure : a row is created by a running instance between 1. and 2. . Then warming-up does not complain, but the new row will not be included in timeout map, which may be an issue if the instance that inserted that row into the repo is stopped before completion (timeout will not be detected).

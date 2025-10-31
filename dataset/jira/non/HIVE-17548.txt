@@ -1,9 +1,0 @@
-ThriftCliService reports inaccurate the number of current sessions in the log message
-Currently ThriftCliService uses an atomic integer to keep track of the number of currently open sessions. It reports it through the following two log messages:
-
-2017-09-18 04:14:31,722 INFO [HiveServer2-Handler-Pool: Thread-729979]: org.apache.hive.service.cli.thrift.ThriftCLIService: Opened a session: SessionHandle [99ec30d7-5c44-4a45-a8d6-0f0e7ecf4879], current sessions: 345
-2017-09-18 04:14:41,926 INFO [HiveServer2-Handler-Pool: Thread-717542]: org.apache.hive.service.cli.thrift.ThriftCLIService: Closed session: SessionHandle [f38f7890-cba4-459c-872e-4c261b897e00], current sessions: 344
-
-
-This assumes that all sessions are closed or opened thru Thrift API. This assumption isn't correct because sessions may be closed by the server such as in case of timeout. Therefore, such log messages tends to over-report the number of open sessions.
-In order to accurately report the number of outstanding sessions, session manager should be consulted instead.

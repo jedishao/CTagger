@@ -1,8 +1,0 @@
-Databricks may return 503 response during the cluster startup 
-Recently, Databricks started returning 503 response during the cluster startup though we currently retry only on 502 error in `QueryExecutors#onDelta`. 
-
-```
-2023-04-07 07:15:50 WARNING: not retrying; stacktrace does not match pattern '\Q[Databricks][DatabricksJDBCDriver](500593) Communication link failure. Failed to connect to server. Reason: HTTP retry after response received with no Retry-After header, error: HTTP Response code: 503, Error message: Unknown.': [java.lang.RuntimeException: java.sql.SQLException: [Databricks][DatabricksJDBCDriver](500593) Communication link failure. Failed to connect to server. Reason: com.databricks.client.jdbc42.internal.apache.http.conn.ConnectTimeoutException: Connect to dbc-***.cloud.databricks.com:443 [dbc-***.cloud.databricks.com/3.128.237.223] failed: Connection timed out.
-```
-
-We found DML may also return 503 and the query may remotely succeed in #14391. It means just retrying on 503 may lead to an unexpected test result. e.g. An INSERT statement might be executed twice and the subsequent assertion fails. 

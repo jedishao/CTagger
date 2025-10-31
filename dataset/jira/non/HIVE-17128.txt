@@ -1,4 +1,0 @@
-Operation Logging leaks file descriptors as the log4j Appender is never closed
-HIVE-16061 and HIVE-16400 changed operation logging to use the Log4j2 RoutingAppender to automatically output the log for each query into each individual operation log file. As log4j does not know when a query is finished it keeps the OutputStream in the Appender open even when the query completes. The stream holds a file descriptor and so we leak file descriptors. Note that we are already careful to close any streams reading from the operation log file.
-Fix
-To fix this we use a technique described in the comments of LOG4J2-510 which uses reflection to close the appender. The test in TestOperationLoggingLayout will be extended to check that the Appender is closed.

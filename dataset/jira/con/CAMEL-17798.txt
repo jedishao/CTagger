@@ -1,9 +1,0 @@
-camel-kafka - Offsets resetting when another Camel node is shutdown
-After upgrading to 3.15.0 we began to experience lots of situations where offsets on topics get reset when one of the JVMs running Camel gets shut down (Camel is shut down gracefully, we have at least 2 JVMs running in parallel that consume events from topics for the same consumer group). This is a problem when a topic contains millions of events because we need to retrieve all of them again. We have auto commit enabled and do not use any manual commit management.
-
-This what gets logged on a running JVM when we shut down the other one:
-{noformat}
-2022-03-15 09:59:40.285 [Camel (camel-1) thread #17 - KafkaConsumer[*masked*]] INFO  org.apache.kafka.clients.consumer.internals.Fetcher.handleOffsetOutOfRange:1413 - [Consumer clientId=consumer-*masked*-40, groupId=*masked*] Fetch position FetchPosition{offset=0, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[*masked*:9093 (id: 2 rack: O66)], epoch=643}} is out of range for partition *masked*-3, resetting offset 
-
-2022-03-15 09:59:40.519 [kafka-coordinator-heartbeat-thread | *masked*] INFO  org.apache.kafka.clients.consumer.internals.SubscriptionState.maybeSeekUnvalidated:398 - [Consumer clientId=consumer-*masked*-40, groupId=*masked*] Resetting offset for partition *masked*-3 to position FetchPosition{offset=2193522, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[*masked*:9093 (id: 2 rack: O66)], epoch=643}}.{noformat}
-This does not occur on 3.14.2. I believe this may be related to commit manager introduced in 3.15.0, but I have not managed to confirm it yet.

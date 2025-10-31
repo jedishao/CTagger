@@ -1,7 +1,0 @@
-HBase Thrift2 OutOfMemory
-We have a HBase Thrift2 server deployed on Windows, basically the physical view looks like:
-QueryEngine <==> HBase Thrift2 <==> HBase cluster
-Here QueryEngine is a C++ application, and HBase cluster is a about 50-nodes HBase cluster (CDH 5.3.3, namely Hbase version 0.98.6).
-Our Thrift2 Java options looks like:
--server -Xms4096m -Xmx4096m -XX:MaxDirectMemorySize=8192m -XX:+HeapDumpOnOutOfMemoryError -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:G1HeapRegionSize=4M -XX:InitiatingHeapOccupancyPercent=40 -XX:+PrintAdaptiveSizePolicy -XX:+PrintPromotionFailure -Dhbase.log.dir=d:\vhayu\thrift2\log -verbose:gc -XX:+PrintGCDateStamps -XX:+PrintGCTimeStamps -XX:+PrintGCDetails -XX:PrintFLSStatistics=1 -Xloggc:log_gc.log -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=200M -Dhbase.log.file=hbase-thrift2.log  -Dhbase.home.dir=D:\vhayu\thrift2\hbase0.98 -Dhbase.id.str=root -Dlog4j.info -Dhbase.root.logger=INFO,DRFA -cp "d:\vhayu\thrift2\hbase0.98*;d:\vhayu\thrift2\conf" org.apache.hadoop.hbase.thrift2.ThriftServer -b 127.0.0.1 -f framed start
-The phenomenon of  the issue is that after some time running, Thrift2 sometimes reports OOM and heap dump file (.hprof) file was generated. The consequence of this will always trigger high latency form HBase cluster.

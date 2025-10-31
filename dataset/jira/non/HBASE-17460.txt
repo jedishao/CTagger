@@ -1,7 +1,0 @@
-enable_table_replication can not perform cyclic replication of a table
-The enable_table_replication operation is broken for cyclic replication of HBase table as we compare all the properties of column families (including REPLICATION_SCOPE). 
-Below is exactly what happens:
-1.  Running "enable_table_replication 'table1'  " opeartion on first cluster will set the REPLICATION_SCOPE of all column families to peer id '1'. This will also create a table on second cluster where REPLICATION_SCOPE is still set to peer id '0'.
-2. Now when we run "enable_table_replication 'table1'" on second cluster, we compare all the properties of table (including REPLICATION_SCOPE_, which obviously is different now. 
-I am proposing a fix for this issue where we should avoid comparing REPLICATION_SCOPE inside HColumnDescriotor::compareTo() method, especially when replication is not already enabled on the desired table.
-I have made that change and it is working. I will submit the patch soon.

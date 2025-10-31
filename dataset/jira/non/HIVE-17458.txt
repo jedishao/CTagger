@@ -1,5 +1,0 @@
-VectorizedOrcAcidRowBatchReader doesn't handle 'original' files
-VectorizedOrcAcidRowBatchReader will not be used for original files.  This will likely look like a perf regression when converting a table from non-acid to acid until it runs through a major compaction.
-With Load Data support, if large files are added via Load Data, the read ops will not vectorize until major compaction.  
-There is no reason why this should be the case.  Just like OrcRawRecordMerger, VectorizedOrcAcidRowBatchReader can look at the other files in the logical tranche/bucket and calculate the offset for the RowBatch of the split.  (Presumably getRecordReader().getRowNumber() works the same in vector mode).
-In this case we don't even need OrcSplit.isOriginal() - the reader can infer it from file path... which in particular simplifies OrcInputFormat.determineSplitStrategies()

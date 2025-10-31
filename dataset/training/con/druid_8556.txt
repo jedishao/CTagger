@@ -1,8 +1,0 @@
-Pre-touch segments needed for queries on Historicals to not waste time in processing threads on disk I/O
-When a Historical has much more segments on local disks than the memory available (typically, on "cold" Historicals with old data), a large part of query processing might be disk I/O pulling segment data into memory.  This reduces the utilization of processing threads, which are currently recommended to be configured in a thread-per-core manner on Historicals. We don't preempt queries which are blocked in disk I/O because we have synchronous query processing architecture.
-
-We can disaggregate query processing and disk I/O by pre-touching the segments and the dimensions that are going to be needed for the query, and thus initiating disk I/O, while the query is still in the queue waiting for CPU resources for the query processing.
-
-If the query queue is so long that we risk that pre-touched memory will be evicted before the time comes for this query to be processed, we can initiate the pre-touch at a certain "checkpoint" in the queue, say, when there are just N (10, 100, etc.) queries ahead in the queue. It should be balanced with the I/O latency because the pre-touch just before starting the actual processing may not help much to disaggregate disk I/O latency from the processing.
-
-FYI @nishantmonu51 

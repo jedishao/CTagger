@@ -1,8 +1,0 @@
-camel-core - EIPs with thread pools vs reactive engine
-EIPs that support thread pools for parallel processing such as splitter, wire-tap etc uses a JDK thread pool. The default sized thread pool in Camel has a backlog of 1000 slots, so the pools has capacity to process tasks as they come.
-And in case a pool is full then they by default allows to steal the caller thread to run the task.
-However this model has some flaws now
-a) The EIPs are going parallel and then the task is executed on current thread via caller runs (blocking)
-b) The other rejections discard, discard oldest, (abort) will cause problems as the task has an exchange callback that should be called to continue that inflight exchange
-For (a) it adds complexity and we have a bug such as CAMEL-16829
-For EIPs then we should consider not allowing custom rejections, and only have a default behaviour that is if a task is rejected then the exchange fails. Or we can add a strategy that will block (with timeout) until a slot is free.

@@ -1,8 +1,0 @@
-S3A DeleteOperation to parallelize POSTing of bulk deletes
-Once the need to update the DDB tables is removed, we can't go from a single POSTed delete at a time to posting a large set of bulk delete operations in parallel.
-The current design is to support incremental update of S3Guard tables, including handling partial failures. Not a problem anymore.
-This will significantly improve delete() performance on directory trees with many many children/descendants, as it goes from a sequence of children/1000 POSTs to parallel writes. As each file deleted is still throttled, we will be limited to 3500 deletes/second with throttling, so throwing a large pool of workers at the problem would be counter-productive and potentially cause problems for other applications trying to write down the same directory tree. But we can do better than one-POST at a time.
-Proposed
-
-if parallel delete is off: no limit
-parallel delete is on, limit #of parallel to 3000/page-size: you'll never have more updates pending than the write limit of a single shard.

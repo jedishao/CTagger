@@ -1,8 +1,0 @@
-CatalogReplicaMode.LOAD_BALANCE introduces a client dependency on the active master
-This only a 2.x releases, and only usages of MetaTableAccessor. It's hard to trace all of the overloads of the scanMeta method in there, but it is at the very least exposed to clients via RegionLocator.getAllRegionLocations().
-
-The code in AsyncTable and normal ConnectionImplementation meta scans (i.e. looking up a single location) both use a CatalogReplicaLoadBalanceSelector which fetches the meta locations from the ConnectionRegistry. Those do not have a dependency on master unless you define the RpcConnectionRegistry to hit master.
-
-The way MetaTableAccessor works is to call getMetaTable(conn) to get an HTable, then table.getDescriptor() and parses the getRegionReplication() method. The call to getDescriptor() hits the active HMaster.
-
-We should fix MetaTableAccessor to use the same connection registry based lookup of meta replicas.

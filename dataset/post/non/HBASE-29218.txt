@@ -1,7 +1,0 @@
-Reduce calls to Configuration#get() in decompression path
-Part of a series of changes from me dedicated to improving decompression speed (HBASE-29123, HBASE-29135, HBASE-29193). Use of the {{org.apache.hadoop.conf.Configuration}} class to look up values is not super fast. It's fine most of the time, but in a very hot code path, it takes up noticeable CPU time.
-
-{{ByteBuffDecompressor}} 's are pooled and reused to avoid garbage collection churn. This means that sometimes their settings are not right for the block they're being asked to decompress. To handle this, before every decompression action, we call {{ByteBuffDecompressor#reinit(Configuration)}}, so it can pull settings from the Configuration in preparation for the decompression it's about to do. The 
-{{Configuration#get()}} inside {{reinit()}} happens once per block, even though the settings it deals with are consistent across an entire table. This uses a lot of CPU cycles unnecessarily. I've attached two flamegraphs from RegionServers at my company that do a heavy amount of decompression. One was taken from a period of notable slowness for that server, and one was taken randomly at a "normal" time. In both profiles, {{reinit()}} accounts for 2-3% of CPU time.
-
-Because the settings used by a {{ByteBuffDecompressor}} don't actually change within a table, we can pull the settings it needs from a {{Configuration}} when opening the HFile, and then not check again. Attached is a PR to do so, which will save us 2-3% of our CPU cycles in decompression-heavy workloads.

@@ -1,9 +1,0 @@
-[RSGROUP] Master hosting regions messes up rsgroup calculation
-In master branch, the Master poses as a RegionServer but it only carries hbase:meta by default. This messes up rsgroup assignment checks  and calculations at an extreme when there is only one server in the default group and this server is Master. A move of all servers but this 'fake' RegionServer looks safe because there is a server to pick up all regions shed by the moved servers.
-All non-hbase:meta regions are dropped and put into the FAILED_OPEN state.
-There are a few things up here.
-
-Master looks like a RegionServer in much of the system when we are asking for the list of online servers but it is not a full-blown regionserver; the balancer and/or AM are giving out misleading views on the cluster at least as far as rsgroup is concernd.
-rsgroup shouldn't have to do assignment calculations; it should have API to ask the AM to do it for it.
-
-I'm filing this blocker and then putting it aside for now. AM is being redone currently. Will come back when it has been rejiggered. At a minimum, can add check to rsgroup but preferrably can add necessary API to AM for rsgroup to use.

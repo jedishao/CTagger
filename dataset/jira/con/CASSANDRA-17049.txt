@@ -1,4 +1,0 @@
-Fix rare NPE caused by batchlog replay / node decomission races
-Batchlog replay process collects addresses of the hosts that have been hinted to, so it can flush hints for them to disk before confirming deletion of the replayed batches. If a node has been decommissioned during replay, however, when the time comes to flush the hints at the very end of replay, {{StorageService.getHostIdForEndpoint()}} will return {{null}} for its address, which will, down the line, cause {{HintsCatalog::get()}} to be invoked with a {{null}} host id argument, causing an NPE.
-
-The simple fix is to check returned host ids for addresses for nulls, and collect hinted host ids instead of hinted addresses.

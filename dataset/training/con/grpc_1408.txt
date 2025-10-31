@@ -1,8 +1,0 @@
-Potential risk of deadlock from calling listeners under locks
-Methods of `ClientTransport.Listener` and `ServerTransportListener` are usually called under a lock. The biggest reason for locking is to guarantee the ordering of multiple methods on the same listener.
-
-However, these listeners usually call into channel layer code, and may in turn acquire locks from there, which forms a `transport lock -> channel lock` lock order. On the other hand, when channel layer calls into transport layer, it's possible to form a `channel lock -> transport lock` lock order, which makes deadlock possible.
-
-It's unlikely an issue today because there is an implicit rule today that channel layer will not hold any lock while calling into transport. However, as the code base grows, it will become harder to keep track of such requirement.
-
-A possible solution is to always schedule listener calls on a serialized executor, with the cost of a thread, so that listener order can be guaranteed without the need of locking. There may be better options.

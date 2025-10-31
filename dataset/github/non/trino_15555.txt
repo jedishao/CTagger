@@ -1,5 +1,0 @@
-Null constant expression predicate is pushed down to connectors
-For the following query: `SELECT * FROM orders where orderkey = null`, the pushed down constraint in `applyFilter()` is `Constraint[summary=ALL, expression=null::boolean]`.
-The predicate is not removed by `io.trino.sql.planner.iterative.rule.RemoveTrivialFilters` because of an implicit coercion `CAST(null AS boolean)`. This `cast` is removed in the translation (`SqlToConnectorExpressionTranslator#visitCast`) and not pushed down to connectors.
-
-**UPDATE:** https://github.com/trinodb/trino/commit/dc40577adf880872cea36bb5dbb01a28ce0e086a#diff-413a9982c9b147a0a0960135375b72bc8e750b36116b39e0e1d886f28734c3b6 mitigated the issue but didn't fix it completely. Reproducing the issue now requires a bit more complex predicates such as `SELECT * FROM nation WHERE nationkey = null AND regionkey = 4`.

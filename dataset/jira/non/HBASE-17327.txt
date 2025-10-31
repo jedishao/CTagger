@@ -1,7 +1,0 @@
-Allow for lazy connection / BufferedMutator creation
-The SpoolingBufferedMutatorImpl solution (HBASE-17018) solved the use-case when an existing HBase connection stalls out due to HBase being down, or other transient issues.
-We have a remaining issue that our service will not start up if it cannot initially connect to HBase.
-This can be solved by letting the SpoolingBufferedMutator create the wrapped BufferedMutatorImpl later, but the problem has already occurred: we already have to have a connection in order to create a BufferedMutator to begin with.
-It would be good to be able to initiate a connection and then have a way for multiple users to wait for the connection to succeed before using it.
-I'm thinking perhaps create a LazyConnection interface that extends the Connection interface. It would have an additional waitFor(long timeout, TimeUnit unit) method where clients can wait for the connection to be established before they start using the connection.
-Or perhaps the ConnectionFactory can have a createLazyConnection method.

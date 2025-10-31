@@ -1,9 +1,0 @@
-Poor performance of RPriorityBlockingQueue
-We are using a `RPriorityBlockingQueue` as our core task storage. Tasks are added and pulled by several worker instances simultaneously. Tasks are prioritized, i.e. they have a comparator that determines their order in the queue. The queue will regularly increase to a size around 100000 elements.
-
-We noticed that the performance of adding elements is quite poor in general. For instance, adding 50000 elements to the queue takes around 4 minutes, while adding the same number of elements to a `RBlockingQueue` only takes about 5 seconds.
-
-We recognize that the underlying Redis data structure is a list, and you have to do a binary search on each insert, which is O(log n). However, 4 minutes for 50000 elements seems _really slow_ even if you have to do a binary search.
-
-Is such a poor performance expected? Can we improve the performance somehow? Are there better-performing alternatives to a `RPriorityBlockingQueue`?
-This is quite a showstopper for us at the moment, as the queue processing takes far too much time compared with the actual processing of the tasks.

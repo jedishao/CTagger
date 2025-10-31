@@ -1,6 +1,0 @@
-Thrift Server 1 uses different QOP settings than RPC and Thrift Server 2 and can easily be misconfigured so there is no encryption when the operator expects it.
-As of HBASE-14400 the setting hbase.thrift.security.qop was unified to behave the same as the general HBase RPC protection. However, this only happened for the Thrift2 server. The Thrift server found in the thrift package (aka Thrift Server 1) still hard codes the old configs of 'auth', 'auth-int', and 'auth-conf'.
-Additionally, these Quality of Protection (qop) settings are used only by the SASL transport. If a user configures the HBase Thrift Server to make use of the HTTP transport (to enable doAs proxying e.g. for Hue) then a QOP setting of 'privacy' or 'auth-conf' won't get them encryption as expected.
-We should
-1) update hbase-thrift/src/main/.../thrift/ThriftServerRunner to rely on SaslUtil to use the same 'authentication', 'integrity', 'privacy' configs in a backward compatible way
-2) also have ThriftServerRunner warn when both hbase.thrift.security.qop and hbase.regionserver.thrift.http are set, since the latter will cause the former to be ignored. (users should be directed to hbase.thrift.ssl.enabled and related configs to ensure their transport is encrypted when using the HTTP transport.)

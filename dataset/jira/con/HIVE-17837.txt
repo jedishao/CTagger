@@ -1,5 +1,0 @@
-Explicitly check if the HoS Remote Driver has been lost in the RemoteSparkJobMonitor
-Right now the RemoteSparkJobMonitor implicitly checks if the connection to the Spark remote driver is active. It does this everytime it triggers an invocation of the Rpc#call method (so any call to SparkClient#run).
-There are scenarios where we have seen the RemoteSparkJobMonitor when the connection to the driver dies, because the implicit call fails to be invoked (see HIVE-15860).
-It would be ideal if we made this call explicit, so we fail as soon as we know that the connection to the driver has died.
-The fix has the added benefit that it allows us to fail faster in the case where the RemoteSparkJobMonitor is in the QUEUED / SENT state. If its stuck in that state, it won't fail until it hits the monitor timeout (by default 1 minute), even though we already know the connection has died. The error message that is thrown is also a little imprecise, it says there could be queue contention, even though we know the real reason is that the connection was lost.

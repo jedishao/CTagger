@@ -1,7 +1,0 @@
-Improve Magic Committer Performance
-Magic committer tasks can be slow because every file created with overwrite=false triggers a HEAD (verify there's no file) and a LIST (that there's no dir). And because of delayed manifestations, it may not behave as expected.
-ParquetOutputFormat is one example of a library which does this.
-we could fix parquet to use overwrite=true, but (a) there may be surprises in other uses (b) it'd still leave the list and (c) do nothing for other formats call
-Proposed: createFile() under a magic path to skip all probes for file/dir at end of path
-Only a single task attempt Will be writing to that directory and it should know what it is doing. If there is conflicting file names and parts across tasks that won't even get picked up at this point. Oh and none of the committers ever check for this: you'll get the last file manifested (s3a) or renamed (file)
-If we skip the checks we will save 2 HTTP requests/file.

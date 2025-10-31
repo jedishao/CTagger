@@ -1,9 +1,0 @@
-ITestS3ADeleteFilesOneByOne. testBulkRenameAndDelete OOM: Direct buffer memory
-on a test setup with bytebuffer, the parallel zero-byte file create phase OOMed
-fs.s3a.fast.upload.buffer = "bytebuffer" [core-site.xml]
-fs.s3a.fast.upload.active.blocks = "8" [core-site.xml]
-fs.s3a.multipart.size = "32M" [core-site.xml]
-Root cause: bytebuffer is being allocated on block creation, so every empty file took up 32MB of off-heap storage only for this to be released unused in close()
-If this allocation was postponed until the first write(), then empty files wouldn't need any memory allocation. Do the same on-demand creation for byte arrays and filesystem would also have benefits.
-this has implications for  HADOOP-17195, which has abfs using a fork of the buffering code 
-changing the code there to be on-demand would be a good incentive for s3a to adopt

@@ -1,6 +1,0 @@
-Consider deduplicating exception field of ResultOrException for multi rquest
-HBASE-17387 and HBASE-17408 tried to cover the following scenario:
-The application is doing multi requests with Increments (e.g. 15K increments in a single RPC). When this RPC takes longer than RPC timeout, the following RPC(s) would get ~15K exceptions due to nonce collisions, resulting in large response size which leads to OOME.
-Currently the String form of individual exception is serialized in exception field of ResultOrException (see Client.proto) for each Action (see RSRpcServices#doNonAtomicRegionMutation()). This turns out to be wasteful - the stack trace would be repeated as many times as the number of Increments which encounter nonce collision.
-We should dedup the exceptions in the response by, e.g. embedding a map of ordinal to serialized exception trace in RegionActionResult.
-Exception field of ResultOrException would be able to reference the ordinal of the exception, resulting in savings of response size.

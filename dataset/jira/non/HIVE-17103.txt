@@ -1,7 +1,0 @@
-HIVE-14251 severely impacts backward compatibility of UNION ALL queries
-HIVE-14251 looks like it changed behavior of type conversion during UNION ALL queries, where types that are of different primitive groups (date, string, numeric, binary, boolean) cannot be unioned together with implicit conversions, and requires an explicit type cast to the desired type.
-That HIVE-14251 breaks backward compatibility is spelled out in the release notes. However I'm wondering if this was the right fix - this has quite a big impact on the usability of UNION ALL.
-Some alternative suggestions:
-1. Should we have simply not fixed HIVE-14251? While almost all DBMSs recommend users to use explicit casts, a lot of people just rely on implicit casting (if supported), and then do explicit casting if they want something other than the default behavior. This might have been one of the times the user would want to use explicit casts to override the default Hive behavior.
-2. Try to specifically fix the case for HIVE-14251 (union behavior of date, numeric). I was actually surprised union of date and numeric values worked, because when I originally did DATE type I tried to make sure DATE was not convertible to anything except string/timestamp. For example I don't think you can actually explicitly cast DATE to INT. We could try to make this particular implicit union conversion invalid (as well as any others we feel may not ).
-cc aihuaxu mohitsabharwal ctang.ma ashutoshc aravindgopal sershe as these are the names I've seen on HIVE-14251, as well as related Jira HIVE-16050

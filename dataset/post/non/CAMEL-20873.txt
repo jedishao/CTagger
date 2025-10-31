@@ -1,8 +1,0 @@
-camel-platform-http-vertx: Responses may not complete if exceptions are thrown in VertxPlatformHttpSupport.writeResponse
-In VertxPlatformHttpSupport.writeResponse, the only exception that is handled is when fallback type conversion fails on the message body:
-
-https://github.com/apache/camel/blob/4621c36131a32fa340e6ab5975126d207a104fe5/components/camel-platform-http-vertx/src/main/java/org/apache/camel/component/platform/http/vertx/VertxPlatformHttpSupport.java#L179-L205
-
-However, it can potentially happen that other parts of processing the response, such as adding HTTP headers, can fail and cause an exception. In this case, the Vert.x promise is left unfulfilled and thus the response may not complete correctly.
-
-It is probably better to wrap all of the writeResponse method code in a try / catch block so the promise can be correctly set in a failed state.

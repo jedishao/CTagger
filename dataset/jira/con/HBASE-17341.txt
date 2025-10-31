@@ -1,6 +1,0 @@
-Add a timeout during replication endpoint termination
-In ReplicationSource#terminate(), a Future is obtained from ReplicationEndpoint#stop().  Future.get() is then called, but can potentially hang there if something went wrong in the endpoint stop().
-
-Hanging there has serious implications, because the thread could potentially be the ZK event thread (e.g. watcher calls ReplicationSourceManager#removePeer() -> ReplicationSource#terminate() -> blocked).  This means no other events in the ZK event queue will get processed, which for HBase means other ZK watches such as replication watch notifications, snapshot watch notifications, even RegionServer shutdown will all get blocked.
-
-The short term fix addressed here is to simply add a timeout for Future.get().  But the severe consequences seen here perhaps suggest a broader refactoring of the ZKWatcher usage in HBase is in order, to protect against situations like this.

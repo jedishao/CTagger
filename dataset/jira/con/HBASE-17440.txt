@@ -1,8 +1,0 @@
-[0.98] Make sure DelayedClosing chore is stopped as soon as an HConnection is closed
-We're seeing many issue with run-away ZK client connection in long running app servers. 10k or more send or event threads are happening frequently.
-
-While I looked around in the code I noticed that DelayedClosing closing is not immediately ended when an HConnection is closed, when there's an issue with HBase or ZK and client reconnect in a tight loop, this can lead temporarily to very many threads running. These will all get cleaned out after at most 60s, but during that time a lot of threads can be created.
-
-The fix is a one-liner. We'll likely file other issues soon.
-
-Interestingly branch-1 and beyond do not have this chore anymore, although - at least in branch-1 and later - I still see the ZooKeeperAliveConnection.

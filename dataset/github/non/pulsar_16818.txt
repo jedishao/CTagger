@@ -1,8 +1,0 @@
-[Java clients] Consumer should not try to establish a connection to the broker within its constructor
-Java Pulsar Consumer should not try to establish a connection to the broker within its constructor.
-
-Instead, it should delay attempting to do so until the first time `receive()` is invoked. At the moment it's hard to spin up an application if Pulsar is temporary unreachable. The `subscribe()` call blocks until it successfully connects, or throws exceptions. The async alternative, `subscribeAsync()` won't complete until the connection is established. The result is that the application can crash or fail to come up if Pulsar is temporary unreachable during boot time.
-
-As an alternative, the `Consumer` should expose explicit `connect()` and `connectAsync()` functions, for users to manually establish the connection. A property could be used to maintain backwards compatibility, like `delayEstablishingConnectionUntilNeeded`, with a default of false, so that existing code continues to work fine.
-
-In the context of reactive streams, it's particularly important that everything happens lazily when the stream is collected, not when it's generated.

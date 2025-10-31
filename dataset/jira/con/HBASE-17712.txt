@@ -1,8 +1,0 @@
-Remove/Simplify the logic of RegionScannerImpl.handleFileNotFound
-It is introduced in HBASE-13651 and the logic became much more complicated after HBASE-16304 due to a dead lock issue. It is really tough as sequence id is involved in and the method we called is used to serve secondary replica originally which does not handle write.
-
-In fact, in 1.x release, the problem described in HBASE-13651 is gone. Now we will write a compaction marker to WAL before deleting the compacted files. We can only consider a RS as dead after its WAL files are all closed so if the region has already been reassigned the compaction will fail as we can not write out the compaction marker.
-
-So theoretically, if we still hit FileNotFound exception, it should be a critical bug which means we may loss data. I do not think it is a good idea to just eat the exception and refresh store files. Or even if we want to do this, we can just refresh store files without dropping memstore contents. This will also simplify the logic a lot.
-
-Suggestions are welcomed.

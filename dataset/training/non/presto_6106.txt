@@ -1,4 +1,0 @@
-Describing a table is slow for mysql connector
-Describing a mysql table takes several 10s of seconds in my test environment. Digging in I found that `JdbcMetadata::listTableColumns()` retrieves the columns of **all** tables in the catalog that I was querying instead of only retrieving the tables with the given prefix (see [here](https://github.com/prestodb/presto/blob/master/presto-base-jdbc/src/main/java/com/facebook/presto/plugin/jdbc/JdbcMetadata.java#L123-L130)).
-
-The `JdbcMetadata::listTableColumns()` should return columns for the tables with the given name prefix so I was thinking of changing the `JdbcClient::getTableNames()` to add a `@Nullable String tableNamePrefix` parameter and do a prefix search instead of getting all the tables as it does now. @electrum what do you think?

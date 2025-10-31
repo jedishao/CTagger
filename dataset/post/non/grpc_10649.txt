@@ -1,8 +1,0 @@
-Modifying the Netty HTTP/2 transport pipeline
-Hello! I have a use case where we'd like to tunnel gRPC traffic through an unusual transport, and I'm trying to identify an appropriate place to make that happen. Specifically, we're considering using a WebSocket as a transport for TLS-encrypted HTTP/2 (gRPC) traffic where we'd use binary WebSocket frames to "wrap" TLS packets (or chunks of packets). Please let me acknowledge that this is at least a little gross, and is largely for Science™.
-
-Given full access to the Netty `ChannelInitializer`, I would implement our weird transport by adding some WebSocket handlers "below" the `SslHandler` in the pipeline. I don't see a way to do that through any public interface right now, though (but as discussed in https://github.com/netty/netty/discussions/13687, we may be able to use a feature coming in Netty 4.1.101 to modify the pipeline). I'm wondering if there are other "approved" ways of achieving a similar effect, though. I've taken a look at the proxy detection system, but I don't think that would do quite what we need since the server channel would also need to know how to handle WebSocket frames.
-
-In the absolute worst case, I recognize that I could just fork the entire Netty HTTP/2 transport and customize the pipeline there, and I could also build an entirely new WebSocket transport, but is there a convenient place to do this kind of thing that I'm just overlooking?
-
-Thanks kindly!

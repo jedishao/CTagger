@@ -1,5 +1,0 @@
-Concurrent ADD COLUMN operation in Raptor
-When we perform `ALTER TABLE ADD COLUMN` operation in a Raptor table concurrently, it may fail because Raptor doesn't use any lock for `columnId` when inserting metadata of new column:
-https://github.com/prestodb/presto/blob/master/presto-raptor/src/main/java/com/facebook/presto/raptor/RaptorMetadata.java#L446
-
-`addColumn` method is not synchronized, in a concurrent environment `columnId` may exist when `dao.insertColumn` method is called. Given that there may be multiple coordinators, I think we may just use optimistic locking and try to insert column in a loop.

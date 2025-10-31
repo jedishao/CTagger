@@ -1,4 +1,0 @@
-Fix race in CollectionVirtualTableAdapter
-{{buildDataRangeIterator}} in {{CollectionVirtualTableAdapter}} uses parallel streams, this requires the inner map in {{partitionMap}} to be concurrent, otherwise we could lose rows. This reproduces in {{CollectionVirtualTableAdapterTest}} when run on JDK21 where several threads are actually used when calling {{StreamSupport.stream(..., true)}}. It also reproduces in real scenarios on JDK11 when there are more entries in {{data.spliterator()}}
-
-I doubt we gain much by having this use parallel streams, we should rewrite it to be a simple for loop.

@@ -1,8 +1,0 @@
-Ensure snitches always defer to ClusterMetadata
-Internally, C* always uses {{ClusterMetadata}} as the source of topology information when calculating data placements, replica plans etc and as such the role of the snitch has been somewhat reduced. 
-
-Sorting and comparison functions as provided by specialisations like {{DynamicEndpointSnitch}} are still used, but the snitch should only be responsible for providing the DC and rack for a new node when it first joins a cluster.
-
-Aside from initial startup and registration, snitch implementations should always defer to {{{}ClusterMetadata{}}}, for DC and rack otherwise there is a risk that the snitch config drifts out of sync with TCM and output from tools like {{nodetool ring}} and {{gossipinfo}} becomes incorrect.
-
-A complication is that topology is used when opening connections to peers as certain internode connection settings are variable at the DC level, so at the time of connecting we want to check the location of the remote peer. Usually, this is available from {{{}ClusterMetadata{}}}, but in the case of a brand new node joining the cluster nothing is known a priori. The current implementation assumes that the snitch will know the location of the new node ahead of time, but in practice this is often not the case (though with variants of {{PropertyFileSnitch}} it _should_ be), and the remote node is temporarily assigned a default DC. This is problematic as it can cause the internode connection settings which depend on DC to be incorrectly set. Internode connections are long lived and any established while the DC is unknown (potentially with incorrect config) will persist indefinitely. This particular issue is not directly related to TCM and is present in earlier versions.
