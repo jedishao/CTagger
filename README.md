@@ -6,7 +6,7 @@
 Both the dataset and the fine-tuned model used in our experiments are publicly available on Zenodo.
 - **Dataset**
 
-    Includes 10,000 bug reports (from GitHub and Jira) in .txt format, annotated for concurrency-related content.
+    Includes 10,920 bug reports (from GitHub and Jira) in .txt format, annotated for concurrency-related content.
 
     📥 Download: https://zenodo.org/records/17490237
 
