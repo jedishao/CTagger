@@ -12,6 +12,6 @@ Both the dataset and the fine-tuned model used in our experiments are publicly a
 
 - **Fine-tuned Model (CTagger)**
 
-    The best-performing configuration (CodeBERT+ALL) fine-tuned on Dataset_Git.
+    The best-performing configuration (CodeBERT+ALL).
 
     📥 Download: https://zenodo.org/records/17490237
