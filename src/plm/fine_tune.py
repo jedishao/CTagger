@@ -1,5 +1,7 @@
 import os
 import json
+import shutil
+
 import torch
 import argparse
 import random
@@ -124,10 +126,13 @@ def main():
         tokenized_test_dataset.set_format("torch", columns=["input_ids", "attention_mask", "label"])
 
         output_dir = f"./results/{pattern}"
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
         os.makedirs(output_dir, exist_ok=True)
 
         training_args = TrainingArguments(
             output_dir=output_dir,
+            overwrite_output_dir=True,
             evaluation_strategy="epoch",
             save_strategy="epoch",
             save_total_limit=1,
