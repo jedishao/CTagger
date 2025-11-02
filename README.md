@@ -7,7 +7,7 @@ This repository provides the resources and instructions for reproducing the expe
 
 ## 📦 Datasets and Trained Models
 
-Both the dataset and the fine-tuned model used in our experiments are publicly available on **Zenodo**.
+Both the dataset and the fine-tuned model used in our experiments are publicly available on Zenodo.
 
 ### 🗂️ Dataset
 Includes **10,920 bug reports** (from GitHub and Jira) in `.txt` format, annotated for concurrency-related content.  
@@ -20,6 +20,10 @@ The best-performing configuration **(CodeBERT + ALL linguistic patterns)**,
 fine-tuned on `Dataset_Git` and validated on `Dataset_Jira` and `Dataset_Post`.
 
 📥 **Download:** [https://zenodo.org/records/17490237](https://zenodo.org/records/17490237)
+
+### 📊 Full Experimental Results
+
+All experimental results are available in the results/ directory.
 
 ---
 
