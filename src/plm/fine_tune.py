@@ -152,7 +152,7 @@ def main():
 
         trainer.train()
         eval_results = trainer.evaluate()
-        save_best_model(eval_results, f"./temp/{pattern}", pattern, model_name)
+        save_best_model(eval_results, f"./temp/{pattern}", pattern, args.model)
 
     print("\n✅ All pattern combinations have been trained!\n")
 
