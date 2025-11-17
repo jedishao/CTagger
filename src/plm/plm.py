@@ -17,7 +17,7 @@ def load_data_from_folder(folder, label, data_list, file_names=None, pattern=Non
                 report_text = file.read()
             data_list.append({"text": report_text, "label": label})
             if file_names is not None:
-                file_names.append(f"{pattern}/{filename}")  # 保留父目录信息方便区分
+                file_names.append(f"{pattern}/{filename}")
 
 
 def compute_metrics(labels, preds):
